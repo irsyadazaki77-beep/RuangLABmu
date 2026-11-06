@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   TrendingUp,
   ImageDown,
@@ -7,6 +8,7 @@ import {
   BookOpenCheck,
   Calculator,
   FileText,
+  Sparkles,
 } from 'lucide-react';
 import {
   DataPointMultiAxis,
@@ -17,6 +19,7 @@ import {
 } from '../utils/scienceEngine';
 import { labSound } from '../utils/soundEngine';
 import { openPrintableAcademicReport } from '../utils/academicReportExporter';
+import { CircularGaugeMeter } from './ui/LabInstruments';
 
 interface AnalyticsAndWorksheetPanelProps {
   records: ExperimentRecord[];
@@ -102,6 +105,9 @@ export const AnalyticsAndWorksheetPanel: React.FC<
   const [selectedDatasetKey, setSelectedDatasetKey] =
     useState<string>('newton-force-acc');
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(
+    null
+  );
   const chartCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Worksheet & Quiz state
@@ -164,6 +170,8 @@ export const AnalyticsAndWorksheetPanel: React.FC<
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const mouseX = (e.clientX - rect.left) * scaleX;
+    const relX = e.clientX - rect.left;
+    const relY = e.clientY - rect.top;
 
     const pts = activeConfig.points;
     if (pts.length === 0) return;
@@ -185,8 +193,14 @@ export const AnalyticsAndWorksheetPanel: React.FC<
       }
     });
 
-    if (closestIdx !== hoverIdx) {
-      setHoverIdx(closestIdx);
+    setHoverIdx(closestIdx);
+    if (closestIdx !== null) {
+      setTooltipPos({
+        x: Math.min(rect.width - 190, Math.max(12, relX + 12)),
+        y: Math.max(12, relY - 56),
+      });
+    } else {
+      setTooltipPos(null);
     }
   };
 
@@ -595,50 +609,104 @@ export const AnalyticsAndWorksheetPanel: React.FC<
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
+        <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-950">
           <canvas
             ref={chartCanvasRef}
             data-testid="multi-axis-regression-canvas"
             width={720}
             height={280}
             onPointerMove={handleCanvasPointerMove}
-            onPointerLeave={() => setHoverIdx(null)}
+            onPointerLeave={() => {
+              setHoverIdx(null);
+              setTooltipPos(null);
+            }}
             className="w-full h-[260px] sm:h-[280px] block cursor-crosshair"
           />
+
+          {/* Floating Glassmorphic HTML Tooltip on Mouse Hover */}
+          <AnimatePresence>
+            {hoverIdx !== null && activeConfig.points[hoverIdx] && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92, y: 4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 4 }}
+                transition={{ duration: 0.14 }}
+                style={{
+                  left: tooltipPos ? `${tooltipPos.x}px` : 'auto',
+                  top: tooltipPos ? `${tooltipPos.y}px` : '12px',
+                  right: tooltipPos ? 'auto' : '12px',
+                }}
+                className="pointer-events-none absolute z-20 rounded-xl border border-sky-400/50 bg-slate-900/95 px-3 py-2 text-xs text-white shadow-xl"
+              >
+                <div className="flex items-center justify-between gap-3 font-mono text-[11px] font-bold text-sky-400">
+                  <span>Uji #{hoverIdx + 1} · {activeConfig.points[hoverIdx].label}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300">
+                    X = {activeConfig.points[hoverIdx].x}
+                  </span>
+                </div>
+                <div className="mt-1 grid grid-cols-2 gap-2 font-mono text-[11px] tabular-nums">
+                  <div className="text-slate-300">
+                    Y1: <strong className="text-white">{activeConfig.points[hoverIdx].y1}</strong>
+                  </div>
+                  <div className="text-amber-300">
+                    Y2: <strong className="text-white">{activeConfig.points[hoverIdx].y2}</strong>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* Regression Statistical Summary Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-          <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-md p-3">
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              Persamaan Regresi Linier
-            </div>
-            <div className="mt-1 font-mono font-bold text-sm text-emerald-700 dark:text-emerald-400 tabular-nums">
-              {regression.equationString}
-            </div>
+        {/* Regression Statistical Summary Strip + R² CircularGaugeMeter Ring */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-1 items-stretch">
+          <div className="md:col-span-4 flex items-center justify-center">
+            <CircularGaugeMeter
+              label={`Linearitas R² (${regression.rSquared.toFixed(4)})`}
+              value={regression.rSquared * 100}
+              min={0}
+              max={100}
+              unit="%"
+              precision={1}
+              color={regression.rSquared >= 0.95 ? '#10B981' : '#0EA5E9'}
+              badgeText={regression.rSquared >= 0.95 ? 'Sangat Presisi!' : undefined}
+            />
           </div>
-          <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-md p-3">
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              Koefisien Determinasi (R²)
+
+          <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Persamaan Regresi Linier
+              </div>
+              <div className="mt-1 font-mono font-bold text-sm text-emerald-700 dark:text-emerald-400 tabular-nums">
+                {regression.equationString}
+              </div>
+              {regression.rSquared >= 0.95 && (
+                <span className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                  <Sparkles className="w-3 h-3" /> Sangat Presisi! (R² ≥ 0.95)
+                </span>
+              )}
             </div>
-            <div className="mt-1 font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
-              {regression.rSquared.toFixed(4)}
+            <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Rata-Rata (Mean X / Y1)
+              </div>
+              <div className="mt-1 font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
+                {regression.meanX} / {regression.meanY}
+              </div>
+              <span className="mt-1.5 text-[11px] font-mono text-slate-400">
+                Gradien m = {regression.slopeM}
+              </span>
             </div>
-          </div>
-          <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-md p-3">
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              Rata-Rata (Mean X / Y1)
-            </div>
-            <div className="mt-1 font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
-              {regression.meanX} / {regression.meanY}
-            </div>
-          </div>
-          <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-md p-3">
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              Simpangan Baku (σ_Y1)
-            </div>
-            <div className="mt-1 font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
-              ±{regression.stdDevY}
+            <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Simpangan Baku (σ_Y1)
+              </div>
+              <div className="mt-1 font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
+                ±{regression.stdDevY}
+              </div>
+              <span className="mt-1.5 text-[11px] font-mono text-slate-400">
+                Intersep c = {regression.interceptC}
+              </span>
             </div>
           </div>
         </div>
@@ -650,7 +718,10 @@ export const AnalyticsAndWorksheetPanel: React.FC<
             <button
               key={pt.label}
               type="button"
-              onMouseEnter={() => setHoverIdx(i)}
+              onMouseEnter={() => {
+                setHoverIdx(i);
+                setTooltipPos(null);
+              }}
               onMouseLeave={() => setHoverIdx(null)}
               onClick={() => {
                 labSound.playStep();
@@ -666,6 +737,63 @@ export const AnalyticsAndWorksheetPanel: React.FC<
             </button>
           ))}
         </div>
+
+        {/* Animated Recent Recorded Experiment Rows Preview */}
+        {records.length > 0 && (
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                Log Pengukuran Terbaru ({records.length} Data Tercatat)
+              </span>
+              <span className="font-mono text-[11px] text-sky-600 dark:text-sky-400">
+                Sinkronisasi Real-Time
+              </span>
+            </div>
+            <div className="overflow-x-auto max-h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/90 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                    <th className="py-1.5 px-2.5">ID & Waktu</th>
+                    <th className="py-1.5 px-2.5">Eksperimen</th>
+                    <th className="py-1.5 px-2.5">Koordinat (X, Y1, Y2)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono tabular-nums">
+                  {records.slice(0, 5).map((rec) => (
+                    <motion.tr
+                      key={rec.id}
+                      initial={{
+                        opacity: 0,
+                        x: -16,
+                        backgroundColor: 'rgba(14, 165, 233, 0.25)',
+                      }}
+                      animate={{
+                        opacity: 1,
+                        x: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0)',
+                      }}
+                      transition={{ duration: 0.35 }}
+                      className="text-slate-700 dark:text-slate-300"
+                    >
+                      <td className="py-1.5 px-2.5 whitespace-nowrap">
+                        <span className="font-semibold text-sky-600 dark:text-sky-400">
+                          {rec.id}
+                        </span>{' '}
+                        · {rec.timestamp}
+                      </td>
+                      <td className="py-1.5 px-2.5 truncate max-w-[180px] font-sans">
+                        {rec.experimentTitle}
+                      </td>
+                      <td className="py-1.5 px-2.5 whitespace-nowrap">
+                        X:{rec.numericX ?? '-'} | Y1:{rec.numericY1 ?? '-'} | Y2:{rec.numericY2 ?? '-'}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Right 5 Cols: Interactive Worksheet (LKS) & Auto-Graded Science Quiz */}

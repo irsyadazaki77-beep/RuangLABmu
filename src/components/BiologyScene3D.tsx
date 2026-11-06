@@ -495,11 +495,15 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   }, [remoteCursors]);
 
   return (
-    <div className="relative w-full h-[450px] rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner">
-      <div ref={mountRef} className="w-full h-full cursor-crosshair" />
+    <div className="relative w-full h-[480px] sm:h-[520px] rounded-xl overflow-hidden bg-slate-950 border border-slate-800/90 shadow-inner">
+      <div
+        ref={mountRef}
+        data-testid="biology-simulation-canvas"
+        className="w-full h-full cursor-crosshair"
+      />
 
       {/* 3D Mode Label Badge */}
-      <div className="absolute top-3 left-3 bg-slate-900/85 backdrop-blur-xs border border-slate-700/70 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-200 flex items-center gap-2">
+      <div className="pointer-events-none absolute bottom-3 left-3 bg-slate-900/95 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-200 flex items-center gap-2">
         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
         <span>
           {mode === 'photosynthesis-ingenhousz' && 'Aparatus Ingenhousz 3D · Fotobiologi'}

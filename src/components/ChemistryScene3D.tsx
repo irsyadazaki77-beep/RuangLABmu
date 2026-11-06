@@ -991,15 +991,15 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-slate-800 bg-[#0B1120]">
+    <div className="relative overflow-hidden rounded-xl border border-slate-800/90 bg-[#0B1120]">
       <div
         ref={mountRef}
         data-testid="chemistry-simulation-canvas"
-        className="w-full h-[340px] sm:h-[380px] block cursor-grab active:cursor-grabbing"
+        className="w-full h-[460px] sm:h-[520px] block cursor-grab active:cursor-grabbing"
       />
 
-      {/* Top-Left 3D Chemistry Status Badge */}
-      <div className="pointer-events-none absolute top-3 left-3 rounded-md border border-slate-700 bg-[#0F172A] px-3 py-2 text-xs shadow-md">
+      {/* Bottom-Left 3D Chemistry Status Badge */}
+      <div className="pointer-events-none absolute bottom-14 left-3 rounded-lg border border-slate-700/90 bg-[#0F172A]/95 px-3 py-2 text-xs shadow-md">
         <div className="font-mono text-[11px] font-semibold text-emerald-400">
           {params.mode === 'thermo-calorimetry'
             ? `KALORIMETER 3D · T = ${(params.initialTempC + metrics.deltaTempC * reactionProgress).toFixed(1)} °C`
@@ -1018,11 +1018,11 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
       {/* Bottom-Right Companion 2D Quantitative Curve PiP */}
       {showMiniCurve && !hudCollapsed && (
-        <div className="pointer-events-none absolute top-3 right-3 hidden md:block overflow-hidden rounded-md border border-slate-700 bg-[#0F172A] shadow-lg">
+        <div className="pointer-events-none absolute bottom-14 right-3 hidden xl:block overflow-hidden rounded-lg border border-slate-700/90 bg-[#0F172A] shadow-lg">
           <canvas
             ref={miniChartRef}
-            width={255}
-            height={128}
+            width={235}
+            height={116}
             className="block"
           />
         </div>

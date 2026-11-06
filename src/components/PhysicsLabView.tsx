@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Play,
   Pause,
@@ -18,6 +19,12 @@ import {
   Hand,
   Sparkles,
   X,
+  Camera,
+  Sliders,
+  BarChart3,
+  ShieldCheck,
+  ChevronDown,
+  StepForward,
 } from 'lucide-react';
 import {
   PhysicsParams,
@@ -51,6 +58,15 @@ import {
   EducationTier,
   getExperimentsByDomain,
 } from '../registry/experimentRegistry';
+import {
+  CircularGaugeMeter,
+  TactileParameterControl,
+  AnimatedNumberReadout,
+} from './ui/LabInstruments';
+import {
+  InteractiveFormulaCard,
+  FormulaToken,
+} from './ui/InteractiveFormulaCard';
 
 interface PhysicsLabViewProps {
   params: PhysicsParams;
@@ -1157,6 +1173,10 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       ? ` (Terekam dengan ketidakpastian alat ukur realistis Gaussian noise).`
       : '';
 
+    setShutterFlash(true);
+    setRecordToastCount((c) => c + 1);
+    setTimeout(() => setShutterFlash(false), 220);
+
     onRecordExperiment(
       modeLabel,
       summary,
@@ -1169,6 +1189,221 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     onPushNotification(fb);
     setNoteInput('');
   };
+
+  // Spatial HUD Cockpit State & Live Formula Tokens
+  const [hudTab, setHudTab] = useState<'controls' | 'telemetry' | 'guide'>('controls');
+  const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
+  const [shutterFlash, setShutterFlash] = useState<boolean>(false);
+  const [recordToastCount, setRecordToastCount] = useState<number>(0);
+  const [openAccordion, setOpenAccordion] = useState<string>('konsep');
+
+  const getLockedByName = (paramKey: string): string | undefined => {
+    const lock = paramLocks?.[paramKey];
+    if (lock && lock.lockedByUserId !== currentUserId) {
+      return lock.lockedByName;
+    }
+    return undefined;
+  };
+
+  const physicsFormulaTokens: FormulaToken[] = (() => {
+    if (params.mode === 'newton-incline') {
+      return [
+        { symbol: 'ΣF', value: metrics.netForce, unit: 'N', color: '#0ea5e9' },
+        { symbol: '=' },
+        {
+          symbol: 'F_dorong',
+          paramKey: 'appliedForce',
+          value: params.appliedForce,
+          min: 0,
+          max: 120,
+          unit: 'N',
+          color: '#10b981',
+        },
+        { symbol: '−' },
+        {
+          symbol: 'm',
+          paramKey: 'mass',
+          value: params.mass,
+          min: 0.5,
+          max: 15,
+          unit: 'kg',
+          color: '#f59e0b',
+        },
+        { symbol: '·' },
+        {
+          symbol: 'g',
+          paramKey: 'gravity',
+          value: params.gravity,
+          min: 1.6,
+          max: 25,
+          unit: 'm/s²',
+          color: '#38bdf8',
+        },
+        { symbol: '·' },
+        {
+          symbol: 'sin(θ)',
+          paramKey: 'inclineAngle',
+          value: params.inclineAngle,
+          min: 0,
+          max: 60,
+          unit: '°',
+          color: '#a855f7',
+        },
+        { symbol: '−' },
+        {
+          symbol: 'f_k',
+          paramKey: 'frictionCoeffKinetic',
+          value: metrics.frictionForce,
+          min: 0,
+          max: 50,
+          unit: 'N',
+          color: '#f43f5e',
+        },
+      ];
+    }
+    if (params.mode === 'projectile-gravity') {
+      return [
+        { symbol: 'R_maks', value: metrics.projectileRange, unit: 'm', color: '#0ea5e9' },
+        { symbol: '=' },
+        {
+          symbol: 'v₀²',
+          paramKey: 'initialVelocity',
+          value: params.initialVelocity,
+          min: 2,
+          max: 45,
+          unit: 'm/s',
+          color: '#10b981',
+        },
+        { symbol: '·' },
+        {
+          symbol: 'sin(2∠)',
+          paramKey: 'launchAngle',
+          value: params.launchAngle,
+          min: 10,
+          max: 85,
+          unit: '°',
+          color: '#f59e0b',
+        },
+        { symbol: '/' },
+        {
+          symbol: 'g',
+          paramKey: 'gravity',
+          value: params.gravity,
+          min: 1.6,
+          max: 25,
+          unit: 'm/s²',
+          color: '#a855f7',
+        },
+      ];
+    }
+    if (params.mode === 'collision-momentum') {
+      return [
+        { symbol: 'p_total', value: metrics.finalTotalMomentum, unit: 'kg·m/s', color: '#0ea5e9' },
+        { symbol: '=' },
+        {
+          symbol: 'm₁',
+          paramKey: 'mass',
+          value: params.mass,
+          min: 0.5,
+          max: 15,
+          unit: 'kg',
+          color: '#38bdf8',
+        },
+        { symbol: '·' },
+        {
+          symbol: 'v₁',
+          paramKey: 'initialVelocity',
+          value: params.initialVelocity,
+          min: 0,
+          max: 30,
+          unit: 'm/s',
+          color: '#10b981',
+        },
+        { symbol: '+' },
+        {
+          symbol: 'm₂',
+          paramKey: 'collisionMass2',
+          value: params.collisionMass2,
+          min: 0.5,
+          max: 15,
+          unit: 'kg',
+          color: '#f59e0b',
+        },
+        { symbol: '·' },
+        {
+          symbol: 'v₂',
+          paramKey: 'velocity2Initial',
+          value: params.velocity2Initial,
+          min: -15,
+          max: 15,
+          unit: 'm/s',
+          color: '#ec4899',
+        },
+      ];
+    }
+    if (params.mode === 'spring-hooke') {
+      return [
+        { symbol: 'E_p', value: metrics.springPotentialEnergy, unit: 'J', color: '#0ea5e9' },
+        { symbol: '=' },
+        { symbol: '½' },
+        { symbol: '·' },
+        {
+          symbol: 'k',
+          paramKey: 'springConstantK',
+          value: params.springConstantK,
+          min: 20,
+          max: 400,
+          unit: 'N/m',
+          color: '#10b981',
+        },
+        { symbol: '·' },
+        {
+          symbol: 'Δx²',
+          paramKey: 'springDisplacement',
+          value: params.springDisplacement,
+          min: 0.1,
+          max: 2.0,
+          unit: 'm',
+          color: '#f59e0b',
+        },
+      ];
+    }
+    return [
+      { symbol: 'F_g', value: metrics.universalGravityForce, unit: 'µN', color: '#0ea5e9' },
+      { symbol: '=' },
+      { symbol: 'G' },
+      { symbol: '·' },
+      {
+        symbol: 'm₁',
+        paramKey: 'mass',
+        value: params.mass,
+        min: 0.5,
+        max: 15,
+        unit: 'kg',
+        color: '#38bdf8',
+      },
+      { symbol: '·' },
+      {
+        symbol: 'M₂',
+        paramKey: 'secondaryMass',
+        value: params.secondaryMass,
+        min: 100,
+        max: 5000,
+        unit: 'kg',
+        color: '#f59e0b',
+      },
+      { symbol: '/' },
+      {
+        symbol: 'r²',
+        paramKey: 'separationDistance',
+        value: params.separationDistance,
+        min: 1,
+        max: 20,
+        unit: 'm',
+        color: '#10b981',
+      },
+    ];
+  })();
 
   return (
     <div className="space-y-5">
@@ -1478,109 +1713,83 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
         </div>
       )}
 
-      {/* Guided Experiment Scenario Cards (1-Click Student Presets) */}
-      <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs font-semibold text-slate-800 dark:text-slate-100">
-            Skenario Eksperimen Terbimbing (Klik untuk memuat parameter uji otomatis)
-          </div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            Pilih misi praktikum agar langsung siap diamati di kanvas 3D/2D
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-          {physicsScenarios.map((sc, idx) => {
-            const isActiveScenario =
-              sc.physicsPatch?.mode === params.mode &&
-              sc.physicsPatch?.mass === params.mass;
-            return (
-              <button
-                key={sc.id}
-                type="button"
-                onClick={() => {
-                  labSound.playClick(660);
-                  const next = { ...params, ...sc.physicsPatch };
-                  setSimTime(0.8);
-                  setIsPlaying(false);
-                  onChangeParams(next);
-                  onPushNotification(generateAutomaticFeedback('Fisika', next));
-                }}
-                className={`text-left p-3 rounded-lg border transition-all ${
-                  isActiveScenario
-                    ? 'bg-sky-50/90 dark:bg-sky-950/50 border-sky-400 dark:border-sky-500/70 text-slate-900 dark:text-white'
-                    : 'bg-slate-50/70 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 hover:bg-slate-100/80 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
-                }`}
-              >
-                <div className="text-xs font-mono text-sky-700 dark:text-sky-400 font-medium">
-                  0{idx + 1}. {sc.badgeText}
-                </div>
-                <div className="text-xs font-semibold text-slate-900 dark:text-white mt-0.5">
-                  {sc.title}
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 leading-relaxed">
-                  {sc.objective}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Main Split-Screen Interactive Workbench (8 Cols Stage + 4 Cols Deck) */}
+      {/* SPATIAL HUD COCKPIT WORKBENCH (8 Cols Hero 3D Stage + 4 Cols Segmented HUD Dock) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left 8 Cols: Hero 3D Simulation Cockpit Stage */}
         <div className="lg:col-span-8 space-y-4">
-          <div className="bg-white/95 dark:bg-slate-900/90 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-                  Kanvas Vektor, Kinematika & Osilasi Real-Time
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {params.mode === 'collision-momentum' ? (
-                    <span className="font-mono text-emerald-700 dark:text-emerald-400 font-semibold">
-                      ● KEKEKALAN MOMENTUM: p = {metrics.initialTotalMomentum} kg·m/s · v₁&apos; = {metrics.v1Final} m/s · v₂&apos; = {metrics.v2Final} m/s
-                    </span>
-                  ) : params.mode === 'spring-hooke' ? (
-                    <span className="font-mono text-sky-700 dark:text-sky-400 font-semibold">
-                      ● OSILASI HARMONIK: Fp = {metrics.springRestoringForce} N · Periode T = {metrics.oscillationPeriod} s · ω = {metrics.angularFrequency} rad/s
-                    </span>
-                  ) : (
-                    <>
-                      Status Sistem:{' '}
-                      <span
-                        className={`font-mono font-semibold ${
-                          metrics.isMoving
-                            ? 'text-emerald-700 dark:text-emerald-400'
-                            : 'text-amber-700 dark:text-amber-400'
-                        }`}
-                      >
-                        {metrics.isMoving
-                          ? '● BERGERAK DIPERCEPAT (ΣF ≠ 0)'
-                          : '▲ SETIMBANG STATIS (ΣF = 0)'}
-                      </span>
-                      {' · '}
-                      <span className="font-mono">
-                        F = m · a ⇔ {metrics.netForce} N = {params.mass} kg × {metrics.acceleration} m/s²
-                      </span>
-                    </>
-                  )}
-                </p>
+          <div className="relative min-h-[560px] rounded-2xl border border-sky-500/30 dark:border-sky-400/25 bg-slate-950 p-3 shadow-[0_0_50px_-12px_rgba(14,165,233,0.3)] flex flex-col justify-between overflow-hidden">
+            {/* Camera-Shutter Flash Overlay on Catat Data */}
+            <AnimatePresence>
+              {shutterFlash && (
+                <motion.div
+                  initial={{ opacity: 0.85 }}
+                  animate={{ opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="pointer-events-none absolute inset-0 z-40 bg-gradient-to-br from-white via-sky-200 to-cyan-400"
+                />
+              )}
+            </AnimatePresence>
+
+            {/* Animated +1 Data Tercatat! Flying Toast Badge */}
+            <AnimatePresence>
+              {recordToastCount > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 18, scale: 0.85 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -12, scale: 0.9 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 22 }}
+                  className="pointer-events-none absolute bottom-20 right-6 z-40 flex items-center gap-2 rounded-full border border-emerald-400/60 bg-slate-900/95 px-4 py-2 text-xs font-mono font-bold text-emerald-300 shadow-2xl"
+                >
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  +1 Data Tercatat ke Tabel & Grafik!
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Floating Top-Left HUD Overlay Badge */}
+            <div className="absolute top-5 left-5 z-20 flex flex-wrap items-center gap-2 max-w-[60%]">
+              <div className="flex items-center gap-2 rounded-xl border border-slate-700/90 bg-slate-950/90 px-3 py-1.5 text-xs shadow-lg">
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ${
+                    isPlaying
+                      ? 'bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]'
+                      : 'bg-sky-400'
+                  }`}
+                />
+                <span className="font-semibold text-white">
+                  {params.mode === 'newton-incline'
+                    ? 'Hukum II Newton'
+                    : params.mode === 'projectile-gravity'
+                    ? 'Kinematika Projektil'
+                    : params.mode === 'collision-momentum'
+                    ? 'Tumbukan 1D'
+                    : params.mode === 'spring-hooke'
+                    ? 'Osilasi Pegas Hooke'
+                    : 'Gravitasi Universal'}
+                </span>
+                <span className="rounded bg-sky-500/20 border border-sky-400/40 px-2 py-0.5 font-mono text-[10px] font-bold text-sky-300">
+                  {activeTier}
+                </span>
+                <span className="hidden sm:inline font-mono text-[10px] text-emerald-400">
+                  {isPlaying ? '60 FPS · AKTIF' : 'SIAP UJI'}
+                </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => {
                     labSound.playClick();
                     setIs3DMode((m) => !m);
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border transition-colors ${
                     is3DMode
-                      ? 'bg-slate-900 dark:bg-sky-600 text-white'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      ? 'bg-sky-600 border-sky-400 text-white'
+                      : 'bg-slate-900/90 border-slate-700 text-slate-200 hover:bg-slate-800'
                   }`}
                 >
-                  <Box className="w-3.5 h-3.5 text-sky-400 dark:text-white" />
+                  <Box className="w-3.5 h-3.5" />
                   {is3DMode ? 'Mode 3D Interaktif' : 'Mode 2D Diagram'}
                 </button>
                 <button
@@ -1589,53 +1798,43 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     labSound.playClick();
                     setShowVectorOverlay((v) => !v);
                   }}
-                  className="px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1.5 text-[11px] font-mono text-slate-200 bg-slate-900/90 hover:bg-slate-800 border border-slate-700 rounded-lg transition-colors"
                 >
-                  {showVectorOverlay ? 'Sembunyikan Vektor' : 'Tampilkan Vektor'}
+                  {showVectorOverlay ? 'Vektor: ON' : 'Vektor: OFF'}
                 </button>
               </div>
             </div>
 
-            {/* Interactive Viewport Container with Floating HUD & Floating Bottom Dock */}
-            <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-[#0B0F19]">
-              {/* Floating Top-Left Glass HUD Overlay */}
-              <div className="pointer-events-none absolute top-3 left-3 z-10 lab-glass-panel bg-slate-950/80 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-100 space-y-0.5">
-                <div className="font-mono text-[11px] text-sky-400 font-semibold tabular-nums">
-                  WAKTU SIMULASI: t = {instant.time.toFixed(2)} s · ({playbackSpeed}x)
-                </div>
-                <div className="font-mono font-semibold text-white tabular-nums">
-                  v = {instant.speed.toFixed(2)} m/s · a = {instant.acceleration.toFixed(2)} m/s²
-                </div>
-                <div className="font-mono text-[11px] text-slate-300 tabular-nums">
-                  Posisi: ({instant.positionX.toFixed(2)} m, {instant.positionY.toFixed(2)} m)
-                </div>
-              </div>
+            {/* Floating Top-Right HUD: Quick Instrument Gauges */}
+            <div className="hidden sm:flex items-start gap-2.5 absolute top-5 right-5 z-20">
+              <CircularGaugeMeter
+                label={params.mode === 'spring-hooke' ? 'Gaya Pemulih |Fp|' : 'Kecepatan v(t)'}
+                value={
+                  params.mode === 'spring-hooke'
+                    ? Math.abs(metrics.springRestoringForce)
+                    : instant.speed
+                }
+                min={0}
+                max={params.mode === 'spring-hooke' ? 300 : 50}
+                unit={params.mode === 'spring-hooke' ? 'N' : 'm/s'}
+                color="#0EA5E9"
+                warningThreshold={params.mode === 'spring-hooke' ? 240 : 40}
+                size="sm"
+              />
+              <CircularGaugeMeter
+                label="Energi Kinetik (EK)"
+                value={instant.kineticEnergy}
+                min={0}
+                max={Math.max(200, instant.totalMechanicalEnergy)}
+                unit="J"
+                color="#10B981"
+                warningThreshold={Math.max(250, instant.totalMechanicalEnergy * 0.92)}
+                size="sm"
+              />
+            </div>
 
-              {/* Floating Top-Right Interactive Canvas Drag Hint / Coordinate Probe */}
-              <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
-                {!is3DMode ? (
-                  <span className="lab-glass-panel bg-sky-950/85 border border-sky-500/50 text-sky-200 font-mono text-[11px] px-2.5 py-1 rounded-md flex items-center gap-1.5">
-                    <Hand className="w-3.5 h-3.5 text-sky-400" />
-                    {dragHintText ||
-                      (cursorCoords
-                        ? `Kursor (${cursorCoords.x}, ${cursorCoords.y}) · Seret Objek Langsung`
-                        : 'Klik & Seret Objek di Kanvas 2D')}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick();
-                      setIs3DMode(false);
-                    }}
-                    className="lab-glass-panel bg-slate-900/85 hover:bg-slate-800 border border-slate-700 text-slate-200 font-mono text-[11px] px-2.5 py-1 rounded-md flex items-center gap-1.5 transition-colors"
-                  >
-                    <Hand className="w-3.5 h-3.5 text-sky-400" />
-                    Buka Kanvas 2D untuk Seret Vektor Langsung
-                  </button>
-                )}
-              </div>
-
+            {/* Hero 3D / 2D Stage Centerpiece */}
+            <div className="relative flex-1 flex flex-col justify-center">
               {is3DMode ? (
                 <PhysicsScene3D
                   params={params}
@@ -1652,7 +1851,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                   ref={canvasRef}
                   data-testid="physics-simulation-canvas"
                   width={760}
-                  height={360}
+                  height={480}
                   onPointerDown={(e) => {
                     setIsDraggingCanvas(true);
                     labSound.playClick(540);
@@ -1673,1037 +1872,747 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     setCursorCoords(null);
                     setDragHintText('');
                   }}
-                  className={`w-full h-[340px] sm:h-[360px] block touch-none ${
+                  className={`w-full h-[460px] sm:h-[520px] rounded-xl block touch-none ${
                     isDraggingCanvas ? 'cursor-grabbing' : 'cursor-crosshair'
                   }`}
                 />
               )}
-
-              {/* Deterministic Web Worker Playback Bar & Time-Scrubber Buffer */}
-              <div className="pt-1">
-                <SimulationPlaybackBar
-                  currentFrame={simWorker.currentFrame}
-                  bounds={simWorker.bounds}
-                  isPlaying={simWorker.isPlaying}
-                  onPlay={() => {
-                    handleStartSimulation();
-                    simWorker.play();
-                  }}
-                  onPause={() => {
-                    setIsPlaying(false);
-                    simWorker.pause();
-                  }}
-                  onReset={() => {
-                    handleResetSimulation();
-                    simWorker.reset();
-                  }}
-                  onStepForward={() => {
-                    setIsPlaying(false);
-                    simWorker.stepForward(1);
-                  }}
-                  onStepBackward={() => {
-                    setIsPlaying(false);
-                    simWorker.stepBackward(1);
-                  }}
-                  onSeek={(frameIdx) => {
-                    setIsPlaying(false);
-                    simWorker.seekFrame(frameIdx);
-                  }}
-                  noiseEnabled={noiseEnabled}
-                  onToggleNoise={setNoiseEnabled}
-                  instrumentType={
-                    params.mode === 'spring-hooke'
-                      ? 'ruler'
-                      : params.mode === 'newton-incline'
-                      ? 'dynamometer'
-                      : 'stopwatch'
-                  }
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 4-Column Telemetry Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {params.mode === 'collision-momentum'
-                  ? 'Momentum Total (p)'
-                  : params.mode === 'spring-hooke'
-                  ? 'Gaya Pemulih Hooke (Fp)'
-                  : 'Resultan Gaya (ΣF)'}
-              </div>
-              <div className="mt-1 flex items-baseline">
-                <span className="text-2xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                  {params.mode === 'collision-momentum'
-                    ? metrics.initialTotalMomentum
-                    : params.mode === 'spring-hooke'
-                    ? metrics.springRestoringForce
-                    : metrics.netForce}
-                </span>
-                <span className="text-xs font-mono text-slate-400 ml-1.5">
-                  {params.mode === 'collision-momentum' ? 'kg·m/s' : 'N'}
-                </span>
-              </div>
-              <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                {params.mode === 'collision-momentum'
-                  ? `e = ${params.restitutionCoeff}`
-                  : params.mode === 'spring-hooke'
-                  ? `k = ${params.springConstantK} N/m`
-                  : `fk = ${metrics.frictionForce} N · N = ${metrics.normalForce} N`}
-              </div>
             </div>
 
-            <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {params.mode === 'collision-momentum'
-                  ? "Kecepatan Akhir (v₁' & v₂')"
-                  : params.mode === 'spring-hooke'
-                  ? 'Periode Osilasi (T)'
-                  : 'Percepatan (a = ΣF/m)'}
-              </div>
-              <div className="mt-1 flex items-baseline">
-                <span className="text-2xl font-mono font-bold text-sky-700 dark:text-sky-400 tabular-nums">
-                  {params.mode === 'collision-momentum'
-                    ? `${metrics.v1Final} / ${metrics.v2Final}`
-                    : params.mode === 'spring-hooke'
-                    ? metrics.oscillationPeriod
-                    : metrics.acceleration}
-                </span>
-                <span className="text-xs font-mono text-slate-400 ml-1.5">
-                  {params.mode === 'collision-momentum'
-                    ? 'm/s'
-                    : params.mode === 'spring-hooke'
-                    ? 's'
-                    : 'm/s²'}
-                </span>
-              </div>
-              <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                v(t) = {instant.speed} m/s
-              </div>
-            </div>
+            {/* Bottom HUD: Floating Playback Deck + High-Visibility "Catat Data Percobaan" Button */}
+            <div className="mt-2.5 flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-900/95 p-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => {
+                      handleStartSimulation();
+                      if (!simWorker.isPlaying) simWorker.play();
+                      else simWorker.pause();
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 rounded-lg shadow-xs transition-colors"
+                  >
+                    {isPlaying ? (
+                      <>
+                        <Pause className="w-3.5 h-3.5" />
+                        Jeda
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5" />
+                        Mulai Simulasi
+                      </>
+                    )}
+                  </motion.button>
 
-            <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                Energi Mekanik Total
-              </div>
-              <div className="mt-1 flex items-baseline">
-                <span className="text-2xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                  {instant.totalMechanicalEnergy}
-                </span>
-                <span className="text-xs font-mono text-slate-400 ml-1.5">J</span>
-              </div>
-              <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                EK: {instant.kineticEnergy} J · EP: {instant.potentialEnergy} J
-              </div>
-            </div>
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => {
+                      handleResetSimulation();
+                      simWorker.reset();
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reset
+                  </motion.button>
 
-            <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                Gaya Gravitasi (Fg)
-              </div>
-              <div className="mt-1 flex items-baseline">
-                <span className="text-2xl font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                  {metrics.universalGravityForce}
-                </span>
-                <span className="text-xs font-mono text-slate-400 ml-1.5">µN</span>
-              </div>
-              <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                W = {metrics.weightForce} N (g={params.gravity})
-              </div>
-            </div>
-          </div>
-
-          {/* Live Mechanical Energy Distribution Bar & Academic Level Concept Companion */}
-          <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span className="font-semibold text-slate-800 dark:text-slate-100">
-                Neraca Konservasi Energi Mekanik Sesaat (E_total = {instant.totalMechanicalEnergy} J)
-              </span>
-              <div className="flex items-center gap-4 font-mono tabular-nums">
-                <span className="text-sky-700 dark:text-sky-400 font-semibold">
-                  ■ Energi Kinetik (EK): {instant.kineticEnergy} J ({kePct}%)
-                </span>
-                <span className="text-amber-700 dark:text-amber-400 font-semibold">
-                  ■ Energi Potensial (EP): {instant.potentialEnergy} J ({pePct}%)
-                </span>
-              </div>
-            </div>
-            <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
-              <div
-                className="h-full bg-sky-600 transition-all duration-150"
-                style={{ width: `${kePct}%` }}
-              />
-              <div
-                className="h-full bg-amber-500 transition-all duration-150"
-                style={{ width: `${pePct}%` }}
-              />
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-xs">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-                  <span className="font-semibold text-slate-900 dark:text-white">
-                    {conceptCard.heading}
-                  </span>
-                  <span className="text-slate-400">·</span>
-                  <span className="font-mono text-sky-700 dark:text-sky-400">
-                    {conceptCard.levelLabel}
-                  </span>
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => {
+                      setIsPlaying(false);
+                      setSimTime((t) => Number((t + 0.1).toFixed(2)));
+                      simWorker.stepForward(1);
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors"
+                  >
+                    <StepForward className="w-3.5 h-3.5 text-sky-400" />
+                    Step +0.1s
+                  </motion.button>
                 </div>
-                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {conceptCard.summaryText}
-                </p>
-                <p className="text-slate-700 dark:text-slate-200 font-medium">
-                  {conceptCard.practicalTip}
-                </p>
+
+                {/* High-Visibility Catat Data Percobaan Button */}
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleRecordClick}
+                  className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-sky-400 hover:from-emerald-300 hover:to-sky-300 rounded-lg shadow-lg transition-all cursor-pointer"
+                >
+                  <Camera className="w-4 h-4 text-slate-950" />
+                  Catat Data Percobaan
+                </motion.button>
               </div>
-              <div className="sm:shrink-0 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-md px-3 py-2 font-mono text-sky-900 dark:text-sky-300">
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-0.5">
-                  Rumus Kunci:
-                </div>
-                <div className="font-semibold">{conceptCard.keyEquation}</div>
-              </div>
+
+              <SimulationPlaybackBar
+                currentFrame={simWorker.currentFrame}
+                bounds={simWorker.bounds}
+                isPlaying={simWorker.isPlaying}
+                onPlay={() => {
+                  handleStartSimulation();
+                  simWorker.play();
+                }}
+                onPause={() => {
+                  setIsPlaying(false);
+                  simWorker.pause();
+                }}
+                onReset={() => {
+                  handleResetSimulation();
+                  simWorker.reset();
+                }}
+                onStepForward={() => {
+                  setIsPlaying(false);
+                  simWorker.stepForward(1);
+                }}
+                onStepBackward={() => {
+                  setIsPlaying(false);
+                  simWorker.stepBackward(1);
+                }}
+                onSeek={(frameIdx) => {
+                  setIsPlaying(false);
+                  simWorker.seekFrame(frameIdx);
+                }}
+                noiseEnabled={noiseEnabled}
+                onToggleNoise={setNoiseEnabled}
+                instrumentType={
+                  params.mode === 'spring-hooke'
+                    ? 'ruler'
+                    : params.mode === 'newton-incline'
+                    ? 'dynamometer'
+                    : 'stopwatch'
+                }
+              />
             </div>
           </div>
         </div>
 
-        {/* Right Zone: Parameter Controls */}
-        <div className="lg:col-span-4 bg-white/95 dark:bg-slate-900/90 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-                Parameter Eksperimen Fisika
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Gunakan geseran, tombol [- / +], atau seret di kanvas 2D
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick(740);
-                onSyncWithGroup(
-                  `Fisika (${params.mode}): m=${params.mass}kg, a=${metrics.acceleration}m/s²`
-                );
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 border border-sky-200/60 dark:border-sky-800/60 rounded-md transition-colors whitespace-nowrap shrink-0"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              Sinkron Kelompok
-            </button>
+        {/* Right 4 Cols: Collapsible Segmented HUD Drawer Tabs */}
+        <div className="lg:col-span-4 bg-white/95 dark:bg-slate-900/90 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-4">
+          {/* Segmented Drawer Tab Bar with motion layoutId */}
+          <div
+            role="tablist"
+            aria-label="Navigasi Kokpit Fisika"
+            className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80"
+          >
+            {(
+              [
+                { id: 'controls', label: 'Kontrol & Rumus', icon: Sliders },
+                { id: 'telemetry', label: 'Grafik & Data', icon: BarChart3 },
+                { id: 'guide', label: 'Panduan & K3', icon: ShieldCheck },
+              ] as const
+            ).map((t) => {
+              const Icon = t.icon;
+              const isActive = hudTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => {
+                    labSound.playClick();
+                    setHudTab(t.id);
+                  }}
+                  className={`relative flex items-center justify-center gap-1.5 py-2 px-2 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer ${
+                    isActive
+                      ? 'text-slate-900 dark:text-white'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="hud-section-pill"
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      className="absolute inset-0 rounded-lg bg-white dark:bg-slate-900 shadow-xs border border-slate-200/80 dark:border-slate-700"
+                    />
+                  )}
+                  <Icon className="relative z-10 w-3.5 h-3.5 text-sky-500 shrink-0" />
+                  <span className="relative z-10 truncate">{t.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <div className="flex items-center gap-2">
-                  <label
-                    htmlFor="physics-mass-slider"
-                    className="font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    Massa Benda Utama (m₁)
-                  </label>
-                  {renderLockBadge('mass')}
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-label="Kurangi massa benda utama"
-                    disabled={isParamLocked('mass')}
-                    onClick={() => {
-                      labSound.playStep('down');
-                      handleParamUpdate({
-                        mass: stepParameterValue(params.mass, -0.5, 0.5, 30, 1),
-                      });
-                    }}
-                    className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
-                  >
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums min-w-[54px] text-center">
-                    {params.mass} kg
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Tambah massa benda utama"
-                    disabled={isParamLocked('mass')}
-                    onClick={() => {
-                      labSound.playStep('up');
-                      handleParamUpdate({
-                        mass: stepParameterValue(params.mass, 0.5, 0.5, 30, 1),
-                      });
-                    }}
-                    className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-              <input
-                id="physics-mass-slider"
-                type="range"
-                min={0.5}
-                max={30}
-                step={0.5}
-                value={params.mass}
-                disabled={isParamLocked('mass')}
-                onPointerDown={() => onAcquireLock?.('mass')}
-                onFocus={() => onAcquireLock?.('mass')}
-                onPointerUp={() => onReleaseLock?.('mass')}
-                onBlur={() => onReleaseLock?.('mass')}
-                onChange={(e) =>
-                  handleParamUpdate({ mass: parseFloat(e.target.value) })
-                }
-                className={`w-full accent-sky-600 ${
-                  isParamLocked('mass') ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-                }`}
-              />
-            </div>
+          <AnimatePresence mode="wait">
+            {hudTab === 'controls' && (
+              <motion.div
+                key="controls"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-3.5"
+              >
+                {/* Interactive Live Formula Card */}
+                <InteractiveFormulaCard
+                  title="Rumus Hidup Interaktif Fisika"
+                  subtitle={conceptCard.heading}
+                  tokens={physicsFormulaTokens}
+                  activeParamKey={hoveredParamKey}
+                />
 
-            {params.mode === 'newton-incline' && (
-              <>
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="physics-force-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Gaya Dorong / Tarik (F)
-                      </label>
-                      {renderLockBadge('appliedForce')}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        aria-label="Kurangi gaya dorong"
-                        disabled={isParamLocked('appliedForce')}
-                        onClick={() => {
-                          labSound.playStep('down');
+                <div className="flex items-center justify-between pt-1">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                    Instrumen Parameter Taktil
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick(740);
+                      onSyncWithGroup(
+                        `Fisika (${params.mode}): m=${params.mass}kg, a=${metrics.acceleration}m/s²`
+                      );
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 border border-sky-200/60 dark:border-sky-800/60 rounded-md transition-colors"
+                  >
+                    <Share2 className="w-3 h-3" />
+                    Sinkron Kelompok
+                  </button>
+                </div>
+
+                <div className="space-y-2.5 max-h-[370px] overflow-y-auto pr-1">
+                  <TactileParameterControl
+                    id="physics-mass-slider"
+                    label="Massa Benda Utama"
+                    symbol="m₁"
+                    value={params.mass}
+                    min={0.5}
+                    max={30}
+                    step={0.5}
+                    unit="kg"
+                    lockedBy={getLockedByName('mass')}
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'mass' : null)}
+                    onFocusLock={() => onAcquireLock?.('mass')}
+                    onBlurLock={() => onReleaseLock?.('mass')}
+                    onChange={(v) => handleParamUpdate({ mass: v })}
+                  />
+
+                  {params.mode === 'newton-incline' && (
+                    <>
+                      <TactileParameterControl
+                        id="physics-force-slider"
+                        label="Gaya Dorong / Tarik"
+                        symbol="F"
+                        value={params.appliedForce}
+                        min={-100}
+                        max={250}
+                        step={5}
+                        unit="N"
+                        lockedBy={getLockedByName('appliedForce')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'appliedForce' : null)}
+                        onFocusLock={() => onAcquireLock?.('appliedForce')}
+                        onBlurLock={() => onReleaseLock?.('appliedForce')}
+                        onChange={(v) => handleParamUpdate({ appliedForce: v })}
+                      />
+                      <TactileParameterControl
+                        id="physics-angle-slider"
+                        label="Sudut Kemiringan Bidang"
+                        symbol="θ"
+                        value={params.inclineAngle}
+                        min={0}
+                        max={45}
+                        step={1}
+                        unit="°"
+                        lockedBy={getLockedByName('inclineAngle')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'inclineAngle' : null)}
+                        onFocusLock={() => onAcquireLock?.('inclineAngle')}
+                        onBlurLock={() => onReleaseLock?.('inclineAngle')}
+                        onChange={(v) => handleParamUpdate({ inclineAngle: v })}
+                      />
+                      <TactileParameterControl
+                        id="physics-friction-slider"
+                        label="Koefisien Gesek Kinetis"
+                        symbol="μk"
+                        value={params.frictionCoeffKinetic}
+                        min={0}
+                        max={0.6}
+                        step={0.02}
+                        unit=""
+                        badgeText={`μs=${params.frictionCoeffStatic.toFixed(2)}`}
+                        lockedBy={getLockedByName('frictionCoeffKinetic')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'frictionCoeffKinetic' : null)}
+                        onFocusLock={() => onAcquireLock?.('frictionCoeffKinetic')}
+                        onBlurLock={() => onReleaseLock?.('frictionCoeffKinetic')}
+                        onChange={(muk) =>
                           handleParamUpdate({
-                            appliedForce: stepParameterValue(
-                              params.appliedForce,
-                              -5,
-                              -100,
-                              250,
-                              0
-                            ),
-                          });
-                        }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums min-w-[54px] text-center">
-                        {params.appliedForce} N
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="Tambah gaya dorong"
-                        disabled={isParamLocked('appliedForce')}
-                        onClick={() => {
-                          labSound.playStep('up');
-                          handleParamUpdate({
-                            appliedForce: stepParameterValue(
-                              params.appliedForce,
-                              5,
-                              -100,
-                              250,
-                              0
-                            ),
-                          });
-                        }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
+                            frictionCoeffKinetic: muk,
+                            frictionCoeffStatic: Number((muk * 1.35).toFixed(2)),
+                          })
+                        }
+                      />
+                    </>
+                  )}
+
+                  {params.mode === 'projectile-gravity' && (
+                    <>
+                      <TactileParameterControl
+                        id="physics-v0-slider"
+                        label="Kecepatan Awal"
+                        symbol="v₀"
+                        value={params.initialVelocity}
+                        min={2}
+                        max={50}
+                        step={1}
+                        unit="m/s"
+                        lockedBy={getLockedByName('initialVelocity')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'initialVelocity' : null)}
+                        onFocusLock={() => onAcquireLock?.('initialVelocity')}
+                        onBlurLock={() => onReleaseLock?.('initialVelocity')}
+                        onChange={(v) => handleParamUpdate({ initialVelocity: v })}
+                      />
+                      <TactileParameterControl
+                        id="physics-launch-slider"
+                        label="Sudut Elevasi Tembakan"
+                        symbol="∠"
+                        value={params.launchAngle}
+                        min={10}
+                        max={80}
+                        step={1}
+                        unit="°"
+                        lockedBy={getLockedByName('launchAngle')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'launchAngle' : null)}
+                        onFocusLock={() => onAcquireLock?.('launchAngle')}
+                        onBlurLock={() => onReleaseLock?.('launchAngle')}
+                        onChange={(v) => handleParamUpdate({ launchAngle: v })}
+                      />
+                      <TactileParameterControl
+                        id="physics-height-slider"
+                        label="Ketinggian Awal"
+                        symbol="h₀"
+                        value={params.initialHeight}
+                        min={0}
+                        max={60}
+                        step={2}
+                        unit="m"
+                        lockedBy={getLockedByName('initialHeight')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'initialHeight' : null)}
+                        onFocusLock={() => onAcquireLock?.('initialHeight')}
+                        onBlurLock={() => onReleaseLock?.('initialHeight')}
+                        onChange={(v) => handleParamUpdate({ initialHeight: v })}
+                      />
+                    </>
+                  )}
+
+                  {params.mode === 'collision-momentum' && (
+                    <>
+                      <TactileParameterControl
+                        id="collision-v1-slider"
+                        label="Kecepatan Awal Benda 1"
+                        symbol="v₁"
+                        value={params.initialVelocity}
+                        min={1}
+                        max={25}
+                        step={1}
+                        unit="m/s"
+                        lockedBy={getLockedByName('initialVelocity')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'initialVelocity' : null)}
+                        onFocusLock={() => onAcquireLock?.('initialVelocity')}
+                        onBlurLock={() => onReleaseLock?.('initialVelocity')}
+                        onChange={(v) => handleParamUpdate({ initialVelocity: v })}
+                      />
+                      <TactileParameterControl
+                        id="collision-m2-slider"
+                        label="Massa Benda Kedua"
+                        symbol="m₂"
+                        value={params.collisionMass2}
+                        min={0.5}
+                        max={25}
+                        step={0.5}
+                        unit="kg"
+                        lockedBy={getLockedByName('collisionMass2')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'collisionMass2' : null)}
+                        onFocusLock={() => onAcquireLock?.('collisionMass2')}
+                        onBlurLock={() => onReleaseLock?.('collisionMass2')}
+                        onChange={(v) => handleParamUpdate({ collisionMass2: v })}
+                      />
+                      <TactileParameterControl
+                        id="collision-v2-slider"
+                        label="Kecepatan Awal Benda 2"
+                        symbol="v₂"
+                        value={params.velocity2Initial}
+                        min={-20}
+                        max={10}
+                        step={1}
+                        unit="m/s"
+                        lockedBy={getLockedByName('velocity2Initial')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'velocity2Initial' : null)}
+                        onFocusLock={() => onAcquireLock?.('velocity2Initial')}
+                        onBlurLock={() => onReleaseLock?.('velocity2Initial')}
+                        onChange={(v) => handleParamUpdate({ velocity2Initial: v })}
+                      />
+                      <TactileParameterControl
+                        id="collision-e-slider"
+                        label="Koefisien Restitusi"
+                        symbol="e"
+                        value={params.restitutionCoeff}
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        unit=""
+                        badgeText={
+                          params.restitutionCoeff === 1
+                            ? 'Lenting Sempurna'
+                            : params.restitutionCoeff === 0
+                            ? 'Tidak Lenting'
+                            : 'Lenting Sebagian'
+                        }
+                        lockedBy={getLockedByName('restitutionCoeff')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'restitutionCoeff' : null)}
+                        onFocusLock={() => onAcquireLock?.('restitutionCoeff')}
+                        onBlurLock={() => onReleaseLock?.('restitutionCoeff')}
+                        onChange={(v) => handleParamUpdate({ restitutionCoeff: v })}
+                      />
+                    </>
+                  )}
+
+                  {params.mode === 'spring-hooke' && (
+                    <>
+                      <TactileParameterControl
+                        id="spring-k-slider"
+                        label="Konstanta Pegas"
+                        symbol="k"
+                        value={params.springConstantK}
+                        min={20}
+                        max={400}
+                        step={10}
+                        unit="N/m"
+                        lockedBy={getLockedByName('springConstantK')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'springConstantK' : null)}
+                        onFocusLock={() => onAcquireLock?.('springConstantK')}
+                        onBlurLock={() => onReleaseLock?.('springConstantK')}
+                        onChange={(v) => handleParamUpdate({ springConstantK: v })}
+                      />
+                      <TactileParameterControl
+                        id="spring-disp-slider"
+                        label="Simpangan Amplitudo Awal"
+                        symbol="Δx"
+                        value={params.springDisplacement}
+                        min={-1.5}
+                        max={1.5}
+                        step={0.1}
+                        unit="m"
+                        lockedBy={getLockedByName('springDisplacement')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'springDisplacement' : null)}
+                        onFocusLock={() => onAcquireLock?.('springDisplacement')}
+                        onBlurLock={() => onReleaseLock?.('springDisplacement')}
+                        onChange={(v) => handleParamUpdate({ springDisplacement: v })}
+                      />
+                      <TactileParameterControl
+                        id="spring-damping-slider"
+                        label="Koefisien Redaman"
+                        symbol="b"
+                        value={params.dampingCoeff}
+                        min={0}
+                        max={2.0}
+                        step={0.05}
+                        unit="N·s/m"
+                        lockedBy={getLockedByName('dampingCoeff')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'dampingCoeff' : null)}
+                        onFocusLock={() => onAcquireLock?.('dampingCoeff')}
+                        onBlurLock={() => onReleaseLock?.('dampingCoeff')}
+                        onChange={(v) => handleParamUpdate({ dampingCoeff: v })}
+                      />
+                    </>
+                  )}
+
+                  {params.mode === 'orbital-gravity' && (
+                    <>
+                      <TactileParameterControl
+                        id="physics-m2-slider"
+                        label="Massa Objek Kedua"
+                        symbol="m₂"
+                        value={params.secondaryMass}
+                        min={100}
+                        max={10000}
+                        step={100}
+                        unit="kg"
+                        lockedBy={getLockedByName('secondaryMass')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'secondaryMass' : null)}
+                        onFocusLock={() => onAcquireLock?.('secondaryMass')}
+                        onBlurLock={() => onReleaseLock?.('secondaryMass')}
+                        onChange={(v) => handleParamUpdate({ secondaryMass: v })}
+                      />
+                      <TactileParameterControl
+                        id="physics-dist-slider"
+                        label="Jarak Antar Pusat Massa"
+                        symbol="r"
+                        value={params.separationDistance}
+                        min={1}
+                        max={40}
+                        step={0.5}
+                        unit="m"
+                        lockedBy={getLockedByName('separationDistance')}
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'separationDistance' : null)}
+                        onFocusLock={() => onAcquireLock?.('separationDistance')}
+                        onBlurLock={() => onReleaseLock?.('separationDistance')}
+                        onChange={(v) => handleParamUpdate({ separationDistance: v })}
+                      />
+                    </>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
                   <input
-                    id="physics-force-slider"
-                    type="range"
+                    id="physics-note-input"
+                    type="text"
+                    value={noteInput}
+                    onChange={(e) => setNoteInput(e.target.value)}
+                    placeholder="Tambahkan catatan observasi sebelum rekam..."
+                    className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  />
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.96 }}
+                    onClick={handleRecordClick}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-semibold text-white bg-slate-900 dark:bg-sky-600 hover:bg-slate-800 dark:hover:bg-sky-500 rounded-xl transition-colors whitespace-nowrap"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    Rekam Data Eksperimen ke Tabel Log
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
+
+            {hudTab === 'telemetry' && (
+              <motion.div
+                key="telemetry"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-3.5"
+              >
+                {/* Radial Instrument Gauges Row */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <CircularGaugeMeter
+                    label="Percepatan (a)"
+                    value={metrics.acceleration}
+                    min={-15}
+                    max={25}
+                    unit="m/s²"
+                    color="#0EA5E9"
+                    warningThreshold={18}
+                  />
+                  <CircularGaugeMeter
+                    label="Resultan Gaya (ΣF)"
+                    value={metrics.netForce}
                     min={-100}
                     max={250}
-                    step={5}
-                    value={params.appliedForce}
-                    disabled={isParamLocked('appliedForce')}
-                    onPointerDown={() => onAcquireLock?.('appliedForce')}
-                    onFocus={() => onAcquireLock?.('appliedForce')}
-                    onPointerUp={() => onReleaseLock?.('appliedForce')}
-                    onBlur={() => onReleaseLock?.('appliedForce')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        appliedForce: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('appliedForce')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
+                    unit="N"
+                    color="#10B981"
+                    warningThreshold={200}
                   />
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="physics-angle-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Sudut Kemiringan Bidang (θ)
-                      </label>
-                      {renderLockBadge('inclineAngle')}
+                {/* Animated Digital Telemetry Readout Grid */}
+                <div className="grid grid-cols-2 gap-2.5 text-xs">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                    <div className="text-slate-500 dark:text-slate-400 text-[11px]">
+                      Kecepatan Sesaat v(t)
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        aria-label="Kurangi sudut kemiringan"
-                        disabled={isParamLocked('inclineAngle')}
-                        onClick={() => {
-                          labSound.playStep('down');
-                          handleParamUpdate({
-                            inclineAngle: stepParameterValue(
-                              params.inclineAngle,
-                              -1,
-                              0,
-                              45,
-                              0
-                            ),
-                          });
-                        }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums min-w-[46px] text-center">
-                        {params.inclineAngle}°
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="Tambah sudut kemiringan"
-                        disabled={isParamLocked('inclineAngle')}
-                        onClick={() => {
-                          labSound.playStep('up');
-                          handleParamUpdate({
-                            inclineAngle: stepParameterValue(
-                              params.inclineAngle,
-                              1,
-                              0,
-                              45,
-                              0
-                            ),
-                          });
-                        }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
+                    <AnimatedNumberReadout
+                      value={instant.speed}
+                      unit="m/s"
+                      className="mt-1 text-base text-slate-900 dark:text-white"
+                    />
                   </div>
-                  <input
-                    id="physics-angle-slider"
-                    type="range"
-                    min={0}
-                    max={45}
-                    step={1}
-                    value={params.inclineAngle}
-                    disabled={isParamLocked('inclineAngle')}
-                    onPointerDown={() => onAcquireLock?.('inclineAngle')}
-                    onFocus={() => onAcquireLock?.('inclineAngle')}
-                    onPointerUp={() => onReleaseLock?.('inclineAngle')}
-                    onBlur={() => onReleaseLock?.('inclineAngle')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        inclineAngle: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('inclineAngle')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                    <div className="text-slate-500 dark:text-slate-400 text-[11px]">
+                      Energi Mekanik Total
+                    </div>
+                    <AnimatedNumberReadout
+                      value={instant.totalMechanicalEnergy}
+                      unit="J"
+                      className="mt-1 text-base text-sky-600 dark:text-sky-400"
+                    />
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                    <div className="text-slate-500 dark:text-slate-400 text-[11px]">
+                      Gaya Gesek / Pemulih
+                    </div>
+                    <AnimatedNumberReadout
+                      value={
+                        params.mode === 'spring-hooke'
+                          ? metrics.springRestoringForce
+                          : metrics.frictionForce
+                      }
+                      unit="N"
+                      className="mt-1 text-base text-amber-600 dark:text-amber-400"
+                    />
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                    <div className="text-slate-500 dark:text-slate-400 text-[11px]">
+                      Gaya Gravitasi (Fg)
+                    </div>
+                    <AnimatedNumberReadout
+                      value={metrics.universalGravityForce}
+                      unit="µN"
+                      className="mt-1 text-base text-emerald-600 dark:text-emerald-400"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="physics-friction-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Koefisien Gesek Kinetis (μk)
-                      </label>
-                      {renderLockBadge('frictionCoeffKinetic')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.frictionCoeffKinetic.toFixed(2)} (μs ={' '}
-                      {params.frictionCoeffStatic.toFixed(2)})
+                {/* Live Mechanical Energy Distribution Bar */}
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/75 border border-slate-200 dark:border-slate-700 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-mono">
+                    <span className="text-sky-600 dark:text-sky-400 font-bold">
+                      EK: {instant.kineticEnergy} J ({kePct}%)
+                    </span>
+                    <span className="text-amber-600 dark:text-amber-400 font-bold">
+                      EP: {instant.potentialEnergy} J ({pePct}%)
                     </span>
                   </div>
-                  <input
-                    id="physics-friction-slider"
-                    type="range"
-                    min={0}
-                    max={0.6}
-                    step={0.02}
-                    value={params.frictionCoeffKinetic}
-                    disabled={isParamLocked('frictionCoeffKinetic')}
-                    onPointerDown={() => onAcquireLock?.('frictionCoeffKinetic')}
-                    onFocus={() => onAcquireLock?.('frictionCoeffKinetic')}
-                    onPointerUp={() => onReleaseLock?.('frictionCoeffKinetic')}
-                    onBlur={() => onReleaseLock?.('frictionCoeffKinetic')}
-                    onChange={(e) => {
-                      const muk = parseFloat(e.target.value);
-                      handleParamUpdate({
-                        frictionCoeffKinetic: muk,
-                        frictionCoeffStatic: Number((muk * 1.35).toFixed(2)),
-                      });
-                    }}
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('frictionCoeffKinetic')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
+                  <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden flex">
+                    <motion.div
+                      animate={{ width: `${kePct}%` }}
+                      className="h-full bg-sky-500"
+                    />
+                    <motion.div
+                      animate={{ width: `${pePct}%` }}
+                      className="h-full bg-amber-500"
+                    />
+                  </div>
                 </div>
-              </>
+
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.96 }}
+                  onClick={handleRecordClick}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl transition-colors"
+                >
+                  <Camera className="w-4 h-4" />
+                  Catat Titik Data Ini ke Grafik Regresi
+                </motion.button>
+              </motion.div>
             )}
 
-            {params.mode === 'projectile-gravity' && (
-              <>
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="physics-v0-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Kecepatan Awal (v₀)
-                      </label>
-                      {renderLockBadge('initialVelocity')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.initialVelocity} m/s
-                    </span>
-                  </div>
-                  <input
-                    id="physics-v0-slider"
-                    type="range"
-                    min={2}
-                    max={50}
-                    step={1}
-                    value={params.initialVelocity}
-                    disabled={isParamLocked('initialVelocity')}
-                    onPointerDown={() => onAcquireLock?.('initialVelocity')}
-                    onFocus={() => onAcquireLock?.('initialVelocity')}
-                    onPointerUp={() => onReleaseLock?.('initialVelocity')}
-                    onBlur={() => onReleaseLock?.('initialVelocity')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        initialVelocity: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('initialVelocity')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="physics-launch-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Sudut Elevasi Tembakan (∠)
-                      </label>
-                      {renderLockBadge('launchAngle')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.launchAngle}°
-                    </span>
-                  </div>
-                  <input
-                    id="physics-launch-slider"
-                    type="range"
-                    min={10}
-                    max={80}
-                    step={1}
-                    value={params.launchAngle}
-                    disabled={isParamLocked('launchAngle')}
-                    onPointerDown={() => onAcquireLock?.('launchAngle')}
-                    onFocus={() => onAcquireLock?.('launchAngle')}
-                    onPointerUp={() => onReleaseLock?.('launchAngle')}
-                    onBlur={() => onReleaseLock?.('launchAngle')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        launchAngle: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('launchAngle')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="physics-height-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Ketinggian Awal (h₀)
-                      </label>
-                      {renderLockBadge('initialHeight')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.initialHeight} m
-                    </span>
-                  </div>
-                  <input
-                    id="physics-height-slider"
-                    type="range"
-                    min={0}
-                    max={60}
-                    step={2}
-                    value={params.initialHeight}
-                    disabled={isParamLocked('initialHeight')}
-                    onPointerDown={() => onAcquireLock?.('initialHeight')}
-                    onFocus={() => onAcquireLock?.('initialHeight')}
-                    onPointerUp={() => onReleaseLock?.('initialHeight')}
-                    onBlur={() => onReleaseLock?.('initialHeight')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        initialHeight: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('initialHeight')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-              </>
-            )}
-
-            {params.mode === 'collision-momentum' && (
-              <>
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="collision-v1-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Kecepatan Awal Benda 1 (v₁)
-                      </label>
-                      {renderLockBadge('initialVelocity')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.initialVelocity} m/s
-                    </span>
-                  </div>
-                  <input
-                    id="collision-v1-slider"
-                    type="range"
-                    min={1}
-                    max={25}
-                    step={1}
-                    value={params.initialVelocity}
-                    disabled={isParamLocked('initialVelocity')}
-                    onPointerDown={() => onAcquireLock?.('initialVelocity')}
-                    onFocus={() => onAcquireLock?.('initialVelocity')}
-                    onPointerUp={() => onReleaseLock?.('initialVelocity')}
-                    onBlur={() => onReleaseLock?.('initialVelocity')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        initialVelocity: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('initialVelocity')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="collision-m2-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Massa Benda Kedua (m₂)
-                      </label>
-                      {renderLockBadge('collisionMass2')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.collisionMass2} kg
-                    </span>
-                  </div>
-                  <input
-                    id="collision-m2-slider"
-                    type="range"
-                    min={0.5}
-                    max={25}
-                    step={0.5}
-                    value={params.collisionMass2}
-                    disabled={isParamLocked('collisionMass2')}
-                    onPointerDown={() => onAcquireLock?.('collisionMass2')}
-                    onFocus={() => onAcquireLock?.('collisionMass2')}
-                    onPointerUp={() => onReleaseLock?.('collisionMass2')}
-                    onBlur={() => onReleaseLock?.('collisionMass2')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        collisionMass2: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('collisionMass2')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="collision-v2-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Kecepatan Awal Benda 2 (v₂)
-                      </label>
-                      {renderLockBadge('velocity2Initial')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.velocity2Initial} m/s
-                    </span>
-                  </div>
-                  <input
-                    id="collision-v2-slider"
-                    type="range"
-                    min={-20}
-                    max={10}
-                    step={1}
-                    value={params.velocity2Initial}
-                    disabled={isParamLocked('velocity2Initial')}
-                    onPointerDown={() => onAcquireLock?.('velocity2Initial')}
-                    onFocus={() => onAcquireLock?.('velocity2Initial')}
-                    onPointerUp={() => onReleaseLock?.('velocity2Initial')}
-                    onBlur={() => onReleaseLock?.('velocity2Initial')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        velocity2Initial: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('velocity2Initial')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="collision-e-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Koefisien Restitusi (e)
-                      </label>
-                      {renderLockBadge('restitutionCoeff')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.restitutionCoeff.toFixed(2)} (
-                      {params.restitutionCoeff === 1
-                        ? 'Lenting Sempurna'
-                        : params.restitutionCoeff === 0
-                        ? 'Tidak Lenting'
-                        : 'Lenting Sebagian'}
-                      )
-                    </span>
-                  </div>
-                  <input
-                    id="collision-e-slider"
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={params.restitutionCoeff}
-                    disabled={isParamLocked('restitutionCoeff')}
-                    onPointerDown={() => onAcquireLock?.('restitutionCoeff')}
-                    onFocus={() => onAcquireLock?.('restitutionCoeff')}
-                    onPointerUp={() => onReleaseLock?.('restitutionCoeff')}
-                    onBlur={() => onReleaseLock?.('restitutionCoeff')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        restitutionCoeff: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('restitutionCoeff')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-              </>
-            )}
-
-            {params.mode === 'spring-hooke' && (
-              <>
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="spring-k-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Konstanta Pegas (k)
-                      </label>
-                      {renderLockBadge('springConstantK')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.springConstantK} N/m
-                    </span>
-                  </div>
-                  <input
-                    id="spring-k-slider"
-                    type="range"
-                    min={20}
-                    max={400}
-                    step={10}
-                    value={params.springConstantK}
-                    disabled={isParamLocked('springConstantK')}
-                    onPointerDown={() => onAcquireLock?.('springConstantK')}
-                    onFocus={() => onAcquireLock?.('springConstantK')}
-                    onPointerUp={() => onReleaseLock?.('springConstantK')}
-                    onBlur={() => onReleaseLock?.('springConstantK')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        springConstantK: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('springConstantK')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="spring-disp-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Simpangan Amplitudo Awal (Δx)
-                      </label>
-                      {renderLockBadge('springDisplacement')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.springDisplacement.toFixed(2)} m
-                    </span>
-                  </div>
-                  <input
-                    id="spring-disp-slider"
-                    type="range"
-                    min={-1.5}
-                    max={1.5}
-                    step={0.1}
-                    value={params.springDisplacement}
-                    disabled={isParamLocked('springDisplacement')}
-                    onPointerDown={() => onAcquireLock?.('springDisplacement')}
-                    onFocus={() => onAcquireLock?.('springDisplacement')}
-                    onPointerUp={() => onReleaseLock?.('springDisplacement')}
-                    onBlur={() => onReleaseLock?.('springDisplacement')}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value);
-                      handleParamUpdate({
-                        springDisplacement: val,
-                      });
-                    }}
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('springDisplacement')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="spring-damping-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Koefisien Redaman (b)
-                      </label>
-                      {renderLockBadge('dampingCoeff')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.dampingCoeff.toFixed(2)} N·s/m
-                    </span>
-                  </div>
-                  <input
-                    id="spring-damping-slider"
-                    type="range"
-                    min={0}
-                    max={2.0}
-                    step={0.05}
-                    value={params.dampingCoeff}
-                    disabled={isParamLocked('dampingCoeff')}
-                    onPointerDown={() => onAcquireLock?.('dampingCoeff')}
-                    onFocus={() => onAcquireLock?.('dampingCoeff')}
-                    onPointerUp={() => onReleaseLock?.('dampingCoeff')}
-                    onBlur={() => onReleaseLock?.('dampingCoeff')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        dampingCoeff: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('dampingCoeff')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-              </>
-            )}
-
-            {params.mode === 'orbital-gravity' && (
-              <>
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="physics-m2-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Massa Objek Kedua (m₂)
-                      </label>
-                      {renderLockBadge('secondaryMass')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.secondaryMass} kg
-                    </span>
-                  </div>
-                  <input
-                    id="physics-m2-slider"
-                    type="range"
-                    min={100}
-                    max={10000}
-                    step={100}
-                    value={params.secondaryMass}
-                    disabled={isParamLocked('secondaryMass')}
-                    onPointerDown={() => onAcquireLock?.('secondaryMass')}
-                    onFocus={() => onAcquireLock?.('secondaryMass')}
-                    onPointerUp={() => onReleaseLock?.('secondaryMass')}
-                    onBlur={() => onReleaseLock?.('secondaryMass')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        secondaryMass: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('secondaryMass')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="physics-dist-slider"
-                        className="font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Jarak Antar Pusat Massa (r)
-                      </label>
-                      {renderLockBadge('separationDistance')}
-                    </div>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.separationDistance} m
-                    </span>
-                  </div>
-                  <input
-                    id="physics-dist-slider"
-                    type="range"
-                    min={1}
-                    max={40}
-                    step={0.5}
-                    value={params.separationDistance}
-                    disabled={isParamLocked('separationDistance')}
-                    onPointerDown={() => onAcquireLock?.('separationDistance')}
-                    onFocus={() => onAcquireLock?.('separationDistance')}
-                    onPointerUp={() => onReleaseLock?.('separationDistance')}
-                    onBlur={() => onReleaseLock?.('separationDistance')}
-                    onChange={(e) =>
-                      handleParamUpdate({
-                        separationDistance: parseFloat(e.target.value),
-                      })
-                    }
-                    className={`w-full accent-sky-600 ${
-                      isParamLocked('separationDistance')
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    }`}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-            <div>
-              <label
-                htmlFor="physics-note-input"
-                className="block text-xs font-medium text-slate-700 dark:text-slate-200 mb-1"
+            {hudTab === 'guide' && (
+              <motion.div
+                key="guide"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-2.5"
               >
-                Catatan Pengamatan Eksperimen
-              </label>
-              <input
-                id="physics-note-input"
-                type="text"
-                value={noteInput}
-                onChange={(e) => setNoteInput(e.target.value)}
-                placeholder="Contoh: Momentum total kekal sebelum & sesudah tumbukan..."
-                className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
-              />
-            </div>
+                {/* Accordion 1: Concept Companion */}
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700/80 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setOpenAccordion('concept')}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <span className="flex items-center gap-2">
+                      <BookOpen className="w-3.5 h-3.5 text-sky-500" />
+                      {conceptCard.heading} ({conceptCard.levelLabel})
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform ${
+                        openAccordion === 'concept' ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  {openAccordion === 'concept' && (
+                    <div className="p-3.5 text-xs space-y-2 bg-white dark:bg-slate-900">
+                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                        {conceptCard.summaryText}
+                      </p>
+                      <p className="text-slate-800 dark:text-slate-200 font-medium">
+                        {conceptCard.practicalTip}
+                      </p>
+                      <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-sky-700 dark:text-sky-300 font-semibold">
+                        Rumus: {conceptCard.keyEquation}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-            <button
-              type="button"
-              onClick={handleRecordClick}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-semibold text-white bg-slate-900 dark:bg-sky-600 hover:bg-slate-800 dark:hover:bg-sky-500 rounded-lg transition-colors whitespace-nowrap"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Rekam Data Eksperimen ke Tabel Log
-            </button>
-          </div>
+                {/* Accordion 2: Guided Lab Scenarios */}
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700/80 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setOpenAccordion('scenarios')}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      Misi Skenario Praktikum Terbimbing
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform ${
+                        openAccordion === 'scenarios' ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  {openAccordion === 'scenarios' && (
+                    <div className="p-3 space-y-2 bg-white dark:bg-slate-900 max-h-60 overflow-y-auto">
+                      {physicsScenarios.map((sc, idx) => (
+                        <button
+                          key={sc.id}
+                          type="button"
+                          onClick={() => {
+                            labSound.playClick(660);
+                            const next = { ...params, ...sc.physicsPatch };
+                            setSimTime(0.8);
+                            setIsPlaying(false);
+                            onChangeParams(next);
+                            onPushNotification(generateAutomaticFeedback('Fisika', next));
+                          }}
+                          className="w-full text-left p-2.5 rounded-lg border border-slate-200 dark:border-slate-700/80 hover:border-sky-400 bg-slate-50/70 dark:bg-slate-800/60 transition-colors"
+                        >
+                          <div className="text-[11px] font-mono text-sky-600 dark:text-sky-400 font-semibold">
+                            0{idx + 1}. {sc.badgeText}
+                          </div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white">
+                            {sc.title}
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
+                            {sc.objective}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Accordion 3: K3 & Pre-Lab Briefing */}
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700/80 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setOpenAccordion('k3')}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <span className="flex items-center gap-2">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                      Prosedur K3 & Briefing Pra-Praktikum
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform ${
+                        openAccordion === 'k3' ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  {openAccordion === 'k3' && (
+                    <div className="p-3.5 text-xs space-y-2.5 bg-white dark:bg-slate-900">
+                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                        Pastikan kalibrasi titik nol dinamometer dan batas elastisitas pegas diperiksa sebelum memberikan beban maksimum.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setPreLabModalOpen(true)}
+                        className="w-full py-2 px-3 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-colors"
+                      >
+                        Buka Panduan K3 & Briefing Lengkap
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

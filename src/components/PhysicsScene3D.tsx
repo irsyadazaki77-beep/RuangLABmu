@@ -998,15 +998,15 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-slate-800 bg-[#0B1120]">
+    <div className="relative overflow-hidden rounded-xl border border-slate-800/90 bg-[#0B1120]">
       <div
         ref={mountRef}
         data-testid="physics-simulation-canvas"
-        className="w-full h-[340px] sm:h-[380px] block cursor-grab active:cursor-grabbing"
+        className="w-full h-[460px] sm:h-[520px] block cursor-grab active:cursor-grabbing"
       />
 
-      {/* Top-Left Live 3D Telemetry Badge (Opaque dark background — no backdrop-blur) */}
-      <div className="pointer-events-none absolute top-3 left-3 rounded-md border border-slate-700 bg-[#0F172A] px-3 py-2 text-xs shadow-md">
+      {/* Bottom-Left Live 3D Telemetry Badge (Opaque dark background — no backdrop-blur) */}
+      <div className="pointer-events-none absolute bottom-14 left-3 rounded-lg border border-slate-700/90 bg-[#0F172A]/95 px-3 py-2 text-xs shadow-md">
         <div className="font-mono text-[11px] font-semibold text-sky-400">
           VIEWPORT 3D WEBGL · t = {instant.time.toFixed(2)} s
         </div>
@@ -1018,9 +1018,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         </div>
       </div>
 
-      {/* Top-Right Vector Legend */}
+      {/* Bottom-Right Vector Legend */}
       {showVectorOverlay && (
-        <div className="pointer-events-none absolute top-3 right-3 hidden sm:flex items-center gap-2.5 rounded-md border border-slate-700 bg-[#0F172A] px-2.5 py-1.5 text-[11px] font-mono text-slate-300">
+        <div className="pointer-events-none absolute bottom-14 right-3 hidden xl:flex items-center gap-2.5 rounded-lg border border-slate-700/90 bg-[#0F172A]/95 px-2.5 py-1.5 text-[11px] font-mono text-slate-300">
           <span className="flex items-center gap-1">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
             Gaya / vₓ

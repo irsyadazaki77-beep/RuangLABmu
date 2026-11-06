@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Play,
   Pause,
@@ -10,11 +11,13 @@ import {
   Compass,
   Box,
   BookOpen,
-  Minus,
-  Plus,
   GitCompare,
   Hand,
   X,
+  Camera,
+  Sliders,
+  BarChart3,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   AstronomyParams,
@@ -25,7 +28,6 @@ import {
   calculateAstronomyMetrics,
   generateAutomaticFeedback,
   getConceptCardContent,
-  stepParameterValue,
   LabNotification,
 } from '../utils/scienceEngine';
 import { AstronomyScene3D } from './AstronomyScene3D';
@@ -38,6 +40,15 @@ import {
   EducationTier,
   getExperimentsByDomain,
 } from '../registry/experimentRegistry';
+import {
+  CircularGaugeMeter,
+  TactileParameterControl,
+  AnimatedNumberReadout,
+} from './ui/LabInstruments';
+import {
+  InteractiveFormulaCard,
+  FormulaToken,
+} from './ui/InteractiveFormulaCard';
 
 interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -82,6 +93,12 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   const [noteInput, setNoteInput] = useState<string>('');
   const [is3DMode, setIs3DMode] = useState<boolean>(true);
   const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
+  const [activeHudSection, setActiveHudSection] = useState<
+    'kontrol' | 'grafik' | 'panduan'
+  >('kontrol');
+  const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
+  const [shutterFlash, setShutterFlash] = useState<boolean>(false);
+  const [recordToastCount, setRecordToastCount] = useState<number>(0);
 
   const astronomyModules = getExperimentsByDomain('astronomi');
   const [preLabModalOpen, setPreLabModalOpen] = useState<boolean>(false);
@@ -801,6 +818,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
 
   const handleRecordClick = () => {
     labSound.playRecordSuccess();
+    setShutterFlash(true);
+    setRecordToastCount((c) => c + 1);
+    setTimeout(() => setShutterFlash(false), 220);
+
     const title =
       params.mode === 'solar-kepler'
         ? `Orbit Hukum Kepler — ${activePlanet.name} (a = ${params.customSemiMajorAxisAu} AU)`
@@ -882,6 +903,148 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
       generateAutomaticFeedback('Astronomi', undefined, undefined, updated)
     );
   };
+
+  // Interactive Live Formula Tokens for Astronomy
+  const astronomyFormulaData: {
+    title: string;
+    subtitle: string;
+    tokens: FormulaToken[];
+  } = (() => {
+    if (params.mode === 'milkyway-galaxy') {
+      return {
+        title: 'Kecepatan Rotasi Galaksi & Halo Materi Gelap',
+        subtitle: `Anomali Kecepatan Δv = +${metrics.velocityAnomalyKms} km/s pada R = ${params.galactocentricRadiusKpc} kpc`,
+        tokens: [
+          {
+            symbol: 'v_obs',
+            value: metrics.observedDarkMatterVelocityKms,
+            unit: 'km/s',
+            color: '#818cf8',
+          },
+          { symbol: '=' },
+          { symbol: '√[G·(' },
+          {
+            symbol: 'M_SgrA*',
+            paramKey: 'sgrAStarMassMillionSolar',
+            value: params.sgrAStarMassMillionSolar,
+            min: 1.0,
+            max: 15.0,
+            unit: '×10⁶ M☉',
+            color: '#f59e0b',
+          },
+          { symbol: '+' },
+          {
+            symbol: 'M_DM',
+            paramKey: 'darkMatterHaloFraction',
+            value: params.darkMatterHaloFraction,
+            min: 0.0,
+            max: 1.5,
+            unit: '×Halo',
+            color: '#38bdf8',
+          },
+          { symbol: ') /' },
+          {
+            symbol: 'R',
+            paramKey: 'galactocentricRadiusKpc',
+            value: params.galactocentricRadiusKpc,
+            min: 1.0,
+            max: 25.0,
+            unit: 'kpc',
+            color: '#10b981',
+          },
+          { symbol: ']' },
+        ],
+      };
+    }
+    if (params.mode === 'stellar-exoplanet') {
+      return {
+        title: 'Hukum Stefan-Boltzmann & Kedalaman Transit Eksoplanet',
+        subtitle: `Kelas Spektral ${metrics.spectralClass} · ΔF/F = -${metrics.transitDepthPct}% (${metrics.transitDepthPpm} ppm)`,
+        tokens: [
+          {
+            symbol: 'ΔF/F',
+            value: metrics.transitDepthPct,
+            unit: '%',
+            color: '#818cf8',
+          },
+          { symbol: '=' },
+          { symbol: '(' },
+          {
+            symbol: 'R_p',
+            paramKey: 'exoplanetRadiusEarth',
+            value: params.exoplanetRadiusEarth,
+            min: 0.5,
+            max: 15.0,
+            unit: 'R⊕',
+            color: '#10b981',
+          },
+          { symbol: '/' },
+          {
+            symbol: 'R*',
+            paramKey: 'starRadiusSolar',
+            value: params.starRadiusSolar,
+            min: 0.2,
+            max: 8.0,
+            unit: 'R☉',
+            color: '#f59e0b',
+          },
+          { symbol: ')²' },
+          { symbol: '·' },
+          {
+            symbol: 'T_eff',
+            paramKey: 'starEffectiveTempK',
+            value: params.starEffectiveTempK,
+            min: 2800,
+            max: 28000,
+            unit: 'K',
+            color: '#38bdf8',
+          },
+        ],
+      };
+    }
+    return {
+      title: 'Hukum III Kepler & Dinamika Orbit Elips',
+      subtitle: `${activePlanet.name} · Perihelion ${metrics.perihelionAu} AU · Aphelion ${metrics.aphelionAu} AU`,
+      tokens: [
+        {
+          symbol: 'T²',
+          value: Number(Math.pow(metrics.orbitalPeriodYears, 2).toFixed(2)),
+          unit: 'thn²',
+          color: '#818cf8',
+        },
+        { symbol: '=' },
+        {
+          symbol: 'a³',
+          paramKey: 'customSemiMajorAxisAu',
+          value: Number(Math.pow(params.customSemiMajorAxisAu, 3).toFixed(2)),
+          min: 0.02,
+          max: 32768,
+          unit: 'AU³',
+          color: '#38bdf8',
+        },
+        { symbol: '/' },
+        {
+          symbol: 'M*',
+          paramKey: 'centralStarMassSolar',
+          value: params.centralStarMassSolar,
+          min: 0.2,
+          max: 4.0,
+          unit: 'M☉',
+          color: '#f59e0b',
+        },
+        { symbol: '·' },
+        {
+          symbol: '(1−e²)',
+          paramKey: 'customEccentricity',
+          value: params.customEccentricity,
+          min: 0,
+          max: 0.85,
+          unit: 'e',
+          color: '#10b981',
+        },
+      ],
+    };
+  })();
 
   return (
     <div className="space-y-5">
@@ -1106,129 +1269,229 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left 7 Columns: Deep Space Interactive Canvas + Planet/Galaxy Inspector + 4 KPI Cards */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="bg-white/95 dark:bg-slate-900/90 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => handleModeSwitch('solar-kepler')}
-                  className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all whitespace-nowrap shrink-0 ${
-                    params.mode === 'solar-kepler'
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  Tata Surya & Hukum Kepler
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleModeSwitch('milkyway-galaxy')}
-                  className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all whitespace-nowrap shrink-0 ${
-                    params.mode === 'milkyway-galaxy'
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  Galaksi Bima Sakti & Sgr A*
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleModeSwitch('stellar-exoplanet')}
-                  className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all whitespace-nowrap shrink-0 ${
-                    params.mode === 'stellar-exoplanet'
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  Diagram H-R & Eksoplanet
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    labSound.playClick();
-                    setIs3DMode((m) => !m);
-                  }}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                    is3DMode
-                      ? 'bg-slate-900 dark:bg-sky-600 text-white'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <Box className="w-3.5 h-3.5 text-sky-400 dark:text-white" />
-                  {is3DMode ? '3D WebGL' : '2D Diagram'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    labSound.playClick(740);
-                    onSyncWithGroup(
-                      `Astronomi (${params.mode}): ${
-                        params.mode === 'solar-kepler'
-                          ? `${activePlanet.name} a=${params.customSemiMajorAxisAu} AU`
-                          : params.mode === 'milkyway-galaxy'
-                          ? `Bima Sakti R=${params.galactocentricRadiusKpc} kpc`
-                          : `Bintang Kelas ${metrics.spectralClass}`
-                      }`
-                    );
-                  }}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0"
-                >
-                  <Share2 className="w-3.5 h-3.5" /> Sinkronkan
-                </button>
-              </div>
+      {/* SPATIAL HUD COCKPIT WORKBENCH */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* HERO 3D OBSERVATORY STAGE (8 Cols) */}
+        <div className="lg:col-span-8 space-y-3">
+          {/* Mode Bar Above Stage */}
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-white/95 dark:bg-slate-900/90 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-2.5">
+            <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg">
+              <button
+                type="button"
+                onClick={() => handleModeSwitch('solar-kepler')}
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  params.mode === 'solar-kepler'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Tata Surya & Hukum Kepler
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeSwitch('milkyway-galaxy')}
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  params.mode === 'milkyway-galaxy'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Galaksi Bima Sakti & Sgr A*
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeSwitch('stellar-exoplanet')}
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  params.mode === 'stellar-exoplanet'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Diagram H-R & Eksoplanet
+              </button>
             </div>
 
-            {/* Interactive Viewport Container with Floating HUD & Floating Bottom Dock */}
-            <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-[#090D16]">
-              {/* Floating Top-Left Glass HUD Overlay */}
-              <div className="pointer-events-none absolute top-3 left-3 z-10 lab-glass-panel bg-slate-950/80 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-100 space-y-0.5">
-                <div className="font-mono text-[11px] text-sky-400 font-semibold tabular-nums">
-                  {params.mode === 'solar-kepler'
-                    ? `TATA SURYA KEPLER · ${activePlanet.name.toUpperCase()}`
-                    : params.mode === 'milkyway-galaxy'
-                    ? `GALAKSI BIMA SAKTI · SGR A* (${params.sgrAStarMassMillionSolar}×10⁶ M☉)`
-                    : `ASTROFISIKA BINTANG · KELAS SPEKTRAL ${metrics.spectralClass}`}
-                </div>
-                <div className="font-mono font-semibold text-white tabular-nums">
-                  {params.mode === 'solar-kepler'
-                    ? `a = ${params.customSemiMajorAxisAu} AU · T = ${metrics.orbitalPeriodYears} thn · T²/a³ = ${metrics.keplerRatioT2OverA3}`
-                    : params.mode === 'milkyway-galaxy'
-                    ? `v_obs = ${metrics.observedDarkMatterVelocityKms} km/s · v_Kepler = ${metrics.keplerianVelocityKms} km/s`
-                    : `L = ${metrics.stellarLuminositySolar} L☉ · ΔF/F = -${metrics.transitDepthPct}%`}
-                </div>
-              </div>
-
-              {/* Floating Top-Right Interactive Drag Hint */}
-              <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
-                {!is3DMode ? (
-                  <span className="lab-glass-panel bg-sky-950/85 border border-sky-500/50 text-sky-200 font-mono text-[11px] px-2.5 py-1 rounded-md flex items-center gap-1.5">
-                    <Hand className="w-3.5 h-3.5 text-sky-400" />
-                    {dragHintText ||
-                      (cursorCoords
-                        ? `Kursor (${cursorCoords.x}, ${cursorCoords.y}) · Seret Orbit/Bintang`
-                        : 'Klik & Seret Orbit/Diagram di Kanvas 2D')}
-                  </span>
-                ) : (
+            {params.mode === 'solar-kepler' && (
+              <div className="flex flex-wrap items-center gap-1">
+                {SOLAR_PLANET_PRESETS.slice(0, 6).map((pl) => (
                   <button
+                    key={pl.id}
                     type="button"
-                    onClick={() => {
-                      labSound.playClick();
-                      setIs3DMode(false);
-                    }}
-                    className="lab-glass-panel bg-slate-900/85 hover:bg-slate-800 border border-slate-700 text-slate-200 font-mono text-[11px] px-2.5 py-1 rounded-md flex items-center gap-1.5 transition-colors"
+                    onClick={() => handleSelectPlanetPreset(pl.id)}
+                    className={`px-2 py-1 text-[11px] font-medium rounded-md border transition-colors whitespace-nowrap cursor-pointer ${
+                      params.selectedPlanetId === pl.id
+                        ? 'bg-indigo-600 text-white border-indigo-500'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                    }`}
                   >
-                    <Hand className="w-3.5 h-3.5 text-sky-400" />
-                    Buka Kanvas 2D untuk Seret Orbit/H-R
+                    {pl.name.split(' (')[0]}
                   </button>
-                )}
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="relative min-h-[560px] rounded-2xl overflow-hidden border border-indigo-500/40 bg-[#090D16] shadow-[0_0_50px_-12px_rgba(99,102,241,0.35)] flex flex-col justify-between">
+            {/* Camera Shutter Flash on Record */}
+            <AnimatePresence>
+              {shutterFlash && (
+                <motion.div
+                  initial={{ opacity: 0.85 }}
+                  animate={{ opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="pointer-events-none absolute inset-0 z-40 bg-gradient-to-tr from-indigo-300/60 via-white/80 to-sky-300/60"
+                />
+              )}
+            </AnimatePresence>
+
+            {/* Flying "+1 Data Tercatat!" Toast Badge */}
+            <AnimatePresence>
+              {recordToastCount > 0 && (
+                <motion.div
+                  key={recordToastCount}
+                  initial={{ opacity: 0, y: 24, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -18, scale: 0.9 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 24 }}
+                  className="pointer-events-none absolute bottom-20 right-5 z-30 flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-500/95 text-white font-mono text-xs font-bold shadow-[0_0_25px_rgba(99,102,241,0.75)] border border-indigo-300"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>+1 Data Astronomi Tercatat!</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* TOP-LEFT FLOATING HUD: Observatory Pill + Tier Badge */}
+            <div className="absolute top-3.5 left-3.5 z-20 flex flex-wrap items-center gap-2 max-w-[62%]">
+              <div className="lab-glass-panel bg-slate-950/85 border border-indigo-500/40 rounded-xl px-3 py-2 text-xs text-slate-100 shadow-lg backdrop-blur-md">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span
+                      className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                        isRunning ? 'bg-emerald-400' : 'bg-amber-400'
+                      }`}
+                    />
+                    <span
+                      className={`relative inline-flex rounded-full h-2 w-2 ${
+                        isRunning ? 'bg-emerald-500' : 'bg-amber-500'
+                      }`}
+                    />
+                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-indigo-400 font-bold">
+                    {isRunning ? 'OBSERVATORIUM AKTIF · 60 FPS' : 'ORBIT DIJEDA'}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-mono text-[10px] font-bold">
+                    {activeTier}
+                  </span>
+                </div>
+                <div className="font-mono font-bold text-white text-xs mt-1 truncate">
+                  {params.mode === 'solar-kepler'
+                    ? `Tata Surya Kepler · ${activePlanet.name}`
+                    : params.mode === 'milkyway-galaxy'
+                    ? `Galaksi Bima Sakti · Sgr A* (${params.sgrAStarMassMillionSolar}×10⁶ M☉)`
+                    : `Astrofisika Bintang · Kelas Spektral ${metrics.spectralClass}`}
+                </div>
               </div>
 
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setIs3DMode((m) => !m);
+                }}
+                className="lab-glass-panel bg-slate-900/85 hover:bg-slate-800 border border-indigo-500/40 text-indigo-300 font-mono text-[11px] px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors shadow-md cursor-pointer"
+              >
+                <Box className="w-3.5 h-3.5 text-indigo-400" />
+                {is3DMode ? '3D WebGL' : '2D Diagram'}
+              </button>
+            </div>
+
+            {/* TOP-RIGHT FLOATING HUD: Tactile Circular Gauges */}
+            <div className="pointer-events-none absolute top-3.5 right-3.5 z-20 hidden sm:flex items-start gap-2">
+              {params.mode === 'solar-kepler' && (
+                <>
+                  <CircularGaugeMeter
+                    size="sm"
+                    label="Kecepatan Orbit"
+                    value={metrics.meanOrbitalVelocityKms}
+                    min={0}
+                    max={55}
+                    unit="km/s"
+                    color="#818cf8"
+                  />
+                  <CircularGaugeMeter
+                    size="sm"
+                    label="Periode Orbit T"
+                    value={metrics.orbitalPeriodYears}
+                    min={0}
+                    max={170}
+                    unit="tahun"
+                    color="#38bdf8"
+                  />
+                </>
+              )}
+              {params.mode === 'milkyway-galaxy' && (
+                <>
+                  <CircularGaugeMeter
+                    size="sm"
+                    label="Rotasi v_obs (DM)"
+                    value={metrics.observedDarkMatterVelocityKms}
+                    min={0}
+                    max={300}
+                    unit="km/s"
+                    color="#818cf8"
+                  />
+                  <CircularGaugeMeter
+                    size="sm"
+                    label="Anomali DM Δv"
+                    value={metrics.velocityAnomalyKms}
+                    min={0}
+                    max={180}
+                    unit="km/s"
+                    color="#10b981"
+                  />
+                </>
+              )}
+              {params.mode === 'stellar-exoplanet' && (
+                <>
+                  <CircularGaugeMeter
+                    size="sm"
+                    label="Kedalaman Transit"
+                    value={metrics.transitDepthPct}
+                    min={0}
+                    max={5}
+                    unit="%"
+                    color="#818cf8"
+                  />
+                  <CircularGaugeMeter
+                    size="sm"
+                    label="Suhu Bintang T*"
+                    value={params.starEffectiveTempK}
+                    min={2800}
+                    max={28000}
+                    unit="K"
+                    color="#38bdf8"
+                  />
+                </>
+              )}
+            </div>
+
+            {/* 2D Canvas Interactive Drag Hint Pill */}
+            {!is3DMode && (
+              <div className="absolute bottom-16 left-3.5 z-20">
+                <span className="lab-glass-panel bg-sky-950/90 border border-sky-500/50 text-sky-200 font-mono text-[11px] px-2.5 py-1 rounded-md flex items-center gap-1.5">
+                  <Hand className="w-3.5 h-3.5 text-sky-400" />
+                  {dragHintText ||
+                    (cursorCoords
+                      ? `Kursor (${cursorCoords.x}, ${cursorCoords.y}) · Seret Orbit/Bintang`
+                      : 'Klik & Seret Orbit/Diagram di Kanvas 2D')}
+                </span>
+              </div>
+            )}
+
+            {/* MAIN 3D / 2D VIEWPORT */}
+            <div className="flex-1 flex flex-col justify-center">
               {is3DMode ? (
                 <AstronomyScene3D
                   params={params}
@@ -1243,7 +1506,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                   ref={canvasRef}
                   data-testid="astronomy-simulation-canvas"
                   width={740}
-                  height={370}
+                  height={480}
                   onPointerDown={(e) => {
                     setIsDraggingCanvas(true);
                     labSound.playClick(540);
@@ -1261,794 +1524,565 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     setCursorCoords(null);
                     setDragHintText('');
                   }}
-                  className={`w-full h-[320px] sm:h-[370px] block touch-none ${
+                  className={`w-full h-[460px] sm:h-[500px] block touch-none ${
                     isDraggingCanvas ? 'cursor-grabbing' : 'cursor-crosshair'
                   }`}
                 />
               )}
-
-              {/* Floating Bottom Dock */}
-              <div className="bg-slate-950/90 border-t border-slate-800 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick(700);
-                      setIsRunning((r) => !r);
-                    }}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded-md transition-colors whitespace-nowrap shrink-0"
-                  >
-                    {isRunning ? (
-                      <>
-                        <Pause className="w-3.5 h-3.5" /> Jeda Orbit
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-3.5 h-3.5" /> Jalankan Orbit
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick(460);
-                      setSimTime(0);
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" /> Reset
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-mono text-slate-400">
-                    Kecepatan Waktu Orbit:
-                  </span>
-                  <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-md">
-                    {[0.5, 1.0, 2.0].map((spd) => (
-                      <button
-                        key={spd}
-                        type="button"
-                        onClick={() => {
-                          labSound.playClick();
-                          onChangeParams((prev) => ({
-                            ...prev,
-                            timeScaleSpeed: spd,
-                          }));
-                        }}
-                        className={`px-2 py-0.5 text-[11px] font-mono rounded transition-colors ${
-                          (params.timeScaleSpeed || 1.0) === spd
-                            ? 'bg-sky-600 text-white font-semibold'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {spd}x
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
             </div>
 
-            {/* Interactive Planet Quick-Selector & Celestial Inspector Card */}
-            {params.mode === 'solar-kepler' && (
-              <div className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 rounded-lg p-3 space-y-2.5">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 mr-1 flex items-center gap-1">
-                    <Compass className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                    Pilih Objek Tata Surya:
-                  </span>
-                  {SOLAR_PLANET_PRESETS.map((pl) => (
+            {/* BOTTOM FLOATING HUD DECK */}
+            <div className="relative z-20 bg-slate-950/95 backdrop-blur-md border-t border-indigo-500/30 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => {
+                    labSound.playClick(700);
+                    setIsRunning((r) => !r);
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-[0_0_16px_rgba(99,102,241,0.45)] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  {isRunning ? (
+                    <>
+                      <Pause className="w-3.5 h-3.5" /> Jeda Orbit
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5" /> Jalankan Orbit
+                    </>
+                  )}
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => {
+                    labSound.playClick(460);
+                    setSimTime(0);
+                  }}
+                  className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-200 bg-slate-800/90 hover:bg-slate-700 border border-slate-700 rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Reset
+                </motion.button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
+                  Kecepatan Waktu:
+                </span>
+                <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-lg">
+                  {[0.5, 1.0, 2.0].map((spd) => (
                     <button
-                      key={pl.id}
+                      key={spd}
                       type="button"
-                      onClick={() => handleSelectPlanetPreset(pl.id)}
-                      className={`px-2 py-1 text-xs font-medium rounded border transition-colors whitespace-nowrap ${
-                        params.selectedPlanetId === pl.id
-                          ? 'bg-slate-900 dark:bg-sky-600 text-white border-slate-900 dark:border-sky-500'
-                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      onClick={() => {
+                        labSound.playClick();
+                        onChangeParams((prev) => ({
+                          ...prev,
+                          timeScaleSpeed: spd,
+                        }));
+                      }}
+                      className={`px-2 py-0.5 text-[11px] font-mono rounded-md transition-colors cursor-pointer ${
+                        (params.timeScaleSpeed || 1.0) === spd
+                          ? 'bg-indigo-600 text-white font-semibold'
+                          : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      {pl.name.split(' (')[0]}
+                      {spd}x
                     </button>
                   ))}
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1 border-t border-slate-200 dark:border-slate-700">
-                  <div>
-                    <span className="text-slate-500 dark:text-slate-400 block">
-                      Kategori & Massa
-                    </span>
-                    <span className="font-semibold text-slate-900 dark:text-white">
-                      {activePlanet.category} · {activePlanet.massEarth} M⊕
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 dark:text-slate-400 block">
-                      Radius & Suhu Rata-rata
-                    </span>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white">
-                      {activePlanet.radiusKm.toLocaleString('id-ID')} km ·{' '}
-                      {activePlanet.surfaceTempC}°C
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 dark:text-slate-400 block">
-                      Atmosfer & Satelit Alami
-                    </span>
-                    <span className="font-semibold text-slate-900 dark:text-white">
-                      {activePlanet.moonsCount} Bulan · {activePlanet.atmosphere}
-                    </span>
-                  </div>
-                </div>
               </div>
-            )}
-          </div>
 
-          {/* 4-Card Telemetry Readout Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {params.mode === 'solar-kepler' && (
-              <>
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Periode Orbit (T)
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                      {metrics.orbitalPeriodYears}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 ml-1">
-                      tahun
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs font-mono text-emerald-700 dark:text-emerald-400">
-                    Rasio T²/a³ = {metrics.keplerRatioT2OverA3}
-                  </div>
-                </div>
-
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Kecepatan Orbit Rata-rata
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-xl font-mono font-bold text-sky-700 dark:text-sky-400 tabular-nums">
-                      {metrics.meanOrbitalVelocityKms}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 ml-1">
-                      km/s
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    M* = {params.centralStarMassSolar} M☉
-                  </div>
-                </div>
-
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Jarak & Laju Perihelion
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                      {metrics.perihelionAu}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 ml-1">
-                      AU
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                    v_maks = {metrics.perihelionVelocityKms} km/s
-                  </div>
-                </div>
-
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Jarak & Laju Aphelion
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                      {metrics.aphelionAu}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 ml-1">
-                      AU
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                    v_min = {metrics.aphelionVelocityKms} km/s
-                  </div>
-                </div>
-              </>
-            )}
-
-            {params.mode === 'milkyway-galaxy' && (
-              <>
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Kecepatan Rotasi (v_obs)
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-xl font-mono font-bold text-sky-700 dark:text-sky-400 tabular-nums">
-                      {metrics.observedDarkMatterVelocityKms}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 ml-1">
-                      km/s
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                    Keplerian: {metrics.keplerianVelocityKms} km/s
-                  </div>
-                </div>
-
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Anomali Materi Gelap
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-xl font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                      +{metrics.velocityAnomalyKms}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 ml-1">
-                      km/s
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Kontribusi Halo DM
-                  </div>
-                </div>
-
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Periode Galaktik (T_gal)
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                      {metrics.galacticOrbitalPeriodMyr}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 ml-1">
-                      Myr
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                    Pada R = {params.galactocentricRadiusKpc} kpc
-                  </div>
-                </div>
-
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Massa Terlingkupi M(&lt;R)
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                      {metrics.enclosedMassBillionSolar}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 ml-1">
-                      ×10⁹ M☉
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs font-mono text-amber-700 dark:text-amber-400">
-                    Rs Sgr A* = {metrics.sgrASchwarzschildRadiusMillionKm} jt km
-                  </div>
-                </div>
-              </>
-            )}
-
-            {params.mode === 'stellar-exoplanet' && (
-              <>
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Luminositas Bintang
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                      {metrics.stellarLuminositySolar}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 ml-1">
-                      L☉
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs font-mono text-sky-700 dark:text-sky-400">
-                    Kelas Spektral {metrics.spectralClass}
-                  </div>
-                </div>
-
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Kedalaman Transit (ΔF/F)
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-xl font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                      {metrics.transitDepthPct}%
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                    {metrics.transitDepthPpm} ppm penurunan fluks
-                  </div>
-                </div>
-
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Rentang Zona Laik Huni
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-lg font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                      {metrics.habitableZoneInnerAu}–
-                      {metrics.habitableZoneOuterAu}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 ml-1">
-                      AU
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                    Status: {metrics.isInHabitableZone ? 'Laik Huni' : 'Ekstrem'}
-                  </div>
-                </div>
-
-                <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Umur Deret Utama (τ_MS)
-                  </div>
-                  <div className="mt-1 flex items-baseline">
-                    <span className="text-xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                      {metrics.mainSequenceLifetimeGyr}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 ml-1">
-                      Gyr
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Miliar tahun pembakaran H
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Adaptive Concept Companion Card */}
-          <div className="bg-slate-900 text-slate-100 border border-slate-800 rounded-xl p-4 space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-sky-400" />
-                <span className="text-xs font-bold text-sky-400">
-                  {conceptCard.heading}
-                </span>
-              </div>
-              <span className="text-xs font-mono text-emerald-300 bg-slate-800 px-2.5 py-0.5 rounded border border-slate-700">
-                {conceptCard.keyEquation}
-              </span>
-            </div>
-            <p className="text-xs text-slate-200 leading-relaxed">
-              {conceptCard.summaryText}
-            </p>
-            <div className="text-[11px] text-amber-300 font-medium pt-1 border-t border-slate-800">
-              {conceptCard.practicalTip}
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleRecordClick}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.5)] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                Catat Data Percobaan
+              </motion.button>
             </div>
           </div>
         </div>
 
-        {/* Right 5 Columns: Astronomy Parameter Controls & Data Logging */}
-        <div className="lg:col-span-5 bg-white/95 dark:bg-slate-900/90 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-5">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <Orbit className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-              Panel Kalibrasi Parameter Astronomi & Astrofisika
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Gunakan tombol -/+, geser slider, atau seret langsung di kanvas 2D
-            </p>
+        {/* RIGHT COCKPIT DOCK: Collapsible Segmented Drawer Tabs (4 Cols) */}
+        <div className="lg:col-span-4 bg-white/95 dark:bg-slate-900/90 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-4 shadow-lg">
+          {/* Segmented Drawer Navigation */}
+          <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-slate-950/90 rounded-xl border border-slate-200/80 dark:border-slate-800">
+            {[
+              { id: 'kontrol', label: 'Kontrol & Rumus', icon: Sliders },
+              { id: 'grafik', label: 'Grafik & Data', icon: BarChart3 },
+              { id: 'panduan', label: 'Panduan & K3', icon: BookOpen },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeHudSection === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick(680);
+                    setActiveHudSection(tab.id as 'kontrol' | 'grafik' | 'panduan');
+                  }}
+                  className={`relative flex items-center justify-center gap-1.5 py-2 px-2 text-[11px] font-bold rounded-lg transition-colors cursor-pointer ${
+                    isActive
+                      ? 'text-slate-950 dark:text-white'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="hud-section-pill-astro"
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      className="absolute inset-0 rounded-lg bg-white dark:bg-indigo-600 shadow-xs"
+                    />
+                  )}
+                  <Icon className="w-3.5 h-3.5 relative z-10 shrink-0" />
+                  <span className="relative z-10 truncate">{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          {params.mode === 'solar-kepler' && (
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <label
-                    htmlFor="astro-semimajor-slider"
-                    className="font-medium text-slate-700 dark:text-slate-200"
+          <AnimatePresence mode="wait">
+            {activeHudSection === 'kontrol' && (
+              <motion.div
+                key="kontrol"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-4"
+              >
+                {/* Interactive Live Formula Card */}
+                <InteractiveFormulaCard
+                  title={astronomyFormulaData.title}
+                  subtitle={astronomyFormulaData.subtitle}
+                  tokens={astronomyFormulaData.tokens}
+                  activeParamKey={hoveredParamKey}
+                  accentColor="#818cf8"
+                />
+
+                {/* Header & Group Sync */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    <Orbit className="w-3.5 h-3.5 text-indigo-500" />
+                    Instrumen Parameter Astrofisika
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick(740);
+                      onSyncWithGroup(
+                        `Astronomi (${params.mode}): ${
+                          params.mode === 'solar-kepler'
+                            ? `${activePlanet.name} a=${params.customSemiMajorAxisAu} AU`
+                            : params.mode === 'milkyway-galaxy'
+                            ? `Bima Sakti R=${params.galactocentricRadiusKpc} kpc`
+                            : `Bintang Kelas ${metrics.spectralClass}`
+                        }`
+                      );
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200/60 dark:border-indigo-800/60 rounded-lg transition-colors cursor-pointer"
                   >
-                    Sumbu Semi-Mayor Orbit (a)
-                  </label>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      aria-label="Kurangi sumbu semi-mayor"
-                      onClick={() => {
-                        labSound.playStep('down');
-                        onChangeParams((p) => ({
-                          ...p,
-                          customSemiMajorAxisAu: stepParameterValue(
-                            p.customSemiMajorAxisAu,
-                            -0.1,
-                            0.3,
-                            32.0,
-                            2
-                          ),
-                        }));
-                      }}
-                      className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                    <Share2 className="w-3 h-3" />
+                    Sinkronkan
+                  </button>
+                </div>
+
+                {/* Tactile Sliders by Mode */}
+                <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+                  {params.mode === 'solar-kepler' && (
+                    <>
+                      <TactileParameterControl
+                        label="Sumbu Semi-Mayor Orbit"
+                        symbol="a"
+                        value={params.customSemiMajorAxisAu}
+                        min={0.3}
+                        max={32.0}
+                        step={0.1}
+                        unit="AU"
+                        accentColor="#38bdf8"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'customSemiMajorAxisAu' : null)
+                        }
+                        onChange={(v) =>
+                          onChangeParams((p) => ({ ...p, customSemiMajorAxisAu: v }))
+                        }
+                      />
+                      <TactileParameterControl
+                        label="Eksentrisitas Elips Orbit"
+                        symbol="e"
+                        value={params.customEccentricity}
+                        min={0.0}
+                        max={0.85}
+                        step={0.01}
+                        unit=""
+                        accentColor="#10b981"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'customEccentricity' : null)
+                        }
+                        onChange={(v) =>
+                          onChangeParams((p) => ({ ...p, customEccentricity: v }))
+                        }
+                      />
+                      <TactileParameterControl
+                        label="Massa Bintang Pusat"
+                        symbol="M*"
+                        value={params.centralStarMassSolar}
+                        min={0.2}
+                        max={4.0}
+                        step={0.1}
+                        unit="M☉"
+                        accentColor="#f59e0b"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'centralStarMassSolar' : null)
+                        }
+                        onChange={(v) =>
+                          onChangeParams((p) => ({ ...p, centralStarMassSolar: v }))
+                        }
+                      />
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800">
+                        <label
+                          htmlFor="kepler-sweep-toggle"
+                          className="text-xs font-medium text-slate-700 dark:text-slate-200"
+                        >
+                          Sapuan Juring Hukum II Kepler (ΔA/Δt)
+                        </label>
+                        <input
+                          id="kepler-sweep-toggle"
+                          type="checkbox"
+                          checked={params.showKeplerAreaSweep}
+                          onChange={(e) => {
+                            labSound.playClick();
+                            onChangeParams((p) => ({
+                              ...p,
+                              showKeplerAreaSweep: e.target.checked,
+                            }));
+                          }}
+                          className="h-4 w-4 accent-indigo-600 rounded cursor-pointer"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {params.mode === 'milkyway-galaxy' && (
+                    <>
+                      <TactileParameterControl
+                        label="Jarak dari Inti Galaksi Bima Sakti"
+                        symbol="R"
+                        value={params.galactocentricRadiusKpc}
+                        min={1.0}
+                        max={25.0}
+                        step={0.2}
+                        unit="kpc"
+                        accentColor="#10b981"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'galactocentricRadiusKpc' : null)
+                        }
+                        onChange={(v) =>
+                          onChangeParams((p) => ({ ...p, galactocentricRadiusKpc: v }))
+                        }
+                      />
+                      <TactileParameterControl
+                        label="Fraksi Kerapatan Halo Materi Gelap"
+                        symbol="M_DM"
+                        value={params.darkMatterHaloFraction}
+                        min={0.0}
+                        max={1.5}
+                        step={0.05}
+                        unit="x"
+                        accentColor="#38bdf8"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'darkMatterHaloFraction' : null)
+                        }
+                        onChange={(v) =>
+                          onChangeParams((p) => ({ ...p, darkMatterHaloFraction: v }))
+                        }
+                      />
+                      <TactileParameterControl
+                        label="Massa Lubang Hitam Sgr A*"
+                        symbol="SgrA*"
+                        value={params.sgrAStarMassMillionSolar}
+                        min={1.0}
+                        max={15.0}
+                        step={0.15}
+                        unit="×10⁶ M☉"
+                        accentColor="#f59e0b"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'sgrAStarMassMillionSolar' : null)
+                        }
+                        onChange={(v) =>
+                          onChangeParams((p) => ({ ...p, sgrAStarMassMillionSolar: v }))
+                        }
+                      />
+                    </>
+                  )}
+
+                  {params.mode === 'stellar-exoplanet' && (
+                    <>
+                      <TactileParameterControl
+                        label="Suhu Efektif Permukaan Bintang"
+                        symbol="T_eff"
+                        value={params.starEffectiveTempK}
+                        min={2800}
+                        max={28000}
+                        step={100}
+                        unit="K"
+                        accentColor="#38bdf8"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'starEffectiveTempK' : null)
+                        }
+                        onChange={(v) =>
+                          onChangeParams((p) => ({ ...p, starEffectiveTempK: v }))
+                        }
+                      />
+                      <TactileParameterControl
+                        label="Jari-Jari Bintang Induk"
+                        symbol="R*"
+                        value={params.starRadiusSolar}
+                        min={0.2}
+                        max={8.0}
+                        step={0.1}
+                        unit="R☉"
+                        accentColor="#f59e0b"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'starRadiusSolar' : null)
+                        }
+                        onChange={(v) =>
+                          onChangeParams((p) => ({ ...p, starRadiusSolar: v }))
+                        }
+                      />
+                      <TactileParameterControl
+                        label="Jari-Jari Eksoplanet Transit"
+                        symbol="R_p"
+                        value={params.exoplanetRadiusEarth}
+                        min={0.5}
+                        max={15.0}
+                        step={0.5}
+                        unit="R⊕"
+                        accentColor="#10b981"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'exoplanetRadiusEarth' : null)
+                        }
+                        onChange={(v) =>
+                          onChangeParams((p) => ({ ...p, exoplanetRadiusEarth: v }))
+                        }
+                      />
+                      <TactileParameterControl
+                        label="Jarak Orbit Eksoplanet"
+                        symbol="d"
+                        value={params.exoplanetOrbitAu}
+                        min={0.1}
+                        max={4.5}
+                        step={0.05}
+                        unit="AU"
+                        accentColor="#a855f7"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'exoplanetOrbitAu' : null)
+                        }
+                        onChange={(v) =>
+                          onChangeParams((p) => ({ ...p, exoplanetOrbitAu: v }))
+                        }
+                      />
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {activeHudSection === 'grafik' && (
+              <motion.div
+                key="grafik"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-3.5"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                    Telemetri Observatorium
+                  </span>
+                  <span className="text-[11px] font-mono text-indigo-400">
+                    ● {params.mode}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {params.mode === 'solar-kepler' && (
+                    <>
+                      <AnimatedNumberReadout
+                        label="Periode Orbit (T)"
+                        value={metrics.orbitalPeriodYears}
+                        unit="tahun"
+                        accentColor="#818cf8"
+                      />
+                      <AnimatedNumberReadout
+                        label="Kecepatan Orbit"
+                        value={metrics.meanOrbitalVelocityKms}
+                        unit="km/s"
+                        accentColor="#38bdf8"
+                      />
+                      <AnimatedNumberReadout
+                        label="Jarak Perihelion"
+                        value={metrics.perihelionAu}
+                        unit="AU"
+                        accentColor="#10b981"
+                      />
+                      <AnimatedNumberReadout
+                        label="Jarak Aphelion"
+                        value={metrics.aphelionAu}
+                        unit="AU"
+                        accentColor="#f59e0b"
+                      />
+                    </>
+                  )}
+
+                  {params.mode === 'milkyway-galaxy' && (
+                    <>
+                      <AnimatedNumberReadout
+                        label="Kecepatan Rotasi v_obs"
+                        value={metrics.observedDarkMatterVelocityKms}
+                        unit="km/s"
+                        accentColor="#818cf8"
+                      />
+                      <AnimatedNumberReadout
+                        label="Anomali Materi Gelap"
+                        value={metrics.velocityAnomalyKms}
+                        unit="km/s"
+                        accentColor="#10b981"
+                      />
+                      <AnimatedNumberReadout
+                        label="Periode Galaktik T_gal"
+                        value={metrics.galacticOrbitalPeriodMyr}
+                        unit="Myr"
+                        accentColor="#38bdf8"
+                      />
+                      <AnimatedNumberReadout
+                        label="Massa M(<R)"
+                        value={metrics.enclosedMassBillionSolar}
+                        unit="×10⁹ M☉"
+                        accentColor="#f59e0b"
+                      />
+                    </>
+                  )}
+
+                  {params.mode === 'stellar-exoplanet' && (
+                    <>
+                      <AnimatedNumberReadout
+                        label="Luminositas Bintang"
+                        value={metrics.stellarLuminositySolar}
+                        unit="L☉"
+                        accentColor="#f59e0b"
+                      />
+                      <AnimatedNumberReadout
+                        label="Kedalaman Transit"
+                        value={metrics.transitDepthPct}
+                        unit="%"
+                        accentColor="#10b981"
+                      />
+                      <AnimatedNumberReadout
+                        label="HZ Dalam (Inner)"
+                        value={metrics.habitableZoneInnerAu}
+                        unit="AU"
+                        accentColor="#38bdf8"
+                      />
+                      <AnimatedNumberReadout
+                        label="Umur Deret Utama"
+                        value={metrics.mainSequenceLifetimeGyr}
+                        unit="Gyr"
+                        accentColor="#818cf8"
+                      />
+                    </>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+                  <div>
+                    <label
+                      htmlFor="astro-note-input"
+                      className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1"
                     >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums min-w-[64px] text-center">
-                      {params.customSemiMajorAxisAu} AU
+                      Catatan Pengamatan Astronomi
+                    </label>
+                    <input
+                      id="astro-note-input"
+                      type="text"
+                      value={noteInput}
+                      onChange={(e) => setNoteInput(e.target.value)}
+                      placeholder="Contoh: Rasio T²/a³ konstan bernilai 1.00..."
+                      className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.96 }}
+                    onClick={handleRecordClick}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-bold text-white bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 rounded-xl transition-colors cursor-pointer"
+                  >
+                    <BookmarkPlus className="w-4 h-4" />
+                    Rekam Data Eksperimen ke Tabel Log
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
+
+            {activeHudSection === 'panduan' && (
+              <motion.div
+                key="panduan"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-3"
+              >
+                <details
+                  open
+                  className="group rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/70 p-3 text-xs"
+                >
+                  <summary className="font-bold text-slate-900 dark:text-white cursor-pointer flex items-center justify-between">
+                    <span>{conceptCard.heading}</span>
+                    <span className="font-mono text-[10px] text-indigo-400">
+                      {activeTier}
                     </span>
+                  </summary>
+                  <div className="mt-2 space-y-1.5 text-slate-600 dark:text-slate-300 leading-relaxed">
+                    <p>{conceptCard.summaryText}</p>
+                    <p className="text-indigo-600 dark:text-indigo-400 font-medium">
+                      {conceptCard.practicalTip}
+                    </p>
+                    <div className="mt-2 p-2 rounded-lg bg-slate-900 text-indigo-300 font-mono text-[11px]">
+                      Rumus: {conceptCard.keyEquation}
+                    </div>
+                  </div>
+                </details>
+
+                <details className="group rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/70 p-3 text-xs">
+                  <summary className="font-bold text-slate-900 dark:text-white cursor-pointer flex items-center justify-between">
+                    <span>Kalibrasi Instrumen & Panduan Observatorium</span>
+                    <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                  </summary>
+                  <div className="mt-2 space-y-2 text-slate-600 dark:text-slate-300">
+                    <p>
+                      Gunakan filter spektral dan kalibrasi fotometri sebelum merekam kurva cahaya transit eksoplanet atau kecepatan rotasi galaksi.
+                    </p>
                     <button
                       type="button"
-                      aria-label="Tambah sumbu semi-mayor"
-                      onClick={() => {
-                        labSound.playStep('up');
-                        onChangeParams((p) => ({
-                          ...p,
-                          customSemiMajorAxisAu: stepParameterValue(
-                            p.customSemiMajorAxisAu,
-                            0.1,
-                            0.3,
-                            32.0,
-                            2
-                          ),
-                        }));
-                      }}
-                      className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                      onClick={() => setPreLabModalOpen(true)}
+                      className="w-full py-1.5 px-3 rounded-lg bg-indigo-600/15 border border-indigo-500/40 text-indigo-700 dark:text-indigo-300 font-semibold hover:bg-indigo-600/25 transition-colors cursor-pointer"
                     >
-                      <Plus className="w-3 h-3" />
+                      Buka Panduan Observatorium Lengkap
                     </button>
                   </div>
-                </div>
-                <input
-                  id="astro-semimajor-slider"
-                  type="range"
-                  min={0.3}
-                  max={32.0}
-                  step={0.1}
-                  value={params.customSemiMajorAxisAu}
-                  onChange={(e) =>
-                    onChangeParams((p) => ({
-                      ...p,
-                      customSemiMajorAxisAu: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-sky-600"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <label
-                    htmlFor="astro-eccentricity-slider"
-                    className="font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    Eksentrisitas Elips Orbit (e)
-                  </label>
-                  <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                    {params.customEccentricity}
-                  </span>
-                </div>
-                <input
-                  id="astro-eccentricity-slider"
-                  type="range"
-                  min={0.0}
-                  max={0.85}
-                  step={0.01}
-                  value={params.customEccentricity}
-                  onChange={(e) =>
-                    onChangeParams((p) => ({
-                      ...p,
-                      customEccentricity: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-sky-600"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <label
-                    htmlFor="astro-starmass-slider"
-                    className="font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    Massa Bintang Pusat (M*)
-                  </label>
-                  <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                    {params.centralStarMassSolar} M☉
-                  </span>
-                </div>
-                <input
-                  id="astro-starmass-slider"
-                  type="range"
-                  min={0.2}
-                  max={4.0}
-                  step={0.1}
-                  value={params.centralStarMassSolar}
-                  onChange={(e) =>
-                    onChangeParams((p) => ({
-                      ...p,
-                      centralStarMassSolar: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-sky-600"
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <label
-                  htmlFor="kepler-sweep-toggle"
-                  className="text-xs font-medium text-slate-700 dark:text-slate-200"
-                >
-                  Tampilkan Sapuan Juring Hukum II Kepler (ΔA/Δt)
-                </label>
-                <input
-                  id="kepler-sweep-toggle"
-                  type="checkbox"
-                  checked={params.showKeplerAreaSweep}
-                  onChange={(e) => {
-                    labSound.playClick();
-                    onChangeParams((p) => ({
-                      ...p,
-                      showKeplerAreaSweep: e.target.checked,
-                    }));
-                  }}
-                  className="h-4 w-4 accent-sky-600 rounded"
-                />
-              </div>
-            </div>
-          )}
-
-          {params.mode === 'milkyway-galaxy' && (
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <label
-                    htmlFor="galaxy-radius-slider"
-                    className="font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    Jarak dari Inti Galaksi Bima Sakti (R)
-                  </label>
-                  <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                    {params.galactocentricRadiusKpc} kpc{' '}
-                    {Math.abs(params.galactocentricRadiusKpc - 8.2) < 0.4
-                      ? '(Orbit Tata Surya)'
-                      : ''}
-                  </span>
-                </div>
-                <input
-                  id="galaxy-radius-slider"
-                  type="range"
-                  min={1.0}
-                  max={25.0}
-                  step={0.2}
-                  value={params.galactocentricRadiusKpc}
-                  onChange={(e) =>
-                    onChangeParams((p) => ({
-                      ...p,
-                      galactocentricRadiusKpc: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-sky-600"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <label
-                    htmlFor="galaxy-dm-slider"
-                    className="font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    Fraksi Kerapatan Halo Materi Gelap (Dark Matter)
-                  </label>
-                  <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                    {params.darkMatterHaloFraction}x
-                  </span>
-                </div>
-                <input
-                  id="galaxy-dm-slider"
-                  type="range"
-                  min={0.0}
-                  max={1.5}
-                  step={0.05}
-                  value={params.darkMatterHaloFraction}
-                  onChange={(e) =>
-                    onChangeParams((p) => ({
-                      ...p,
-                      darkMatterHaloFraction: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-sky-600"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <label
-                    htmlFor="galaxy-sgra-slider"
-                    className="font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    Massa Lubang Hitam Supermasif Sagittarius A*
-                  </label>
-                  <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                    {params.sgrAStarMassMillionSolar} × 10⁶ M☉
-                  </span>
-                </div>
-                <input
-                  id="galaxy-sgra-slider"
-                  type="range"
-                  min={1.0}
-                  max={15.0}
-                  step={0.15}
-                  value={params.sgrAStarMassMillionSolar}
-                  onChange={(e) =>
-                    onChangeParams((p) => ({
-                      ...p,
-                      sgrAStarMassMillionSolar: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-sky-600"
-                />
-              </div>
-            </div>
-          )}
-
-          {params.mode === 'stellar-exoplanet' && (
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <label
-                    htmlFor="star-temp-slider"
-                    className="font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    Suhu Efektif Permukaan Bintang (T_eff)
-                  </label>
-                  <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                    {params.starEffectiveTempK} K (Kelas {metrics.spectralClass})
-                  </span>
-                </div>
-                <input
-                  id="star-temp-slider"
-                  type="range"
-                  min={2800}
-                  max={28000}
-                  step={100}
-                  value={params.starEffectiveTempK}
-                  onChange={(e) =>
-                    onChangeParams((p) => ({
-                      ...p,
-                      starEffectiveTempK: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-sky-600"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <label
-                    htmlFor="star-radius-slider"
-                    className="font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    Jari-Jari Bintang Induk (R*)
-                  </label>
-                  <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                    {params.starRadiusSolar} R☉
-                  </span>
-                </div>
-                <input
-                  id="star-radius-slider"
-                  type="range"
-                  min={0.2}
-                  max={8.0}
-                  step={0.1}
-                  value={params.starRadiusSolar}
-                  onChange={(e) =>
-                    onChangeParams((p) => ({
-                      ...p,
-                      starRadiusSolar: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-sky-600"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <label
-                    htmlFor="exoplanet-radius-slider"
-                    className="font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    Jari-Jari Eksoplanet Transit (Rp)
-                  </label>
-                  <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                    {params.exoplanetRadiusEarth} R⊕
-                  </span>
-                </div>
-                <input
-                  id="exoplanet-radius-slider"
-                  type="range"
-                  min={0.5}
-                  max={15.0}
-                  step={0.5}
-                  value={params.exoplanetRadiusEarth}
-                  onChange={(e) =>
-                    onChangeParams((p) => ({
-                      ...p,
-                      exoplanetRadiusEarth: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-sky-600"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <label
-                    htmlFor="exoplanet-orbit-slider"
-                    className="font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    Jarak Orbit Eksoplanet (d)
-                  </label>
-                  <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                    {params.exoplanetOrbitAu} AU
-                  </span>
-                </div>
-                <input
-                  id="exoplanet-orbit-slider"
-                  type="range"
-                  min={0.1}
-                  max={4.5}
-                  step={0.05}
-                  value={params.exoplanetOrbitAu}
-                  onChange={(e) =>
-                    onChangeParams((p) => ({
-                      ...p,
-                      exoplanetOrbitAu: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-sky-600"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Scientific Formula Reference Box */}
-          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs space-y-1">
-            <div className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-              Persamaan Astrofisika Aktif
-            </div>
-            <p className="font-mono text-sky-800 dark:text-sky-300">
-              {params.mode === 'solar-kepler' &&
-                'T² / a³ = 4π² / (G·M*)   |   v_p / v_a = (1 + e) / (1 - e)'}
-              {params.mode === 'milkyway-galaxy' &&
-                'v_rot(R) = √(G · [M_bintang(R) + M_DarkMatter(R)] / R)'}
-              {params.mode === 'stellar-exoplanet' &&
-                'L = 4πR*²σT⁴   |   Kedalaman Transit ΔF/F = (Rp / R*)²'}
-            </p>
-          </div>
-
-          {/* Experiment Observation Note & Record Button */}
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
-            <div>
-              <label
-                htmlFor="astro-note-input"
-                className="block text-xs font-medium text-slate-700 dark:text-slate-200 mb-1"
-              >
-                Catatan Pengamatan Astronomi
-              </label>
-              <input
-                id="astro-note-input"
-                type="text"
-                value={noteInput}
-                onChange={(e) => setNoteInput(e.target.value)}
-                placeholder="Contoh: Rasio T²/a³ konstan bernilai 1.00 pada seluruh planet Tata Surya..."
-                className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleRecordClick}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-semibold text-white bg-slate-900 dark:bg-sky-600 hover:bg-slate-800 dark:hover:bg-sky-500 rounded-lg transition-colors whitespace-nowrap"
-            >
-              <BookmarkPlus className="w-4 h-4" />
-              Rekam Data Eksperimen ke Tabel Log
-            </button>
-          </div>
+                </details>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

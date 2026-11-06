@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Bell,
   Download,
@@ -835,7 +836,7 @@ export default function App() {
   const latestNotification = notifications[0];
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8FAFC] dark:bg-[#07090E] text-slate-900 dark:text-slate-100 transition-colors duration-200">
+    <div className="min-h-screen flex flex-col bg-[#F8FAFC] dark:bg-[#07090E] lab-grid-bg text-slate-900 dark:text-slate-100 transition-colors duration-200">
       {/* Strict 3-Zone Top Navigation Bar Contract */}
       <header className="flex items-center justify-between gap-8 px-6 py-4 bg-white/95 dark:bg-slate-950/90 lab-glass-panel border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30">
         <a
@@ -852,93 +853,49 @@ export default function App() {
 
         <nav
           aria-label="Navigasi Utama Laboratorium"
-          className="flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-400 overflow-x-auto"
+          className="flex items-center gap-2 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 text-sm font-medium text-slate-600 dark:text-slate-400 overflow-x-auto"
         >
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setActiveTab('fisika');
-            }}
-            className={`py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 ${
-              activeTab === 'fisika'
-                ? 'border-sky-600 dark:border-sky-400 text-slate-900 dark:text-white font-semibold'
-                : 'border-transparent hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Lab Fisika
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setActiveTab('kimia');
-            }}
-            className={`py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 ${
-              activeTab === 'kimia'
-                ? 'border-sky-600 dark:border-sky-400 text-slate-900 dark:text-white font-semibold'
-                : 'border-transparent hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Lab Kimia
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setActiveTab('biologi');
-            }}
-            className={`py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 flex items-center gap-1.5 ${
-              activeTab === 'biologi'
-                ? 'border-emerald-600 dark:border-emerald-400 text-slate-900 dark:text-white font-semibold'
-                : 'border-transparent hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Leaf className="w-3.5 h-3.5 text-emerald-500" />
-            Lab Biologi
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setActiveTab('astronomi');
-            }}
-            className={`py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 ${
-              activeTab === 'astronomi'
-                ? 'border-sky-600 dark:border-sky-400 text-slate-900 dark:text-white font-semibold'
-                : 'border-transparent hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Lab Astronomi
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setActiveTab('kolaborasi');
-            }}
-            className={`py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 ${
-              activeTab === 'kolaborasi'
-                ? 'border-sky-600 dark:border-sky-400 text-slate-900 dark:text-white font-semibold'
-                : 'border-transparent hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Grafik & LKS ({records.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setActiveTab('pengajar');
-            }}
-            className={`py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 ${
-              activeTab === 'pengajar'
-                ? 'border-sky-600 dark:border-sky-400 text-slate-900 dark:text-white font-semibold'
-                : 'border-transparent hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Dashboard Pengajar
-          </button>
+          {[
+            { id: 'fisika' as const, label: 'Lab Fisika' },
+            { id: 'kimia' as const, label: 'Lab Kimia' },
+            { id: 'biologi' as const, label: 'Lab Biologi', isBio: true },
+            { id: 'astronomi' as const, label: 'Lab Astronomi' },
+            { id: 'kolaborasi' as const, label: `Grafik & LKS (${records.length})` },
+            { id: 'pengajar' as const, label: 'Dashboard Pengajar' },
+          ].map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setActiveTab(item.id);
+                }}
+                className={`relative px-3.5 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                  isActive
+                    ? 'text-slate-950 dark:text-white font-bold'
+                    : 'hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="active-domain-tab"
+                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                    className="absolute inset-0 rounded-lg bg-white dark:bg-sky-600/90 shadow-xs border border-slate-200/80 dark:border-sky-400/40"
+                  />
+                )}
+                {item.isBio && (
+                  <Leaf
+                    className={`w-3.5 h-3.5 relative z-10 ${
+                      isActive ? 'text-emerald-500 dark:text-emerald-300' : 'text-emerald-500'
+                    }`}
+                  />
+                )}
+                <span className="relative z-10">{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-3 shrink-0">
@@ -1453,6 +1410,14 @@ export default function App() {
           </div>
         )}
 
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 12, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.99 }}
+            transition={{ duration: 0.22 }}
+          >
         {activeTab === 'fisika' && (
           <div className="space-y-8">
             <div id="section-simulasi">
@@ -1895,6 +1860,8 @@ export default function App() {
             }
           />
         )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <footer className="bg-white/95 dark:bg-slate-950/90 lab-glass-panel border-t border-slate-200 dark:border-slate-800 px-6 py-4 mt-12">

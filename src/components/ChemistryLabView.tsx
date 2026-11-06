@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Play,
   Pause,
@@ -12,11 +13,13 @@ import {
   Zap,
   Box,
   BookOpen,
-  Minus,
-  Plus,
   GitCompare,
   Hand,
   X,
+  Camera,
+  Sliders,
+  BarChart3,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   ChemistryParams,
@@ -29,7 +32,6 @@ import {
   calculateTitrationPh,
   generateAutomaticFeedback,
   getConceptCardContent,
-  stepParameterValue,
   LabNotification,
 } from '../utils/scienceEngine';
 import { ChemistryScene3D } from './ChemistryScene3D';
@@ -42,6 +44,16 @@ import {
   EducationTier,
   getExperimentsByDomain,
 } from '../registry/experimentRegistry';
+import {
+  CircularGaugeMeter,
+  LiquidColumnMeter,
+  TactileParameterControl,
+  AnimatedNumberReadout,
+} from './ui/LabInstruments';
+import {
+  InteractiveFormulaCard,
+  FormulaToken,
+} from './ui/InteractiveFormulaCard';
 
 interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -86,6 +98,12 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   const [reactionProgress, setReactionProgress] = useState<number>(0);
   const [noteInput, setNoteInput] = useState<string>('');
   const [is3DMode, setIs3DMode] = useState<boolean>(true);
+  const [activeHudSection, setActiveHudSection] = useState<
+    'kontrol' | 'grafik' | 'panduan'
+  >('kontrol');
+  const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
+  const [shutterFlash, setShutterFlash] = useState<boolean>(false);
+  const [recordToastCount, setRecordToastCount] = useState<number>(0);
 
   const chemistryModules = getExperimentsByDomain('kimia');
   const [preLabModalOpen, setPreLabModalOpen] = useState<boolean>(false);
@@ -764,6 +782,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
 
   const handleRecordChemistry = () => {
     labSound.playRecordSuccess();
+    setShutterFlash(true);
+    setRecordToastCount((c) => c + 1);
+    setTimeout(() => setShutterFlash(false), 220);
+
     let title = '';
     let summary = '';
     let keyMetrics: Record<string, number | string> = {};
@@ -828,6 +850,118 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     onPushNotification(generateAutomaticFeedback('Kimia', undefined, params));
     setNoteInput('');
   };
+
+  // Interactive Live Formula Tokens for Chemistry
+  const chemistryFormulaData: {
+    title: string;
+    subtitle: string;
+    tokens: FormulaToken[];
+  } = (() => {
+    if (params.mode === 'acid-base-titration') {
+      return {
+        title: 'Stoikiometri Ekuivalensi & Derajat Keasaman Titrasi',
+        subtitle: `Titik Ekuivalen V_eq = ${metrics.equivalenceVolumeMl} mL · Indikator: ${metrics.indicatorColorName}`,
+        tokens: [
+          { symbol: 'pH', value: metrics.currentPh, unit: 'pH', color: '#10b981' },
+          { symbol: '⇔' },
+          {
+            symbol: 'M_a',
+            paramKey: 'analyteAcidConc',
+            value: params.analyteAcidConc,
+            min: 0.05,
+            max: 0.5,
+            unit: 'M',
+            color: '#f43f5e',
+          },
+          { symbol: '·' },
+          { symbol: 'V_a', value: params.analyteVolumeMl, unit: 'mL', color: '#94a3b8' },
+          { symbol: '−' },
+          {
+            symbol: 'M_b',
+            paramKey: 'titrantBaseConc',
+            value: params.titrantBaseConc,
+            min: 0.05,
+            max: 0.5,
+            unit: 'M',
+            color: '#38bdf8',
+          },
+          { symbol: '·' },
+          {
+            symbol: 'V_b',
+            paramKey: 'titrantAddedMl',
+            value: params.titrantAddedMl,
+            min: 0,
+            max: 50,
+            unit: 'mL',
+            color: '#a855f7',
+          },
+        ],
+      };
+    }
+    if (params.mode === 'electrochemistry-cell') {
+      return {
+        title: 'Persamaan Nernst Sel Elektrokimia Galvani',
+        subtitle: `${redoxPreset.anodeHalf}  ||  ${redoxPreset.cathodeHalf}`,
+        tokens: [
+          { symbol: 'E_sel', value: metrics.nernstCellPotentialE, unit: 'V', color: '#10b981' },
+          { symbol: '=' },
+          { symbol: 'E°', value: metrics.standardCellPotentialE0, unit: 'V', color: '#38bdf8' },
+          { symbol: '−' },
+          { symbol: '(RT/nF)·ln' },
+          { symbol: '(' },
+          {
+            symbol: '[Anoda]',
+            paramKey: 'anodeConcM',
+            value: params.anodeConcM,
+            min: 0.01,
+            max: 2.0,
+            unit: 'M',
+            color: '#f59e0b',
+          },
+          { symbol: '/' },
+          {
+            symbol: '[Katoda]',
+            paramKey: 'cathodeConcM',
+            value: params.cathodeConcM,
+            min: 0.01,
+            max: 2.0,
+            unit: 'M',
+            color: '#ec4899',
+          },
+          { symbol: ')' },
+        ],
+      };
+    }
+    return {
+      title: 'Energi Bebas Gibbs & Kalorimetri Reaksi',
+      subtitle: `${preset.equation} (${metrics.spontaneityLabel})`,
+      tokens: [
+        { symbol: 'ΔG', value: metrics.deltaG, unit: 'kJ/mol', color: '#10b981' },
+        { symbol: '=' },
+        { symbol: 'ΔH°', value: metrics.deltaHReaction, unit: 'kJ/mol', color: '#f43f5e' },
+        { symbol: '−' },
+        {
+          symbol: 'T',
+          paramKey: 'initialTempC',
+          value: metrics.tempKelvin,
+          min: 278,
+          max: 413,
+          unit: 'K',
+          color: '#f59e0b',
+        },
+        { symbol: '·' },
+        {
+          symbol: 'ΔS°',
+          paramKey: 'reactantConcentration',
+          value: metrics.deltaSReaction,
+          min: -200,
+          max: 200,
+          unit: 'J/mol·K',
+          color: '#38bdf8',
+        },
+      ],
+    };
+  })();
 
   return (
     <div className="space-y-5">
@@ -1159,64 +1293,84 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         </div>
       </div>
 
-      {/* Main Split-Screen Interactive Workbench */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-8 space-y-4">
-          <div className="bg-white/95 dark:bg-slate-900/90 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+      {/* SPATIAL HUD COCKPIT WORKBENCH */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* HERO 3D STAGE (8 Cols) */}
+        <div className="lg:col-span-8 space-y-3">
+          <div className="relative min-h-[560px] rounded-2xl overflow-hidden border border-emerald-500/40 bg-[#0B0F19] shadow-[0_0_50px_-12px_rgba(16,185,129,0.32)] flex flex-col justify-between">
+            {/* Camera Shutter Flash on Record */}
+            <AnimatePresence>
+              {shutterFlash && (
+                <motion.div
+                  initial={{ opacity: 0.85 }}
+                  animate={{ opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="pointer-events-none absolute inset-0 z-40 bg-gradient-to-tr from-emerald-300/60 via-white/80 to-cyan-300/60"
+                />
+              )}
+            </AnimatePresence>
+
+            {/* Flying "+1 Data Tercatat!" Toast Badge */}
+            <AnimatePresence>
+              {recordToastCount > 0 && (
+                <motion.div
+                  key={recordToastCount}
+                  initial={{ opacity: 0, y: 24, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -18, scale: 0.9 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 24 }}
+                  className="pointer-events-none absolute bottom-20 right-5 z-30 flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/95 text-slate-950 font-mono text-xs font-bold shadow-[0_0_25px_rgba(16,185,129,0.75)] border border-emerald-300"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>+1 Data Kimia Tercatat!</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* TOP-LEFT FLOATING HUD: Experiment Status Pill + Tier Badge */}
+            <div className="absolute top-3.5 left-3.5 z-20 flex flex-wrap items-center gap-2 max-w-[62%]">
+              <div className="lab-glass-panel bg-slate-950/85 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs text-slate-100 shadow-lg backdrop-blur-md">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span
+                      className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                        isReacting ? 'bg-emerald-400' : 'bg-sky-400'
+                      }`}
+                    />
+                    <span
+                      className={`relative inline-flex rounded-full h-2 w-2 ${
+                        isReacting ? 'bg-emerald-500' : 'bg-sky-500'
+                      }`}
+                    />
+                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-emerald-400 font-bold">
+                    {isReacting ? 'REAKSI BERJALAN · 60 FPS' : 'SIAGA REAKTOR'}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-mono text-[10px] font-bold">
+                    {activeTier}
+                  </span>
+                </div>
+                <div className="font-mono font-bold text-white text-xs mt-1 truncate">
                   {params.mode === 'acid-base-titration'
-                    ? 'Simulasi Buret Titrasi Asam-Basa & Kurva Sigmoidal pH'
+                    ? `Titrasi Asam-Basa · V_NaOH = ${params.titrantAddedMl} mL`
                     : params.mode === 'electrochemistry-cell'
-                    ? 'Diagram Sel Galvani, Jembatan Garam & Potensial Nernst'
-                    : 'Bejana Kalorimetri & Kurva Profil Energi Termodinamika'}
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {params.mode === 'acid-base-titration' ? (
-                    <span className="font-mono font-semibold text-sky-700 dark:text-sky-400">
-                      ● {metrics.titrationRegion} · pH = {metrics.currentPh} · Titik Ekuivalen = {metrics.equivalenceVolumeMl} mL
-                    </span>
-                  ) : params.mode === 'electrochemistry-cell' ? (
-                    <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400">
-                      ● SEL VOLTA SPONTAN: E° = +{metrics.standardCellPotentialE0} V · E_sel = +{metrics.nernstCellPotentialE} V · ΔG = {metrics.electroFreeEnergyDeltaG} kJ/mol
-                    </span>
-                  ) : (
-                    <>
-                      Status Termodinamika:{' '}
-                      <span
-                        className={`font-mono font-semibold ${
-                          metrics.isSpontaneous
-                            ? 'text-emerald-700 dark:text-emerald-400'
-                            : 'text-amber-700 dark:text-amber-400'
-                        }`}
-                      >
-                        {metrics.isSpontaneous
-                          ? `● SPONTAN (${metrics.spontaneityLabel})`
-                          : `▲ NON-SPONTAN (${metrics.spontaneityLabel})`}
-                      </span>
-                      {' · '}
-                      <span>{preset.equation}</span>
-                    </>
-                  )}
-                </p>
+                    ? `Sel Galvani Nernst · E = +${metrics.nernstCellPotentialE} V`
+                    : `Kalorimetri · ${preset.equation}`}
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => {
                     labSound.playClick();
                     setIs3DMode((m) => !m);
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                    is3DMode
-                      ? 'bg-slate-900 dark:bg-sky-600 text-white'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
+                  className="lab-glass-panel bg-slate-900/85 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors shadow-md cursor-pointer"
                 >
-                  <Box className="w-3.5 h-3.5 text-emerald-400 dark:text-white" />
-                  {is3DMode ? 'Mode 3D Interaktif' : 'Mode 2D Diagram'}
+                  <Box className="w-3.5 h-3.5 text-emerald-400" />
+                  {is3DMode ? '3D WebGL' : '2D Diagram'}
                 </button>
                 {params.mode === 'thermo-calorimetry' && (
                   <button
@@ -1225,65 +1379,107 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                       labSound.playClick();
                       handleParamChange({ useCatalyst: !params.useCatalyst });
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                    className={`lab-glass-panel font-mono text-[11px] px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 border transition-colors cursor-pointer ${
                       params.useCatalyst
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        ? 'bg-emerald-600/90 border-emerald-400 text-white'
+                        : 'bg-slate-900/85 border-slate-700 text-slate-300 hover:bg-slate-800'
                     }`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    {params.useCatalyst ? 'Katalis Aktif' : 'Gunakan Katalis'}
+                    {params.useCatalyst ? 'Katalis Aktif' : '+ Katalis'}
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Interactive Viewport Container with Floating HUD & Floating Bottom Dock */}
-            <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-[#0B0F19]">
-              <div className="pointer-events-none absolute top-3 left-3 z-10 lab-glass-panel bg-slate-950/80 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-100 space-y-0.5">
-                <div className="font-mono text-[11px] text-emerald-400 font-semibold tabular-nums">
-                  {params.mode === 'acid-base-titration'
-                    ? `TITRASI ASAM-BASA · V_NaOH = ${params.titrantAddedMl} mL`
-                    : params.mode === 'electrochemistry-cell'
-                    ? `POTENSIAL SEL NERNST · E = +${metrics.nernstCellPotentialE} V`
-                    : `KALORIMETRI · T = ${(
+            {/* TOP-RIGHT FLOATING HUD: Tactile Liquid Column & Circular Gauges */}
+            <div className="pointer-events-none absolute top-3.5 right-3.5 z-20 hidden sm:flex items-start gap-2">
+              {params.mode === 'acid-base-titration' && (
+                <>
+                  <LiquidColumnMeter
+                    label="Tabung pH"
+                    value={metrics.currentPh}
+                    min={0}
+                    max={14}
+                    unit="pH"
+                    variant="ph"
+                  />
+                  <LiquidColumnMeter
+                    label="Buret NaOH"
+                    value={params.titrantAddedMl}
+                    min={0}
+                    max={50}
+                    unit="mL"
+                    variant="volume"
+                  />
+                </>
+              )}
+              {params.mode === 'thermo-calorimetry' && (
+                <>
+                  <LiquidColumnMeter
+                    label="Termometer"
+                    value={Number(
+                      (
                         params.initialTempC +
-                        metrics.deltaTempC * reactionProgress
-                      ).toFixed(1)} °C`}
-                </div>
-                <div className="font-mono font-semibold text-white tabular-nums">
-                  {params.mode === 'acid-base-titration'
-                    ? `pH = ${metrics.currentPh} (${metrics.indicatorColorName})`
-                    : params.mode === 'electrochemistry-cell'
-                    ? `Q = ${metrics.reactionQuotientQ} · ΔG = ${metrics.electroFreeEnergyDeltaG} kJ/mol`
-                    : `ΔH = ${metrics.deltaHReaction} kJ/mol · ΔG = ${metrics.deltaG} kJ/mol`}
-                </div>
-              </div>
+                        metrics.deltaTempC * (isReacting || reactionProgress > 0 ? Math.max(0.2, reactionProgress) : 1)
+                      ).toFixed(1)
+                    )}
+                    min={0}
+                    max={120}
+                    unit="°C"
+                    variant="temperature"
+                  />
+                  <CircularGaugeMeter
+                    size="sm"
+                    label="Laju Reaksi r"
+                    value={metrics.reactionRate}
+                    min={0}
+                    max={8}
+                    unit="M/s"
+                    color="#10b981"
+                    warningThreshold={6}
+                  />
+                </>
+              )}
+              {params.mode === 'electrochemistry-cell' && (
+                <>
+                  <CircularGaugeMeter
+                    size="sm"
+                    label="Potensial E_sel"
+                    value={metrics.nernstCellPotentialE}
+                    min={0}
+                    max={2.5}
+                    unit="Volt"
+                    color="#10b981"
+                  />
+                  <CircularGaugeMeter
+                    size="sm"
+                    label="|ΔG Redoks|"
+                    value={Math.abs(metrics.electroFreeEnergyDeltaG)}
+                    min={0}
+                    max={400}
+                    unit="kJ/mol"
+                    color="#38bdf8"
+                  />
+                </>
+              )}
+            </div>
 
-              <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
-                {!is3DMode ? (
-                  <span className="lab-glass-panel bg-sky-950/85 border border-sky-500/50 text-sky-200 font-mono text-[11px] px-2.5 py-1 rounded-md flex items-center gap-1.5">
-                    <Hand className="w-3.5 h-3.5 text-sky-400" />
-                    {dragHintText ||
-                      (cursorCoords
-                        ? `Kursor (${cursorCoords.x}, ${cursorCoords.y}) · Seret Kurva/Buret`
-                        : 'Klik & Seret Kurva/Bejana di Kanvas 2D')}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick();
-                      setIs3DMode(false);
-                    }}
-                    className="lab-glass-panel bg-slate-900/85 hover:bg-slate-800 border border-slate-700 text-slate-200 font-mono text-[11px] px-2.5 py-1 rounded-md flex items-center gap-1.5 transition-colors"
-                  >
-                    <Hand className="w-3.5 h-3.5 text-emerald-400" />
-                    Buka Kanvas 2D untuk Seret Kurva/Titrasi
-                  </button>
-                )}
+            {/* 2D Canvas Interactive Drag Hint Pill */}
+            {!is3DMode && (
+              <div className="absolute bottom-16 left-3.5 z-20">
+                <span className="lab-glass-panel bg-sky-950/90 border border-sky-500/50 text-sky-200 font-mono text-[11px] px-2.5 py-1 rounded-md flex items-center gap-1.5">
+                  <Hand className="w-3.5 h-3.5 text-sky-400" />
+                  {dragHintText ||
+                    (cursorCoords
+                      ? `Kursor (${cursorCoords.x}, ${cursorCoords.y}) · Seret Kurva/Buret`
+                      : 'Klik & Seret Kurva/Bejana di Kanvas 2D')}
+                </span>
               </div>
+            )}
 
+            {/* MAIN 3D / 2D VIEWPORT */}
+            <div className="flex-1 flex flex-col justify-center">
               {is3DMode ? (
                 <ChemistryScene3D
                   params={params}
@@ -1300,7 +1496,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                   ref={canvasRef}
                   data-testid="chemistry-simulation-canvas"
                   width={760}
-                  height={350}
+                  height={480}
                   onPointerDown={(e) => {
                     setIsDraggingCanvas(true);
                     labSound.playClick(540);
@@ -1318,649 +1514,536 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     setCursorCoords(null);
                     setDragHintText('');
                   }}
-                  className={`w-full h-[330px] sm:h-[350px] block touch-none ${
+                  className={`w-full h-[460px] sm:h-[500px] block touch-none ${
                     isDraggingCanvas ? 'cursor-grabbing' : 'cursor-crosshair'
                   }`}
                 />
               )}
+            </div>
 
-              {/* Floating Bottom Dock */}
-              <div className="bg-slate-950/90 border-t border-slate-800 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleToggleReaction}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded-md transition-colors whitespace-nowrap shrink-0"
-                  >
-                    {isReacting ? (
-                      <>
-                        <Pause className="w-3.5 h-3.5" />
-                        Jeda Simulasi
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-3.5 h-3.5" />
-                        Mulai Simulasi
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResetReaction}
-                    aria-label="Reset Simulasi Kimia"
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    Reset
-                  </button>
-                </div>
+            {/* BOTTOM FLOATING HUD DECK */}
+            <div className="relative z-20 bg-slate-950/95 backdrop-blur-md border-t border-emerald-500/30 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.94 }}
+                  onClick={handleToggleReaction}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl shadow-[0_0_16px_rgba(16,185,129,0.45)] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  {isReacting ? (
+                    <>
+                      <Pause className="w-3.5 h-3.5" />
+                      Jeda Simulasi
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5" />
+                      Mulai Simulasi
+                    </>
+                  )}
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.94 }}
+                  onClick={handleResetReaction}
+                  aria-label="Reset Simulasi Kimia"
+                  className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-200 bg-slate-800/90 hover:bg-slate-700 border border-slate-700 rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Reset
+                </motion.button>
+              </div>
 
-                <div className="flex-1 min-w-[180px] flex items-center gap-2.5">
-                  <label
-                    htmlFor="chem-progress-scrubber"
-                    className="text-[11px] font-mono text-slate-400 whitespace-nowrap"
-                  >
-                    {params.mode === 'acid-base-titration'
-                      ? 'Volume Titran NaOH (mL):'
-                      : 'Kemajuan Reaksi (ξ):'}
-                  </label>
-                  <input
-                    id="chem-progress-scrubber"
-                    type="range"
-                    min={0}
-                    max={params.mode === 'acid-base-titration' ? 50 : 1}
-                    step={params.mode === 'acid-base-titration' ? 0.5 : 0.02}
-                    value={
-                      params.mode === 'acid-base-titration'
-                        ? params.titrantAddedMl
-                        : reactionProgress
+              <div className="flex-1 min-w-[160px] max-w-xs flex items-center gap-2.5">
+                <label
+                  htmlFor="chem-progress-scrubber"
+                  className="text-[11px] font-mono text-slate-400 whitespace-nowrap"
+                >
+                  {params.mode === 'acid-base-titration'
+                    ? 'Titran NaOH:'
+                    : 'Kemajuan ξ:'}
+                </label>
+                <input
+                  id="chem-progress-scrubber"
+                  type="range"
+                  min={0}
+                  max={params.mode === 'acid-base-titration' ? 50 : 1}
+                  step={params.mode === 'acid-base-titration' ? 0.5 : 0.02}
+                  value={
+                    params.mode === 'acid-base-titration'
+                      ? params.titrantAddedMl
+                      : reactionProgress
+                  }
+                  onChange={(e) => {
+                    setIsReacting(false);
+                    const val = parseFloat(e.target.value);
+                    if (params.mode === 'acid-base-titration') {
+                      labSound.playTitrationDrop(metrics.currentPh);
+                      handleParamChange({ titrantAddedMl: val });
+                    } else {
+                      setReactionProgress(val);
                     }
-                    onChange={(e) => {
-                      setIsReacting(false);
-                      const val = parseFloat(e.target.value);
-                      if (params.mode === 'acid-base-titration') {
-                        labSound.playTitrationDrop(metrics.currentPh);
-                        handleParamChange({ titrantAddedMl: val });
-                      } else {
-                        setReactionProgress(val);
-                      }
-                    }}
-                    className="w-full accent-sky-500 cursor-pointer"
-                  />
-                  <span className="text-xs font-mono font-semibold text-white tabular-nums w-16 text-right">
-                    {params.mode === 'acid-base-titration'
-                      ? `${params.titrantAddedMl} mL`
-                      : `${(reactionProgress * 100).toFixed(0)}%`}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 4-Column Telemetry Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {params.mode === 'acid-base-titration'
-                  ? 'Derajat Keasaman (pH)'
-                  : params.mode === 'electrochemistry-cell'
-                  ? 'Potensial Sel Standar (E°)'
-                  : 'Perubahan Entalpi (ΔH°)'}
-              </div>
-              <div className="mt-1 flex items-baseline">
-                <span className="text-2xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
+                  }}
+                  className="w-full accent-emerald-400 cursor-pointer"
+                />
+                <span className="text-xs font-mono font-semibold text-white tabular-nums w-14 text-right">
                   {params.mode === 'acid-base-titration'
-                    ? metrics.currentPh
-                    : params.mode === 'electrochemistry-cell'
-                    ? `+${metrics.standardCellPotentialE0}`
-                    : metrics.deltaHReaction}
-                </span>
-                <span className="text-xs font-mono text-slate-400 ml-1.5">
-                  {params.mode === 'acid-base-titration'
-                    ? 'pH'
-                    : params.mode === 'electrochemistry-cell'
-                    ? 'V'
-                    : 'kJ/mol'}
+                    ? `${params.titrantAddedMl}mL`
+                    : `${(reactionProgress * 100).toFixed(0)}%`}
                 </span>
               </div>
-              <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                {params.mode === 'acid-base-titration'
-                  ? metrics.titrationRegion
-                  : params.mode === 'electrochemistry-cell'
-                  ? `n = ${redoxPreset.electronsTransferred} elektron`
-                  : `q = ${metrics.heatReleasedJoules} J`}
-              </div>
-            </div>
 
-            <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {params.mode === 'acid-base-titration'
-                  ? 'Volume Titik Ekuivalen'
-                  : params.mode === 'electrochemistry-cell'
-                  ? 'Potensial Sel Nernst (E)'
-                  : 'Energi Bebas Gibbs (ΔG)'}
-              </div>
-              <div className="mt-1 flex items-baseline">
-                <span className="text-2xl font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                  {params.mode === 'acid-base-titration'
-                    ? metrics.equivalenceVolumeMl
-                    : params.mode === 'electrochemistry-cell'
-                    ? `+${metrics.nernstCellPotentialE}`
-                    : metrics.deltaG}
-                </span>
-                <span className="text-xs font-mono text-slate-400 ml-1.5">
-                  {params.mode === 'acid-base-titration'
-                    ? 'mL'
-                    : params.mode === 'electrochemistry-cell'
-                    ? 'V'
-                    : 'kJ/mol'}
-                </span>
-              </div>
-              <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                {params.mode === 'acid-base-titration'
-                  ? `pKa = ${params.acidPka}`
-                  : params.mode === 'electrochemistry-cell'
-                  ? `Q = ${metrics.reactionQuotientQ}`
-                  : `ΔS° = ${metrics.deltaSReaction} J/(mol·K)`}
-              </div>
-            </div>
-
-            <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                Suhu Sistem Larutan
-              </div>
-              <div className="mt-1 flex items-baseline">
-                <span className="text-2xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                  {params.mode === 'thermo-calorimetry'
-                    ? metrics.finalTempC
-                    : params.initialTempC}
-                </span>
-                <span className="text-xs font-mono text-slate-400 ml-1.5">
-                  °C
-                </span>
-              </div>
-              <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                T = {metrics.tempKelvin} K
-              </div>
-            </div>
-
-            <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {params.mode === 'electrochemistry-cell'
-                  ? 'Energi Bebas Redoks (ΔG)'
-                  : 'Laju Reaksi Awal (r)'}
-              </div>
-              <div className="mt-1 flex items-baseline">
-                <span className="text-2xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                  {params.mode === 'electrochemistry-cell'
-                    ? metrics.electroFreeEnergyDeltaG
-                    : metrics.reactionRate}
-                </span>
-                <span className="text-xs font-mono text-slate-400 ml-1.5">
-                  {params.mode === 'electrochemistry-cell' ? 'kJ/mol' : 'M/s'}
-                </span>
-              </div>
-              <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
-                Ea = {metrics.effectiveEa} kJ/mol
-              </div>
-            </div>
-          </div>
-
-          {/* pH 0-14 Spectrum / Spontaneity Visual Gauge & Academic Concept Companion */}
-          <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
-            {params.mode === 'acid-base-titration' && (
-              <div className="space-y-1.5">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">
-                    Spektrum Derajat Keasaman Larutan (pH 0.0 Asam Kuat → 7.0 Netral → 14.0 Basa Kuat)
-                  </span>
-                  <span className="font-mono font-semibold text-sky-700 dark:text-sky-400">
-                    pH Saat Ini = {metrics.currentPh} ({metrics.indicatorColorName})
-                  </span>
-                </div>
-                <div className="relative w-full h-3 rounded-full bg-gradient-to-r from-rose-500 via-emerald-500 to-sky-600">
-                  <div
-                    className="absolute -top-1 w-5 h-5 rounded-full bg-white border-2 border-slate-900 shadow-xs transition-all duration-150 -translate-x-1/2"
-                    style={{ left: `${phProgressPct}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-xs">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="font-semibold text-slate-900 dark:text-white">
-                    {conceptCard.heading}
-                  </span>
-                  <span className="text-slate-400">·</span>
-                  <span className="font-mono text-emerald-700 dark:text-emerald-400">
-                    {conceptCard.levelLabel}
-                  </span>
-                </div>
-                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {conceptCard.summaryText}
-                </p>
-                <p className="text-slate-700 dark:text-slate-200 font-medium">
-                  {conceptCard.practicalTip}
-                </p>
-              </div>
-              <div className="sm:shrink-0 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-md px-3 py-2 font-mono text-slate-900 dark:text-emerald-300">
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-0.5">
-                  Rumus Kunci:
-                </div>
-                <div className="font-semibold">{conceptCard.keyEquation}</div>
-              </div>
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleRecordChemistry}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-sky-400 hover:bg-sky-300 rounded-xl shadow-[0_0_20px_rgba(56,189,248,0.5)] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                Catat Data Percobaan
+              </motion.button>
             </div>
           </div>
         </div>
 
-        {/* Right Zone: Parameter Controls */}
-        <div className="lg:col-span-4 bg-white/95 dark:bg-slate-900/90 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-                Parameter Eksperimen Kimia
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Gunakan geseran, tombol [- / +], atau seret di kanvas 2D
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick(740);
-                onSyncWithGroup(
-                  `Kimia (${params.mode}): T=${params.initialTempC}°C, pH=${metrics.currentPh}`
-                );
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 border border-sky-200/60 dark:border-sky-800/60 rounded-md transition-colors whitespace-nowrap shrink-0"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              Sinkron Kelompok
-            </button>
+        {/* RIGHT COCKPIT DOCK: Collapsible Segmented Drawer Tabs (4 Cols) */}
+        <div className="lg:col-span-4 bg-white/95 dark:bg-slate-900/90 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-4 shadow-lg">
+          {/* Segmented Drawer Navigation */}
+          <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-slate-950/90 rounded-xl border border-slate-200/80 dark:border-slate-800">
+            {[
+              { id: 'kontrol', label: 'Kontrol & Rumus', icon: Sliders },
+              { id: 'grafik', label: 'Grafik & Data', icon: BarChart3 },
+              { id: 'panduan', label: 'Panduan & K3', icon: BookOpen },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeHudSection === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick(680);
+                    setActiveHudSection(tab.id as 'kontrol' | 'grafik' | 'panduan');
+                  }}
+                  className={`relative flex items-center justify-center gap-1.5 py-2 px-2 text-[11px] font-bold rounded-lg transition-colors cursor-pointer ${
+                    isActive
+                      ? 'text-slate-950 dark:text-white'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="hud-section-pill-chem"
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      className="absolute inset-0 rounded-lg bg-white dark:bg-emerald-600 shadow-xs"
+                    />
+                  )}
+                  <Icon className="w-3.5 h-3.5 relative z-10 shrink-0" />
+                  <span className="relative z-10 truncate">{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="space-y-4">
-            {params.mode === 'thermo-calorimetry' && (
-              <>
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <label
-                      htmlFor="chem-temp-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Suhu Awal Sistem (T₀)
-                    </label>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        aria-label="Kurangi suhu awal sistem"
-                        onClick={() => {
-                          labSound.playStep('down');
-                          handleParamChange({
-                            initialTempC: stepParameterValue(
-                              params.initialTempC,
-                              -5,
-                              5,
-                              140,
-                              0
-                            ),
-                          });
-                        }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums min-w-[82px] text-center">
-                        {params.initialTempC} °C
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="Tambah suhu awal sistem"
-                        onClick={() => {
-                          labSound.playStep('up');
-                          handleParamChange({
-                            initialTempC: stepParameterValue(
-                              params.initialTempC,
-                              5,
-                              5,
-                              140,
-                              0
-                            ),
-                          });
-                        }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                  <input
-                    id="chem-temp-slider"
-                    type="range"
-                    min={5}
-                    max={140}
-                    step={5}
-                    value={params.initialTempC}
-                    onChange={(e) =>
-                      handleParamChange({
-                        initialTempC: parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full accent-sky-600 cursor-pointer"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="chem-conc-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Konsentrasi Reaktan ([M])
-                    </label>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.reactantConcentration.toFixed(1)} mol/L
-                    </span>
-                  </div>
-                  <input
-                    id="chem-conc-slider"
-                    type="range"
-                    min={0.2}
-                    max={4.0}
-                    step={0.2}
-                    value={params.reactantConcentration}
-                    onChange={(e) =>
-                      handleParamChange({
-                        reactantConcentration: parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full accent-sky-600 cursor-pointer"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="chem-vol-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Volume Larutan Kalorimeter (V)
-                    </label>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.solutionVolumeMl} mL ({metrics.molesReacted} mol)
-                    </span>
-                  </div>
-                  <input
-                    id="chem-vol-slider"
-                    type="range"
-                    min={50}
-                    max={600}
-                    step={25}
-                    value={params.solutionVolumeMl}
-                    onChange={(e) =>
-                      handleParamChange({
-                        solutionVolumeMl: parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full accent-sky-600 cursor-pointer"
-                  />
-                </div>
-              </>
-            )}
-
-            {params.mode === 'acid-base-titration' && (
-              <>
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="titration-ma-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Konsentrasi Analit Asam (M_a)
-                    </label>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.analyteAcidConc.toFixed(2)} M
-                    </span>
-                  </div>
-                  <input
-                    id="titration-ma-slider"
-                    type="range"
-                    min={0.05}
-                    max={0.5}
-                    step={0.05}
-                    value={params.analyteAcidConc}
-                    onChange={(e) =>
-                      handleParamChange({
-                        analyteAcidConc: parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full accent-sky-600 cursor-pointer"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="titration-mb-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Konsentrasi Titran NaOH (M_b)
-                    </label>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.titrantBaseConc.toFixed(2)} M
-                    </span>
-                  </div>
-                  <input
-                    id="titration-mb-slider"
-                    type="range"
-                    min={0.05}
-                    max={0.5}
-                    step={0.05}
-                    value={params.titrantBaseConc}
-                    onChange={(e) =>
-                      handleParamChange({
-                        titrantBaseConc: parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full accent-sky-600 cursor-pointer"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <label
-                      htmlFor="titration-vb-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Volume NaOH Ditambahkan (V_b)
-                    </label>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        aria-label="Kurangi tetesan NaOH 0.5 mL"
-                        onClick={() => {
-                          labSound.playTitrationDrop(metrics.currentPh);
-                          handleParamChange({
-                            titrantAddedMl: stepParameterValue(
-                              params.titrantAddedMl,
-                              -0.5,
-                              0,
-                              50,
-                              1
-                            ),
-                          });
-                        }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums min-w-[60px] text-center">
-                        {params.titrantAddedMl} mL
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="Tambah tetesan NaOH 0.5 mL"
-                        onClick={() => {
-                          labSound.playTitrationDrop(metrics.currentPh);
-                          handleParamChange({
-                            titrantAddedMl: stepParameterValue(
-                              params.titrantAddedMl,
-                              0.5,
-                              0,
-                              50,
-                              1
-                            ),
-                          });
-                        }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                  <input
-                    id="titration-vb-slider"
-                    type="range"
-                    min={0}
-                    max={50}
-                    step={0.5}
-                    value={params.titrantAddedMl}
-                    onChange={(e) => {
-                      labSound.playTitrationDrop(metrics.currentPh);
-                      handleParamChange({
-                        titrantAddedMl: parseFloat(e.target.value),
-                      });
-                    }}
-                    className="w-full accent-sky-600 cursor-pointer"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="titration-indicator-select"
-                    className="block text-xs font-medium text-slate-700 dark:text-slate-200 mb-1"
-                  >
-                    Indikator Asam-Basa
-                  </label>
-                  <select
-                    id="titration-indicator-select"
-                    value={params.indicatorType}
-                    onChange={(e) => {
-                      labSound.playClick();
-                      handleParamChange({
-                        indicatorType: e.target.value as
-                          | 'fenolftalein'
-                          | 'bromtimol-biru'
-                          | 'metil-jingga',
-                      });
-                    }}
-                    className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-slate-900 dark:text-white"
-                  >
-                    <option value="fenolftalein">
-                      Fenolftalein (Trayek pH 8.2 – 10.0)
-                    </option>
-                    <option value="bromtimol-biru">
-                      Bromtimol Biru (Trayek pH 6.0 – 7.6)
-                    </option>
-                    <option value="metil-jingga">
-                      Metil Jingga (Trayek pH 3.1 – 4.4)
-                    </option>
-                  </select>
-                </div>
-              </>
-            )}
-
-            {params.mode === 'electrochemistry-cell' && (
-              <>
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="electro-anode-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Konsentrasi Ion Anoda ([Anoda])
-                    </label>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.anodeConcM.toFixed(3)} M
-                    </span>
-                  </div>
-                  <input
-                    id="electro-anode-slider"
-                    type="range"
-                    min={0.01}
-                    max={2.0}
-                    step={0.05}
-                    value={params.anodeConcM}
-                    onChange={(e) =>
-                      handleParamChange({
-                        anodeConcM: parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full accent-sky-600 cursor-pointer"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="electro-cathode-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Konsentrasi Ion Katoda ([Katoda])
-                    </label>
-                    <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                      {params.cathodeConcM.toFixed(3)} M
-                    </span>
-                  </div>
-                  <input
-                    id="electro-cathode-slider"
-                    type="range"
-                    min={0.01}
-                    max={2.0}
-                    step={0.05}
-                    value={params.cathodeConcM}
-                    onChange={(e) =>
-                      handleParamChange({
-                        cathodeConcM: parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full accent-sky-600 cursor-pointer"
-                  />
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-            <div>
-              <label
-                htmlFor="chem-note-input"
-                className="block text-xs font-medium text-slate-700 dark:text-slate-200 mb-1"
+          <AnimatePresence mode="wait">
+            {activeHudSection === 'kontrol' && (
+              <motion.div
+                key="kontrol"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-4"
               >
-                Catatan Analisis Kimia
-              </label>
-              <input
-                id="chem-note-input"
-                type="text"
-                value={noteInput}
-                onChange={(e) => setNoteInput(e.target.value)}
-                placeholder="Contoh: Titik ekuivalen tercapai pada pH 7.00..."
-                className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
-              />
-            </div>
+                {/* Interactive Live Formula Card */}
+                <InteractiveFormulaCard
+                  title={chemistryFormulaData.title}
+                  subtitle={chemistryFormulaData.subtitle}
+                  tokens={chemistryFormulaData.tokens}
+                  activeParamKey={hoveredParamKey}
+                  accentColor="#10b981"
+                />
 
-            <button
-              type="button"
-              onClick={handleRecordChemistry}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-semibold text-white bg-slate-900 dark:bg-sky-600 hover:bg-slate-800 dark:hover:bg-sky-500 rounded-lg transition-colors whitespace-nowrap"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Rekam Data Eksperimen ke Tabel Log
-            </button>
-          </div>
+                {/* Header & Group Sync */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                    Instrumen Parameter Kimia
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick(740);
+                      onSyncWithGroup(
+                        `Kimia (${params.mode}): T=${params.initialTempC}°C, pH=${metrics.currentPh}`
+                      );
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200/60 dark:border-emerald-800/60 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <Share2 className="w-3 h-3" />
+                    Sinkron Kelompok
+                  </button>
+                </div>
+
+                {/* Tactile Sliders by Mode */}
+                <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+                  {params.mode === 'thermo-calorimetry' && (
+                    <>
+                      <TactileParameterControl
+                        label="Suhu Awal Sistem"
+                        symbol="T₀"
+                        value={params.initialTempC}
+                        min={5}
+                        max={140}
+                        step={5}
+                        unit="°C"
+                        accentColor="#f59e0b"
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'initialTempC' : null)}
+                        onChange={(v) => handleParamChange({ initialTempC: v })}
+                      />
+                      <TactileParameterControl
+                        label="Konsentrasi Reaktan"
+                        symbol="[M]"
+                        value={params.reactantConcentration}
+                        min={0.2}
+                        max={4.0}
+                        step={0.2}
+                        unit="mol/L"
+                        accentColor="#10b981"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'reactantConcentration' : null)
+                        }
+                        onChange={(v) => handleParamChange({ reactantConcentration: v })}
+                      />
+                      <TactileParameterControl
+                        label="Volume Larutan Kalorimeter"
+                        symbol="V"
+                        value={params.solutionVolumeMl}
+                        min={50}
+                        max={600}
+                        step={25}
+                        unit="mL"
+                        accentColor="#38bdf8"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'solutionVolumeMl' : null)
+                        }
+                        onChange={(v) => handleParamChange({ solutionVolumeMl: v })}
+                      />
+                    </>
+                  )}
+
+                  {params.mode === 'acid-base-titration' && (
+                    <>
+                      <TactileParameterControl
+                        label="Konsentrasi Analit Asam"
+                        symbol="M_a"
+                        value={params.analyteAcidConc}
+                        min={0.05}
+                        max={0.5}
+                        step={0.05}
+                        unit="M"
+                        accentColor="#f43f5e"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'analyteAcidConc' : null)
+                        }
+                        onChange={(v) => handleParamChange({ analyteAcidConc: v })}
+                      />
+                      <TactileParameterControl
+                        label="Konsentrasi Titran NaOH"
+                        symbol="M_b"
+                        value={params.titrantBaseConc}
+                        min={0.05}
+                        max={0.5}
+                        step={0.05}
+                        unit="M"
+                        accentColor="#38bdf8"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'titrantBaseConc' : null)
+                        }
+                        onChange={(v) => handleParamChange({ titrantBaseConc: v })}
+                      />
+                      <TactileParameterControl
+                        label="Volume NaOH Ditambahkan"
+                        symbol="V_b"
+                        value={params.titrantAddedMl}
+                        min={0}
+                        max={50}
+                        step={0.5}
+                        unit="mL"
+                        accentColor="#a855f7"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'titrantAddedMl' : null)
+                        }
+                        onChange={(v) => {
+                          labSound.playTitrationDrop(metrics.currentPh);
+                          handleParamChange({ titrantAddedMl: v });
+                        }}
+                      />
+                      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800">
+                        <label
+                          htmlFor="titration-indicator-select"
+                          className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >
+                          Indikator Asam-Basa
+                        </label>
+                        <select
+                          id="titration-indicator-select"
+                          value={params.indicatorType}
+                          onChange={(e) => {
+                            labSound.playClick();
+                            handleParamChange({
+                              indicatorType: e.target.value as
+                                | 'fenolftalein'
+                                | 'bromtimol-biru'
+                                | 'metil-jingga',
+                            });
+                          }}
+                          className="w-full text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-white"
+                        >
+                          <option value="fenolftalein">
+                            Fenolftalein (Trayek pH 8.2 – 10.0)
+                          </option>
+                          <option value="bromtimol-biru">
+                            Bromtimol Biru (Trayek pH 6.0 – 7.6)
+                          </option>
+                          <option value="metil-jingga">
+                            Metil Jingga (Trayek pH 3.1 – 4.4)
+                          </option>
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {params.mode === 'electrochemistry-cell' && (
+                    <>
+                      <TactileParameterControl
+                        label="Konsentrasi Ion Anoda"
+                        symbol="[Anoda]"
+                        value={params.anodeConcM}
+                        min={0.01}
+                        max={2.0}
+                        step={0.05}
+                        unit="M"
+                        accentColor="#f59e0b"
+                        onHoverChange={(h) => setHoveredParamKey(h ? 'anodeConcM' : null)}
+                        onChange={(v) => handleParamChange({ anodeConcM: v })}
+                      />
+                      <TactileParameterControl
+                        label="Konsentrasi Ion Katoda"
+                        symbol="[Katoda]"
+                        value={params.cathodeConcM}
+                        min={0.01}
+                        max={2.0}
+                        step={0.05}
+                        unit="M"
+                        accentColor="#ec4899"
+                        onHoverChange={(h) =>
+                          setHoveredParamKey(h ? 'cathodeConcM' : null)
+                        }
+                        onChange={(v) => handleParamChange({ cathodeConcM: v })}
+                      />
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {activeHudSection === 'grafik' && (
+              <motion.div
+                key="grafik"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-3.5"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                    Telemetri Instrumen Kimia
+                  </span>
+                  <span className="text-[11px] font-mono text-emerald-500">
+                    ● {params.mode}
+                  </span>
+                </div>
+
+                {/* Universal Indicator pH Spectrum Bar */}
+                {params.mode === 'acid-base-titration' && (
+                  <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-mono text-slate-300">
+                        Spektrum Universal pH (0–14)
+                      </span>
+                      <span className="font-mono font-bold text-emerald-400">
+                        pH = {metrics.currentPh} ({metrics.indicatorColorName})
+                      </span>
+                    </div>
+                    <div className="relative w-full h-3 rounded-full bg-gradient-to-r from-rose-500 via-emerald-500 to-violet-600">
+                      <motion.div
+                        layout
+                        className="absolute -top-1 w-5 h-5 rounded-full bg-white border-2 border-slate-900 shadow-md -translate-x-1/2"
+                        style={{ left: `${phProgressPct}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <AnimatedNumberReadout
+                    label={
+                      params.mode === 'acid-base-titration'
+                        ? 'Derajat Keasaman'
+                        : params.mode === 'electrochemistry-cell'
+                        ? 'Potensial Standar E°'
+                        : 'Entalpi Reaksi ΔH°'
+                    }
+                    value={
+                      params.mode === 'acid-base-titration'
+                        ? metrics.currentPh
+                        : params.mode === 'electrochemistry-cell'
+                        ? metrics.standardCellPotentialE0
+                        : metrics.deltaHReaction
+                    }
+                    unit={
+                      params.mode === 'acid-base-titration'
+                        ? 'pH'
+                        : params.mode === 'electrochemistry-cell'
+                        ? 'V'
+                        : 'kJ/mol'
+                    }
+                    accentColor="#10b981"
+                  />
+                  <AnimatedNumberReadout
+                    label={
+                      params.mode === 'acid-base-titration'
+                        ? 'Volume Ekuivalen'
+                        : params.mode === 'electrochemistry-cell'
+                        ? 'Potensial Nernst E'
+                        : 'Energi Bebas Gibbs ΔG'
+                    }
+                    value={
+                      params.mode === 'acid-base-titration'
+                        ? metrics.equivalenceVolumeMl
+                        : params.mode === 'electrochemistry-cell'
+                        ? metrics.nernstCellPotentialE
+                        : metrics.deltaG
+                    }
+                    unit={
+                      params.mode === 'acid-base-titration'
+                        ? 'mL'
+                        : params.mode === 'electrochemistry-cell'
+                        ? 'V'
+                        : 'kJ/mol'
+                    }
+                    accentColor="#38bdf8"
+                  />
+                  <AnimatedNumberReadout
+                    label="Suhu Sistem Larutan"
+                    value={
+                      params.mode === 'thermo-calorimetry'
+                        ? metrics.finalTempC
+                        : params.initialTempC
+                    }
+                    unit="°C"
+                    accentColor="#f59e0b"
+                  />
+                  <AnimatedNumberReadout
+                    label={
+                      params.mode === 'electrochemistry-cell'
+                        ? 'ΔG Redoks'
+                        : 'Laju Reaksi Awal r'
+                    }
+                    value={
+                      params.mode === 'electrochemistry-cell'
+                        ? metrics.electroFreeEnergyDeltaG
+                        : metrics.reactionRate
+                    }
+                    unit={params.mode === 'electrochemistry-cell' ? 'kJ/mol' : 'M/s'}
+                    accentColor="#a855f7"
+                  />
+                </div>
+
+                {/* Quick Record & Note Box */}
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+                  <div>
+                    <label
+                      htmlFor="chem-note-input"
+                      className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1"
+                    >
+                      Catatan Analisis Kimia
+                    </label>
+                    <input
+                      id="chem-note-input"
+                      type="text"
+                      value={noteInput}
+                      onChange={(e) => setNoteInput(e.target.value)}
+                      placeholder="Contoh: Titik ekuivalen tercapai pada pH 7.00..."
+                      className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.96 }}
+                    onClick={handleRecordChemistry}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-bold text-white bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 rounded-xl transition-colors cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    Rekam Data Eksperimen ke Tabel Log
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
+
+            {activeHudSection === 'panduan' && (
+              <motion.div
+                key="panduan"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-3"
+              >
+                <details
+                  open
+                  className="group rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/70 p-3 text-xs"
+                >
+                  <summary className="font-bold text-slate-900 dark:text-white cursor-pointer flex items-center justify-between">
+                    <span>{conceptCard.heading}</span>
+                    <span className="font-mono text-[10px] text-emerald-500">
+                      {conceptCard.levelLabel}
+                    </span>
+                  </summary>
+                  <div className="mt-2 space-y-1.5 text-slate-600 dark:text-slate-300 leading-relaxed">
+                    <p>{conceptCard.summaryText}</p>
+                    <p className="text-emerald-700 dark:text-emerald-400 font-medium">
+                      {conceptCard.practicalTip}
+                    </p>
+                    <div className="mt-2 p-2 rounded-lg bg-slate-900 text-emerald-300 font-mono text-[11px]">
+                      Rumus: {conceptCard.keyEquation}
+                    </div>
+                  </div>
+                </details>
+
+                <details className="group rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/70 p-3 text-xs">
+                  <summary className="font-bold text-slate-900 dark:text-white cursor-pointer flex items-center justify-between">
+                    <span>Keselamatan Kerja (K3) & Prosedur Kimia</span>
+                    <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                  </summary>
+                  <div className="mt-2 space-y-2 text-slate-600 dark:text-slate-300">
+                    <p>
+                      Pastikan mengenakan jas laboratorium, kacamata pelindung, dan sarung tangan nitril sebelum mereaksikan asam/basa kuat.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setPreLabModalOpen(true)}
+                      className="w-full py-1.5 px-3 rounded-lg bg-emerald-600/15 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 font-semibold hover:bg-emerald-600/25 transition-colors cursor-pointer"
+                    >
+                      Buka Modul K3 & Panduan Lengkap
+                    </button>
+                  </div>
+                </details>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

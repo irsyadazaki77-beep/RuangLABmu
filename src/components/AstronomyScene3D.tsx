@@ -938,15 +938,15 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-slate-800 bg-[#060913]">
+    <div className="relative overflow-hidden rounded-xl border border-slate-800/90 bg-[#060913]">
       <div
         ref={mountRef}
         data-testid="astronomy-simulation-canvas"
-        className="w-full h-[340px] sm:h-[390px] block cursor-grab active:cursor-grabbing"
+        className="w-full h-[460px] sm:h-[520px] block cursor-grab active:cursor-grabbing"
       />
 
-      {/* Top-Left 3D Observatory HUD Badge */}
-      <div className="pointer-events-none absolute top-3 left-3 rounded-md border border-slate-700 bg-[#0F172A] px-3 py-2 text-xs shadow-md">
+      {/* Bottom-Left 3D Observatory HUD Badge */}
+      <div className="pointer-events-none absolute bottom-14 left-3 rounded-lg border border-slate-700/90 bg-[#0F172A]/95 px-3 py-2 text-xs shadow-md">
         <div className="font-mono text-[11px] font-semibold text-sky-400">
           {params.mode === 'solar-kepler'
             ? `ORBIT 3D HUKUM KEPLER — ${activePlanet.name.toUpperCase()}`
@@ -963,13 +963,13 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         </div>
       </div>
 
-      {/* Top-Right Companion 2D Astro Plot PiP */}
+      {/* Bottom-Right Companion 2D Astro Plot PiP */}
       {showMiniPlot && !hudCollapsed && (
-        <div className="pointer-events-none absolute top-3 right-3 hidden md:block overflow-hidden rounded-md border border-slate-700 bg-[#090D16] shadow-lg">
+        <div className="pointer-events-none absolute bottom-14 right-3 hidden xl:block overflow-hidden rounded-lg border border-slate-700/90 bg-[#090D16] shadow-lg">
           <canvas
             ref={miniPlotRef}
-            width={255}
-            height={128}
+            width={235}
+            height={116}
             className="block"
           />
         </div>
