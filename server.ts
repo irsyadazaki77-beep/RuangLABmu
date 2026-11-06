@@ -4,15 +4,60 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
+import { GoogleGenAI, Type } from '@google/genai';
+import { loadPersistedState, scheduleSaveState } from './src/utils/statePersistence';
+import {
+  SpatialCursorPayload,
+  ParameterLockPayload,
+} from './src/utils/collabProtocol';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const DR_LABMU_SYSTEM_INSTRUCTION = `# ROLE & IDENTITY
+Nama Anda adalah "Dr. LabMu", seorang asisten instruktur laboratorium virtual interaktif di platform RuangLABmu. Anda ahli dalam membimbing praktikum Fisika, Kimia, dan Astronomi untuk jenjang SMP, SMA, hingga Perguruan Tinggi.
+
+# CORE PEDAGOGY: SOCRATIC TEACHING METHOD
+1. JANGAN PERNAH langsung memberikan jawaban akhir, angka pasti, atau rumus matang secara cuma-cuma.
+2. Tugas utama Anda adalah menuntun pola pikir siswa menggunakan pertanyaan pemantik reflektif (Socratic Questioning) berdasarkan data riil yang mereka kumpulkan.
+3. Selalu validasi usaha siswa sebelum mengarahkan ke perbaikan konsep.
+
+# EXPERIMENTAL TELEMETRY CONTEXT
+Anda akan menerima data telemetri praktikum siswa dalam format JSON:
+- domain: Fisika | Kimia | Astronomi
+- topic: Nama modul praktikum (misal: "projectile-gravity", "acid-base-titration", "orbital-kepler")
+- educationLevel: SMP | SMA | Perguruan Tinggi
+- currentParameters: Variabel input yang sedang disetel siswa
+- recordedData: Data tabel percobaan siswa
+- analytics: Hasil regresi/fitting (misal: nilai R², slope, deviasi standar)
+- studentQuery: Pertanyaan atau keluhan langsung dari siswa
+
+# BEHAVIOR RULES BY TELEMETRY ANOMALY
+1. JIKA R² < 0.85 atau Terjadi Outlier Ekstrem:
+   - Identifikasi titik data yang paling menyimpang.
+   - Jangan sebut siswa salah; tanyakan hipotesis mereka mengapa titik tersebut melenceng (misal: "Coba perhatikan percobaan ke-3 saat sudut diubah ke 85°, mengapa jarak tempuhnya merosot drastis?").
+2. JIKA Siswa Bingung/Stuck:
+   - Berikan analogi dunia nyata yang relevan sesuai jenjang:
+     * SMP: Analogi konkret sehari-hari (melempar bola basket, melarutkan gula, melihat bulan).
+     * SMA: Hubungan sebab-akibat antar dua variabel (kenapa v₀ memengaruhi x_max).
+     * PT: Tinjauan sistemik (hambatan udara orde kuadratik, kesetimbangan disosiasi, ketidakpastian instrumen).
+3. JIKA Siswa Meminta Jawaban Langsung ("Berapa nilai g-nya bro?"):
+   - Tolak secara halus dan kembalikan fokus pada interpretasi grafik mereka:
+     "Saya punya catatannya, tapi ilmuwan sejati menemukan rahasianya dari grafik sendiri! Lihat kemiringan (slope) garis regresi yang baru saja kamu buat..."
+
+# TONE & STYLE
+- Nada: Hangat, suportif, ilmiah, dan bersemangat layaknya rekan riset senior.
+- Bahasa: Bahasa Indonesia santun, komunikatif, dan alami (hindari kalimat kaku seperti robot terjemahan).
+- Format Respon Wajib (3 bagian):
+  1. [Apresiasi/Observasi Singkat]: 1 kalimat mengomentari apa yang sedang mereka lakukan di meja lab 3D.
+  2. [Sorotan Data/Anomali]: Ulasan tajam terhadap parameter atau grafik mereka.
+  3. [Pertanyaan Pemantik]: 1 pertanyaan kunci yang membuat mereka ingin langsung menguji ulang slider simulasi.`;
 
 interface GroupTask {
   id: string;
   groupId: string;
   title: string;
-  domain: 'Fisika' | 'Kimia' | 'Astronomi';
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
   completed: boolean;
   completedBy?: string;
 }
@@ -30,7 +75,7 @@ interface StudentProgress {
   id: string;
   name: string;
   groupId: string;
-  activeDomain: 'Fisika' | 'Kimia' | 'Astronomi';
+  activeDomain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
   currentActivity: string;
   trialsRecorded: number;
   tasksCompleted: number;
@@ -45,7 +90,7 @@ interface ServerExperimentRecord {
   timestamp: string;
   studentName: string;
   groupId: string;
-  domain: 'Fisika' | 'Kimia' | 'Astronomi';
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
   experimentTitle: string;
   parametersSummary: string;
   keyMetrics: Record<string, number | string>;
@@ -59,7 +104,7 @@ interface ServerNotification {
   id: string;
   timestamp: string;
   severity: 'nominal' | 'elevated' | 'critical';
-  domain: 'Fisika' | 'Kimia' | 'Astronomi' | 'Kolaborasi' | 'Pengajar';
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | 'Kolaborasi' | 'Pengajar';
   title: string;
   message: string;
   formulaHint?: string;
@@ -288,23 +333,197 @@ async function startServer() {
   const server = http.createServer(app);
   const PORT = 3000;
 
-  app.use(express.json());
+  // Hydrate authoritative in-memory state from atomic disk storage (.data/ruanglab-state.json)
+  const initialHydration = await loadPersistedState<{
+    records?: ServerExperimentRecord[];
+    tasks?: GroupTask[];
+    notes?: CollabNote[];
+    students?: StudentProgress[];
+    notifications?: ServerNotification[];
+  }>({
+    records: experimentRecords,
+    tasks: groupTasks,
+    notes: collabNotes,
+    students: studentRoster,
+    notifications,
+  });
 
-  // REST API endpoints for initial hydration and actions
-  app.get('/api/lab-state', (_req, res) => {
-    res.json({
+  if (initialHydration.records && initialHydration.records.length > 0) {
+    experimentRecords.length = 0;
+    experimentRecords.push(...initialHydration.records);
+  }
+  if (initialHydration.tasks && initialHydration.tasks.length > 0) {
+    groupTasks.length = 0;
+    groupTasks.push(...initialHydration.tasks);
+  }
+  if (initialHydration.notes && initialHydration.notes.length > 0) {
+    collabNotes.length = 0;
+    collabNotes.push(...initialHydration.notes);
+  }
+  if (initialHydration.students && initialHydration.students.length > 0) {
+    studentRoster.length = 0;
+    studentRoster.push(...initialHydration.students);
+  }
+  if (initialHydration.notifications && initialHydration.notifications.length > 0) {
+    notifications.length = 0;
+    notifications.push(...initialHydration.notifications);
+  }
+
+  const persistServerState = () => {
+    scheduleSaveState({
       records: experimentRecords,
       tasks: groupTasks,
       notes: collabNotes,
       students: studentRoster,
       notifications,
     });
+  };
+
+  // Collaborative Parameter Mutex Locks: Map<`${groupId}:${paramKey}`, ParameterLockPayload>
+  const parameterLocks = new Map<string, ParameterLockPayload>();
+
+  const pruneExpiredLocks = (): boolean => {
+    const now = Date.now();
+    let hasChanges = false;
+    for (const [key, lock] of parameterLocks.entries()) {
+      if (now > lock.expiresAt) {
+        parameterLocks.delete(key);
+        hasChanges = true;
+      }
+    }
+    return hasChanges;
+  };
+
+  // Clean up stale locks every 1.5 seconds
+  setInterval(() => {
+    if (pruneExpiredLocks()) {
+      broadcastGroup(null, {
+        type: 'PARAM_LOCKS_SYNC',
+        payload: { locks: Array.from(parameterLocks.values()) },
+      });
+    }
+  }, 1500);
+
+  app.use(express.json());
+
+  // REST API endpoints for initial hydration and actions
+  app.get('/api/lab-state', (_req, res) => {
+    pruneExpiredLocks();
+    res.json({
+      records: experimentRecords,
+      tasks: groupTasks,
+      notes: collabNotes,
+      students: studentRoster,
+      notifications,
+      paramLocks: Array.from(parameterLocks.values()),
+    });
+  });
+
+  // Dr. LabMu Socratic Virtual Lab Instructor Endpoint (Server-Side Gemini API)
+  app.post('/api/dr-labmu/ask', async (req, res) => {
+    try {
+      const telemetry = req.body?.telemetry;
+      if (!telemetry) {
+        res.status(400).json({ error: 'Data telemetri praktikum tidak ditemukan.' });
+        return;
+      }
+
+      if (!process.env.GEMINI_API_KEY) {
+        res.status(503).json({
+          error: 'GEMINI_API_KEY_NOT_CONFIGURED',
+          message: 'Menggunakan mesin pedagogi Sokratik lokal Dr. LabMu.',
+        });
+        return;
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: `Berikut adalah data telemetri praktikum siswa saat ini dalam format JSON:\n${JSON.stringify(
+          telemetry,
+          null,
+          2
+        )}\n\nBerikan bimbingan Sokratik sebagai Dr. LabMu sesuai aturan pedagogi dan format 3 bagian.`,
+        config: {
+          systemInstruction: DR_LABMU_SYSTEM_INSTRUCTION,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              observation: {
+                type: Type.STRING,
+                description:
+                  '[Apresiasi/Observasi Singkat]: 1 kalimat mengomentari apa yang sedang dilakukan siswa di meja lab 3D.',
+              },
+              dataHighlight: {
+                type: Type.STRING,
+                description:
+                  '[Sorotan Data/Anomali]: Ulasan tajam terhadap parameter, slope regresi, outlier R² < 0.85, atau analogi sesuai jenjang.',
+              },
+              socraticQuestion: {
+                type: Type.STRING,
+                description:
+                  '[Pertanyaan Pemantik]: 1 pertanyaan kunci reflektif yang membuat siswa ingin langsung menguji ulang slider simulasi.',
+              },
+              detectedTrigger: {
+                type: Type.STRING,
+                description:
+                  'Kategori aturan pedagogi: anomaly-outlier | direct-answer-refusal | concept-analogy',
+              },
+            },
+            required: [
+              'observation',
+              'dataHighlight',
+              'socraticQuestion',
+              'detectedTrigger',
+            ],
+          },
+        },
+      });
+
+      const rawText = (response.text ?? '{}').trim();
+      const parsed = JSON.parse(rawText);
+      const formattedText = `1. [Apresiasi/Observasi Singkat]: ${parsed.observation}\n2. [Sorotan Data/Anomali]: ${parsed.dataHighlight}\n3. [Pertanyaan Pemantik]: ${parsed.socraticQuestion}`;
+
+      res.json({
+        source: 'gemini-api',
+        response: {
+          observation: parsed.observation,
+          dataHighlight: parsed.dataHighlight,
+          socraticQuestion: parsed.socraticQuestion,
+          detectedTrigger: parsed.detectedTrigger || 'concept-analogy',
+          formattedText,
+        },
+      });
+    } catch (error) {
+      console.error('Dr. LabMu Gemini API Error:', error);
+      res.status(500).json({
+        error: 'GEMINI_CALL_FAILED',
+        message: error instanceof Error ? error.message : 'Gagal menghubungi layanan AI.',
+      });
+    }
   });
 
   // WebSocket Server attached to HTTP server on port 3000
   const wss = new WebSocketServer({ server, path: '/ws-lab' });
 
-  const broadcast = (payload: unknown) => {
+  interface ExtWebSocket extends WebSocket {
+    userId?: string;
+    userName?: string;
+    role?: 'Siswa' | 'Pengajar';
+    groupId?: string;
+    domain?: 'fisika' | 'kimia' | 'biologi' | 'astronomi';
+  }
+
+  const broadcastAll = (payload: unknown) => {
     const raw = JSON.stringify(payload);
     wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
@@ -313,8 +532,35 @@ async function startServer() {
     });
   };
 
-  wss.on('connection', (ws) => {
-    // Send authoritative state upon connection
+  const broadcastGroup = (
+    targetGroupId: string | null | undefined,
+    payload: unknown,
+    excludeWs?: WebSocket
+  ) => {
+    const raw = JSON.stringify(payload);
+    wss.clients.forEach((c) => {
+      const client = c as ExtWebSocket;
+      if (client.readyState === WebSocket.OPEN && client !== excludeWs) {
+        // Send to client if target is null (broadcast to all), or if same group, or if role is Pengajar, or if client has not joined a group yet
+        if (
+          !targetGroupId ||
+          client.groupId === targetGroupId ||
+          client.role === 'Pengajar' ||
+          !client.groupId
+        ) {
+          client.send(raw);
+        }
+      }
+    });
+  };
+
+  wss.on('connection', (socket) => {
+    const ws = socket as ExtWebSocket;
+
+    // Prune expired locks before sending state
+    pruneExpiredLocks();
+
+    // Send authoritative state upon connection including active parameter mutex locks
     ws.send(
       JSON.stringify({
         type: 'init:state',
@@ -324,6 +570,7 @@ async function startServer() {
           notes: collabNotes,
           students: studentRoster,
           notifications,
+          paramLocks: Array.from(parameterLocks.values()),
         },
       })
     );
@@ -332,13 +579,93 @@ async function startServer() {
       try {
         const msg = JSON.parse(data.toString());
 
-        if (msg.type === 'record:create' && msg.payload) {
+        // Client Identity Registration
+        if (msg.type === 'client:identify' && msg.payload) {
+          ws.userId = msg.payload.userId;
+          ws.userName = msg.payload.userName;
+          ws.role = msg.payload.role;
+          ws.groupId = msg.payload.groupId;
+          ws.domain = msg.payload.domain;
+        }
+
+        // ==========================================
+        // PHASE 3: 3D Spatial Cursors & Parameter Locking
+        // ==========================================
+        else if (msg.type === 'CURSOR_3D_MOVE' && msg.payload) {
+          const cursor: SpatialCursorPayload = msg.payload;
+          ws.userId = cursor.userId;
+          ws.userName = cursor.userName;
+          ws.role = cursor.role;
+          ws.groupId = cursor.groupId;
+          ws.domain = cursor.domain;
+
+          // Broadcast 3D laser position to peers in same group and teachers
+          broadcastGroup(cursor.groupId, {
+            type: 'CURSOR_3D_MOVE',
+            payload: cursor,
+          }, ws);
+        } else if (msg.type === 'CURSOR_3D_LEAVE' && msg.payload) {
+          broadcastGroup(msg.payload.groupId, {
+            type: 'CURSOR_3D_LEAVE',
+            payload: msg.payload,
+          }, ws);
+        } else if (msg.type === 'PARAM_LOCK_ACQUIRE' && msg.payload) {
+          const reqLock: ParameterLockPayload = msg.payload;
+          ws.userId = reqLock.lockedByUserId;
+          ws.userName = reqLock.lockedByName;
+          ws.groupId = reqLock.groupId;
+
+          const lockKey = `${reqLock.groupId}:${reqLock.paramKey}`;
+          const existing = parameterLocks.get(lockKey);
+          const now = Date.now();
+
+          // Mutex: Grant lock if unheld, expired, or held by the same user
+          if (
+            !existing ||
+            now > existing.expiresAt ||
+            existing.lockedByUserId === reqLock.lockedByUserId
+          ) {
+            const grantedLock: ParameterLockPayload = {
+              ...reqLock,
+              expiresAt:
+                now +
+                (reqLock.expiresAt && reqLock.expiresAt > now
+                  ? Math.min(reqLock.expiresAt - now, 8000)
+                  : 5000),
+            };
+            parameterLocks.set(lockKey, grantedLock);
+            broadcastGroup(reqLock.groupId, {
+              type: 'PARAM_LOCK_ACQUIRE',
+              payload: grantedLock,
+            });
+          }
+        } else if (msg.type === 'PARAM_LOCK_RELEASE' && msg.payload) {
+          const { groupId, paramKey, userId } = msg.payload;
+          const lockKey = `${groupId}:${paramKey}`;
+          const existing = parameterLocks.get(lockKey);
+          if (existing && existing.lockedByUserId === userId) {
+            parameterLocks.delete(lockKey);
+            broadcastGroup(groupId, {
+              type: 'PARAM_LOCK_RELEASE',
+              payload: msg.payload,
+            });
+          }
+        } else if (msg.type === 'PARAM_VALUE_SYNC' && msg.payload) {
+          // Live sync slider parameter across all group members
+          broadcastGroup(msg.payload.groupId, {
+            type: 'PARAM_VALUE_SYNC',
+            payload: msg.payload,
+          }, ws);
+        }
+
+        // ==========================================
+        // Existing Experiment & Collaboration Actions
+        // ==========================================
+        else if (msg.type === 'record:create' && msg.payload) {
           const rec: ServerExperimentRecord = msg.payload;
-          // Idempotent check
           if (!experimentRecords.some((r) => r.id === rec.id)) {
             experimentRecords.unshift(rec);
           }
-          // Update student progress if matching
           const stu = studentRoster.find((s) => s.name === rec.studentName);
           if (stu) {
             stu.trialsRecorded += 1;
@@ -348,7 +675,8 @@ async function startServer() {
             stu.currentActivity = `Merekam data: ${rec.experimentTitle}`;
             if (stu.completionPct >= 90) stu.status = 'Selesai';
           }
-          broadcast({
+          persistServerState();
+          broadcastAll({
             type: 'record:created',
             payload: { record: rec, students: studentRoster },
           });
@@ -356,7 +684,8 @@ async function startServer() {
           const idx = experimentRecords.findIndex((r) => r.id === msg.payload.id);
           if (idx !== -1) {
             experimentRecords.splice(idx, 1);
-            broadcast({
+            persistServerState();
+            broadcastAll({
               type: 'record:deleted',
               payload: { id: msg.payload.id },
             });
@@ -366,7 +695,8 @@ async function startServer() {
           if (task) {
             task.completed = !task.completed;
             task.completedBy = task.completed ? msg.payload.studentName || 'Siswa' : undefined;
-            broadcast({
+            persistServerState();
+            broadcastAll({
               type: 'task:updated',
               payload: { tasks: groupTasks },
             });
@@ -381,7 +711,8 @@ async function startServer() {
           };
           if (!groupTasks.some((t) => t.id === newTask.id)) {
             groupTasks.push(newTask);
-            broadcast({
+            persistServerState();
+            broadcastAll({
               type: 'task:updated',
               payload: { tasks: groupTasks },
             });
@@ -397,7 +728,8 @@ async function startServer() {
           };
           if (!collabNotes.some((n) => n.id === note.id)) {
             collabNotes.push(note);
-            broadcast({
+            persistServerState();
+            broadcastAll({
               type: 'note:created',
               payload: { note },
             });
@@ -425,7 +757,8 @@ async function startServer() {
             message: `${studentName} menjawab ${correctCount} soal LKS dengan benar. Nilai rubrik telah diperbarui otomatis.`,
           };
           notifications.unshift(notif);
-          broadcast({
+          persistServerState();
+          broadcastAll({
             type: 'quiz:submitted',
             payload: {
               students: studentRoster,
@@ -433,14 +766,13 @@ async function startServer() {
             },
           });
         } else if (msg.type === 'params:sync' && msg.payload) {
-          // Broadcast shared simulation parameters to group members
           const stu = studentRoster.find((s) => s.name === msg.payload.studentName);
           if (stu) {
             stu.activeDomain = msg.payload.domain || stu.activeDomain;
             stu.currentActivity = msg.payload.activitySummary || stu.currentActivity;
             stu.lastActive = 'Baru saja';
           }
-          broadcast({
+          broadcastAll({
             type: 'params:synced',
             payload: {
               ...msg.payload,
@@ -452,7 +784,8 @@ async function startServer() {
           if (!notifications.some((n) => n.id === notif.id)) {
             notifications.unshift(notif);
             if (notifications.length > 25) notifications.pop();
-            broadcast({
+            persistServerState();
+            broadcastAll({
               type: 'notification:pushed',
               payload: { notification: notif },
             });
@@ -485,7 +818,8 @@ async function startServer() {
             timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
           };
           collabNotes.push(note);
-          broadcast({
+          persistServerState();
+          broadcastAll({
             type: 'teacher:broadcasted',
             payload: {
               notification: notif,
@@ -496,6 +830,35 @@ async function startServer() {
         }
       } catch (err) {
         console.error('WebSocket message error:', err);
+      }
+    });
+
+    // Clean up locks and active 3D cursor on client disconnect
+    ws.on('close', () => {
+      if (ws.userId) {
+        for (const [key, lock] of parameterLocks.entries()) {
+          if (lock.lockedByUserId === ws.userId) {
+            parameterLocks.delete(key);
+            broadcastGroup(lock.groupId, {
+              type: 'PARAM_LOCK_RELEASE',
+              payload: {
+                groupId: lock.groupId,
+                domain: lock.domain,
+                paramKey: lock.paramKey,
+                userId: ws.userId,
+              },
+            });
+          }
+        }
+        if (ws.groupId) {
+          broadcastGroup(ws.groupId, {
+            type: 'CURSOR_3D_LEAVE',
+            payload: {
+              userId: ws.userId,
+              groupId: ws.groupId,
+            },
+          });
+        }
       }
     });
   });

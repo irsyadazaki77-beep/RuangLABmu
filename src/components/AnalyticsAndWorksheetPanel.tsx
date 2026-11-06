@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   BookOpenCheck,
   Calculator,
+  FileText,
 } from 'lucide-react';
 import {
   DataPointMultiAxis,
@@ -15,6 +16,7 @@ import {
   gradeWorksheetAnswers,
 } from '../utils/scienceEngine';
 import { labSound } from '../utils/soundEngine';
+import { openPrintableAcademicReport } from '../utils/academicReportExporter';
 
 interface AnalyticsAndWorksheetPanelProps {
   records: ExperimentRecord[];
@@ -415,6 +417,49 @@ export const AnalyticsAndWorksheetPanel: React.FC<
     onExportChartNotification('PNG');
   };
 
+  const handlePrintAcademicReport = () => {
+    labSound.playClick();
+    const firstRec = records[0];
+    const expTitle = firstRec ? firstRec.experimentTitle : activeConfig.title;
+    const domainStr = firstRec ? firstRec.domain : 'Sains Terintegrasi';
+
+    openPrintableAcademicReport({
+      experimentTitle: expTitle,
+      studentName: activeStudentName,
+      groupId: activeGroupId,
+      tier: 'SMA',
+      dateStr: new Date().toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }),
+      timeStr: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      domain: domainStr,
+      records: records,
+      regressionSummary: regression
+        ? {
+            slope: regression.slopeM,
+            intercept: regression.interceptC,
+            rSquared: regression.rSquared,
+            formula: regression.equationString,
+            expectedSlopeMeaning: 'Gradien Sebaran Terukur',
+          }
+        : undefined,
+      worksheetScore: gradedState
+        ? {
+            score: gradedState.totalScore,
+            correctCount: gradedState.correctCount,
+            totalCount: 6,
+          }
+        : undefined,
+      discussionNotes: `Grafik data analitik menunjukkan korelasi ${regression && regression.rSquared > 0.85 ? 'sangat kuat' : 'moderat'} dengan persamaan regresi ${regression ? regression.equationString : '-'}.`,
+      conclusionNotes: `Praktikum berhasil mengumpulkan data kuantitatif dan memverifikasi hukum alam yang diuji dengan batas galat yang dapat diterima.`,
+    });
+  };
+
   const handlePrintPDFReport = () => {
     labSound.playClick();
     onExportChartNotification('PDF');
@@ -444,7 +489,15 @@ export const AnalyticsAndWorksheetPanel: React.FC<
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePrintAcademicReport}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0 border border-slate-300 dark:border-slate-700"
+            >
+              <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              Cetak Laporan Resmi Praktikum
+            </button>
             <button
               type="button"
               onClick={handleExportPNG}
@@ -459,7 +512,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-md transition-colors whitespace-nowrap shrink-0"
             >
               <Printer className="w-3.5 h-3.5" />
-              Cetak Laporan PDF
+              Cetak PDF
             </button>
           </div>
         </div>

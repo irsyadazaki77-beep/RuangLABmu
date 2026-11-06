@@ -34,6 +34,14 @@ import {
 } from '../utils/scienceEngine';
 import { ChemistryScene3D } from './ChemistryScene3D';
 import { labSound } from '../utils/soundEngine';
+import { SpatialCursorPayload } from '../utils/collabProtocol';
+import { ExperimentCatalogPicker } from './ExperimentCatalogPicker';
+import { PreLabSafetyModal } from './PreLabSafetyModal';
+import {
+  ExperimentModule,
+  EducationTier,
+  getExperimentsByDomain,
+} from '../registry/experimentRegistry';
 
 interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -48,6 +56,12 @@ interface ChemistryLabViewProps {
   onPushNotification: (notif: LabNotification) => void;
   onSyncWithGroup: (summary: string) => void;
   academicLevel?: AcademicLevel;
+  remoteCursors?: Record<string, SpatialCursorPayload>;
+  onEmitCursor?: (
+    pos: [number, number, number],
+    normal?: [number, number, number],
+    hoveredObject?: string
+  ) => void;
 }
 
 interface Particle {
@@ -65,11 +79,26 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   onPushNotification,
   onSyncWithGroup,
   academicLevel = 'sma',
+  remoteCursors,
+  onEmitCursor,
 }) => {
   const [isReacting, setIsReacting] = useState<boolean>(false);
   const [reactionProgress, setReactionProgress] = useState<number>(0);
   const [noteInput, setNoteInput] = useState<string>('');
   const [is3DMode, setIs3DMode] = useState<boolean>(true);
+
+  const chemistryModules = getExperimentsByDomain('kimia');
+  const [preLabModalOpen, setPreLabModalOpen] = useState<boolean>(false);
+  const [modalExperiment, setModalExperiment] = useState<ExperimentModule>(chemistryModules[0]);
+  const activeTier: EducationTier =
+    academicLevel === 'smp' ? 'SMP' : academicLevel === 'mahasiswa' ? 'Mahasiswa' : 'SMA';
+
+  const currentChemistryModuleId =
+    params.mode === 'thermo-calorimetry'
+      ? 'thermo-calorimetry'
+      : params.mode === 'acid-base-titration'
+      ? 'acid-base-titration'
+      : 'redox-electrochemistry';
 
   // Side-by-Side A/B Experiment Comparison State
   const [baselineParams, setBaselineParams] =
@@ -802,6 +831,32 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
 
   return (
     <div className="space-y-5">
+      {/* Universal Experiment Catalog Picker */}
+      <ExperimentCatalogPicker
+        domain="kimia"
+        currentExperimentId={currentChemistryModuleId}
+        activeTier={activeTier}
+        onSelectExperiment={(exp) => {
+          if (exp.id === 'thermo-calorimetry') {
+            handleParamChange({ mode: 'thermo-calorimetry' });
+          } else if (exp.id === 'acid-base-titration') {
+            handleParamChange({ mode: 'acid-base-titration' });
+          } else if (exp.id === 'redox-electrochemistry') {
+            handleParamChange({ mode: 'electrochemistry-cell' });
+          } else if (exp.id === 'ideal-gas-boyle') {
+            handleParamChange({ mode: 'thermo-calorimetry', initialTempC: 30 });
+          } else if (exp.id === 'reaction-kinetics-arrhenius') {
+            handleParamChange({ mode: 'thermo-calorimetry', useCatalyst: true });
+          } else if (exp.id === 'spectrophotometry-beer') {
+            handleParamChange({ mode: 'acid-base-titration' });
+          }
+        }}
+        onOpenPreLabModal={(exp) => {
+          setModalExperiment(exp);
+          setPreLabModalOpen(true);
+        }}
+      />
+
       {/* Chemistry Mode Selector & Preset Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
         <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg">
@@ -1237,6 +1292,8 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                   redoxPreset={redoxPreset}
                   reactionProgress={reactionProgress}
                   isReacting={isReacting}
+                  remoteCursors={remoteCursors}
+                  onEmitCursor={onEmitCursor}
                 />
               ) : (
                 <canvas
@@ -1906,6 +1963,22 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
           </div>
         </div>
       </div>
+
+      <PreLabSafetyModal
+        experiment={modalExperiment}
+        activeTier={activeTier}
+        isOpen={preLabModalOpen}
+        onClose={() => setPreLabModalOpen(false)}
+        onProceedToLab={() => {
+          if (modalExperiment.id === 'thermo-calorimetry') {
+            handleParamChange({ mode: 'thermo-calorimetry' });
+          } else if (modalExperiment.id === 'acid-base-titration') {
+            handleParamChange({ mode: 'acid-base-titration' });
+          } else if (modalExperiment.id === 'redox-electrochemistry') {
+            handleParamChange({ mode: 'electrochemistry-cell' });
+          }
+        }}
+      />
     </div>
   );
 };

@@ -30,6 +30,14 @@ import {
 } from '../utils/scienceEngine';
 import { AstronomyScene3D } from './AstronomyScene3D';
 import { labSound } from '../utils/soundEngine';
+import { SpatialCursorPayload } from '../utils/collabProtocol';
+import { ExperimentCatalogPicker } from './ExperimentCatalogPicker';
+import { PreLabSafetyModal } from './PreLabSafetyModal';
+import {
+  ExperimentModule,
+  EducationTier,
+  getExperimentsByDomain,
+} from '../registry/experimentRegistry';
 
 interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -44,6 +52,12 @@ interface AstronomyLabViewProps {
   ) => void;
   onPushNotification: (notif: LabNotification) => void;
   onSyncWithGroup: (summary: string) => void;
+  remoteCursors?: Record<string, SpatialCursorPayload>;
+  onEmitCursor?: (
+    pos: [number, number, number],
+    normal?: [number, number, number],
+    hoveredObject?: string
+  ) => void;
 }
 
 const STAR_FIELD_POINTS = Array.from({ length: 85 }, (_, i) => ({
@@ -60,12 +74,27 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   onRecordExperiment,
   onPushNotification,
   onSyncWithGroup,
+  remoteCursors,
+  onEmitCursor,
 }) => {
   const [isRunning, setIsRunning] = useState<boolean>(true);
   const [simTime, setSimTime] = useState<number>(0);
   const [noteInput, setNoteInput] = useState<string>('');
   const [is3DMode, setIs3DMode] = useState<boolean>(true);
   const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
+
+  const astronomyModules = getExperimentsByDomain('astronomi');
+  const [preLabModalOpen, setPreLabModalOpen] = useState<boolean>(false);
+  const [modalExperiment, setModalExperiment] = useState<ExperimentModule>(astronomyModules[0]);
+  const activeTier: EducationTier =
+    academicLevel === 'smp' ? 'SMP' : academicLevel === 'mahasiswa' ? 'Mahasiswa' : 'SMA';
+
+  const currentAstronomyModuleId =
+    params.mode === 'solar-kepler'
+      ? 'solar-kepler'
+      : params.mode === 'milkyway-galaxy'
+      ? 'milky-way-rotation'
+      : 'exoplanet-transit';
 
   // Side-by-Side A/B Experiment Comparison State
   const [baselineParams, setBaselineParams] =
@@ -856,6 +885,30 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
 
   return (
     <div className="space-y-5">
+      {/* Universal Experiment Catalog Picker */}
+      <ExperimentCatalogPicker
+        domain="astronomi"
+        currentExperimentId={currentAstronomyModuleId}
+        activeTier={activeTier}
+        onSelectExperiment={(exp) => {
+          if (exp.id === 'solar-kepler') {
+            onChangeParams((p) => ({ ...p, mode: 'solar-kepler' }));
+          } else if (exp.id === 'milky-way-rotation') {
+            onChangeParams((p) => ({ ...p, mode: 'milkyway-galaxy' }));
+          } else if (exp.id === 'exoplanet-transit') {
+            onChangeParams((p) => ({ ...p, mode: 'stellar-exoplanet' }));
+          } else if (exp.id === 'stellar-wien-spectrum') {
+            onChangeParams((p) => ({ ...p, mode: 'stellar-exoplanet' }));
+          } else if (exp.id === 'hubble-expansion') {
+            onChangeParams((p) => ({ ...p, mode: 'milkyway-galaxy' }));
+          }
+        }}
+        onOpenPreLabModal={(exp) => {
+          setModalExperiment(exp);
+          setPreLabModalOpen(true);
+        }}
+      />
+
       {/* Guided Experiment Scenarios Strip */}
       <div className="bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
@@ -1182,6 +1235,8 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                   metrics={metrics}
                   activePlanet={activePlanet}
                   simTime={simTime}
+                  remoteCursors={remoteCursors}
+                  onEmitCursor={onEmitCursor}
                 />
               ) : (
                 <canvas
@@ -1996,6 +2051,22 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
           </div>
         </div>
       </div>
+
+      <PreLabSafetyModal
+        experiment={modalExperiment}
+        activeTier={activeTier}
+        isOpen={preLabModalOpen}
+        onClose={() => setPreLabModalOpen(false)}
+        onProceedToLab={() => {
+          if (modalExperiment.id === 'solar-kepler') {
+            onChangeParams((p) => ({ ...p, mode: 'solar-kepler' }));
+          } else if (modalExperiment.id === 'milky-way-rotation') {
+            onChangeParams((p) => ({ ...p, mode: 'milkyway-galaxy' }));
+          } else if (modalExperiment.id === 'exoplanet-transit') {
+            onChangeParams((p) => ({ ...p, mode: 'stellar-exoplanet' }));
+          }
+        }}
+      />
     </div>
   );
 };

@@ -35,6 +35,22 @@ import {
 } from '../utils/scienceEngine';
 import { PhysicsScene3D } from './PhysicsScene3D';
 import { labSound } from '../utils/soundEngine';
+import { useSimulationWorker } from '../hooks/useSimulationWorker';
+import { SimulationPlaybackBar } from './SimulationPlaybackBar';
+import {
+  InstrumentSpecs,
+  DEFAULT_INSTRUMENTS,
+  applyInstrumentNoise,
+  formatMeasurementWithUncertainty,
+} from '../utils/uncertaintyEngine';
+import { SpatialCursorPayload, ParameterLockPayload } from '../utils/collabProtocol';
+import { ExperimentCatalogPicker } from './ExperimentCatalogPicker';
+import { PreLabSafetyModal } from './PreLabSafetyModal';
+import {
+  ExperimentModule,
+  EducationTier,
+  getExperimentsByDomain,
+} from '../registry/experimentRegistry';
 
 interface PhysicsLabViewProps {
   params: PhysicsParams;
@@ -49,6 +65,17 @@ interface PhysicsLabViewProps {
   onPushNotification: (notif: LabNotification) => void;
   onSyncWithGroup: (summary: string) => void;
   academicLevel?: AcademicLevel;
+  currentUserId?: string;
+  remoteCursors?: Record<string, SpatialCursorPayload>;
+  paramLocks?: Record<string, ParameterLockPayload>;
+  onEmitCursor?: (
+    pos: [number, number, number],
+    normal?: [number, number, number],
+    hoveredObject?: string
+  ) => void;
+  onAcquireLock?: (paramKey: string) => void;
+  onReleaseLock?: (paramKey: string) => void;
+  onSyncParamValue?: (paramKey: string, value: number) => void;
 }
 
 export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
@@ -58,6 +85,13 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   onPushNotification,
   onSyncWithGroup,
   academicLevel = 'sma',
+  currentUserId,
+  remoteCursors,
+  paramLocks,
+  onEmitCursor,
+  onAcquireLock,
+  onReleaseLock,
+  onSyncParamValue,
 }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [simTime, setSimTime] = useState<number>(1.2);
@@ -65,6 +99,70 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   const [noteInput, setNoteInput] = useState<string>('');
   const [showVectorOverlay, setShowVectorOverlay] = useState<boolean>(true);
   const [is3DMode, setIs3DMode] = useState<boolean>(true);
+  const [noiseEnabled, setNoiseEnabled] = useState<boolean>(false);
+
+  const physicsModules = getExperimentsByDomain('fisika');
+  const [preLabModalOpen, setPreLabModalOpen] = useState<boolean>(false);
+  const [modalExperiment, setModalExperiment] = useState<ExperimentModule>(physicsModules[0]);
+  const activeTier: EducationTier =
+    academicLevel === 'smp' ? 'SMP' : academicLevel === 'mahasiswa' ? 'Mahasiswa' : 'SMA';
+
+  const currentPhysicsModuleId =
+    params.mode === 'newton-incline'
+      ? 'newton-incline'
+      : params.mode === 'projectile-gravity'
+      ? 'projectile-motion'
+      : params.mode === 'collision-momentum'
+      ? 'collision-momentum'
+      : params.mode === 'spring-hooke'
+      ? 'spring-hooke'
+      : 'gravity-orbital';
+
+  // Deterministic Web Worker Physics Simulation Engine Hook
+  const workerParams = {
+    mass: params.mass,
+    appliedForce: params.appliedForce,
+    inclineAngle: params.inclineAngle,
+    frictionCoeffStatic: params.frictionCoeffStatic,
+    frictionCoeffKinetic: params.frictionCoeffKinetic,
+    gravity: params.gravity,
+    initialVelocity: params.initialVelocity,
+    launchAngle: params.launchAngle,
+    initialHeight: params.initialHeight,
+    secondaryMass: params.secondaryMass,
+    separationDistance: params.separationDistance,
+    collisionMass2: params.collisionMass2,
+    velocity2Initial: params.velocity2Initial,
+    restitutionCoeff: params.restitutionCoeff,
+    springConstantK: params.springConstantK,
+    springDisplacement: params.springDisplacement,
+    dampingCoeff: params.dampingCoeff,
+  };
+
+  const simWorker = useSimulationWorker(params.mode, workerParams);
+
+  // Synchronize worker simulation frames with simTime
+  useEffect(() => {
+    if (simWorker.currentFrame) {
+      setSimTime(simWorker.currentFrame.timestamp);
+    }
+  }, [simWorker.currentFrame]);
+
+  // Synchronize playback state
+  useEffect(() => {
+    setIsPlaying(simWorker.isPlaying);
+  }, [simWorker.isPlaying]);
+
+  // Handle simulation events emitted by worker
+  useEffect(() => {
+    if (simWorker.lastEvent) {
+      if (simWorker.lastEvent.event === 'collision') {
+        labSound.playCollisionThud(params.restitutionCoeff);
+      } else if (simWorker.lastEvent.event === 'ground-hit') {
+        labSound.playSnapshotPin();
+      }
+    }
+  }, [simWorker.lastEvent, params.restitutionCoeff]);
 
   // Side-by-Side A/B Experiment Comparison State
   const [baselineParams, setBaselineParams] = useState<PhysicsParams | null>(
@@ -870,6 +968,28 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
   const handleParamUpdate = (patch: Partial<PhysicsParams>) => {
     onChangeParams({ ...params, ...patch });
+    if (onSyncParamValue) {
+      for (const [key, val] of Object.entries(patch)) {
+        if (typeof val === 'number') {
+          onSyncParamValue(key, val);
+        }
+      }
+    }
+  };
+
+  const isParamLocked = (paramKey: string): boolean => {
+    const lock = paramLocks?.[paramKey];
+    return Boolean(lock && lock.lockedByUserId !== currentUserId);
+  };
+
+  const renderLockBadge = (paramKey: string) => {
+    const lock = paramLocks?.[paramKey];
+    if (!lock || lock.lockedByUserId === currentUserId) return null;
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-400 bg-amber-950/70 border border-amber-600/70 rounded px-2 py-0.5 animate-pulse shadow-sm">
+        <span>🔒</span> Sedang diatur oleh {lock.lockedByName}
+      </span>
+    );
   };
 
   const handleStartSimulation = () => {
@@ -916,82 +1036,132 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     };
 
     if (params.mode === 'newton-incline') {
+      const mA = applyInstrumentNoise(metrics.acceleration, DEFAULT_INSTRUMENTS.dynamometer, noiseEnabled);
+      const mF = applyInstrumentNoise(metrics.netForce, DEFAULT_INSTRUMENTS.dynamometer, noiseEnabled);
+      const mV = applyInstrumentNoise(instant.speed, DEFAULT_INSTRUMENTS.stopwatch, noiseEnabled);
+
       modeLabel = `Hukum II Newton & Bidang Miring (θ=${params.inclineAngle}°)`;
-      summary = `m=${params.mass}kg, F=${params.appliedForce}N, θ=${params.inclineAngle}°, μk=${params.frictionCoeffKinetic}, g=${params.gravity}m/s²`;
+      summary = `m=${params.mass}kg, F=${params.appliedForce}N, θ=${params.inclineAngle}°, μk=${params.frictionCoeffKinetic}, g=${params.gravity}m/s²${noiseEnabled ? ' [Noise Aktif]' : ''}`;
       keyMetrics = {
-        'ΣF': `${metrics.netForce} N`,
-        Percepatan: `${metrics.acceleration} m/s²`,
-        'Kecepatan (t)': `${instant.speed} m/s`,
+        'ΣF': noiseEnabled
+          ? formatMeasurementWithUncertainty(mF.measuredValue, mF.uncertainty, 'N')
+          : `${metrics.netForce} N`,
+        Percepatan: noiseEnabled
+          ? formatMeasurementWithUncertainty(mA.measuredValue, mA.uncertainty, 'm/s²')
+          : `${metrics.acceleration} m/s²`,
+        'Kecepatan (t)': noiseEnabled
+          ? formatMeasurementWithUncertainty(mV.measuredValue, mV.uncertainty, 'm/s')
+          : `${instant.speed} m/s`,
         'Energi Kinetik': `${instant.kineticEnergy} J`,
       };
       numericCoords = {
         x: params.appliedForce,
-        y1: metrics.acceleration,
+        y1: noiseEnabled ? mA.measuredValue : metrics.acceleration,
         y2: instant.kineticEnergy,
       };
     } else if (params.mode === 'projectile-gravity') {
+      const mR = applyInstrumentNoise(metrics.projectileRange, DEFAULT_INSTRUMENTS.ruler, noiseEnabled);
+      const mH = applyInstrumentNoise(metrics.maxProjectileHeight, DEFAULT_INSTRUMENTS.ruler, noiseEnabled);
+      const mT = applyInstrumentNoise(metrics.timeOfFlight, DEFAULT_INSTRUMENTS.stopwatch, noiseEnabled);
+
       modeLabel = `Kinematika Projektil (∠=${params.launchAngle}°, g=${params.gravity} m/s²)`;
-      summary = `m=${params.mass}kg, v₀=${params.initialVelocity}m/s, ∠=${params.launchAngle}°, h₀=${params.initialHeight}m, g=${params.gravity}m/s²`;
+      summary = `m=${params.mass}kg, v₀=${params.initialVelocity}m/s, ∠=${params.launchAngle}°, h₀=${params.initialHeight}m, g=${params.gravity}m/s²${noiseEnabled ? ' [Noise Aktif]' : ''}`;
       keyMetrics = {
-        'Jarak Maks (R)': `${metrics.projectileRange} m`,
-        'Tinggi Puncak (H)': `${metrics.maxProjectileHeight} m`,
-        'Waktu Tempuh': `${metrics.timeOfFlight} s`,
+        'Jarak Maks (R)': noiseEnabled
+          ? formatMeasurementWithUncertainty(mR.measuredValue, mR.uncertainty, 'm')
+          : `${metrics.projectileRange} m`,
+        'Tinggi Puncak (H)': noiseEnabled
+          ? formatMeasurementWithUncertainty(mH.measuredValue, mH.uncertainty, 'm')
+          : `${metrics.maxProjectileHeight} m`,
+        'Waktu Tempuh': noiseEnabled
+          ? formatMeasurementWithUncertainty(mT.measuredValue, mT.uncertainty, 's')
+          : `${metrics.timeOfFlight} s`,
         'Energi Mekanik': `${instant.totalMechanicalEnergy} J`,
       };
       numericCoords = {
         x: params.initialVelocity,
-        y1: metrics.projectileRange,
-        y2: metrics.maxProjectileHeight,
+        y1: noiseEnabled ? mR.measuredValue : metrics.projectileRange,
+        y2: noiseEnabled ? mH.measuredValue : metrics.maxProjectileHeight,
       };
     } else if (params.mode === 'collision-momentum') {
+      const mP = applyInstrumentNoise(metrics.initialTotalMomentum, DEFAULT_INSTRUMENTS.dynamometer, noiseEnabled);
+      const mV1 = applyInstrumentNoise(metrics.v1Final, DEFAULT_INSTRUMENTS.stopwatch, noiseEnabled);
+      const mV2 = applyInstrumentNoise(metrics.v2Final, DEFAULT_INSTRUMENTS.stopwatch, noiseEnabled);
+
       modeLabel = `Tumbukan 1D & Momentum (e=${params.restitutionCoeff})`;
-      summary = `m₁=${params.mass}kg, v₁=${params.initialVelocity}m/s, m₂=${params.collisionMass2}kg, v₂=${params.velocity2Initial}m/s, e=${params.restitutionCoeff}`;
+      summary = `m₁=${params.mass}kg, v₁=${params.initialVelocity}m/s, m₂=${params.collisionMass2}kg, v₂=${params.velocity2Initial}m/s, e=${params.restitutionCoeff}${noiseEnabled ? ' [Noise Aktif]' : ''}`;
       keyMetrics = {
-        'Momentum Total': `${metrics.initialTotalMomentum} kg·m/s`,
-        "Kecepatan v₁'": `${metrics.v1Final} m/s`,
-        "Kecepatan v₂'": `${metrics.v2Final} m/s`,
+        'Momentum Total': noiseEnabled
+          ? formatMeasurementWithUncertainty(mP.measuredValue, mP.uncertainty, 'kg·m/s')
+          : `${metrics.initialTotalMomentum} kg·m/s`,
+        "Kecepatan v₁'": noiseEnabled
+          ? formatMeasurementWithUncertainty(mV1.measuredValue, mV1.uncertainty, 'm/s')
+          : `${metrics.v1Final} m/s`,
+        "Kecepatan v₂'": noiseEnabled
+          ? formatMeasurementWithUncertainty(mV2.measuredValue, mV2.uncertainty, 'm/s')
+          : `${metrics.v2Final} m/s`,
         'Hilang EK': `${metrics.energyLossPct}%`,
       };
       numericCoords = {
         x: params.mass,
-        y1: metrics.v1Final,
+        y1: noiseEnabled ? mV1.measuredValue : metrics.v1Final,
         y2: metrics.kineticEnergyFinal,
       };
     } else if (params.mode === 'spring-hooke') {
+      const mFp = applyInstrumentNoise(metrics.springRestoringForce, DEFAULT_INSTRUMENTS.dynamometer, noiseEnabled);
+      const mT = applyInstrumentNoise(metrics.oscillationPeriod, DEFAULT_INSTRUMENTS.stopwatch, noiseEnabled);
+      const mEp = applyInstrumentNoise(metrics.springPotentialEnergy, DEFAULT_INSTRUMENTS.ruler, noiseEnabled);
+
       modeLabel = `Osilasi Pegas Hooke (k=${params.springConstantK} N/m)`;
-      summary = `m=${params.mass}kg, k=${params.springConstantK}N/m, Δx=${params.springDisplacement}m, b=${params.dampingCoeff}`;
+      summary = `m=${params.mass}kg, k=${params.springConstantK}N/m, Δx=${params.springDisplacement}m, b=${params.dampingCoeff}${noiseEnabled ? ' [Noise Aktif]' : ''}`;
       keyMetrics = {
-        'Gaya Pemulih (Fp)': `${metrics.springRestoringForce} N`,
-        'Periode (T)': `${metrics.oscillationPeriod} s`,
-        'Energi Potensial': `${metrics.springPotentialEnergy} J`,
+        'Gaya Pemulih (Fp)': noiseEnabled
+          ? formatMeasurementWithUncertainty(mFp.measuredValue, mFp.uncertainty, 'N')
+          : `${metrics.springRestoringForce} N`,
+        'Periode (T)': noiseEnabled
+          ? formatMeasurementWithUncertainty(mT.measuredValue, mT.uncertainty, 's')
+          : `${metrics.oscillationPeriod} s`,
+        'Energi Potensial': noiseEnabled
+          ? formatMeasurementWithUncertainty(mEp.measuredValue, mEp.uncertainty, 'J')
+          : `${metrics.springPotentialEnergy} J`,
         'Frekuensi Sudut': `${metrics.angularFrequency} rad/s`,
       };
       numericCoords = {
         x: params.springDisplacement,
-        y1: Math.abs(metrics.springRestoringForce),
-        y2: metrics.springPotentialEnergy,
+        y1: noiseEnabled ? Math.abs(mFp.measuredValue) : Math.abs(metrics.springRestoringForce),
+        y2: noiseEnabled ? mEp.measuredValue : metrics.springPotentialEnergy,
       };
     } else {
+      const mFg = applyInstrumentNoise(metrics.universalGravityForce, DEFAULT_INSTRUMENTS.dynamometer, noiseEnabled);
+      const mW = applyInstrumentNoise(metrics.weightForce, DEFAULT_INSTRUMENTS.dynamometer, noiseEnabled);
+
       modeLabel = `Gravitasi Universal Dua Massa (r=${params.separationDistance} m)`;
-      summary = `m₁=${params.mass}kg, m₂=${params.secondaryMass}kg, r=${params.separationDistance}m, g=${params.gravity}m/s²`;
+      summary = `m₁=${params.mass}kg, m₂=${params.secondaryMass}kg, r=${params.separationDistance}m, g=${params.gravity}m/s²${noiseEnabled ? ' [Noise Aktif]' : ''}`;
       keyMetrics = {
-        'Gaya Gravitasi (Fg)': `${metrics.universalGravityForce} µN`,
-        'Berat Benda (W)': `${metrics.weightForce} N`,
+        'Gaya Gravitasi (Fg)': noiseEnabled
+          ? formatMeasurementWithUncertainty(mFg.measuredValue, mFg.uncertainty, 'µN')
+          : `${metrics.universalGravityForce} µN`,
+        'Berat Benda (W)': noiseEnabled
+          ? formatMeasurementWithUncertainty(mW.measuredValue, mW.uncertainty, 'N')
+          : `${metrics.weightForce} N`,
         'Kecepatan Lepas': `${metrics.escapeVelocitySurface} km/s`,
       };
       numericCoords = {
         x: params.separationDistance,
-        y1: metrics.universalGravityForce,
-        y2: metrics.weightForce,
+        y1: noiseEnabled ? mFg.measuredValue : metrics.universalGravityForce,
+        y2: noiseEnabled ? mW.measuredValue : metrics.weightForce,
       };
     }
+
+    const noteSuffix = noiseEnabled
+      ? ` (Terekam dengan ketidakpastian alat ukur realistis Gaussian noise).`
+      : '';
 
     onRecordExperiment(
       modeLabel,
       summary,
       keyMetrics,
-      noteInput.trim() ||
-        `Data eksperimen ${modeLabel} terekam pada t=${instant.time}s.`,
+      (noteInput.trim() || `Data eksperimen ${modeLabel} terekam pada t=${instant.time}s.`) + noteSuffix,
       numericCoords
     );
 
@@ -1002,6 +1172,34 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
   return (
     <div className="space-y-5">
+      {/* Universal Experiment Catalog Picker */}
+      <ExperimentCatalogPicker
+        domain="fisika"
+        currentExperimentId={currentPhysicsModuleId}
+        activeTier={activeTier}
+        onSelectExperiment={(exp) => {
+          if (exp.id === 'newton-incline') {
+            handleParamUpdate({ mode: 'newton-incline' });
+          } else if (exp.id === 'projectile-motion') {
+            handleParamUpdate({ mode: 'projectile-gravity' });
+          } else if (exp.id === 'collision-momentum') {
+            handleParamUpdate({ mode: 'collision-momentum' });
+          } else if (exp.id === 'spring-hooke') {
+            handleParamUpdate({ mode: 'spring-hooke' });
+          } else if (exp.id === 'gravity-orbital') {
+            handleParamUpdate({ mode: 'orbital-gravity' });
+          } else if (exp.id === 'pendulum-harmonic') {
+            handleParamUpdate({ mode: 'spring-hooke', springConstantK: 40, mass: 0.1 });
+          } else if (exp.id === 'stokes-viscosity') {
+            handleParamUpdate({ mode: 'newton-incline', inclineAngle: 60, frictionCoeffKinetic: 0.5 });
+          }
+        }}
+        onOpenPreLabModal={(exp) => {
+          setModalExperiment(exp);
+          setPreLabModalOpen(true);
+        }}
+      />
+
       {/* Mode Sub-Selector & Planet Gravity Calibration Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white/90 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
         <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg">
@@ -1445,6 +1643,9 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                   instant={instant}
                   simTime={simTime}
                   showVectorOverlay={showVectorOverlay}
+                  simFrame={simWorker.currentFrame}
+                  remoteCursors={remoteCursors}
+                  onEmitCursor={onEmitCursor}
                 />
               ) : (
                 <canvas
@@ -1478,84 +1679,46 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                 />
               )}
 
-              {/* Floating Bottom Playback & Speed Control Dock */}
-              <div className="bg-slate-950/90 border-t border-slate-800 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleStartSimulation}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded-md transition-colors whitespace-nowrap shrink-0"
-                  >
-                    {isPlaying ? (
-                      <>
-                        <Pause className="w-3.5 h-3.5" />
-                        Jeda Simulasi
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-3.5 h-3.5" />
-                        Mulai Simulasi
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResetSimulation}
-                    aria-label="Reset Waktu Simulasi Fisika"
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    Reset
-                  </button>
-                  <div className="hidden sm:flex items-center gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-md">
-                    {[0.5, 1, 2].map((spd) => (
-                      <button
-                        key={spd}
-                        type="button"
-                        onClick={() => {
-                          labSound.playClick();
-                          setPlaybackSpeed(spd);
-                        }}
-                        className={`px-2 py-0.5 text-[11px] font-mono rounded transition-colors ${
-                          playbackSpeed === spd
-                            ? 'bg-sky-600 text-white font-semibold'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {spd}x
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex-1 min-w-[180px] flex items-center gap-2.5">
-                  <label
-                    htmlFor="sim-time-scrubber"
-                    className="text-[11px] font-mono text-slate-400 whitespace-nowrap"
-                  >
-                    Garis Waktu (t):
-                  </label>
-                  <input
-                    id="sim-time-scrubber"
-                    type="range"
-                    min={0}
-                    max={
-                      params.mode === 'projectile-gravity'
-                        ? Math.max(2, metrics.timeOfFlight)
-                        : 8
-                    }
-                    step={0.05}
-                    value={simTime}
-                    onChange={(e) => {
-                      setIsPlaying(false);
-                      setSimTime(parseFloat(e.target.value));
-                    }}
-                    className="w-full accent-sky-500 cursor-pointer"
-                  />
-                  <span className="text-xs font-mono font-semibold text-white tabular-nums w-14 text-right">
-                    {simTime.toFixed(2)} s
-                  </span>
-                </div>
+              {/* Deterministic Web Worker Playback Bar & Time-Scrubber Buffer */}
+              <div className="pt-1">
+                <SimulationPlaybackBar
+                  currentFrame={simWorker.currentFrame}
+                  bounds={simWorker.bounds}
+                  isPlaying={simWorker.isPlaying}
+                  onPlay={() => {
+                    handleStartSimulation();
+                    simWorker.play();
+                  }}
+                  onPause={() => {
+                    setIsPlaying(false);
+                    simWorker.pause();
+                  }}
+                  onReset={() => {
+                    handleResetSimulation();
+                    simWorker.reset();
+                  }}
+                  onStepForward={() => {
+                    setIsPlaying(false);
+                    simWorker.stepForward(1);
+                  }}
+                  onStepBackward={() => {
+                    setIsPlaying(false);
+                    simWorker.stepBackward(1);
+                  }}
+                  onSeek={(frameIdx) => {
+                    setIsPlaying(false);
+                    simWorker.seekFrame(frameIdx);
+                  }}
+                  noiseEnabled={noiseEnabled}
+                  onToggleNoise={setNoiseEnabled}
+                  instrumentType={
+                    params.mode === 'spring-hooke'
+                      ? 'ruler'
+                      : params.mode === 'newton-incline'
+                      ? 'dynamometer'
+                      : 'stopwatch'
+                  }
+                />
               </div>
             </div>
           </div>
@@ -1735,23 +1898,27 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between text-xs mb-1.5">
-                <label
-                  htmlFor="physics-mass-slider"
-                  className="font-medium text-slate-700 dark:text-slate-200"
-                >
-                  Massa Benda Utama (m₁)
-                </label>
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="physics-mass-slider"
+                    className="font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    Massa Benda Utama (m₁)
+                  </label>
+                  {renderLockBadge('mass')}
+                </div>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     aria-label="Kurangi massa benda utama"
+                    disabled={isParamLocked('mass')}
                     onClick={() => {
                       labSound.playStep('down');
                       handleParamUpdate({
                         mass: stepParameterValue(params.mass, -0.5, 0.5, 30, 1),
                       });
                     }}
-                    className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+                    className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
                   >
                     <Minus className="w-3 h-3" />
                   </button>
@@ -1761,13 +1928,14 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                   <button
                     type="button"
                     aria-label="Tambah massa benda utama"
+                    disabled={isParamLocked('mass')}
                     onClick={() => {
                       labSound.playStep('up');
                       handleParamUpdate({
                         mass: stepParameterValue(params.mass, 0.5, 0.5, 30, 1),
                       });
                     }}
-                    className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+                    className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
                   >
                     <Plus className="w-3 h-3" />
                   </button>
@@ -1780,10 +1948,17 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                 max={30}
                 step={0.5}
                 value={params.mass}
+                disabled={isParamLocked('mass')}
+                onPointerDown={() => onAcquireLock?.('mass')}
+                onFocus={() => onAcquireLock?.('mass')}
+                onPointerUp={() => onReleaseLock?.('mass')}
+                onBlur={() => onReleaseLock?.('mass')}
                 onChange={(e) =>
                   handleParamUpdate({ mass: parseFloat(e.target.value) })
                 }
-                className="w-full accent-sky-600 cursor-pointer"
+                className={`w-full accent-sky-600 ${
+                  isParamLocked('mass') ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                }`}
               />
             </div>
 
@@ -1791,16 +1966,20 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               <>
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1.5">
-                    <label
-                      htmlFor="physics-force-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Gaya Dorong / Tarik (F)
-                    </label>
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="physics-force-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Gaya Dorong / Tarik (F)
+                      </label>
+                      {renderLockBadge('appliedForce')}
+                    </div>
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         aria-label="Kurangi gaya dorong"
+                        disabled={isParamLocked('appliedForce')}
                         onClick={() => {
                           labSound.playStep('down');
                           handleParamUpdate({
@@ -1813,7 +1992,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                             ),
                           });
                         }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
@@ -1823,6 +2002,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                       <button
                         type="button"
                         aria-label="Tambah gaya dorong"
+                        disabled={isParamLocked('appliedForce')}
                         onClick={() => {
                           labSound.playStep('up');
                           handleParamUpdate({
@@ -1835,7 +2015,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                             ),
                           });
                         }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
                       >
                         <Plus className="w-3 h-3" />
                       </button>
@@ -1848,27 +2028,40 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={250}
                     step={5}
                     value={params.appliedForce}
+                    disabled={isParamLocked('appliedForce')}
+                    onPointerDown={() => onAcquireLock?.('appliedForce')}
+                    onFocus={() => onAcquireLock?.('appliedForce')}
+                    onPointerUp={() => onReleaseLock?.('appliedForce')}
+                    onBlur={() => onReleaseLock?.('appliedForce')}
                     onChange={(e) =>
                       handleParamUpdate({
                         appliedForce: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('appliedForce')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1.5">
-                    <label
-                      htmlFor="physics-angle-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Sudut Kemiringan Bidang (θ)
-                    </label>
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="physics-angle-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Sudut Kemiringan Bidang (θ)
+                      </label>
+                      {renderLockBadge('inclineAngle')}
+                    </div>
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         aria-label="Kurangi sudut kemiringan"
+                        disabled={isParamLocked('inclineAngle')}
                         onClick={() => {
                           labSound.playStep('down');
                           handleParamUpdate({
@@ -1881,7 +2074,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                             ),
                           });
                         }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
@@ -1891,6 +2084,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                       <button
                         type="button"
                         aria-label="Tambah sudut kemiringan"
+                        disabled={isParamLocked('inclineAngle')}
                         onClick={() => {
                           labSound.playStep('up');
                           handleParamUpdate({
@@ -1903,7 +2097,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                             ),
                           });
                         }}
-                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+                        className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
                       >
                         <Plus className="w-3 h-3" />
                       </button>
@@ -1916,23 +2110,35 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={45}
                     step={1}
                     value={params.inclineAngle}
+                    disabled={isParamLocked('inclineAngle')}
+                    onPointerDown={() => onAcquireLock?.('inclineAngle')}
+                    onFocus={() => onAcquireLock?.('inclineAngle')}
+                    onPointerUp={() => onReleaseLock?.('inclineAngle')}
+                    onBlur={() => onReleaseLock?.('inclineAngle')}
                     onChange={(e) =>
                       handleParamUpdate({
                         inclineAngle: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('inclineAngle')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="physics-friction-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Koefisien Gesek Kinetis (μk)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="physics-friction-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Koefisien Gesek Kinetis (μk)
+                      </label>
+                      {renderLockBadge('frictionCoeffKinetic')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.frictionCoeffKinetic.toFixed(2)} (μs ={' '}
                       {params.frictionCoeffStatic.toFixed(2)})
@@ -1945,6 +2151,11 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={0.6}
                     step={0.02}
                     value={params.frictionCoeffKinetic}
+                    disabled={isParamLocked('frictionCoeffKinetic')}
+                    onPointerDown={() => onAcquireLock?.('frictionCoeffKinetic')}
+                    onFocus={() => onAcquireLock?.('frictionCoeffKinetic')}
+                    onPointerUp={() => onReleaseLock?.('frictionCoeffKinetic')}
+                    onBlur={() => onReleaseLock?.('frictionCoeffKinetic')}
                     onChange={(e) => {
                       const muk = parseFloat(e.target.value);
                       handleParamUpdate({
@@ -1952,7 +2163,11 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                         frictionCoeffStatic: Number((muk * 1.35).toFixed(2)),
                       });
                     }}
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('frictionCoeffKinetic')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
               </>
@@ -1961,13 +2176,16 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
             {params.mode === 'projectile-gravity' && (
               <>
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="physics-v0-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Kecepatan Awal (v₀)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="physics-v0-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Kecepatan Awal (v₀)
+                      </label>
+                      {renderLockBadge('initialVelocity')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.initialVelocity} m/s
                     </span>
@@ -1979,23 +2197,35 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={50}
                     step={1}
                     value={params.initialVelocity}
+                    disabled={isParamLocked('initialVelocity')}
+                    onPointerDown={() => onAcquireLock?.('initialVelocity')}
+                    onFocus={() => onAcquireLock?.('initialVelocity')}
+                    onPointerUp={() => onReleaseLock?.('initialVelocity')}
+                    onBlur={() => onReleaseLock?.('initialVelocity')}
                     onChange={(e) =>
                       handleParamUpdate({
                         initialVelocity: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('initialVelocity')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="physics-launch-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Sudut Elevasi Tembakan (∠)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="physics-launch-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Sudut Elevasi Tembakan (∠)
+                      </label>
+                      {renderLockBadge('launchAngle')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.launchAngle}°
                     </span>
@@ -2007,23 +2237,35 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={80}
                     step={1}
                     value={params.launchAngle}
+                    disabled={isParamLocked('launchAngle')}
+                    onPointerDown={() => onAcquireLock?.('launchAngle')}
+                    onFocus={() => onAcquireLock?.('launchAngle')}
+                    onPointerUp={() => onReleaseLock?.('launchAngle')}
+                    onBlur={() => onReleaseLock?.('launchAngle')}
                     onChange={(e) =>
                       handleParamUpdate({
                         launchAngle: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('launchAngle')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="physics-height-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Ketinggian Awal (h₀)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="physics-height-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Ketinggian Awal (h₀)
+                      </label>
+                      {renderLockBadge('initialHeight')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.initialHeight} m
                     </span>
@@ -2035,12 +2277,21 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={60}
                     step={2}
                     value={params.initialHeight}
+                    disabled={isParamLocked('initialHeight')}
+                    onPointerDown={() => onAcquireLock?.('initialHeight')}
+                    onFocus={() => onAcquireLock?.('initialHeight')}
+                    onPointerUp={() => onReleaseLock?.('initialHeight')}
+                    onBlur={() => onReleaseLock?.('initialHeight')}
                     onChange={(e) =>
                       handleParamUpdate({
                         initialHeight: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('initialHeight')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
               </>
@@ -2049,13 +2300,16 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
             {params.mode === 'collision-momentum' && (
               <>
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="collision-v1-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Kecepatan Awal Benda 1 (v₁)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="collision-v1-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Kecepatan Awal Benda 1 (v₁)
+                      </label>
+                      {renderLockBadge('initialVelocity')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.initialVelocity} m/s
                     </span>
@@ -2067,23 +2321,35 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={25}
                     step={1}
                     value={params.initialVelocity}
+                    disabled={isParamLocked('initialVelocity')}
+                    onPointerDown={() => onAcquireLock?.('initialVelocity')}
+                    onFocus={() => onAcquireLock?.('initialVelocity')}
+                    onPointerUp={() => onReleaseLock?.('initialVelocity')}
+                    onBlur={() => onReleaseLock?.('initialVelocity')}
                     onChange={(e) =>
                       handleParamUpdate({
                         initialVelocity: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('initialVelocity')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="collision-m2-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Massa Benda Kedua (m₂)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="collision-m2-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Massa Benda Kedua (m₂)
+                      </label>
+                      {renderLockBadge('collisionMass2')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.collisionMass2} kg
                     </span>
@@ -2095,23 +2361,35 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={25}
                     step={0.5}
                     value={params.collisionMass2}
+                    disabled={isParamLocked('collisionMass2')}
+                    onPointerDown={() => onAcquireLock?.('collisionMass2')}
+                    onFocus={() => onAcquireLock?.('collisionMass2')}
+                    onPointerUp={() => onReleaseLock?.('collisionMass2')}
+                    onBlur={() => onReleaseLock?.('collisionMass2')}
                     onChange={(e) =>
                       handleParamUpdate({
                         collisionMass2: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('collisionMass2')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="collision-v2-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Kecepatan Awal Benda 2 (v₂)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="collision-v2-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Kecepatan Awal Benda 2 (v₂)
+                      </label>
+                      {renderLockBadge('velocity2Initial')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.velocity2Initial} m/s
                     </span>
@@ -2123,23 +2401,35 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={10}
                     step={1}
                     value={params.velocity2Initial}
+                    disabled={isParamLocked('velocity2Initial')}
+                    onPointerDown={() => onAcquireLock?.('velocity2Initial')}
+                    onFocus={() => onAcquireLock?.('velocity2Initial')}
+                    onPointerUp={() => onReleaseLock?.('velocity2Initial')}
+                    onBlur={() => onReleaseLock?.('velocity2Initial')}
                     onChange={(e) =>
                       handleParamUpdate({
                         velocity2Initial: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('velocity2Initial')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="collision-e-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Koefisien Restitusi (e)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="collision-e-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Koefisien Restitusi (e)
+                      </label>
+                      {renderLockBadge('restitutionCoeff')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.restitutionCoeff.toFixed(2)} (
                       {params.restitutionCoeff === 1
@@ -2157,12 +2447,21 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={1}
                     step={0.05}
                     value={params.restitutionCoeff}
+                    disabled={isParamLocked('restitutionCoeff')}
+                    onPointerDown={() => onAcquireLock?.('restitutionCoeff')}
+                    onFocus={() => onAcquireLock?.('restitutionCoeff')}
+                    onPointerUp={() => onReleaseLock?.('restitutionCoeff')}
+                    onBlur={() => onReleaseLock?.('restitutionCoeff')}
                     onChange={(e) =>
                       handleParamUpdate({
                         restitutionCoeff: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('restitutionCoeff')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
               </>
@@ -2171,13 +2470,16 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
             {params.mode === 'spring-hooke' && (
               <>
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="spring-k-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Konstanta Pegas (k)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="spring-k-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Konstanta Pegas (k)
+                      </label>
+                      {renderLockBadge('springConstantK')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.springConstantK} N/m
                     </span>
@@ -2189,23 +2491,35 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={400}
                     step={10}
                     value={params.springConstantK}
+                    disabled={isParamLocked('springConstantK')}
+                    onPointerDown={() => onAcquireLock?.('springConstantK')}
+                    onFocus={() => onAcquireLock?.('springConstantK')}
+                    onPointerUp={() => onReleaseLock?.('springConstantK')}
+                    onBlur={() => onReleaseLock?.('springConstantK')}
                     onChange={(e) =>
                       handleParamUpdate({
                         springConstantK: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('springConstantK')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="spring-disp-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Simpangan Amplitudo Awal (Δx)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="spring-disp-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Simpangan Amplitudo Awal (Δx)
+                      </label>
+                      {renderLockBadge('springDisplacement')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.springDisplacement.toFixed(2)} m
                     </span>
@@ -2217,24 +2531,36 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={1.5}
                     step={0.1}
                     value={params.springDisplacement}
+                    disabled={isParamLocked('springDisplacement')}
+                    onPointerDown={() => onAcquireLock?.('springDisplacement')}
+                    onFocus={() => onAcquireLock?.('springDisplacement')}
+                    onPointerUp={() => onReleaseLock?.('springDisplacement')}
+                    onBlur={() => onReleaseLock?.('springDisplacement')}
                     onChange={(e) => {
                       const val = parseFloat(e.target.value);
                       handleParamUpdate({
                         springDisplacement: val,
                       });
                     }}
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('springDisplacement')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="spring-damping-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Koefisien Redaman (b)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="spring-damping-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Koefisien Redaman (b)
+                      </label>
+                      {renderLockBadge('dampingCoeff')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.dampingCoeff.toFixed(2)} N·s/m
                     </span>
@@ -2246,12 +2572,21 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={2.0}
                     step={0.05}
                     value={params.dampingCoeff}
+                    disabled={isParamLocked('dampingCoeff')}
+                    onPointerDown={() => onAcquireLock?.('dampingCoeff')}
+                    onFocus={() => onAcquireLock?.('dampingCoeff')}
+                    onPointerUp={() => onReleaseLock?.('dampingCoeff')}
+                    onBlur={() => onReleaseLock?.('dampingCoeff')}
                     onChange={(e) =>
                       handleParamUpdate({
                         dampingCoeff: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('dampingCoeff')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
               </>
@@ -2260,13 +2595,16 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
             {params.mode === 'orbital-gravity' && (
               <>
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="physics-m2-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Massa Objek Kedua (m₂)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="physics-m2-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Massa Objek Kedua (m₂)
+                      </label>
+                      {renderLockBadge('secondaryMass')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.secondaryMass} kg
                     </span>
@@ -2278,23 +2616,35 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={10000}
                     step={100}
                     value={params.secondaryMass}
+                    disabled={isParamLocked('secondaryMass')}
+                    onPointerDown={() => onAcquireLock?.('secondaryMass')}
+                    onFocus={() => onAcquireLock?.('secondaryMass')}
+                    onPointerUp={() => onReleaseLock?.('secondaryMass')}
+                    onBlur={() => onReleaseLock?.('secondaryMass')}
                     onChange={(e) =>
                       handleParamUpdate({
                         secondaryMass: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('secondaryMass')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <label
-                      htmlFor="physics-dist-slider"
-                      className="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Jarak Antar Pusat Massa (r)
-                    </label>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="physics-dist-slider"
+                        className="font-medium text-slate-700 dark:text-slate-200"
+                      >
+                        Jarak Antar Pusat Massa (r)
+                      </label>
+                      {renderLockBadge('separationDistance')}
+                    </div>
                     <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
                       {params.separationDistance} m
                     </span>
@@ -2306,12 +2656,21 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     max={40}
                     step={0.5}
                     value={params.separationDistance}
+                    disabled={isParamLocked('separationDistance')}
+                    onPointerDown={() => onAcquireLock?.('separationDistance')}
+                    onFocus={() => onAcquireLock?.('separationDistance')}
+                    onPointerUp={() => onReleaseLock?.('separationDistance')}
+                    onBlur={() => onReleaseLock?.('separationDistance')}
                     onChange={(e) =>
                       handleParamUpdate({
                         separationDistance: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full accent-sky-600 cursor-pointer"
+                    className={`w-full accent-sky-600 ${
+                      isParamLocked('separationDistance')
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'cursor-pointer'
+                    }`}
                   />
                 </div>
               </>
@@ -2347,6 +2706,26 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
           </div>
         </div>
       </div>
+
+      <PreLabSafetyModal
+        experiment={modalExperiment}
+        activeTier={activeTier}
+        isOpen={preLabModalOpen}
+        onClose={() => setPreLabModalOpen(false)}
+        onProceedToLab={() => {
+          if (modalExperiment.id === 'newton-incline') {
+            handleParamUpdate({ mode: 'newton-incline' });
+          } else if (modalExperiment.id === 'projectile-motion') {
+            handleParamUpdate({ mode: 'projectile-gravity' });
+          } else if (modalExperiment.id === 'collision-momentum') {
+            handleParamUpdate({ mode: 'collision-momentum' });
+          } else if (modalExperiment.id === 'spring-hooke') {
+            handleParamUpdate({ mode: 'spring-hooke' });
+          } else if (modalExperiment.id === 'gravity-orbital') {
+            handleParamUpdate({ mode: 'orbital-gravity' });
+          }
+        }}
+      />
     </div>
   );
 };

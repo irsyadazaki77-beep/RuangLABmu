@@ -16,6 +16,7 @@ import {
   Moon,
   Volume2,
   VolumeX,
+  Leaf,
 } from 'lucide-react';
 import {
   PhysicsParams,
@@ -32,6 +33,7 @@ import { labSound } from './utils/soundEngine';
 import { PhysicsLabView } from './components/PhysicsLabView';
 import { ChemistryLabView } from './components/ChemistryLabView';
 import { AstronomyLabView } from './components/AstronomyLabView';
+import { BiologyLabView } from './components/BiologyLabView';
 import {
   CollaborationAndDataSection,
   GroupTaskItem,
@@ -42,8 +44,11 @@ import {
   TeacherDashboardView,
   StudentProgressItem,
 } from './components/TeacherDashboardView';
+import { DrLabMuAssistantPanel } from './components/DrLabMuAssistantPanel';
+import { useSpatialCollab } from './hooks/useSpatialCollab';
+import { EducationTier } from './registry/experimentRegistry';
 
-type ActiveTab = 'fisika' | 'kimia' | 'astronomi' | 'kolaborasi' | 'pengajar';
+type ActiveTab = 'fisika' | 'kimia' | 'biologi' | 'astronomi' | 'kolaborasi' | 'pengajar';
 
 const STUDENT_PROFILES = [
   { name: 'Alya Pratama', group: 'Kelompok 1 — Mekanika' },
@@ -387,6 +392,7 @@ export default function App() {
     },
   ]);
 
+  const [activeSocket, setActiveSocket] = useState<WebSocket | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -400,7 +406,10 @@ export default function App() {
       wsRef.current = socket;
 
       socket.onopen = () => {
-        if (isMounted) setWsConnected(true);
+        if (isMounted) {
+          setWsConnected(true);
+          setActiveSocket(socket);
+        }
       };
 
       socket.onmessage = (event) => {
@@ -485,6 +494,7 @@ export default function App() {
       socket.onclose = () => {
         if (!isMounted) return;
         setWsConnected(false);
+        setActiveSocket(null);
         reconnectTimer = setTimeout(connectWs, 3000);
       };
     };
@@ -497,6 +507,38 @@ export default function App() {
       if (wsRef.current) wsRef.current.close();
     };
   }, []);
+
+  // Phase 3: Real-Time 3D Laser Pointer Cursors & Collaborative Parameter Mutex Hook
+  const currentUserId = currentProfile.name.toLowerCase().replace(/\s+/g, '-');
+  const activeCollabDomain: 'fisika' | 'kimia' | 'biologi' | 'astronomi' =
+    activeTab === 'kimia' || activeTab === 'biologi' || activeTab === 'astronomi'
+      ? activeTab
+      : 'fisika';
+
+  const {
+    remoteCursors,
+    paramLocks,
+    emitCursor3D,
+    acquireParamLock,
+    releaseParamLock,
+    syncParamValue,
+  } = useSpatialCollab({
+    ws: activeSocket,
+    userId: currentUserId,
+    userName: currentProfile.name,
+    role: activeTab === 'pengajar' ? 'Pengajar' : 'Siswa',
+    groupId: currentProfile.group,
+    domain: activeCollabDomain,
+    onRemoteParamSync: (paramKey, value) => {
+      if (activeCollabDomain === 'fisika') {
+        setPhysicsParams((prev) => ({ ...prev, [paramKey]: value }));
+      } else if (activeCollabDomain === 'kimia') {
+        setChemistryParams((prev) => ({ ...prev, [paramKey]: value }));
+      } else if (activeCollabDomain === 'astronomi') {
+        setAstronomyParams((prev) => ({ ...prev, [paramKey]: value }));
+      }
+    },
+  });
 
   const sendWsMessage = (type: string, payload: unknown) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -734,6 +776,62 @@ export default function App() {
     });
   };
 
+  const handleInjectOutlierDemo = (domain: ScienceDomain) => {
+    if (domain === 'Fisika') {
+      setPhysicsParams((prev) => ({
+        ...prev,
+        mode: 'projectile-gravity',
+        launchAngle: 85,
+        initialVelocity: 20,
+      }));
+      handleRecordExperiment(
+        'Fisika',
+        'Kinematika Projektil — Sudut Ekstrem (∠ = 85°)',
+        'm=2.5 kg, v₀=20 m/s, ∠=85°, h₀=0 m, g=9.81 m/s²',
+        {
+          'Jarak Maks (R)': '7.08 m',
+          'Tinggi Puncak (H)': '20.23 m',
+          'Waktu Tempuh': '4.06 s',
+        },
+        'Sudut elevasi terlalu curam (85°) menyebabkan jangkauan horizontal merosot tajam (Outlier Non-Linier).',
+        { x: 85, y1: 7.08, y2: 20.23 }
+      );
+    } else if (domain === 'Kimia') {
+      handleRecordExperiment(
+        'Kimia',
+        'Lonjakan Titik Ekuivalen Titrasi (V = 20.5 mL)',
+        'M_asam=0.2 M, V_asam=25 mL, V_NaOH=20.5 mL',
+        {
+          pH: '11.45',
+          Status: 'Pasca-Ekuivalen (Lonjakan Sigmoidal)',
+        },
+        'Lonjakan pH tajam melewati titik ekuivalen menyebabkan deviasi dari garis linier pra-ekuivalen.',
+        { x: 20.5, y1: 11.45, y2: 20.0 }
+      );
+    } else {
+      handleRecordExperiment(
+        'Astronomi',
+        'Anomali Orbit Eksentrik Komet Halley (e = 0.82)',
+        'Planet=Komet Halley, a=17.8 AU, e=0.82',
+        {
+          'Periode T': '75.10 tahun',
+          'v Perihelion': '54.55 km/s',
+        },
+        'Eksentrisitas tinggi menyebabkan lonjakan kecepatan perihelion ekstrem.',
+        { x: 17.8, y1: 54.55, y2: 75.1 }
+      );
+    }
+  };
+
+  const activeScienceDomain: ScienceDomain =
+    activeTab === 'kimia'
+      ? 'Kimia'
+      : activeTab === 'biologi'
+      ? 'Biologi'
+      : activeTab === 'astronomi'
+      ? 'Astronomi'
+      : 'Fisika';
+
   const latestNotification = notifications[0];
 
   return (
@@ -749,7 +847,7 @@ export default function App() {
           }}
           className="text-lg font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0"
         >
-          SimuLab Sains
+          RuangLABmu · SimuLab Sains
         </a>
 
         <nav
@@ -783,6 +881,21 @@ export default function App() {
             }`}
           >
             Lab Kimia
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              labSound.playClick();
+              setActiveTab('biologi');
+            }}
+            className={`py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 flex items-center gap-1.5 ${
+              activeTab === 'biologi'
+                ? 'border-emerald-600 dark:border-emerald-400 text-slate-900 dark:text-white font-semibold'
+                : 'border-transparent hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Leaf className="w-3.5 h-3.5 text-emerald-500" />
+            Lab Biologi
           </button>
           <button
             type="button"
@@ -874,15 +987,40 @@ export default function App() {
                 ))}
               </select>
             </div>
+            {Object.keys(remoteCursors).length > 0 && (
+              <>
+                <span aria-hidden="true" className="text-slate-700">
+                  ·
+                </span>
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sky-950/80 border border-sky-500/50 text-sky-300 font-mono text-[11px] animate-pulse">
+                  <span className="inline-block w-2 h-2 rounded-full bg-sky-400"></span>
+                  {Object.keys(remoteCursors).length} Laser 3D ({Object.values(remoteCursors).map((c) => c.userName).join(', ')})
+                </span>
+              </>
+            )}
             <span aria-hidden="true" className="text-slate-700">
               ·
             </span>
-            {/* Academic Level Switch: Siswa SMA/SMK vs Mahasiswa S1 */}
+            {/* Academic Level Switch: SMP vs SMA/SMK vs Perguruan Tinggi */}
             <div
               role="group"
               aria-label="Mode Tingkat Akademik"
               className="flex items-center gap-1 bg-slate-800 border border-slate-700 p-0.5 rounded-md"
             >
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setAcademicLevel('smp');
+                }}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 ${
+                  academicLevel === 'smp'
+                    ? 'bg-sky-600 text-white font-semibold'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                SMP
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -895,7 +1033,7 @@ export default function App() {
                     : 'text-slate-300 hover:text-white'
                 }`}
               >
-                Siswa SMA/SMK
+                SMA/SMK
               </button>
               <button
                 type="button"
@@ -909,7 +1047,7 @@ export default function App() {
                     : 'text-slate-300 hover:text-white'
                 }`}
               >
-                Mahasiswa S1
+                Perguruan Tinggi
               </button>
             </div>
             <span aria-hidden="true" className="text-slate-700">
@@ -1085,6 +1223,8 @@ export default function App() {
                 'Laboratorium Fisika: Hukum Newton, Kinematika, Tumbukan & Pegas Hooke'}
               {activeTab === 'kimia' &&
                 'Laboratorium Kimia: Termodinamika, Titrasi Asam-Basa & Sel Elektrokimia'}
+              {activeTab === 'biologi' &&
+                'Laboratorium Biologi: Fotosintesis Ingenhousz, Kinetika Katalase & Osmosis Sel'}
               {activeTab === 'astronomi' &&
                 'Laboratorium Astronomi: Tata Surya Kepler, Galaksi Bima Sakti & Eksoplanet'}
               {activeTab === 'kolaborasi' &&
@@ -1097,6 +1237,8 @@ export default function App() {
                 'Simulasikan dinamika bidang miring, gerak parabola lintas planet, gravitasi universal, tumbukan momentum 1D, dan osilasi harmonik pegas.'}
               {activeTab === 'kimia' &&
                 'Visualisasikan kalorimetri entalpi & Gibbs, kurva pH titrasi asam-basa, serta potensial sel Galvani (Persamaan Nernst).'}
+              {activeTab === 'biologi' &&
+                'Uji laju fotosintesis Hydrilla dengan variasi spektrum cahaya & NaHCO₃, kinetika Michaelis-Menten katalase, serta plasmolisis sel.'}
               {activeTab === 'astronomi' &&
                 'Eksplorasi orbit elips 8 planet Tata Surya, kurva rotasi Materi Gelap Galaksi Bima Sakti (Sgr A*), serta Diagram H-R dan transit eksoplanet.'}
               {activeTab === 'kolaborasi' &&
@@ -1109,6 +1251,7 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-2">
             {(activeTab === 'fisika' ||
               activeTab === 'kimia' ||
+              activeTab === 'biologi' ||
               activeTab === 'astronomi') && (
               <button
                 type="button"
@@ -1262,7 +1405,7 @@ export default function App() {
           !focusSimulationMode && (
             <div className="flex flex-wrap items-center justify-between gap-2 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-xs">
               <span className="text-slate-500 dark:text-slate-400 font-medium">
-                Navigasi Cepat Halaman Praktikum:
+                Navigasi Cepat RuangLABmu:
               </span>
               <div className="flex flex-wrap items-center gap-2">
                 <a
@@ -1272,20 +1415,43 @@ export default function App() {
                   1. Kanvas Simulasi 3D/2D & Dock Interaktif
                 </a>
                 <a
+                  href="#section-dr-labmu"
+                  className="px-2.5 py-1 rounded bg-sky-50 dark:bg-sky-950/70 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 font-semibold transition-colors"
+                >
+                  2. Asisten Sokratik Dr. LabMu
+                </a>
+                <a
                   href="#section-grafik-lks"
                   className="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium transition-colors"
                 >
-                  2. Grafik Regresi & LKS (6 Soal)
+                  3. Grafik Regresi & LKS (6 Soal)
                 </a>
                 <a
                   href="#section-kolaborasi-log"
                   className="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium transition-colors"
                 >
-                  3. Tabel Log ({records.length}) & Diskusi Kelompok
+                  4. Tabel Log ({records.length}) & Diskusi Kelompok
                 </a>
               </div>
             </div>
           )}
+
+        {/* Dr. LabMu Socratic Virtual Lab Instructor Panel */}
+        {activeTab !== 'pengajar' && !focusSimulationMode && (
+          <div id="section-dr-labmu">
+            <DrLabMuAssistantPanel
+              domain={activeScienceDomain}
+              academicLevel={academicLevel}
+              physicsParams={physicsParams}
+              chemistryParams={chemistryParams}
+              astronomyParams={astronomyParams}
+              records={records}
+              onInjectOutlierDemo={() =>
+                handleInjectOutlierDemo(activeScienceDomain)
+              }
+            />
+          </div>
+        )}
 
         {activeTab === 'fisika' && (
           <div className="space-y-8">
@@ -1314,6 +1480,13 @@ export default function App() {
                 onSyncWithGroup={(summary) =>
                   handleSyncWithGroup('Fisika', summary)
                 }
+                currentUserId={currentUserId}
+                remoteCursors={remoteCursors}
+                paramLocks={paramLocks}
+                onEmitCursor={emitCursor3D}
+                onAcquireLock={acquireParamLock}
+                onReleaseLock={releaseParamLock}
+                onSyncParamValue={syncParamValue}
               />
             </div>
 
@@ -1401,6 +1574,8 @@ export default function App() {
                 onSyncWithGroup={(summary) =>
                   handleSyncWithGroup('Kimia', summary)
                 }
+                remoteCursors={remoteCursors}
+                onEmitCursor={emitCursor3D}
               />
             </div>
 
@@ -1461,6 +1636,104 @@ export default function App() {
           </div>
         )}
 
+        {activeTab === 'biologi' && (
+          <div className="space-y-8">
+            <div id="section-simulasi">
+              <BiologyLabView
+                activeStudentName={currentProfile.name}
+                activeGroupId={currentProfile.group}
+                activeTier={
+                  academicLevel === 'smp'
+                    ? 'SMP'
+                    : academicLevel === 'mahasiswa'
+                    ? 'Mahasiswa'
+                    : 'SMA'
+                }
+                onRecordExperiment={(
+                  domain,
+                  title,
+                  paramsSummary,
+                  keyMetrics,
+                  noteText,
+                  numericCoords
+                ) =>
+                  handleRecordExperiment(
+                    'Biologi',
+                    title,
+                    paramsSummary,
+                    keyMetrics,
+                    noteText,
+                    numericCoords
+                  )
+                }
+                remoteCursors={remoteCursors}
+                onEmitCursor={emitCursor3D}
+                paramLocks={paramLocks}
+                onAcquireLock={acquireParamLock}
+                onReleaseLock={releaseParamLock}
+                onTierChange={(newTier) => {
+                  setAcademicLevel(newTier.toLowerCase() as AcademicLevel);
+                }}
+              />
+            </div>
+
+            {!focusSimulationMode && (
+              <>
+                <div id="section-grafik-lks">
+                  <AnalyticsAndWorksheetPanel
+                    records={records}
+                    activeStudentName={currentProfile.name}
+                    activeGroupId={currentProfile.group}
+                    onSubmitQuizScore={handleSubmitQuizScore}
+                    onExportChartNotification={(fmt) =>
+                      handlePushNotification({
+                        id: `notif-chart-${Date.now()}`,
+                        timestamp: new Date().toLocaleTimeString('id-ID', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        }),
+                        severity: 'nominal',
+                        domain: 'Biologi',
+                        title: `Laporan Grafik Biologi (${fmt}) Dibuat`,
+                        message: `Grafik fotosintesis dan kinetika enzim berhasil diekspor ke ${fmt}.`,
+                      })
+                    }
+                  />
+                </div>
+
+                <div id="section-kolaborasi-log">
+                  <CollaborationAndDataSection
+                    records={records}
+                    tasks={tasks}
+                    notes={notes}
+                    activeGroupId={currentProfile.group}
+                    activeStudentName={currentProfile.name}
+                    onDeleteRecord={handleDeleteRecord}
+                    onToggleTask={handleToggleTask}
+                    onCreateTask={handleCreateTask}
+                    onCreateNote={handleCreateNote}
+                    onCSVExported={(count) =>
+                      handlePushNotification({
+                        id: `notif-csv-${Date.now()}`,
+                        timestamp: new Date().toLocaleTimeString('id-ID', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        }),
+                        severity: 'nominal',
+                        domain: 'Biologi',
+                        title: 'Data Biologi Berhasil Diekspor ke CSV',
+                        message: `${count} rekaman eksperimen telah diunduh dalam format CSV.`,
+                      })
+                    }
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {activeTab === 'astronomi' && (
           <div className="space-y-8">
             <div id="section-simulasi">
@@ -1488,6 +1761,8 @@ export default function App() {
                 onSyncWithGroup={(summary) =>
                   handleSyncWithGroup('Astronomi', summary)
                 }
+                remoteCursors={remoteCursors}
+                onEmitCursor={emitCursor3D}
               />
             </div>
 

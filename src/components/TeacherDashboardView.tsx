@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import {
   ExperimentRecord,
+  ScienceDomain,
   calculateStudentRubric,
   exportRubricGradesToCSV,
 } from '../utils/scienceEngine';
@@ -20,7 +21,7 @@ export interface StudentProgressItem {
   id: string;
   name: string;
   groupId: string;
-  activeDomain: 'Fisika' | 'Kimia' | 'Astronomi';
+  activeDomain: ScienceDomain;
   currentActivity: string;
   trialsRecorded: number;
   tasksCompleted: number;

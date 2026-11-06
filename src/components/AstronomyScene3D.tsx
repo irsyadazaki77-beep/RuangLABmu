@@ -10,11 +10,20 @@ import {
   calculateAstronomyMetrics,
 } from '../utils/scienceEngine';
 
+import { SpatialCursorManager } from '../utils/spatialCursorGroup';
+import { SpatialCursorPayload } from '../utils/collabProtocol';
+
 interface AstronomyScene3DProps {
   params: AstronomyParams;
   metrics: AstronomyMetrics;
   activePlanet: SolarPlanetPreset;
   simTime: number;
+  remoteCursors?: Record<string, SpatialCursorPayload>;
+  onEmitCursor?: (
+    pos: [number, number, number],
+    normal?: [number, number, number],
+    hoveredObject?: string
+  ) => void;
 }
 
 type CameraPreset = 'isometric' | 'ecliptic' | 'top' | 'focus';
@@ -54,6 +63,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   metrics,
   activePlanet,
   simTime,
+  remoteCursors,
+  onEmitCursor,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const miniPlotRef = useRef<HTMLCanvasElement | null>(null);
@@ -66,12 +77,16 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     metrics,
     activePlanet,
     simTime,
+    remoteCursors,
+    onEmitCursor,
   });
   latestRef.current = {
     params,
     metrics,
     activePlanet,
     simTime,
+    remoteCursors,
+    onEmitCursor,
   };
 
   const cameraCtrlRef = useRef<{
@@ -254,6 +269,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x060913);
+
+    const cursorManager = new SpatialCursorManager(scene);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -810,12 +827,89 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         );
       }
 
+      // Update Phase 3 3D laser cursors for remote lab partners
+      cursorManager.update(
+        latestRef.current.remoteCursors || {},
+        camera.position
+      );
+
       controls.update();
       renderer.render(scene, camera);
       afterDraw(tick);
     };
 
     rafId = requestAnimationFrame(tick);
+
+    // Raycast surface interaction for multiplayer laser pointer
+    const raycaster = new THREE.Raycaster();
+    const pointerNdc = new THREE.Vector2();
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const planeIntersect = new THREE.Vector3();
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!latestRef.current.onEmitCursor) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+
+      pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(pointerNdc, camera);
+
+      const targets: THREE.Object3D[] = [];
+      scene.traverse((obj) => {
+        if (
+          obj instanceof THREE.Mesh &&
+          obj.visible &&
+          obj.name !== 'SpatialLaserCursors' &&
+          !obj.name.startsWith('cursor-')
+        ) {
+          targets.push(obj);
+        }
+      });
+
+      const intersects = raycaster.intersectObjects(targets, false);
+      let hitPos: [number, number, number] | null = null;
+      let hitNormal: [number, number, number] | undefined = undefined;
+      let hoveredName: string | undefined = undefined;
+
+      if (intersects.length > 0) {
+        const hit = intersects[0];
+        hitPos = [
+          Number(hit.point.x.toFixed(3)),
+          Number(hit.point.y.toFixed(3)),
+          Number(hit.point.z.toFixed(3)),
+        ];
+        if (hit.face) {
+          hitNormal = [
+            Number(hit.face.normal.x.toFixed(3)),
+            Number(hit.face.normal.y.toFixed(3)),
+            Number(hit.face.normal.z.toFixed(3)),
+          ];
+        }
+        if (hit.object.name) {
+          hoveredName = hit.object.name;
+        } else if (
+          hit.object.parent &&
+          hit.object.parent.name &&
+          !hit.object.parent.name.startsWith('cursor') &&
+          hit.object.parent.name !== 'SpatialLaserCursors'
+        ) {
+          hoveredName = hit.object.parent.name;
+        }
+      } else {
+        const hit = raycaster.ray.intersectPlane(groundPlane, planeIntersect);
+        if (hit) {
+          hitPos = [Number(hit.x.toFixed(3)), 0.05, Number(hit.z.toFixed(3))];
+        }
+      }
+
+      if (hitPos) {
+        latestRef.current.onEmitCursor(hitPos, hitNormal, hoveredName);
+      }
+    };
+
+    renderer.domElement.addEventListener('pointermove', handlePointerMove);
 
     const handleResize = () => {
       if (!container) return;
@@ -830,7 +924,9 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     return () => {
       disposed = true;
       cancelAnimationFrame(rafId);
+      renderer.domElement.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('resize', handleResize);
+      cursorManager.dispose();
       controls.dispose();
       renderer.dispose();
     };

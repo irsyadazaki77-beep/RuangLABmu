@@ -8,15 +8,18 @@ import {
   Plus,
   Users,
   FileSpreadsheet,
+  FileText,
+  Printer,
 } from 'lucide-react';
-import { ExperimentRecord, exportRecordsToCSV } from '../utils/scienceEngine';
+import { ExperimentRecord, exportRecordsToCSV, ScienceDomain } from '../utils/scienceEngine';
 import { labSound } from '../utils/soundEngine';
+import { openPrintableAcademicReport } from '../utils/academicReportExporter';
 
 export interface GroupTaskItem {
   id: string;
   groupId: string;
   title: string;
-  domain: 'Fisika' | 'Kimia' | 'Astronomi';
+  domain: ScienceDomain;
   completed: boolean;
   completedBy?: string;
 }
@@ -38,7 +41,7 @@ interface CollaborationAndDataSectionProps {
   activeStudentName: string;
   onDeleteRecord: (id: string) => void;
   onToggleTask: (id: string) => void;
-  onCreateTask: (title: string, domain: 'Fisika' | 'Kimia' | 'Astronomi') => void;
+  onCreateTask: (title: string, domain: ScienceDomain) => void;
   onCreateNote: (text: string) => void;
   onCSVExported: (count: number) => void;
 }
@@ -58,12 +61,10 @@ export const CollaborationAndDataSection: React.FC<
   onCSVExported,
 }) => {
   const [domainFilter, setDomainFilter] = useState<
-    'Semua' | 'Fisika' | 'Kimia' | 'Astronomi'
+    'Semua' | ScienceDomain
   >('Semua');
   const [newTaskTitle, setNewTaskTitle] = useState<string>('');
-  const [newTaskDomain, setNewTaskDomain] = useState<
-    'Fisika' | 'Kimia' | 'Astronomi'
-  >('Fisika');
+  const [newTaskDomain, setNewTaskDomain] = useState<ScienceDomain>('Fisika');
   const [newNoteText, setNewNoteText] = useState<string>('');
   const [taskError, setTaskError] = useState<string>('');
 
@@ -87,6 +88,33 @@ export const CollaborationAndDataSection: React.FC<
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     onCSVExported(filteredRecords.length);
+  };
+
+  const handlePrintAcademicReport = () => {
+    labSound.playClick();
+    const firstRec = filteredRecords[0] || records[0];
+    const expTitle = firstRec ? firstRec.experimentTitle : 'Praktikum Laboratorium Terpadu';
+    const domainStr = firstRec ? firstRec.domain : 'Sains Terintegrasi';
+
+    openPrintableAcademicReport({
+      experimentTitle: expTitle,
+      studentName: activeStudentName,
+      groupId: activeGroupId,
+      tier: 'SMA',
+      dateStr: new Date().toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }),
+      timeStr: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      domain: domainStr,
+      records: filteredRecords.length > 0 ? filteredRecords : records,
+      discussionNotes: notes.map((n) => `[${n.author}]: ${n.text}`).join('\n\n'),
+      conclusionNotes: `Praktikum kolaborasi ${activeGroupId} berhasil memverifikasi prinsip dasar sains dengan ${records.length} variasi data terukur.`,
+    });
   };
 
   const handleAddTask = (e: React.FormEvent) => {
@@ -123,10 +151,10 @@ export const CollaborationAndDataSection: React.FC<
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Domain Segmented Filter */}
             <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg border border-slate-200/70 dark:border-slate-700">
-              {(['Semua', 'Fisika', 'Kimia', 'Astronomi'] as const).map((tab) => (
+              {(['Semua', 'Fisika', 'Kimia', 'Biologi', 'Astronomi'] as const).map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -144,6 +172,16 @@ export const CollaborationAndDataSection: React.FC<
                 </button>
               ))}
             </div>
+
+            <button
+              type="button"
+              onClick={handlePrintAcademicReport}
+              disabled={records.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 rounded-md transition-colors whitespace-nowrap shrink-0 border border-slate-300 dark:border-slate-700"
+            >
+              <Printer className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              Cetak Laporan Resmi Praktikum
+            </button>
 
             <button
               type="button"

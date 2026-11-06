@@ -15,7 +15,7 @@ export type AstronomyMode =
   | 'milkyway-galaxy'
   | 'stellar-exoplanet';
 
-export type ScienceDomain = 'Fisika' | 'Kimia' | 'Astronomi';
+export type ScienceDomain = 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
 
 export interface PhysicsParams {
   mass: number; // kg (0.5 - 50)
@@ -1643,7 +1643,17 @@ export function exportRecordsToCSV(records: ExperimentRecord[]): string {
   return [headers.join(','), ...rows].join('\n');
 }
 
-export type AcademicLevel = 'sma' | 'mahasiswa';
+export type AcademicLevel = 'smp' | 'sma' | 'mahasiswa';
+
+export type DrLabMuEducationLevel = 'SMP' | 'SMA' | 'Perguruan Tinggi';
+
+export function mapAcademicLevelToTelemetry(
+  level: AcademicLevel
+): DrLabMuEducationLevel {
+  if (level === 'smp') return 'SMP';
+  if (level === 'mahasiswa') return 'Perguruan Tinggi';
+  return 'SMA';
+}
 
 export interface GuidedScenarioPreset {
   id: string;
@@ -1830,6 +1840,40 @@ export function getConceptCardContent(
   subMode: string,
   level: AcademicLevel
 ): ConceptCompanionCard {
+  if (level === 'smp') {
+    if (domain === 'Fisika') {
+      return {
+        heading: 'Analogi Konkret SMP: Gaya, Lemparan Bola & Getaran Pegas',
+        levelLabel: 'Mode Siswa SMP — Analogi Sehari-hari',
+        summaryText:
+          'Bayangkan saat kamu mendorong meja di lantai kasar atau melempar bola basket ke ring: makin besar dorongan awalmu, makin cepat dan jauh bolanya melambung sebelum ditarik gravitasi ke bawah.',
+        keyEquation: 'Gaya Bersih = Dorongan - Gesekan   |   Percepatan = Gaya / Massa',
+        practicalTip:
+          'Eksperimen Seru: Geser slider Gaya Dorong atau Sudut Lempar, lalu klik Rekam Data untuk melihat polanya bersama Dr. LabMu!',
+      };
+    }
+    if (domain === 'Kimia') {
+      return {
+        heading: 'Analogi Konkret SMP: Suhu Reaksi & Keseimbangan Asam-Basa',
+        levelLabel: 'Mode Siswa SMP — Analogi Sehari-hari',
+        summaryText:
+          'Seperti melarutkan gula di teh hangat atau mencampur perasan jeruk nipis (asam) dengan air sabun (basa): saat takarannya pas seimbang, sifat asam dan basanya saling menetralkan di pH 7.',
+        keyEquation: 'Asam + Basa → Garam + Air + Panas (pH Netral = 7)',
+        practicalTip:
+          'Eksperimen Seru: Teteskan larutan sedikit demi sedikit dengan tombol [+] sampai warna cairan di gelas kimia berubah!',
+      };
+    }
+    return {
+      heading: 'Analogi Konkret SMP: Putaran Planet & Cahaya Bintang',
+      levelLabel: 'Mode Siswa SMP — Analogi Sehari-hari',
+      summaryText:
+        'Seperti melihat Bulan mengelilingi Bumi atau komidi putar: planet yang berada lebih dekat dengan Matahari harus berlari jauh lebih cepat agar tidak tertarik jatuh ke Matahari.',
+      keyEquation: 'Makin Jauh Planet dari Matahari → Makin Lama 1 Tahun Orbitnya',
+      practicalTip:
+        'Eksperimen Seru: Pilih planet Merkurius lalu bandingkan dengan Jupiter, dan tanyakan ke Dr. LabMu mengapa kecepatannya berbeda!',
+    };
+  }
+
   if (domain === 'Fisika') {
     if (subMode === 'projectile-gravity') {
       return level === 'sma'
@@ -2054,4 +2098,369 @@ export function stepParameterValue(
   const clamped = Math.min(max, Math.max(min, raw));
   return Number(clamped.toFixed(decimals));
 }
+
+export interface DrLabMuOutlierPoint {
+  trialNumber: number;
+  id: string;
+  title: string;
+  x: number;
+  yObserved: number;
+  yPredicted: number;
+  residual: number;
+  parametersSummary: string;
+}
+
+export interface DrLabMuTelemetryPayload {
+  domain: ScienceDomain;
+  topic: string;
+  educationLevel: DrLabMuEducationLevel;
+  currentParameters: Record<string, number | string | boolean>;
+  recordedData: Array<{
+    trialNumber: number;
+    id: string;
+    title: string;
+    parametersSummary: string;
+    x?: number;
+    y1?: number;
+    y2?: number;
+    keyMetrics: Record<string, number | string>;
+  }>;
+  analytics: {
+    rSquared: number;
+    slope: number;
+    intercept: number;
+    stdDev: number;
+    equation: string;
+    hasExtremeOutlier: boolean;
+    outlierTrial?: DrLabMuOutlierPoint;
+  };
+  studentQuery: string;
+}
+
+export interface DrLabMuStructuredResponse {
+  observation: string;
+  dataHighlight: string;
+  socraticQuestion: string;
+  detectedTrigger:
+    | 'anomaly-outlier'
+    | 'direct-answer-refusal'
+    | 'concept-analogy';
+  formattedText: string;
+}
+
+export function buildDrLabMuTelemetry(
+  domain: ScienceDomain,
+  academicLevel: AcademicLevel,
+  physicsParams: PhysicsParams,
+  chemistryParams: ChemistryParams,
+  astronomyParams: AstronomyParams,
+  records: ExperimentRecord[],
+  studentQuery: string
+): DrLabMuTelemetryPayload {
+  const educationLevel = mapAcademicLevelToTelemetry(academicLevel);
+  let topic = 'newton-incline';
+  let currentParameters: Record<string, number | string | boolean> = {};
+
+  if (domain === 'Fisika') {
+    topic = physicsParams.mode;
+    if (physicsParams.mode === 'projectile-gravity') {
+      currentParameters = {
+        mode: physicsParams.mode,
+        massKg: physicsParams.mass,
+        initialVelocityMs: physicsParams.initialVelocity,
+        launchAngleDeg: physicsParams.launchAngle,
+        initialHeightM: physicsParams.initialHeight,
+        gravityMs2: physicsParams.gravity,
+      };
+    } else if (physicsParams.mode === 'spring-hooke') {
+      currentParameters = {
+        mode: physicsParams.mode,
+        massKg: physicsParams.mass,
+        springConstantK: physicsParams.springConstantK,
+        springDisplacementM: physicsParams.springDisplacement,
+        dampingCoeff: physicsParams.dampingCoeff,
+      };
+    } else if (physicsParams.mode === 'collision-momentum') {
+      currentParameters = {
+        mode: physicsParams.mode,
+        mass1Kg: physicsParams.mass,
+        velocity1InitialMs: physicsParams.initialVelocity,
+        mass2Kg: physicsParams.collisionMass2,
+        velocity2InitialMs: physicsParams.velocity2Initial,
+        restitutionCoeff: physicsParams.restitutionCoeff,
+      };
+    } else {
+      currentParameters = {
+        mode: physicsParams.mode,
+        massKg: physicsParams.mass,
+        appliedForceN: physicsParams.appliedForce,
+        inclineAngleDeg: physicsParams.inclineAngle,
+        frictionCoeffStatic: physicsParams.frictionCoeffStatic,
+        frictionCoeffKinetic: physicsParams.frictionCoeffKinetic,
+        gravityMs2: physicsParams.gravity,
+      };
+    }
+  } else if (domain === 'Kimia') {
+    topic = chemistryParams.mode;
+    if (chemistryParams.mode === 'acid-base-titration') {
+      currentParameters = {
+        mode: chemistryParams.mode,
+        analyteAcidConcM: chemistryParams.analyteAcidConc,
+        analyteVolumeMl: chemistryParams.analyteVolumeMl,
+        titrantBaseConcM: chemistryParams.titrantBaseConc,
+        titrantAddedMl: chemistryParams.titrantAddedMl,
+        acidPka: chemistryParams.acidPka,
+        indicatorType: chemistryParams.indicatorType,
+      };
+    } else if (chemistryParams.mode === 'electrochemistry-cell') {
+      currentParameters = {
+        mode: chemistryParams.mode,
+        redoxPairId: chemistryParams.redoxPairId,
+        anodeConcM: chemistryParams.anodeConcM,
+        cathodeConcM: chemistryParams.cathodeConcM,
+        tempC: chemistryParams.initialTempC,
+      };
+    } else {
+      currentParameters = {
+        mode: chemistryParams.mode,
+        reactionId: chemistryParams.reactionId,
+        initialTempC: chemistryParams.initialTempC,
+        reactantConcentrationM: chemistryParams.reactantConcentration,
+        solutionVolumeMl: chemistryParams.solutionVolumeMl,
+        useCatalyst: chemistryParams.useCatalyst,
+      };
+    }
+  } else {
+    topic =
+      astronomyParams.mode === 'solar-kepler'
+        ? 'orbital-kepler'
+        : astronomyParams.mode;
+    if (astronomyParams.mode === 'solar-kepler') {
+      currentParameters = {
+        mode: 'orbital-kepler',
+        selectedPlanetId: astronomyParams.selectedPlanetId,
+        semiMajorAxisAu: astronomyParams.customSemiMajorAxisAu,
+        eccentricity: astronomyParams.customEccentricity,
+        centralStarMassSolar: astronomyParams.centralStarMassSolar,
+      };
+    } else if (astronomyParams.mode === 'milkyway-galaxy') {
+      currentParameters = {
+        mode: astronomyParams.mode,
+        galactocentricRadiusKpc: astronomyParams.galactocentricRadiusKpc,
+        darkMatterHaloFraction: astronomyParams.darkMatterHaloFraction,
+        sgrAStarMassMillionSolar: astronomyParams.sgrAStarMassMillionSolar,
+      };
+    } else {
+      currentParameters = {
+        mode: astronomyParams.mode,
+        starEffectiveTempK: astronomyParams.starEffectiveTempK,
+        starRadiusSolar: astronomyParams.starRadiusSolar,
+        exoplanetRadiusEarth: astronomyParams.exoplanetRadiusEarth,
+        exoplanetOrbitAu: astronomyParams.exoplanetOrbitAu,
+      };
+    }
+  }
+
+  const domainRecords = [...records]
+    .filter((r) => r.domain === domain)
+    .reverse();
+
+  const recordedData = domainRecords.map((rec, index) => ({
+    trialNumber: index + 1,
+    id: rec.id,
+    title: rec.experimentTitle,
+    parametersSummary: rec.parametersSummary,
+    x: rec.numericX,
+    y1: rec.numericY1,
+    y2: rec.numericY2,
+    keyMetrics: rec.keyMetrics,
+  }));
+
+  const validPoints = recordedData.filter(
+    (d) => typeof d.x === 'number' && typeof d.y1 === 'number'
+  ) as Array<
+    (typeof recordedData)[number] & { x: number; y1: number }
+  >;
+
+  const reg = calculateLinearRegression(
+    validPoints.map((p) => ({ x: p.x, y: p.y1 }))
+  );
+
+  let outlierTrial: DrLabMuOutlierPoint | undefined;
+  let maxAbsResidual = 0;
+
+  if (validPoints.length >= 3) {
+    for (const pt of validPoints) {
+      const yPred = reg.slopeM * pt.x + reg.interceptC;
+      const residual = Math.abs(pt.y1 - yPred);
+      if (residual > maxAbsResidual) {
+        maxAbsResidual = residual;
+        outlierTrial = {
+          trialNumber: pt.trialNumber,
+          id: pt.id,
+          title: pt.title,
+          x: pt.x,
+          yObserved: pt.y1,
+          yPredicted: Number(yPred.toFixed(2)),
+          residual: Number(residual.toFixed(2)),
+          parametersSummary: pt.parametersSummary,
+        };
+      }
+    }
+  }
+
+  const hasExtremeOutlier =
+    validPoints.length >= 3 &&
+    (reg.rSquared < 0.85 ||
+      (reg.stdDevY > 0 && maxAbsResidual > 1.35 * reg.stdDevY));
+
+  return {
+    domain,
+    topic,
+    educationLevel,
+    currentParameters,
+    recordedData,
+    analytics: {
+      rSquared: reg.rSquared,
+      slope: reg.slopeM,
+      intercept: reg.interceptC,
+      stdDev: reg.stdDevY,
+      equation: reg.equationString,
+      hasExtremeOutlier,
+      outlierTrial,
+    },
+    studentQuery: studentQuery.trim(),
+  };
+}
+
+export function generateSocraticDrLabMuResponse(
+  telemetry: DrLabMuTelemetryPayload
+): DrLabMuStructuredResponse {
+  const {
+    domain,
+    topic,
+    educationLevel,
+    currentParameters,
+    recordedData,
+    analytics,
+    studentQuery,
+  } = telemetry;
+
+  const qLower = studentQuery.toLowerCase();
+
+  // Check if student is asking directly for a final answer / formula / exact number
+  const isAskingDirectAnswer =
+    /berapa\s+(nilai|besar|angka|hasil|jawaban|rumus)|kasih\s+tahu\s+jawaban|jawabannya\s+apa|hitungin|nilai\s+g[- ]?nya|langsung\s+jawab/i.test(
+      qLower
+    );
+
+  // Check if R^2 < 0.85 or extreme outlier or student asks about outlier/anomaly
+  const isAnomalyOrLowR2 =
+    analytics.rSquared < 0.85 && recordedData.length >= 3
+      ? true
+      : analytics.hasExtremeOutlier ||
+        /outlier|melenceng|menyimpang|aneh|r2|r²|tidak\s+lurus|merosot/i.test(
+          qLower
+        );
+
+  const paramEntries = Object.entries(currentParameters)
+    .slice(0, 4)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ');
+
+  // 1. Apresiasi / Observasi Singkat (1 kalimat mengomentari apa yang sedang dilakukan di meja lab 3D)
+  const observation = `Eksplorasi yang sangat menarik di meja lab 3D ${domain} pada modul "${topic}" (Jenjang ${educationLevel}) dengan setelan aktif (${paramEntries}) dan ${recordedData.length} rekaman percobaan!`;
+
+  // RULE 3: JIKA Siswa Meminta Jawaban Langsung ("Berapa nilai g-nya bro?")
+  if (isAskingDirectAnswer) {
+    const dataHighlight =
+      recordedData.length >= 2
+        ? `Saya punya catatannya, tapi ilmuwan sejati menemukan rahasianya dari grafik sendiri! Lihat kemiringan (slope = ${analytics.slope}) dan persamaan garis regresi (${analytics.equation}, R² = ${analytics.rSquared}) yang baru saja kamu bangun dari ${recordedData.length} titik data percobaanmu.`
+        : `Saya punya catatannya, tapi ilmuwan sejati menemukan rahasianya dari grafik sendiri! Saat ini kamu baru memiliki ${recordedData.length} titik data di tabel, sehingga gradien (slope) garis regresinya belum bisa bercerita penuh.`;
+
+    const socraticQuestion =
+      domain === 'Fisika'
+        ? `Jika sumbu-X mewakili variabel bebas yang kamu ubah di slider dan sumbu-Y adalah respons terukurnya, bagaimana kemiringan (slope = ${analytics.slope}) pada grafikmu berelasi dengan konstanta fisis yang sedang kamu cari ketika kamu menggeser slider sekali lagi?`
+        : domain === 'Kimia'
+        ? `Coba amati laju perubahan pada kurva/grafikmu (slope = ${analytics.slope}): apa yang terjadi pada titik infleksi atau kesetimbangan larutan jika kamu menggeser konsentrasi atau volume titran 1 langkah lagi?`
+        : `Perhatikan gradien garis regresi orbitmu (slope = ${analytics.slope}): bagaimana perbandingan antara kuadrat periode (T²) dan pangkat tiga jarak rata-rata (a³) berubah jika kamu menggeser slider massa bintang induk atau jari-jari orbit?`;
+
+    return {
+      observation,
+      dataHighlight,
+      socraticQuestion,
+      detectedTrigger: 'direct-answer-refusal',
+      formattedText: `1. [Apresiasi/Observasi Singkat]: ${observation}\n2. [Sorotan Data/Anomali]: ${dataHighlight}\n3. [Pertanyaan Pemantik]: ${socraticQuestion}`,
+    };
+  }
+
+  // RULE 1: JIKA R² < 0.85 atau Terjadi Outlier Ekstrem
+  if (isAnomalyOrLowR2) {
+    const outlier = analytics.outlierTrial;
+    const dataHighlight = outlier
+      ? `Koefisien determinasi grafikmu saat ini R² = ${analytics.rSquared} (dengan deviasi standar ${analytics.stdDev}). Coba perhatikan percobaan ke-${outlier.trialNumber} (${outlier.id}: ${outlier.parametersSummary}) di mana nilai terukur y = ${outlier.yObserved} menyimpang cukup jauh (residual Δy = ${outlier.residual}) dari prediksi garis tren y = ${outlier.yPredicted}.`
+      : `Nilai kecocokan regresi liniermu saat ini adalah R² = ${analytics.rSquared} dengan slope ${analytics.slope}, yang menandakan ada titik percobaan yang keluar dari tren linier akibat perubahan lebih dari satu variabel sekaligus atau efek non-linier.`;
+
+    const socraticQuestion = outlier
+      ? `Menurut hipotesismu, mengapa pada percobaan ke-${outlier.trialNumber} (${outlier.parametersSummary}) titik datanya melenceng dari garis lurus—apakah karena hubungan matematisnya memang melengkung (non-linier) pada angka ekstrem tersebut, atau ada variabel kontrol yang ikut tergeser di slider simulasi?`
+      : `Coba uji hipotesismu di meja lab: jika kamu mengunci semua variabel kontrol tetap sama dan hanya menggeser satu slider variabel bebas secara bertahap, apakah titik data berikutnya akan membuat nilai R² naik mendekati 1.00?`;
+
+    return {
+      observation,
+      dataHighlight,
+      socraticQuestion,
+      detectedTrigger: 'anomaly-outlier',
+      formattedText: `1. [Apresiasi/Observasi Singkat]: ${observation}\n2. [Sorotan Data/Anomali]: ${dataHighlight}\n3. [Pertanyaan Pemantik]: ${socraticQuestion}`,
+    };
+  }
+
+  // RULE 2: JIKA Siswa Bingung/Stuck -> Analogi Dunia Nyata sesuai Jenjang (SMP / SMA / PT)
+  let analogyHighlight = '';
+  let socraticQuestion = '';
+
+  if (educationLevel === 'SMP') {
+    if (domain === 'Fisika') {
+      analogyHighlight = `Bayangkan kamu sedang melempar bola basket ke arah ring atau mendorong kotak di lantai: pada setelanmu saat ini (${paramEntries}) dengan R² = ${analytics.rSquared}, dorongan awal dan sudut lemparan menentukan seberapa tinggi dan jauh bola melambung sebelum gravitasi menariknya kembali ke tanah.`;
+      socraticQuestion = `Jika kamu melempar bola basket terlalu mendatar (sudut sangat kecil) dibanding terlalu tegak ke atas (sudut mendekati 85°), coba geser slider sudut di meja simulasi: pada sudut berapakah bolamu mendarat paling jauh?`;
+    } else if (domain === 'Kimia') {
+      analogyHighlight = `Bayangkan kamu sedang melarutkan gula di teh hangat atau menetesi perasan jeruk yang asam dengan air baking soda sedikit demi sedikit: data percobaanmu (${paramEntries}) merekam bagaimana sifat larutan berubah secara bertahap.`;
+      socraticQuestion = `Coba geser slider suhu atau volume tetesan sedikit demi sedikit di simulasi: pada titik manakah kamu melihat perubahan suhu atau lompatan warna paling mencolok di gelas kimia 3D?`;
+    } else {
+      analogyHighlight = `Bayangkan saat kamu mengamati Bulan mengelilingi Bumi atau pelari di lintasan stadion: pelari di jalur paling dalam (dekat Matahari) menempuh satu putaran jauh lebih cepat dibandingkan pelari di jalur luar (${paramEntries}).`;
+      socraticQuestion = `Coba geser slider jarak planet dari bintang induk di meja simulasi 3D: apa yang terjadi pada kecepatan gerak planet saat jaraknya kamu dekatkan setengah kali semula?`;
+    }
+  } else if (educationLevel === 'SMA') {
+    if (domain === 'Fisika') {
+      analogyHighlight = `Mari kita amati hubungan sebab-akibat dua variabel pada parametermu (${paramEntries}, R² = ${analytics.rSquared}): perubahan kecepatan awal (v₀) atau gaya penggerak (F) secara langsung memengaruhi jangkauan maksimum (x_max) maupun percepatan melalui dekomposisi komponen vektor.`;
+      socraticQuestion = `Jika kamu menggandakan kecepatan awal v₀ (atau gaya dorong F) sambil menahan sudut dan massa tetap konstan di slider, apakah jarak tempuh atau percepatannya meningkat dua kali lipat atau empat kali lipat? Yuk buktikan dengan menekan slider!`;
+    } else if (domain === 'Kimia') {
+      analogyHighlight = `Perhatikan hubungan sebab-akibat stoikiometri pada datamu (${paramEntries}, R² = ${analytics.rSquared}): rasio mol asam terhadap basa (atau perubahan suhu T terhadap suku T·ΔS) menjadi penentu utama lonjakan pH dan spontanitas reaksi.`;
+      socraticQuestion = `Jika konsentrasi reaktan asam kamu naikkan dua kali lipat pada slider, berapa mL volume basa titran yang kini dibutuhkan agar kurva pH kembali mencapai titik ekuivalen?`;
+    } else {
+      analogyHighlight = `Lihat hubungan sebab-akibat antara jarak sumbu semi-mayor (a) dan periode orbit (T) pada datamu (${paramEntries}, R² = ${analytics.rSquared}): gaya gravitasi sentripetal yang melemah sebanding 1/r² menyebabkan periode orbit memanjang secara eksponensial.`;
+      socraticQuestion = `Coba geser slider jarak orbit (a) atau fraksi materi gelap di kanvas 3D: bagaimana perubahan variabel tersebut mengubah nilai rasio T²/a³ atau kecepatan rotasi tepi galaksi?`;
+    }
+  } else {
+    // Perguruan Tinggi (PT)
+    if (domain === 'Fisika') {
+      analogyHighlight = `Dari tinjauan sistemik tingkat Perguruan Tinggi (${paramEntries}, regresi ${analytics.equation} dengan R² = ${analytics.rSquared}, σ = ${analytics.stdDev}), kita perlu menimbang efek orde lanjut seperti disipasi redaman viskos, kuadratik hambatan fluida, atau ketidakpastian linierisasi di dekat ambang gesek statis.`;
+      socraticQuestion = `Jika kamu memasukkan koefisien redaman b > 0 atau memvariasikan sudut di dekat batas kritis θ_c = arctan(μ_s), bagaimana deviasi non-linier tersebut menggeser gradien efektif (slope = ${analytics.slope}) pada plot regresi OLS-mu?`;
+    } else if (domain === 'Kimia') {
+      analogyHighlight = `Secara sistemik (${paramEntries}, regresi ${analytics.equation} dengan R² = ${analytics.rSquared}), dinamika sistem ini dikendalikan oleh kesetimbangan disosiasi ionik (persamaan Henderson-Hasselbalch), kapasitas bufer dC/dpH, serta koreksi kuosien reaksi logaritmik ln(Q) pada persamaan Nernst/Gibbs.`;
+      socraticQuestion = `Bagaimana pergeseran nilai pKa atau rasio aktivitas ionik [Anoda]/[Katoda] sejauh satu dekade mengubah kemiringan kurva potensial sel dan ketidakpastian titik infleksi saat kamu menguji ulang slidernya?`;
+    } else {
+      analogyHighlight = `Dalam tinjauan astrofisika sistemik (${paramEntries}, regresi ${analytics.equation} dengan R² = ${analytics.rSquared}), penyimpangan dari dinamika dua-benda Keplerian murni mencerminkan distribusi potensial gravitasi halo materi gelap ρ(r) ∝ r⁻² serta ketidakpastian fotometrik transit ΔF/F.`;
+      socraticQuestion = `Jika kamu memvariasikan profil massa bintang induk M* atau fraksi halo materi gelap pada slider, bagaimana gradien kurva rotasi v(R) dan konstanta proporsionalitas T²/a³ = 4π²/(GM*) berevolusi?`;
+    }
+  }
+
+  return {
+    observation,
+    dataHighlight: analogyHighlight,
+    socraticQuestion,
+    detectedTrigger: 'concept-analogy',
+    formattedText: `1. [Apresiasi/Observasi Singkat]: ${observation}\n2. [Sorotan Data/Anomali]: ${analogyHighlight}\n3. [Pertanyaan Pemantik]: ${socraticQuestion}`,
+  };
+}
+
 
