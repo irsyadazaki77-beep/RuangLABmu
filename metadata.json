@@ -1,0 +1,6 @@
+{
+  "name": "SimuLab Sains — Laboratorium Virtual Fisika & Kimia Kolaboratif",
+  "description": "Platform praktikum sains interaktif real-time untuk simulasi Hukum Gerak Newton, Gravitasi, Kinematika, dan Termodinamika Kimia dengan pencatatan data CSV, kolaborasi kelompok WebSocket, sistem umpan balik otomatis, serta dashboard pemantauan progres pengajar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
