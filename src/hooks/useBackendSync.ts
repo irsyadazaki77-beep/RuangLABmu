@@ -109,6 +109,7 @@ export function useBackendSync(
   // 2. WebSocket Connection & Event Routing
   useEffect(() => {
     let unmounted = false;
+    let retryCount = 0;
 
     const connectWs = () => {
       if (unmounted) return;
@@ -120,6 +121,7 @@ export function useBackendSync(
       socket.onopen = () => {
         if (unmounted) return;
         setWsConnected(true);
+        retryCount = 0;
         // Identify
         socket.send(
           JSON.stringify({
@@ -198,7 +200,12 @@ export function useBackendSync(
         if (unmounted) return;
         setWsConnected(false);
         wsRef.current = null;
-        reconnectTimerRef.current = window.setTimeout(connectWs, 3000);
+        retryCount++;
+        // Exponential backoff with jitter to prevent reconnect storms
+        const baseDelay = Math.min(1000 * Math.pow(1.5, Math.min(retryCount, 6)), 12000);
+        const jitter = Math.random() * 500;
+        const reconnectDelay = Math.round(baseDelay + jitter);
+        reconnectTimerRef.current = window.setTimeout(connectWs, reconnectDelay);
       };
 
       socket.onerror = () => {

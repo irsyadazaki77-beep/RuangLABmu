@@ -43,6 +43,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   onUpdateParam,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
 
@@ -97,7 +99,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     scene.fog = new THREE.FogExp2(0x0b1120, 0.018);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = envTexture;
     pmrem.dispose();
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 200);
@@ -552,6 +555,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
     rafId = requestAnimationFrame(tick);
 
+    let lastEmitTime = 0;
+
     const handlePointerMove = (e: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
@@ -580,10 +585,18 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       renderer.domElement.style.cursor = hits.length > 0 ? 'grab' : 'default';
 
       if (latestRef.current.onEmitCursor) {
-        const intersects = dragRaycaster.intersectObjects(scene.children, true);
-        if (intersects.length > 0) {
-          const hit = intersects[0];
-          latestRef.current.onEmitCursor([hit.point.x, hit.point.y, hit.point.z], hit.face ? [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z] : undefined, hit.object.name);
+        const now = performance.now();
+        if (now - lastEmitTime > 40) {
+          const intersects = dragRaycaster.intersectObjects(scene.children, true);
+          if (intersects.length > 0) {
+            const hit = intersects[0];
+            latestRef.current.onEmitCursor(
+              [hit.point.x, hit.point.y, hit.point.z],
+              hit.face ? [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z] : undefined,
+              hit.object.name
+            );
+            lastEmitTime = now;
+          }
         }
       }
     };
@@ -612,12 +625,27 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
       cursorManager.dispose();
       controls.dispose();
+
+      // Deep Three.js GPU resource disposal
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry?.dispose();
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach((m) => m?.dispose());
+          } else if (obj.material) {
+            obj.material.dispose();
+          }
+        }
+      });
+      if (envTexture) {
+        envTexture.dispose();
+      }
       renderer.dispose();
+      if (renderer.domElement.parentElement) {
+        renderer.domElement.parentElement.removeChild(renderer.domElement);
+      }
     };
   }, []);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   const handleSelectCameraPreset = (presetName: CameraPreset) => {
     setActivePreset(presetName);
@@ -644,14 +672,14 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden bg-[#0B1120] ${
+      className={`relative w-full h-full overflow-hidden bg-[#0B1120] touch-none select-none ${
         isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : ''
       }`}
     >
       <div
         ref={mountRef}
         data-testid="chemistry-simulation-canvas"
-        className="w-full h-full block"
+        className="w-full h-full block touch-none"
       />
 
       {/* Interactive Raycaster Drag Toast */}

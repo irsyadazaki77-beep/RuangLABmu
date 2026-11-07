@@ -384,10 +384,15 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       }
 
       if (targetPos && onEmitCursorRef.current) {
-        onEmitCursorRef.current(targetPos, targetNormal, hoveredName);
+        const now = performance.now();
+        if (now - lastEmitTime > 40) {
+          onEmitCursorRef.current(targetPos, targetNormal, hoveredName);
+          lastEmitTime = now;
+        }
       }
     };
 
+    let lastEmitTime = 0;
     renderer.domElement.addEventListener('mousemove', handlePointerMove);
 
     // Animation Loop
@@ -522,14 +527,14 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden bg-slate-950 ${
+      className={`relative w-full h-full overflow-hidden bg-slate-950 touch-none select-none ${
         isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : ''
       }`}
     >
       <div
         ref={mountRef}
         data-testid="biology-simulation-canvas"
-        className="w-full h-full block cursor-crosshair"
+        className="w-full h-full block cursor-crosshair touch-none"
       />
 
       {/* Top-Center 3D Mode Label Pill */}

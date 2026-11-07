@@ -125,6 +125,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   onUpdateParam,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [hudCollapsed, setHudCollapsed] = useState(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
@@ -186,7 +188,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     scene.fog = new THREE.FogExp2(0x0b1120, 0.018);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = envTexture;
     pmrem.dispose();
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 250);
@@ -958,6 +961,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     rafId = requestAnimationFrame(tick);
 
+    let lastEmitTime = 0;
+
     // Pointer move & Drag Handler
     const handlePointerMove = (e: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -992,14 +997,18 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       }
 
       if (latestRef.current.onEmitCursor) {
-        const intersects = dragRaycaster.intersectObjects(scene.children, true);
-        if (intersects.length > 0) {
-          const hit = intersects[0];
-          latestRef.current.onEmitCursor(
-            [hit.point.x, hit.point.y, hit.point.z],
-            hit.face ? [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z] : undefined,
-            hit.object.name
-          );
+        const now = performance.now();
+        if (now - lastEmitTime > 40) {
+          const intersects = dragRaycaster.intersectObjects(scene.children, true);
+          if (intersects.length > 0) {
+            const hit = intersects[0];
+            latestRef.current.onEmitCursor(
+              [hit.point.x, hit.point.y, hit.point.z],
+              hit.face ? [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z] : undefined,
+              hit.object.name
+            );
+            lastEmitTime = now;
+          }
         }
       }
     };
@@ -1028,12 +1037,27 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
       cursorManager.dispose();
       controls.dispose();
+
+      // Deep Three.js GPU resource disposal
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry?.dispose();
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach((m) => m?.dispose());
+          } else if (obj.material) {
+            obj.material.dispose();
+          }
+        }
+      });
+      if (envTexture) {
+        envTexture.dispose();
+      }
       renderer.dispose();
+      if (renderer.domElement.parentElement) {
+        renderer.domElement.parentElement.removeChild(renderer.domElement);
+      }
     };
   }, []);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   const handleSelectCameraPreset = (preset: CameraPreset) => {
     setActivePreset(preset);
@@ -1060,14 +1084,14 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden bg-[#0B1120] ${
+      className={`relative w-full h-full overflow-hidden bg-[#0B1120] touch-none select-none ${
         isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : ''
       }`}
     >
       <div
         ref={mountRef}
         data-testid="physics-simulation-canvas"
-        className="w-full h-full block"
+        className="w-full h-full block touch-none"
       />
 
       {/* Interactive Raycaster Drag Toast */}

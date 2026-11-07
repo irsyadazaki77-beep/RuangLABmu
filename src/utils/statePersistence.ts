@@ -7,6 +7,7 @@ const TMP_FILE = path.join(DATA_DIR, 'ruanglab-state.json.tmp');
 
 let saveTimeout: NodeJS.Timeout | null = null;
 let pendingState: unknown = null;
+let nextStateToWrite: unknown = null;
 let isWriting = false;
 
 /**
@@ -43,16 +44,22 @@ export async function loadPersistedState<T>(fallback: T): Promise<T> {
 }
 
 /**
- * Performs an atomic write using a temporary file and atomic rename.
+ * Performs atomic writes using a queue loop so that any state change arriving
+ * while a write is in-flight is guaranteed to be persisted subsequently without race conditions.
  */
-async function performAtomicWrite(data: unknown): Promise<void> {
+async function executeWriteQueue(data: unknown): Promise<void> {
+  nextStateToWrite = data;
   if (isWriting) return;
   isWriting = true;
   try {
-    await ensureDataDir();
-    const jsonString = JSON.stringify(data, null, 2);
-    await fs.writeFile(TMP_FILE, jsonString, 'utf-8');
-    await fs.rename(TMP_FILE, STATE_FILE);
+    while (nextStateToWrite !== null) {
+      const stateToPersist = nextStateToWrite;
+      nextStateToWrite = null;
+      await ensureDataDir();
+      const jsonString = JSON.stringify(stateToPersist, null, 2);
+      await fs.writeFile(TMP_FILE, jsonString, 'utf-8');
+      await fs.rename(TMP_FILE, STATE_FILE);
+    }
   } catch (err) {
     console.error('Error during atomic state persistence:', err);
   } finally {
@@ -62,7 +69,7 @@ async function performAtomicWrite(data: unknown): Promise<void> {
 
 /**
  * Schedules a state save with a 500ms debounce timer to prevent disk I/O thrashing
- * while guaranteeing atomic disk writes via .tmp + rename.
+ * while guaranteeing atomic disk writes via .tmp + rename without dropping intermediate states.
  */
 export function scheduleSaveState<T>(state: T): void {
   pendingState = state;
@@ -74,7 +81,7 @@ export function scheduleSaveState<T>(state: T): void {
     if (pendingState !== null) {
       const stateToPersist = pendingState;
       pendingState = null;
-      performAtomicWrite(stateToPersist).catch((err) => {
+      executeWriteQueue(stateToPersist).catch((err) => {
         console.error('Failed to execute debounced state save:', err);
       });
     }
@@ -92,6 +99,6 @@ export async function flushSaveStateNow<T>(state?: T): Promise<void> {
   const toSave = state ?? pendingState;
   if (toSave !== null && toSave !== undefined) {
     pendingState = null;
-    await performAtomicWrite(toSave);
+    await executeWriteQueue(toSave);
   }
 }
