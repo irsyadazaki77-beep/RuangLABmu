@@ -5,7 +5,12 @@ export type SimulationMode =
   | 'projectile-gravity'
   | 'orbital-gravity'
   | 'collision-momentum'
-  | 'spring-hooke';
+  | 'spring-hooke'
+  | 'pendulum-harmonic'
+  | 'stokes-viscosity'
+  | 'ohm-wheatstone'
+  | 'optics-young-slit'
+  | 'photoelectric-planck';
 
 export type WorkerInboundMessage =
   | { type: 'INIT'; mode: SimulationMode; params: Record<string, number> }

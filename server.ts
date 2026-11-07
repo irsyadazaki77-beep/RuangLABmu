@@ -509,6 +509,92 @@ async function startServer() {
     }
   });
 
+  // Free-form conversational endpoint for Dr. LabMu Live Chat
+  app.post('/api/ai/dr-labmu', async (req, res) => {
+    try {
+      const { message, history, telemetry } = req.body || {};
+      const userMessage = (message || '').trim();
+      if (!userMessage) {
+        res.status(400).json({ error: 'Pesan obrolan tidak boleh kosong.' });
+        return;
+      }
+
+      // If GEMINI_API_KEY is configured, call Gemini model gemini-3.8-flash
+      if (process.env.GEMINI_API_KEY) {
+        try {
+          const ai = new GoogleGenAI({
+            apiKey: process.env.GEMINI_API_KEY,
+            httpOptions: {
+              headers: {
+                'User-Agent': 'aistudio-build',
+              },
+            },
+          });
+
+          const promptContext = `[KONTEKS TELEMETRI SAAT INI]:
+Domain: ${telemetry?.domain || 'Sains'}
+Topik: ${telemetry?.topic || 'Laboratorium Virtual'}
+Jenjang: ${telemetry?.educationLevel || 'SMA'}
+Parameter: ${JSON.stringify(telemetry?.currentParameters || {})}
+R-Squared Grafik: ${telemetry?.analytics?.rSquared ?? 'Belum ada regresi'}
+
+[RIWAYAT PERCAKAPAN SINGKAT]:
+${(history || [])
+  .slice(-4)
+  .map((h: { role: string; text: string }) => `${h.role === 'user' ? 'Siswa' : 'Dr. LabMu'}: ${h.text}`)
+  .join('\n')}
+
+[PERTANYAAN / PESAN SISWA]:
+"${userMessage}"
+
+Ingat peran Anda sebagai Dr. LabMu: bersahabat, membimbing secara Sokratik (jangan langsung berikan jawaban angka/rumus jadi), dan ajukan pertanyaan pemantik berpikir ilmiah berdasarkan instrumen 3D yang sedang dihadapi siswa. Berikan jawaban dalam 2-3 kalimat padat.`;
+
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.8-flash',
+            contents: promptContext,
+            config: {
+              systemInstruction: DR_LABMU_SYSTEM_INSTRUCTION,
+            },
+          });
+
+          const replyText = (response.text || '').trim();
+          if (replyText) {
+            res.json({
+              reply: replyText,
+              source: 'gemini-3.8-flash',
+            });
+            return;
+          }
+        } catch (apiErr) {
+          console.warn('Live Gemini AI call failed, falling back to local Socratic logic:', apiErr);
+        }
+      }
+
+      // Graceful Deterministic Local Pedagogical Fallback
+      let fallbackReply = `Halo! Saya memperhatikan eksperimen ${telemetry?.topic || 'laboratorium'} Anda. `;
+      if (/jawaban|hasil|berapa|nilai/i.test(userMessage)) {
+        fallbackReply += `Sebagai instruktur lab, saya tidak membocorkan angka langsungnya, rekan peneliti! Amati kemiringan garis regresi atau instrumen ukur di kanvas 3D Anda. Menurut hipotesis Anda, apa yang terjadi jika salah satu variabel bebas dinaikkan?`;
+      } else if (/kenapa|mengapa|outlier|salah|error|r2|r\^2/i.test(userMessage)) {
+        fallbackReply += `Pertanyaan bagus! Dalam eksperimen sains nyata, deviasi sering muncul akibat ketidakpastian instrumen atau gesekan non-ideal. Coba cek titik percobaan yang paling menyimpang—apakah ada kondisi batas yang terlampaui?`;
+      } else if (/analogi|mudah|paham|bingung/i.test(userMessage)) {
+        fallbackReply += `Bayangkan Anda sedang berada di dunia nyata: setiap gaya dorong atau partikel yang saling bertumbukan membutuhkan konservasi energi. Bisakah Anda melihat bagaimana komponen vektor saling menyeimbangkan di layar?`;
+      } else {
+        fallbackReply += `Mari kita uji hipotesis Anda! Geser salah satu parameter pada panel kontrol 3D atau seret langsung komponen di meja lab. Bagaimana respon grafik terhadap perubahan tersebut?`;
+      }
+
+      res.json({
+        reply: fallbackReply,
+        source: 'local-socratic',
+      });
+    } catch (err) {
+      console.error('Endpoint /api/ai/dr-labmu error:', err);
+      res.status(500).json({
+        error: 'SERVER_ERROR',
+        message: 'Gagal memproses pesan AI.',
+      });
+    }
+  });
+
   // WebSocket Server attached to HTTP server on port 3000
   const wss = new WebSocketServer({ server, path: '/ws-lab' });
 
@@ -822,6 +908,59 @@ async function startServer() {
               notification: notif,
               note,
               students: studentRoster,
+            },
+          });
+        } else if (msg.type === 'mystery:broadcast' && msg.payload) {
+          const { challenge, author } = msg.payload;
+          const notif: ServerNotification = {
+            id: `notif-mystery-${Date.now()}`,
+            timestamp: new Date().toLocaleTimeString('id-ID', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }),
+            severity: 'elevated',
+            domain: challenge.domain || 'Pengajar',
+            title: `UJIAN SAMPEL MISTERIUS DIAKTIFKAN: ${challenge.title}`,
+            message: `${author || 'Pengajar'} mengaktifkan tantangan sampel rahasia [${challenge.codename}]. Analisis data di lab 3D dan masukkan estimasi nilai Anda!`,
+            formulaHint: challenge.formulaHint,
+          };
+          notifications.unshift(notif);
+          persistServerState();
+          broadcastAll({
+            type: 'mystery:broadcasted',
+            payload: { challenge, notification: notif },
+          });
+        } else if (msg.type === 'mystery:submit' && msg.payload) {
+          const { studentName, result, challengeTitle } = msg.payload;
+          const stu = studentRoster.find((s) => s.name === studentName);
+          if (stu) {
+            stu.completionPct = Math.min(100, stu.completionPct + 15);
+            stu.currentActivity = `Menyelesaikan Ujian Misterius: ${challengeTitle} (${result.verdict})`;
+            stu.lastActive = 'Baru saja';
+            if (result.score >= 80) stu.status = 'Selesai';
+          }
+          const notif: ServerNotification = {
+            id: `notif-mystery-res-${Date.now()}`,
+            timestamp: new Date().toLocaleTimeString('id-ID', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }),
+            severity: result.passed ? 'nominal' : 'elevated',
+            domain: 'Pengajar',
+            title: `Skor Ujian Misterius ${studentName}: ${result.score}/100 (${result.verdict})`,
+            message: `${studentName} menebak ${result.studentGuess} (Nilai riil: ${result.actualValue}, Galat: ${result.errorPercentage}%). ${result.feedbackText}`,
+          };
+          notifications.unshift(notif);
+          persistServerState();
+          broadcastAll({
+            type: 'mystery:submitted',
+            payload: {
+              result,
+              studentName,
+              students: studentRoster,
+              notification: notif,
             },
           });
         }

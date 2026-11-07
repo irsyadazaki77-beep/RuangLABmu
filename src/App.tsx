@@ -55,6 +55,10 @@ import {
   getExperimentsByDomain,
 } from './registry/experimentRegistry';
 import { useSpatialCollab } from './hooks/useSpatialCollab';
+import {
+  MysterySampleChallenge,
+  MysterySubmissionResult,
+} from './utils/mysteryChallengeEngine';
 
 type LabDomainId = 'fisika' | 'kimia' | 'biologi' | 'astronomi';
 type WorkflowStep = 1 | 2 | 3 | 4;
@@ -88,6 +92,13 @@ export default function App() {
   const [selectedBioModuleId, setSelectedBioModuleId] = useState<string>(
     'photosynthesis-ingenhousz'
   );
+
+  // Mystery Sample Exam State
+  const [activeMysteryChallenge, setActiveMysteryChallenge] =
+    useState<MysterySampleChallenge | null>(null);
+  const [mysterySubmissions, setMysterySubmissions] = useState<
+    MysterySubmissionResult[]
+  >([]);
 
   // Adaptive Theme & Lab Audio Engine State
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => {
@@ -517,6 +528,29 @@ export default function App() {
             if (msg.payload.students) {
               setStudents(msg.payload.students);
             }
+          } else if (msg.type === 'mystery:broadcasted' && msg.payload) {
+            if (msg.payload.challenge) {
+              setActiveMysteryChallenge(msg.payload.challenge);
+            }
+            if (msg.payload.notification) {
+              setNotifications((prev) => [
+                msg.payload.notification,
+                ...prev.slice(0, 24),
+              ]);
+            }
+          } else if (msg.type === 'mystery:submitted' && msg.payload) {
+            if (msg.payload.result) {
+              setMysterySubmissions((prev) => [msg.payload.result, ...prev]);
+            }
+            if (msg.payload.students) {
+              setStudents(msg.payload.students);
+            }
+            if (msg.payload.notification) {
+              setNotifications((prev) => [
+                msg.payload.notification,
+                ...prev.slice(0, 24),
+              ]);
+            }
           }
         } catch (err) {
           console.error('WS parse error:', err);
@@ -776,6 +810,51 @@ export default function App() {
     });
   };
 
+  const handleBroadcastMysteryChallenge = (challenge: MysterySampleChallenge) => {
+    setActiveMysteryChallenge(challenge);
+    sendWsMessage('mystery:broadcast', {
+      challenge,
+      author: 'Dr. Hendra Kusuma (Pengajar)',
+    });
+    handlePushNotification({
+      id: `notif-myst-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+      severity: 'elevated',
+      domain: 'Pengajar',
+      title: `Ujian Sampel Misterius Disiarkan: ${challenge.codename}`,
+      message: `${challenge.title} (${challenge.domain}) telah aktif. Nilai parameter disamarkan untuk diuji oleh siswa!`,
+    });
+  };
+
+  const handleSubmitMysteryExam = (
+    studentName: string,
+    result: MysterySubmissionResult,
+    title: string
+  ) => {
+    setMysterySubmissions((prev) => [result, ...prev]);
+    sendWsMessage('mystery:submit', {
+      studentName,
+      result,
+      challengeTitle: title,
+    });
+    handlePushNotification({
+      id: `notif-myst-sub-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+      severity: result.passed ? 'nominal' : 'elevated',
+      domain: 'Pengajar',
+      title: `Ujian Misterius ${result.codename} Dinilai: Skor ${result.score}/100`,
+      message: `${studentName} mengirimkan hasil: ${result.studentGuess} (Galat: ${result.errorPercentage}%). Predikat: ${result.verdict}.`,
+    });
+  };
+
   const handleExportAllCSV = () => {
     labSound.playClick();
     const csv = exportRecordsToCSV(records);
@@ -869,19 +948,31 @@ export default function App() {
       if (physicsParams.mode === 'projectile-gravity') return 'projectile-motion';
       if (physicsParams.mode === 'collision-momentum') return 'collision-momentum';
       if (physicsParams.mode === 'spring-hooke') return 'spring-hooke';
+      if (physicsParams.mode === 'pendulum-harmonic') return 'pendulum-harmonic';
+      if (physicsParams.mode === 'stokes-viscosity') return 'stokes-viscosity';
+      if (physicsParams.mode === 'ohm-wheatstone') return 'ohm-wheatstone';
+      if (physicsParams.mode === 'optics-young-slit') return 'optics-young-slit';
+      if (physicsParams.mode === 'photoelectric-planck') return 'photoelectric-planck';
       return 'gravity-orbital';
     }
     if (activeDomain === 'kimia') {
       if (chemistryParams.mode === 'thermo-calorimetry') return 'thermo-calorimetry';
       if (chemistryParams.mode === 'acid-base-titration') return 'acid-base-titration';
-      return 'redox-electrochemistry';
+      if (chemistryParams.mode === 'electrochemistry-cell') return 'redox-electrochemistry';
+      if (chemistryParams.mode === 'ideal-gas-boyle') return 'ideal-gas-boyle';
+      if (chemistryParams.mode === 'reaction-kinetics-arrhenius') return 'reaction-kinetics-arrhenius';
+      if (chemistryParams.mode === 'spectrophotometry-beer') return 'spectrophotometry-beer';
+      return 'thermo-calorimetry';
     }
     if (activeDomain === 'biologi') {
       return selectedBioModuleId;
     }
     if (astronomyParams.mode === 'solar-kepler') return 'solar-kepler';
     if (astronomyParams.mode === 'milkyway-galaxy') return 'milky-way-rotation';
-    return 'exoplanet-transit';
+    if (astronomyParams.mode === 'stellar-exoplanet') return 'exoplanet-transit';
+    if (astronomyParams.mode === 'stellar-wien-spectrum') return 'stellar-wien-spectrum';
+    if (astronomyParams.mode === 'hubble-expansion') return 'hubble-expansion';
+    return 'solar-kepler';
   })();
 
   const handleSelectCatalogExperiment = (exp: ExperimentModule) => {
@@ -895,20 +986,28 @@ export default function App() {
         'collision-momentum': 'collision-momentum',
         'spring-hooke': 'spring-hooke',
         'gravity-orbital': 'orbital-gravity',
+        'pendulum-harmonic': 'pendulum-harmonic',
+        'stokes-viscosity': 'stokes-viscosity',
+        'ohm-wheatstone': 'ohm-wheatstone',
+        'optics-young-slit': 'optics-young-slit',
+        'photoelectric-planck': 'photoelectric-planck',
       };
       setPhysicsParams((prev) => ({
         ...prev,
-        mode: modeMap[exp.id] || 'newton-incline',
+        mode: modeMap[exp.id] || (exp.id as PhysicsParams['mode']) || 'newton-incline',
       }));
     } else if (dom === 'kimia') {
       const modeMap: Record<string, ChemistryParams['mode']> = {
         'thermo-calorimetry': 'thermo-calorimetry',
         'acid-base-titration': 'acid-base-titration',
         'redox-electrochemistry': 'electrochemistry-cell',
+        'ideal-gas-boyle': 'ideal-gas-boyle',
+        'reaction-kinetics-arrhenius': 'reaction-kinetics-arrhenius',
+        'spectrophotometry-beer': 'spectrophotometry-beer',
       };
       setChemistryParams((prev) => ({
         ...prev,
-        mode: modeMap[exp.id] || 'thermo-calorimetry',
+        mode: modeMap[exp.id] || (exp.id as ChemistryParams['mode']) || 'thermo-calorimetry',
       }));
     } else if (dom === 'biologi') {
       setSelectedBioModuleId(exp.id);
@@ -917,10 +1016,12 @@ export default function App() {
         'solar-kepler': 'solar-kepler',
         'milky-way-rotation': 'milkyway-galaxy',
         'exoplanet-transit': 'stellar-exoplanet',
+        'stellar-wien-spectrum': 'stellar-wien-spectrum',
+        'hubble-expansion': 'hubble-expansion',
       };
       setAstronomyParams((prev) => ({
         ...prev,
-        mode: modeMap[exp.id] || 'solar-kepler',
+        mode: modeMap[exp.id] || (exp.id as AstronomyParams['mode']) || 'solar-kepler',
       }));
     }
 
@@ -1352,6 +1453,9 @@ export default function App() {
                   message: `Daftar nilai rubrik otomatis untuk ${count} siswa berhasil diekspor ke CSV.`,
                 })
               }
+              activeMysteryChallenge={activeMysteryChallenge}
+              onBroadcastMysteryChallenge={handleBroadcastMysteryChallenge}
+              mysterySubmissions={mysterySubmissions}
             />
           </div>
         )}
@@ -1428,6 +1532,8 @@ export default function App() {
                 paramLocks={paramLocks}
                 onAcquireLock={acquireParamLock}
                 onReleaseLock={releaseParamLock}
+                activeMysteryChallenge={activeMysteryChallenge}
+                onSubmitMysteryExam={handleSubmitMysteryExam}
               />
             )}
 
@@ -1466,6 +1572,8 @@ export default function App() {
                 }
                 remoteCursors={remoteCursors}
                 onEmitCursor={emitCursor3D}
+                activeMysteryChallenge={activeMysteryChallenge}
+                onSubmitMysteryExam={handleSubmitMysteryExam}
               />
             )}
 
@@ -1546,6 +1654,8 @@ export default function App() {
                 }
                 remoteCursors={remoteCursors}
                 onEmitCursor={emitCursor3D}
+                activeMysteryChallenge={activeMysteryChallenge}
+                onSubmitMysteryExam={handleSubmitMysteryExam}
               />
             )}
           </>

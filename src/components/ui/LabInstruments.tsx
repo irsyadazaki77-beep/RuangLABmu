@@ -255,7 +255,7 @@ export const LiquidColumnMeter: React.FC<LiquidColumnMeterProps> = ({
 };
 
 export interface AnimatedNumberReadoutProps {
-  value: number;
+  value: number | string;
   unit?: string;
   precision?: number;
   label?: string;
@@ -273,11 +273,12 @@ export const AnimatedNumberReadout: React.FC<AnimatedNumberReadoutProps> = ({
   highlightColor = 'rgba(14, 165, 233, 0.35)',
   accentColor,
 }) => {
-  const [displayVal, setDisplayVal] = useState<number>(value);
+  const numericValue = typeof value === 'number' ? value : NaN;
+  const [displayVal, setDisplayVal] = useState<number>(Number.isFinite(numericValue) ? numericValue : 0);
   const [flash, setFlash] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!Number.isFinite(value)) return;
+    if (typeof value !== 'number' || !Number.isFinite(value)) return;
     if (Math.abs(value - displayVal) > 1e-4) {
       setFlash(true);
       const timer = setTimeout(() => setFlash(false), 260);
@@ -305,9 +306,11 @@ export const AnimatedNumberReadout: React.FC<AnimatedNumberReadoutProps> = ({
         cancelAnimationFrame(frameId);
       };
     }
-  }, [value]);
+  }, [value, displayVal]);
 
-  const formatted = Number.isFinite(displayVal)
+  const formatted = typeof value === 'string'
+    ? value
+    : Number.isFinite(displayVal)
     ? displayVal.toFixed(precision)
     : '0.00';
 

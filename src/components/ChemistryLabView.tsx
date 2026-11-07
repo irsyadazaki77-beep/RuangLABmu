@@ -12,6 +12,9 @@ import {
   Compass,
   Flame,
   Snowflake,
+  FlaskConical,
+  HelpCircle,
+  CheckCircle,
 } from 'lucide-react';
 import {
   ChemistryParams,
@@ -44,6 +47,11 @@ import {
   FormulaToken,
 } from './ui/InteractiveFormulaCard';
 import { FloatingLabAnalyticsDrawer } from './FloatingLabAnalyticsDrawer';
+import {
+  MysterySampleChallenge,
+  MysterySubmissionResult,
+  evaluateMysterySubmission,
+} from '../utils/mysteryChallengeEngine';
 
 interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -72,6 +80,8 @@ interface ChemistryLabViewProps {
   onSubmitQuizScore?: (score: number, correctCount: number) => void;
   onProceedToAnalysis?: () => void;
   onBackToCatalog?: () => void;
+  activeMysteryChallenge?: MysterySampleChallenge | null;
+  onSubmitMysteryExam?: (studentName: string, result: MysterySubmissionResult, title: string) => void;
 }
 
 export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
@@ -90,12 +100,18 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   onSubmitQuizScore,
   onProceedToAnalysis,
   onBackToCatalog,
+  activeMysteryChallenge,
+  onSubmitMysteryExam,
 }) => {
   const [isReacting, setIsReacting] = useState<boolean>(false);
   const [reactionProgress, setReactionProgress] = useState<number>(0);
   const [leftDockCollapsed, setLeftDockCollapsed] = useState<boolean>(false);
   const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
+
+  // Mystery Sample Exam State
+  const [mysteryGuessInput, setMysteryGuessInput] = useState<string>('');
+  const [mysteryFeedbackResult, setMysteryFeedbackResult] = useState<MysterySubmissionResult | null>(null);
 
   const chemistryModules = getExperimentsByDomain('kimia');
   const [preLabModalOpen, setPreLabModalOpen] = useState<boolean>(false);
@@ -115,7 +131,13 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
       ? 'thermo-calorimetry'
       : params.mode === 'acid-base-titration'
       ? 'acid-base-titration'
-      : 'redox-electrochemistry';
+      : params.mode === 'electrochemistry-cell'
+      ? 'redox-electrochemistry'
+      : params.mode === 'ideal-gas-boyle'
+      ? 'ideal-gas-boyle'
+      : params.mode === 'reaction-kinetics-arrhenius'
+      ? 'reaction-kinetics-arrhenius'
+      : 'spectrophotometry-beer';
 
   const currentModule =
     chemistryModules.find((m) => m.id === currentChemistryModuleId) ||
@@ -184,8 +206,14 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
       handleParamChange({ mode: 'thermo-calorimetry' });
     } else if (expId === 'acid-base-titration') {
       handleParamChange({ mode: 'acid-base-titration' });
-    } else {
+    } else if (expId === 'redox-electrochemistry' || expId === 'electrochemistry-cell') {
       handleParamChange({ mode: 'electrochemistry-cell' });
+    } else if (expId === 'ideal-gas-boyle') {
+      handleParamChange({ mode: 'ideal-gas-boyle' });
+    } else if (expId === 'reaction-kinetics-arrhenius') {
+      handleParamChange({ mode: 'reaction-kinetics-arrhenius' });
+    } else if (expId === 'spectrophotometry-beer') {
+      handleParamChange({ mode: 'spectrophotometry-beer' });
     }
     const found = chemistryModules.find((m) => m.id === expId);
     if (found) setModalExperiment(found);
@@ -252,6 +280,48 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         y1: metrics.nernstCellPotentialE,
         y2: metrics.electroFreeEnergyDeltaG,
       };
+    } else if (params.mode === 'ideal-gas-boyle') {
+      title = `Hukum Gas Ideal (V = ${params.gasVolumeL} L, T = ${params.gasTemperatureK} K)`;
+      summary = `V=${params.gasVolumeL}L, T=${params.gasTemperatureK}K, n=${params.gasMoles}mol`;
+      keyMetrics = {
+        'Tekanan Gas (P)': `${metrics.gasPressureAtm} atm`,
+        'Volume (V)': `${params.gasVolumeL} L`,
+        'Jumlah Mol (n)': `${params.gasMoles} mol`,
+        'Konstanta PV': `${metrics.boyleConstantPv} L·atm`,
+      };
+      numericCoords = {
+        x: params.gasVolumeL || 10,
+        y1: metrics.gasPressureAtm || 1,
+        y2: metrics.boyleConstantPv || 10,
+      };
+    } else if (params.mode === 'reaction-kinetics-arrhenius') {
+      title = `Kinetika Arrhenius Reaksi (T = ${params.kineticsTempC}°C)`;
+      summary = `T=${params.kineticsTempC}°C, Ea=${params.kineticsEaKj} kJ/mol, [A]=${params.kineticsConcA} M`;
+      keyMetrics = {
+        'Konstanta Laju k': `${metrics.arrheniusK} s⁻¹`,
+        'Laju Reaksi (r)': `${metrics.reactionRate} M/s`,
+        'Energi Aktivasi': `${params.kineticsEaKj} kJ/mol`,
+        'Suhu Mutlak (T)': `${metrics.tempKelvin} K`,
+      };
+      numericCoords = {
+        x: metrics.tempKelvin,
+        y1: Math.log(metrics.arrheniusK || 0.001),
+        y2: metrics.reactionRate,
+      };
+    } else if (params.mode === 'spectrophotometry-beer') {
+      title = `Spektrofotometri UV-Vis (λ = ${params.spectroWavelengthNm} nm)`;
+      summary = `c=${params.spectroConcMm} mM, b=${params.spectroPathLengthCm} cm, λ=${params.spectroWavelengthNm} nm`;
+      keyMetrics = {
+        'Absorbansi (A)': metrics.absorbanceA ?? 0,
+        'Transmitansi (%T)': `${metrics.transmittancePct ?? 100}%`,
+        'Koefisien Molar (ε)': `${metrics.molarExtinctionEpsilon ?? 9500} M⁻¹cm⁻¹`,
+        'Warna Teramati': metrics.absorbedColorName ?? 'Bening',
+      };
+      numericCoords = {
+        x: params.spectroConcMm || 0.5,
+        y1: metrics.absorbanceA || 0.5,
+        y2: metrics.transmittancePct || 50,
+      };
     } else {
       title = `${preset.name} (${preset.equation})`;
       summary = `T₀=${params.initialTempC}°C, [M]=${params.reactantConcentration}M, V=${params.solutionVolumeMl}mL, Katalis=${params.useCatalyst ? 'Ya' : 'Tidak'}`;
@@ -283,6 +353,123 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     subtitle: string;
     tokens: FormulaToken[];
   } = (() => {
+    if (params.mode === 'ideal-gas-boyle') {
+      return {
+        title: 'Hukum Gas Ideal (Persamaan Keadaan)',
+        subtitle: `PV = nRT · R = 0.08206 L·atm/(mol·K)`,
+        tokens: [
+          { symbol: 'P', value: metrics.gasPressureAtm, unit: 'atm', color: '#38bdf8' },
+          { symbol: '=' },
+          {
+            symbol: 'n',
+            paramKey: 'gasMoles',
+            value: params.gasMoles ?? 1.0,
+            min: 0.1,
+            max: 2.5,
+            unit: 'mol',
+            color: '#f59e0b',
+          },
+          { symbol: '· R ·' },
+          {
+            symbol: 'T',
+            paramKey: 'gasTemperatureK',
+            value: params.gasTemperatureK ?? 300,
+            min: 200,
+            max: 500,
+            unit: 'K',
+            color: '#f43f5e',
+          },
+          { symbol: '/' },
+          {
+            symbol: 'V',
+            paramKey: 'gasVolumeL',
+            value: params.gasVolumeL ?? 10,
+            min: 2.0,
+            max: 25.0,
+            unit: 'L',
+            color: '#10b981',
+          },
+        ],
+      };
+    }
+    if (params.mode === 'reaction-kinetics-arrhenius') {
+      return {
+        title: 'Persamaan Laju Reaksi & Arrhenius',
+        subtitle: `k = A · exp(-Ea / RT) · Laju r = k·[A]`,
+        tokens: [
+          { symbol: 'k', value: metrics.arrheniusK, unit: 's⁻¹', color: '#10b981' },
+          { symbol: '= A · e^[-' },
+          {
+            symbol: 'Ea',
+            paramKey: 'kineticsEaKj',
+            value: params.kineticsEaKj ?? 50,
+            min: 20,
+            max: 90,
+            unit: 'kJ/mol',
+            color: '#f43f5e',
+          },
+          { symbol: '/ (R·' },
+          {
+            symbol: 'T',
+            paramKey: 'kineticsTempC',
+            value: metrics.tempKelvin,
+            min: 288,
+            max: 368,
+            unit: 'K',
+            color: '#f59e0b',
+          },
+          { symbol: ')] · [A]=' },
+          {
+            symbol: '[A]',
+            paramKey: 'kineticsConcA',
+            value: params.kineticsConcA ?? 1.0,
+            min: 0.1,
+            max: 2.5,
+            unit: 'M',
+            color: '#38bdf8',
+          },
+        ],
+      };
+    }
+    if (params.mode === 'spectrophotometry-beer') {
+      return {
+        title: 'Hukum Spektrofotometri Beer-Lambert',
+        subtitle: `Absorbansi A = -log(T) = ε · b · c`,
+        tokens: [
+          { symbol: 'A', value: metrics.absorbanceA, unit: '', color: '#10b981' },
+          { symbol: '= ε(' },
+          {
+            symbol: 'λ',
+            paramKey: 'spectroWavelengthNm',
+            value: params.spectroWavelengthNm ?? 520,
+            min: 380,
+            max: 750,
+            unit: 'nm',
+            color: '#818cf8',
+          },
+          { symbol: ') · b(' },
+          {
+            symbol: 'b',
+            paramKey: 'spectroPathLengthCm',
+            value: params.spectroPathLengthCm ?? 1.0,
+            min: 0.5,
+            max: 3.0,
+            unit: 'cm',
+            color: '#f59e0b',
+          },
+          { symbol: ') ·' },
+          {
+            symbol: 'c',
+            paramKey: 'spectroConcMm',
+            value: params.spectroConcMm ?? 0.5,
+            min: 0.01,
+            max: 1.5,
+            unit: 'mM',
+            color: '#ec4899',
+          },
+        ],
+      };
+    }
     if (params.mode === 'acid-base-titration') {
       return {
         title: 'Stoikiometri Ekuivalensi & pH Titrasi',
@@ -419,6 +606,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
           isReacting={isReacting}
           remoteCursors={remoteCursors}
           onEmitCursor={onEmitCursor}
+          onUpdateParam={(key, val) => handleParamChange({ [key]: val } as Partial<ChemistryParams>)}
         />
       </div>
 
@@ -453,6 +641,15 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
             </option>
             <option value="redox-electrochemistry" className="bg-slate-900 text-white">
               Sel Elektrokimia Galvani (Nernst)
+            </option>
+            <option value="ideal-gas-boyle" className="bg-slate-900 text-white">
+              Hukum Gas Ideal & Boyle (PV = nRT)
+            </option>
+            <option value="reaction-kinetics-arrhenius" className="bg-slate-900 text-white">
+              Kinetika Reaksi & Persamaan Arrhenius
+            </option>
+            <option value="spectrophotometry-beer" className="bg-slate-900 text-white">
+              Spektrofotometri UV-Vis & Beer-Lambert
             </option>
           </select>
         </div>
@@ -501,7 +698,95 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                 </button>
               </div>
 
-              {/* SVG Radial Gauge + Visual Color-Changing pH / Temperature Tube */}
+              {/* Mystery Sample Exam Banner / Submission Card */}
+              {activeMysteryChallenge && activeMysteryChallenge.domain === 'Kimia' && (
+                <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
+                      <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+                      Ujian Sampel Misterius
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {activeMysteryChallenge.codename}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                    {activeMysteryChallenge.storyDescription}
+                  </p>
+                  <div className="bg-slate-950/80 rounded-lg p-2 border border-amber-500/20 text-[11px] font-mono text-slate-300">
+                    <div className="text-amber-400 font-bold">Parameter Tersembunyi:</div>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <span>{activeMysteryChallenge.hiddenParamLabel}:</span>
+                      <span className="text-rose-400 font-bold">??? (Sampel Misterius)</span>
+                    </div>
+                  </div>
+
+                  {/* Submission Form */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const guess = parseFloat(mysteryGuessInput);
+                      if (isNaN(guess)) return;
+                      const res = evaluateMysterySubmission(activeMysteryChallenge, guess);
+                      setMysteryFeedbackResult(res);
+                      if (onSubmitMysteryExam) {
+                        onSubmitMysteryExam(activeStudentName, res, activeMysteryChallenge.title);
+                      }
+                      if (res.passed) labSound.playRecordSuccess();
+                      else labSound.playClick(300);
+                    }}
+                    className="space-y-2 pt-1"
+                  >
+                    <div>
+                      <label className="text-[10px] uppercase font-mono text-slate-400 block mb-1">
+                        Masukkan Hasil Perhitungan / Estimasi ({activeMysteryChallenge.hiddenParamUnit})
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        value={mysteryGuessInput}
+                        onChange={(e) => setMysteryGuessInput(e.target.value)}
+                        placeholder={`Contoh: ${(activeMysteryChallenge.actualHiddenValue * 0.95).toFixed(2)}`}
+                        className="w-full bg-slate-950 border border-white/20 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full py-1.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Kirim Jawaban Ujian Misterius
+                    </button>
+                  </form>
+
+                  {/* Immediate Feedback Result */}
+                  {mysteryFeedbackResult && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`p-2.5 rounded-lg border text-xs space-y-1 ${
+                        mysteryFeedbackResult.passed
+                          ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
+                          : 'bg-rose-950/60 border-rose-500/50 text-rose-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold">
+                        <span>{mysteryFeedbackResult.verdict}</span>
+                        <span className="font-mono text-sm">{mysteryFeedbackResult.score}/100</span>
+                      </div>
+                      <div className="text-[11px] opacity-90">
+                        Galat: {mysteryFeedbackResult.errorPercentage}% (Nilai Sebenarnya: {mysteryFeedbackResult.actualValue})
+                      </div>
+                      <p className="text-[10px] opacity-80 pt-1 leading-snug">
+                        {mysteryFeedbackResult.feedbackText}
+                      </p>
+                    </motion.div>
+                  )}
+                </div>
+              )}
+
+              {/* SVG Radial Gauge + Visual Color-Changing Readouts */}
               <div className="flex items-center justify-around gap-2 bg-slate-950/60 border border-white/10 rounded-xl p-2.5">
                 {params.mode === 'acid-base-titration' ? (
                   <>
@@ -541,6 +826,68 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                       max={100}
                       unit="°C"
                       variant="temperature"
+                    />
+                  </>
+                ) : params.mode === 'ideal-gas-boyle' ? (
+                  <>
+                    <CircularGaugeMeter
+                      size="sm"
+                      label="Tekanan (P)"
+                      value={metrics.gasPressureAtm ?? 1}
+                      min={0}
+                      max={10}
+                      unit="atm"
+                      color="#38bdf8"
+                    />
+                    <CircularGaugeMeter
+                      size="sm"
+                      label="Tetapan PV"
+                      value={metrics.boyleConstantPv ?? 10}
+                      min={0}
+                      max={50}
+                      unit="L·atm"
+                      color="#10b981"
+                    />
+                  </>
+                ) : params.mode === 'reaction-kinetics-arrhenius' ? (
+                  <>
+                    <CircularGaugeMeter
+                      size="sm"
+                      label="Konstanta k"
+                      value={metrics.arrheniusK ?? 0.05}
+                      min={0}
+                      max={5}
+                      unit="s⁻¹"
+                      color="#10b981"
+                    />
+                    <LiquidColumnMeter
+                      label="Suhu Reaksi"
+                      value={params.kineticsTempC ?? 25}
+                      min={0}
+                      max={120}
+                      unit="°C"
+                      variant="temperature"
+                    />
+                  </>
+                ) : params.mode === 'spectrophotometry-beer' ? (
+                  <>
+                    <CircularGaugeMeter
+                      size="sm"
+                      label="Absorbansi (A)"
+                      value={metrics.absorbanceA ?? 0.5}
+                      min={0}
+                      max={2.5}
+                      unit=""
+                      color="#f59e0b"
+                    />
+                    <CircularGaugeMeter
+                      size="sm"
+                      label="Transmitansi"
+                      value={metrics.transmittancePct ?? 50}
+                      min={0}
+                      max={100}
+                      unit="%"
+                      color="#38bdf8"
                     />
                   </>
                 ) : (
@@ -602,6 +949,57 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                       accentColor="#38bdf8"
                     />
                   </>
+                ) : params.mode === 'ideal-gas-boyle' ? (
+                  <>
+                    <AnimatedNumberReadout
+                      label="Tekanan (P)"
+                      value={metrics.gasPressureAtm ?? 1}
+                      unit="atm"
+                      precision={2}
+                      accentColor="#38bdf8"
+                    />
+                    <AnimatedNumberReadout
+                      label="Volume Tabung"
+                      value={params.gasVolumeL ?? 10}
+                      unit="L"
+                      precision={1}
+                      accentColor="#10b981"
+                    />
+                  </>
+                ) : params.mode === 'reaction-kinetics-arrhenius' ? (
+                  <>
+                    <AnimatedNumberReadout
+                      label="Laju Reaksi (r)"
+                      value={metrics.reactionRate ?? 0.1}
+                      unit="M/s"
+                      precision={3}
+                      accentColor="#10b981"
+                    />
+                    <AnimatedNumberReadout
+                      label="Suhu Mutlak (T)"
+                      value={metrics.tempKelvin ?? 298}
+                      unit="K"
+                      precision={1}
+                      accentColor="#f59e0b"
+                    />
+                  </>
+                ) : params.mode === 'spectrophotometry-beer' ? (
+                  <>
+                    <AnimatedNumberReadout
+                      label="Absorbansi (A)"
+                      value={metrics.absorbanceA ?? 0.5}
+                      unit=""
+                      precision={3}
+                      accentColor="#f59e0b"
+                    />
+                    <AnimatedNumberReadout
+                      label="Transmitansi %T"
+                      value={metrics.transmittancePct ?? 50}
+                      unit="%"
+                      precision={1}
+                      accentColor="#38bdf8"
+                    />
+                  </>
                 ) : (
                   <>
                     <AnimatedNumberReadout
@@ -632,6 +1030,135 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               />
 
               {/* Mode-Specific Presets & Tactile Parameter Sliders */}
+              {params.mode === 'ideal-gas-boyle' && (
+                <div className="space-y-2.5">
+                  <TactileParameterControl
+                    label="Volume Silinder Gas (V)"
+                    symbol="V"
+                    value={params.gasVolumeL ?? 10.0}
+                    min={2.0}
+                    max={25.0}
+                    step={0.5}
+                    unit="L"
+                    accentColor="#10b981"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'gasVolumeL' : null)}
+                    onChange={(v) => handleParamChange({ gasVolumeL: v })}
+                  />
+
+                  <TactileParameterControl
+                    label="Suhu Termal Gas (T)"
+                    symbol="T"
+                    value={params.gasTemperatureK ?? 300}
+                    min={200}
+                    max={500}
+                    step={5}
+                    unit="K"
+                    accentColor="#f43f5e"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'gasTemperatureK' : null)}
+                    onChange={(v) => handleParamChange({ gasTemperatureK: v })}
+                  />
+
+                  <TactileParameterControl
+                    label="Jumlah Partikel Gas (n)"
+                    symbol="n"
+                    value={params.gasMoles ?? 1.0}
+                    min={0.1}
+                    max={2.5}
+                    step={0.05}
+                    unit="mol"
+                    accentColor="#f59e0b"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'gasMoles' : null)}
+                    onChange={(v) => handleParamChange({ gasMoles: v })}
+                  />
+                </div>
+              )}
+
+              {params.mode === 'reaction-kinetics-arrhenius' && (
+                <div className="space-y-2.5">
+                  <TactileParameterControl
+                    label="Suhu Reaksi Termostat"
+                    symbol="T"
+                    value={params.kineticsTempC ?? 25}
+                    min={15}
+                    max={95}
+                    step={1}
+                    unit="°C"
+                    accentColor="#f59e0b"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'kineticsTempC' : null)}
+                    onChange={(v) => handleParamChange({ kineticsTempC: v })}
+                  />
+
+                  <TactileParameterControl
+                    label="Konsentrasi Reaktan [A]"
+                    symbol="[A]"
+                    value={params.kineticsConcA ?? 1.0}
+                    min={0.1}
+                    max={2.5}
+                    step={0.05}
+                    unit="M"
+                    accentColor="#38bdf8"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'kineticsConcA' : null)}
+                    onChange={(v) => handleParamChange({ kineticsConcA: v })}
+                  />
+
+                  <TactileParameterControl
+                    label="Energi Aktivasi (Ea)"
+                    symbol="Ea"
+                    value={params.kineticsEaKj ?? 50}
+                    min={20}
+                    max={90}
+                    step={2}
+                    unit="kJ/mol"
+                    accentColor="#f43f5e"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'kineticsEaKj' : null)}
+                    onChange={(v) => handleParamChange({ kineticsEaKj: v })}
+                  />
+                </div>
+              )}
+
+              {params.mode === 'spectrophotometry-beer' && (
+                <div className="space-y-2.5">
+                  <TactileParameterControl
+                    label="Konsentrasi Analit (c)"
+                    symbol="c"
+                    value={params.spectroConcMm ?? 0.5}
+                    min={0.01}
+                    max={1.5}
+                    step={0.02}
+                    unit="mM"
+                    accentColor="#ec4899"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'spectroConcMm' : null)}
+                    onChange={(v) => handleParamChange({ spectroConcMm: v })}
+                  />
+
+                  <TactileParameterControl
+                    label="Tebal Kuvet Optik (b)"
+                    symbol="b"
+                    value={params.spectroPathLengthCm ?? 1.0}
+                    min={0.5}
+                    max={3.0}
+                    step={0.1}
+                    unit="cm"
+                    accentColor="#f59e0b"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'spectroPathLengthCm' : null)}
+                    onChange={(v) => handleParamChange({ spectroPathLengthCm: v })}
+                  />
+
+                  <TactileParameterControl
+                    label="Panjang Gelombang Eksitasi (λ)"
+                    symbol="λ"
+                    value={params.spectroWavelengthNm ?? 520}
+                    min={380}
+                    max={750}
+                    step={5}
+                    unit="nm"
+                    accentColor="#818cf8"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'spectroWavelengthNm' : null)}
+                    onChange={(v) => handleParamChange({ spectroWavelengthNm: v })}
+                  />
+                </div>
+              )}
+
               {params.mode === 'thermo-calorimetry' && (
                 <div className="space-y-2.5">
                   <div className="space-y-1">

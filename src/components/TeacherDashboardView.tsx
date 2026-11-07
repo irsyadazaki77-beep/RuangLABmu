@@ -8,6 +8,9 @@ import {
   ClipboardList,
   Download,
   FileCheck2,
+  HelpCircle,
+  Radio,
+  Flame,
 } from 'lucide-react';
 import {
   ExperimentRecord,
@@ -16,6 +19,11 @@ import {
   exportRubricGradesToCSV,
 } from '../utils/scienceEngine';
 import { labSound } from '../utils/soundEngine';
+import {
+  MysterySampleChallenge,
+  MysterySubmissionResult,
+  PRESET_MYSTERY_CHALLENGES,
+} from '../utils/mysteryChallengeEngine';
 
 export interface StudentProgressItem {
   id: string;
@@ -37,6 +45,9 @@ interface TeacherDashboardViewProps {
   records: ExperimentRecord[];
   onSendTeacherFeedback: (targetStudentId: string, message: string) => void;
   onExportGradesNotification: (studentCount: number) => void;
+  activeMysteryChallenge?: MysterySampleChallenge | null;
+  onBroadcastMysteryChallenge?: (challenge: MysterySampleChallenge) => void;
+  mysterySubmissions?: MysterySubmissionResult[];
 }
 
 export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
@@ -44,11 +55,17 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
   records,
   onSendTeacherFeedback,
   onExportGradesNotification,
+  activeMysteryChallenge,
+  onBroadcastMysteryChallenge,
+  mysterySubmissions = [],
 }) => {
   const [selectedStudentId, setSelectedStudentId] = useState<string>('all');
   const [feedbackMessage, setFeedbackMessage] = useState<string>('');
   const [feedbackError, setFeedbackError] = useState<string>('');
   const [groupFilter, setGroupFilter] = useState<string>('Semua');
+  const [selectedChallengeId, setSelectedChallengeId] = useState<string>(
+    PRESET_MYSTERY_CHALLENGES[0].id
+  );
 
   const avgCompletion =
     students.length > 0
@@ -407,6 +424,124 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               Sistem secara otomatis menilai kemajuan eksperimen, kualitas regresi data, penyelesaian tugas kolaborasi, dan skor LKS setiap siswa.
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* NEW: Mystery Challenge Broadcast & Exam Leaderboard Panel */}
+      <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-amber-300 dark:border-amber-500/30 rounded-xl p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 dark:border-amber-500/20 pb-3">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <Radio className="w-4 h-4 text-amber-500 animate-pulse" />
+              Siaran Ujian Sampel Misterius (Mystery Challenge Engine)
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Guru dapat menyiarkan sampel tak dikenal ke semua siswa. Nilai parameter disamarkan menjadi &quot;???&quot; di lab siswa hingga mereka melakukan analisis dan mengirimkan perkiraan.
+            </p>
+          </div>
+
+          {activeMysteryChallenge && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <span>SEDANG AKTIF: {activeMysteryChallenge.codename} ({activeMysteryChallenge.domain})</span>
+            </div>
+          )}
+        </div>
+
+        {/* Challenge Selection & Broadcast Action */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="md:col-span-8 space-y-1.5">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+              Pilih Paket Tantangan Ujian Misterius:
+            </label>
+            <select
+              value={selectedChallengeId}
+              onChange={(e) => setSelectedChallengeId(e.target.value)}
+              className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              {PRESET_MYSTERY_CHALLENGES.map((ch) => (
+                <option key={ch.id} value={ch.id}>
+                  [{ch.domain.toUpperCase()}] {ch.codename}: {ch.title} ({ch.difficulty} — Parameter: {ch.hiddenParamLabel})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="md:col-span-4">
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playRecordSuccess();
+                const ch = PRESET_MYSTERY_CHALLENGES.find((c) => c.id === selectedChallengeId);
+                if (ch && onBroadcastMysteryChallenge) {
+                  onBroadcastMysteryChallenge(ch);
+                }
+              }}
+              className="w-full py-2.5 px-4 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Radio className="w-4 h-4" />
+              Siarkan Tantangan ke Semua Siswa
+            </button>
+          </div>
+        </div>
+
+        {/* Live Mystery Submissions Table */}
+        <div className="space-y-2 pt-2">
+          <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+            Hasil Jawaban Siswa Pada Ujian Misterius ({mysterySubmissions.length} Dikirim)
+          </h3>
+
+          {mysterySubmissions.length === 0 ? (
+            <div className="text-center py-6 text-xs text-slate-400 dark:text-slate-500 italic bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+              Belum ada siswa yang mengirimkan estimasi ujian misterius. Siarkan tantangan di atas untuk memulai sesi evaluasi sampel.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    <th className="py-2 pr-3">Sampel</th>
+                    <th className="py-2 px-3 text-right">Tebakan Siswa</th>
+                    <th className="py-2 px-3 text-right">Nilai Asli</th>
+                    <th className="py-2 px-3 text-right">Galat (%)</th>
+                    <th className="py-2 px-3 text-right">Skor</th>
+                    <th className="py-2 pl-3">Predikat</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-mono">
+                  {mysterySubmissions.map((sub, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <td className="py-2.5 pr-3 font-sans font-semibold text-slate-900 dark:text-white">
+                        {sub.codename}
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-slate-700 dark:text-slate-300">
+                        {sub.studentGuess}
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-slate-500">
+                        {sub.actualValue}
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-amber-500 font-bold">
+                        {sub.errorPercentage}%
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-slate-900 dark:text-white">
+                        {sub.score}/100
+                      </td>
+                      <td className="py-2.5 pl-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          sub.passed
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        }`}>
+                          {sub.verdict}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 

@@ -11,6 +11,7 @@ import {
 import { SimulationFrame } from '../utils/simulationBuffer';
 import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
+import { labSound } from '../utils/soundEngine';
 
 interface PhysicsScene3DProps {
   params: PhysicsParams;
@@ -25,6 +26,7 @@ interface PhysicsScene3DProps {
     normal?: [number, number, number],
     hoveredObject?: string
   ) => void;
+  onUpdateParam?: (paramKey: string, value: number) => void;
 }
 
 type CameraPreset = 'isometric' | 'front' | 'top' | 'focus';
@@ -82,6 +84,34 @@ function orientAndScaleArrow(
   }
 }
 
+function wavelengthToHex(wavelengthNm: number): number {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (wavelengthNm >= 380 && wavelengthNm < 440) {
+    r = -(wavelengthNm - 440) / (440 - 380);
+    b = 1;
+  } else if (wavelengthNm >= 440 && wavelengthNm < 490) {
+    g = (wavelengthNm - 440) / (490 - 440);
+    b = 1;
+  } else if (wavelengthNm >= 490 && wavelengthNm < 510) {
+    g = 1;
+    b = -(wavelengthNm - 510) / (510 - 490);
+  } else if (wavelengthNm >= 510 && wavelengthNm < 580) {
+    r = (wavelengthNm - 510) / (580 - 510);
+    g = 1;
+  } else if (wavelengthNm >= 580 && wavelengthNm < 645) {
+    r = 1;
+    g = -(wavelengthNm - 645) / (645 - 580);
+  } else if (wavelengthNm >= 645 && wavelengthNm <= 780) {
+    r = 1;
+  }
+  const ir = Math.round(Math.min(255, Math.max(0, r * 255)));
+  const ig = Math.round(Math.min(255, Math.max(0, g * 255)));
+  const ib = Math.round(Math.min(255, Math.max(0, b * 255)));
+  return (ir << 16) | (ig << 8) | ib;
+}
+
 export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   params,
   metrics,
@@ -91,10 +121,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   simFrame,
   remoteCursors,
   onEmitCursor,
+  onUpdateParam,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [hudCollapsed, setHudCollapsed] = useState(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
+  const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
 
   const latestRef = useRef({
     params,
@@ -105,6 +137,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     simFrame,
     remoteCursors,
     onEmitCursor,
+    onUpdateParam,
   });
   latestRef.current = {
     params,
@@ -115,6 +148,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     simFrame,
     remoteCursors,
     onEmitCursor,
+    onUpdateParam,
   };
 
   const cameraCtrlRef = useRef<{
@@ -206,7 +240,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     rimLight.position.set(-9, 6, -8);
     scene.add(rimLight);
 
-    // Laboratory Floor & Calibration Grid
+    // Floor & Calibration Grid
     const floorGeo = new THREE.PlaneGeometry(60, 60);
     const floorMat = new THREE.MeshStandardMaterial({
       color: 0x0f172a,
@@ -223,10 +257,10 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     gridHelper.position.y = 0.01;
     scene.add(gridHelper);
 
-    // Phase 3: Collaborative 3D Laser Pointer Manager
+    // Collaborative 3D Laser Pointer Manager
     const cursorManager = new SpatialCursorManager(scene);
 
-    // Shared PBR Materials
+    // Shared Materials
     const brushedSteelMat = new THREE.MeshStandardMaterial({
       color: 0x94a3b8,
       metalness: 0.82,
@@ -240,16 +274,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const primaryMassMat = new THREE.MeshStandardMaterial({
       color: 0x0284c7,
       metalness: 0.35,
-      roughness: 0.25,
-    });
-    const secondaryMassMat = new THREE.MeshStandardMaterial({
-      color: 0x10b981,
-      metalness: 0.35,
-      roughness: 0.28,
-    });
-    const gravitySecondaryMat = new THREE.MeshStandardMaterial({
-      color: 0x6366f1,
-      metalness: 0.4,
       roughness: 0.25,
     });
     const brassMat = new THREE.MeshStandardMaterial({
@@ -269,7 +293,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       darkFrameMat
     );
     basePedestal.position.set(0, 0.12, 0);
-    basePedestal.receiveShadow = true;
     inclineGroup.add(basePedestal);
 
     const pivotGroup = new THREE.Group();
@@ -283,9 +306,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     rampBoard.position.set(4.6, -0.11, 0);
     rampBoard.castShadow = true;
     rampBoard.receiveShadow = true;
+    rampBoard.userData = { draggableParam: 'inclineAngle', min: 0, max: 60, step: 1, label: 'Kemiringan θ' };
     pivotGroup.add(rampBoard);
 
-    // Side rails along the ramp
     const railGeo = new THREE.BoxGeometry(9.2, 0.12, 0.08);
     const railFront = new THREE.Mesh(railGeo, darkFrameMat);
     railFront.position.set(4.6, 0.06, 1.0);
@@ -293,16 +316,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     railBack.position.set(4.6, 0.06, -1.0);
     pivotGroup.add(railFront, railBack);
 
-    // Pulley at top of ramp
-    const pulleyWheel = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.32, 0.32, 0.16, 20),
-      brassMat
-    );
-    pulleyWheel.rotation.x = Math.PI / 2;
-    pulleyWheel.position.set(9.35, 0.25, 0);
-    pivotGroup.add(pulleyWheel);
-
-    // Sliding Mass Block Group on Ramp
     const blockGroup = new THREE.Group();
     pivotGroup.add(blockGroup);
 
@@ -312,23 +325,15 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     );
     massBox.position.set(0, 0.39, 0);
     massBox.castShadow = true;
+    massBox.userData = { draggableParam: 'appliedForce', min: -100, max: 200, step: 5, label: 'Gaya Dorong F' };
     blockGroup.add(massBox);
 
-    const hookRing = new THREE.Mesh(
-      new THREE.TorusGeometry(0.12, 0.035, 10, 20),
-      brassMat
-    );
-    hookRing.position.set(0.62, 0.39, 0);
-    blockGroup.add(hookRing);
-
-    // 4 Force Vector Arrows on Block
-    const arrowApplied = createArrowGroup(0x10b981); // Emerald F
-    const arrowFriction = createArrowGroup(0xf59e0b); // Amber fk
-    const arrowNormal = createArrowGroup(0x38bdf8); // Sky N
-    const arrowWeight = createArrowGroup(0xf43f5e); // Rose W
+    const arrowApplied = createArrowGroup(0x10b981);
+    const arrowFriction = createArrowGroup(0xf59e0b);
+    const arrowNormal = createArrowGroup(0x38bdf8);
+    const arrowWeight = createArrowGroup(0xf43f5e);
     blockGroup.add(arrowApplied, arrowFriction, arrowNormal, arrowWeight);
 
-    // Hydraulic Support Strut under Ramp
     const supportPillar = new THREE.Mesh(
       new THREE.CylinderGeometry(0.14, 0.18, 1, 16),
       brushedSteelMat
@@ -354,213 +359,58 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     projectileGroup.add(cannonPivot);
 
     const cannonBarrel = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.22, 0.28, 1.35, 20),
+      new THREE.CylinderGeometry(0.24, 0.32, 1.6, 18),
       brushedSteelMat
     );
     cannonBarrel.rotation.z = -Math.PI / 2;
-    cannonBarrel.position.set(0.55, 0, 0);
+    cannonBarrel.position.set(0.8, 0, 0);
+    cannonBarrel.userData = { draggableParam: 'launchAngle', min: 10, max: 85, step: 1, label: 'Sudut Elevasi θ' };
     cannonPivot.add(cannonBarrel);
 
-    const cannonBase = new THREE.Mesh(
-      new THREE.SphereGeometry(0.34, 18, 18),
-      brassMat
-    );
-    cannonPivot.add(cannonBase);
-
     const projectileBall = new THREE.Mesh(
-      new THREE.SphereGeometry(0.32, 24, 24),
-      new THREE.MeshStandardMaterial({
-        color: 0x38bdf8,
-        metalness: 0.3,
-        roughness: 0.2,
-        emissive: 0x0284c7,
-        emissiveIntensity: 0.25,
-      })
+      new THREE.SphereGeometry(0.28, 24, 24),
+      new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.8, roughness: 0.2 })
     );
-    projectileBall.castShadow = true;
+    projectileBall.userData = { draggableParam: 'initialVelocity', min: 5, max: 50, step: 1, label: 'Kecepatan Awal v₀' };
     projectileGroup.add(projectileBall);
 
-    const projVelXArrow = createArrowGroup(0x10b981);
-    const projVelYArrow = createArrowGroup(0xf59e0b);
-    projectileGroup.add(projVelXArrow, projVelYArrow);
-
-    const trajLineMat = new THREE.LineBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.75,
-    });
-    const trajPoints = Array.from(
-      { length: 61 },
-      () => new THREE.Vector3(0, 0, 0)
+    const trajGeo = new THREE.BufferGeometry();
+    const trajPositions = new Float32Array(61 * 3);
+    trajGeo.setAttribute('position', new THREE.BufferAttribute(trajPositions, 3));
+    const trajLine = new THREE.Line(
+      trajGeo,
+      new THREE.LineDashedMaterial({ color: 0x38bdf8, dashSize: 0.3, gapSize: 0.15 })
     );
-    const trajGeo = new THREE.BufferGeometry().setFromPoints(trajPoints);
-    const trajLine = new THREE.Line(trajGeo, trajLineMat);
+    trajLine.computeLineDistances();
     projectileGroup.add(trajLine);
 
     const targetRing = new THREE.Mesh(
-      new THREE.RingGeometry(0.35, 0.55, 28),
-      new THREE.MeshBasicMaterial({
-        color: 0xf43f5e,
-        side: THREE.DoubleSide,
-      })
+      new THREE.RingGeometry(0.4, 0.65, 32),
+      new THREE.MeshBasicMaterial({ color: 0x10b981, side: THREE.DoubleSide })
     );
     targetRing.rotation.x = -Math.PI / 2;
-    targetRing.position.y = 0.03;
     projectileGroup.add(targetRing);
 
     // =========================================================
-    // 3. ORBITAL / UNIVERSAL GRAVITY 3D GROUP
-    // =========================================================
-    const gravityGroup = new THREE.Group();
-    scene.add(gravityGroup);
-
-    const gravSphere1 = new THREE.Mesh(
-      new THREE.SphereGeometry(0.75, 28, 28),
-      primaryMassMat
-    );
-    gravSphere1.castShadow = true;
-    const gravSphere2 = new THREE.Mesh(
-      new THREE.SphereGeometry(0.95, 28, 28),
-      gravitySecondaryMat
-    );
-    gravSphere2.castShadow = true;
-    gravityGroup.add(gravSphere1, gravSphere2);
-
-    const gravRing1 = new THREE.Mesh(
-      new THREE.RingGeometry(1.05, 1.18, 32),
-      new THREE.MeshBasicMaterial({
-        color: 0x38bdf8,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.45,
-      })
-    );
-    gravRing1.rotation.x = Math.PI / 2;
-    gravSphere1.add(gravRing1);
-
-    const gravRing2 = new THREE.Mesh(
-      new THREE.RingGeometry(1.25, 1.42, 32),
-      new THREE.MeshBasicMaterial({
-        color: 0x818cf8,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.45,
-      })
-    );
-    gravRing2.rotation.x = Math.PI / 2;
-    gravSphere2.add(gravRing2);
-
-    const gravArrow1 = createArrowGroup(0x10b981);
-    const gravArrow2 = createArrowGroup(0xf59e0b);
-    gravityGroup.add(gravArrow1, gravArrow2);
-
-    const tetherRod = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.03, 0.03, 1, 10),
-      new THREE.MeshBasicMaterial({
-        color: 0x475569,
-        transparent: true,
-        opacity: 0.5,
-      })
-    );
-    tetherRod.rotation.z = Math.PI / 2;
-    gravityGroup.add(tetherRod);
-
-    // =========================================================
-    // 4. COLLISION & MOMENTUM 3D AIR-TRACK GROUP
-    // =========================================================
-    const collisionGroup = new THREE.Group();
-    scene.add(collisionGroup);
-
-    const airTrackBeam = new THREE.Mesh(
-      new THREE.BoxGeometry(13.5, 0.32, 1.3),
-      brushedSteelMat
-    );
-    airTrackBeam.position.set(0, 0.65, 0);
-    airTrackBeam.receiveShadow = true;
-    collisionGroup.add(airTrackBeam);
-
-    const legLeft = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45, 0.65, 1.4),
-      darkFrameMat
-    );
-    legLeft.position.set(-5.8, 0.325, 0);
-    const legRight = legLeft.clone();
-    legRight.position.set(5.8, 0.325, 0);
-    collisionGroup.add(legLeft, legRight);
-
-    const colSphere1 = new THREE.Mesh(
-      new THREE.SphereGeometry(0.62, 28, 28),
-      primaryMassMat
-    );
-    colSphere1.castShadow = true;
-    const colSphere2 = new THREE.Mesh(
-      new THREE.SphereGeometry(0.62, 28, 28),
-      secondaryMassMat
-    );
-    colSphere2.castShadow = true;
-    collisionGroup.add(colSphere1, colSphere2);
-
-    const colVel1Arrow = createArrowGroup(0x38bdf8);
-    const colVel2Arrow = createArrowGroup(0xf59e0b);
-    collisionGroup.add(colVel1Arrow, colVel2Arrow);
-
-    const impactFlashRing = new THREE.Mesh(
-      new THREE.TorusGeometry(0.85, 0.05, 12, 28),
-      new THREE.MeshBasicMaterial({
-        color: 0xfef08a,
-        transparent: true,
-        opacity: 0,
-      })
-    );
-    impactFlashRing.rotation.y = Math.PI / 2;
-    impactFlashRing.position.set(0, 1.45, 0);
-    collisionGroup.add(impactFlashRing);
-
-    // =========================================================
-    // 5. SPRING HOOKE HARMONIC OSCILLATOR 3D GROUP
+    // 3. SPRING HOOKE 3D GROUP
     // =========================================================
     const springGroup = new THREE.Group();
     scene.add(springGroup);
 
-    const anchorWall = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45, 2.8, 2.6),
+    const springWall = new THREE.Mesh(
+      new THREE.BoxGeometry(0.4, 2.5, 2.5),
       darkFrameMat
     );
-    anchorWall.position.set(-5.2, 1.4, 0);
-    anchorWall.castShadow = true;
-    springGroup.add(anchorWall);
+    springWall.position.set(-5.2, 1.25, 0);
+    springGroup.add(springWall);
 
-    const guideTrack = new THREE.Mesh(
-      new THREE.BoxGeometry(11.5, 0.22, 2.2),
-      brushedSteelMat
-    );
-    guideTrack.position.set(0.5, 0.11, 0);
-    guideTrack.receiveShadow = true;
-    springGroup.add(guideTrack);
-
-    // Equilibrium marker plane at x = 0.5
-    const eqMarker = new THREE.Mesh(
-      new THREE.BoxGeometry(0.06, 0.04, 2.3),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
-    );
-    eqMarker.position.set(0.5, 0.24, 0);
-    springGroup.add(eqMarker);
-
-    // Helix coil spring built from 50 segments along X
     const COIL_POINTS = 96;
     const coilPositions = new Float32Array(COIL_POINTS * 3);
     const coilGeo = new THREE.BufferGeometry();
-    coilGeo.setAttribute(
-      'position',
-      new THREE.BufferAttribute(coilPositions, 3)
-    );
-    const coilLine = new THREE.Line(
-      coilGeo,
-      new THREE.LineBasicMaterial({ color: 0xe2e8f0 })
-    );
+    coilGeo.setAttribute('position', new THREE.BufferAttribute(coilPositions, 3));
+    const coilLine = new THREE.Line(coilGeo, new THREE.LineBasicMaterial({ color: 0xe2e8f0 }));
     springGroup.add(coilLine);
 
-    // Also add 12 torus rings along the spring length for a solid 3D metallic spring look
     const springRings: THREE.Mesh[] = [];
     const springRingGeo = new THREE.TorusGeometry(0.38, 0.055, 10, 20);
     springRingGeo.rotateY(Math.PI / 2);
@@ -574,45 +424,393 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       new THREE.BoxGeometry(1.3, 1.3, 1.3),
       primaryMassMat
     );
-    springMassBlock.castShadow = true;
+    springMassBlock.userData = { draggableParam: 'springDisplacement', min: -2.0, max: 2.0, step: 0.1, label: 'Simpangan x' };
     springGroup.add(springMassBlock);
 
-    const springForceArrow = createArrowGroup(0xf43f5e);
-    const springVelArrow = createArrowGroup(0x10b981);
-    springGroup.add(springForceArrow, springVelArrow);
+    // =========================================================
+    // 4. PENDULUM HARMONIC 3D GROUP
+    // =========================================================
+    const pendulumGroup = new THREE.Group();
+    scene.add(pendulumGroup);
+
+    const pendStandBase = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 0.2, 2.4),
+      darkFrameMat
+    );
+    pendStandBase.position.set(0, 0.1, 0);
+    pendulumGroup.add(pendStandBase);
+
+    const pendVerticalPillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.08, 4.2, 16),
+      brushedSteelMat
+    );
+    pendVerticalPillar.position.set(-0.8, 2.2, 0);
+    pendulumGroup.add(pendVerticalPillar);
+
+    const pendHorizontalArm = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.06, 1.8, 16),
+      brushedSteelMat
+    );
+    pendHorizontalArm.rotation.z = Math.PI / 2;
+    pendHorizontalArm.position.set(0, 4.2, 0);
+    pendulumGroup.add(pendHorizontalArm);
+
+    // Pivot mount
+    const pendPivotGroup = new THREE.Group();
+    pendPivotGroup.position.set(0.6, 4.2, 0);
+    pendulumGroup.add(pendPivotGroup);
+
+    const pendRod = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 1, 12),
+      new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8 })
+    );
+    pendRod.position.set(0, -0.5, 0);
+    pendPivotGroup.add(pendRod);
+
+    const pendBob = new THREE.Mesh(
+      new THREE.SphereGeometry(0.38, 32, 32),
+      brassMat
+    );
+    pendBob.position.set(0, -1.0, 0);
+    pendBob.castShadow = true;
+    pendBob.userData = { draggableParam: 'pendulumLength', min: 0.3, max: 2.5, step: 0.1, label: 'Panjang Tali L' };
+    pendPivotGroup.add(pendBob);
+
+    // Semicircular protractor degree scale
+    const protractorGeo = new THREE.RingGeometry(0.5, 0.7, 32, 1, 0, Math.PI);
+    protractorGeo.rotateZ(Math.PI);
+    const protractor = new THREE.Mesh(
+      protractorGeo,
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.4 })
+    );
+    protractor.position.set(0.6, 4.2, 0.05);
+    pendulumGroup.add(protractor);
+
+    // Shadow guide arc on ground
+    const arcGeo = new THREE.BufferGeometry();
+    const arcPositions = new Float32Array(41 * 3);
+    arcGeo.setAttribute('position', new THREE.BufferAttribute(arcPositions, 3));
+    const arcLine = new THREE.Line(arcGeo, new THREE.LineDashedMaterial({ color: 0x64748b, dashSize: 0.1, gapSize: 0.05 }));
+    pendulumGroup.add(arcLine);
 
     // =========================================================
-    // RENDER & UPDATE LOOP WITH SOFTWARE-GL FENCE PACING
+    // 5. STOKES VISCOSITY 3D GROUP
     // =========================================================
+    const stokesGroup = new THREE.Group();
+    scene.add(stokesGroup);
+
+    const stokesStand = new THREE.Mesh(
+      new THREE.BoxGeometry(3.0, 0.25, 3.0),
+      darkFrameMat
+    );
+    stokesStand.position.set(0, 0.125, 0);
+    stokesGroup.add(stokesStand);
+
+    const stokesPillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.09, 6.2, 16),
+      brushedSteelMat
+    );
+    stokesPillar.position.set(-1.4, 3.1, 0);
+    stokesGroup.add(stokesPillar);
+
+    // Glass cylinder
+    const glassCylMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.32,
+      roughness: 0.05,
+      metalness: 0.1,
+      transmission: 0.9,
+    });
+    const stokesGlassCyl = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.85, 0.85, 5.2, 32, 1, true),
+      glassCylMat
+    );
+    stokesGlassCyl.position.set(0, 2.7, 0);
+    stokesGroup.add(stokesGlassCyl);
+
+    // Liquid inside
+    const liquidMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      transparent: true,
+      opacity: 0.65,
+      roughness: 0.2,
+    });
+    const stokesLiquid = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.82, 0.82, 4.8, 32),
+      liquidMat
+    );
+    stokesLiquid.position.set(0, 2.5, 0);
+    stokesLiquid.userData = { draggableParam: 'fluidViscosity', min: 0.1, max: 2.0, step: 0.05, label: 'Viskositas η' };
+    stokesGroup.add(stokesLiquid);
+
+    // Laser timing gate rings
+    const gateTop = new THREE.Mesh(
+      new THREE.TorusGeometry(0.9, 0.04, 8, 32),
+      new THREE.MeshBasicMaterial({ color: 0x10b981 })
+    );
+    gateTop.rotation.x = Math.PI / 2;
+    gateTop.position.set(0, 4.2, 0);
+    const gateBottom = new THREE.Mesh(
+      new THREE.TorusGeometry(0.9, 0.04, 8, 32),
+      new THREE.MeshBasicMaterial({ color: 0xef4444 })
+    );
+    gateBottom.rotation.x = Math.PI / 2;
+    gateBottom.position.set(0, 1.4, 0);
+    stokesGroup.add(gateTop, gateBottom);
+
+    // Falling metal sphere
+    const stokesSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.25, 24, 24),
+      brushedSteelMat
+    );
+    stokesSphere.position.set(0, 4.5, 0);
+    stokesSphere.castShadow = true;
+    stokesSphere.userData = { draggableParam: 'sphereRadius', min: 1, max: 20, step: 0.5, label: 'Jari-jari Bola r' };
+    stokesGroup.add(stokesSphere);
+
+    const stokesDragArrow = createArrowGroup(0x38bdf8);
+    const stokesGravArrow = createArrowGroup(0xf43f5e);
+    stokesGroup.add(stokesDragArrow, stokesGravArrow);
+
+    // =========================================================
+    // 6. OHM & WHEATSTONE BRIDGE 3D GROUP
+    // =========================================================
+    const wheatstoneGroup = new THREE.Group();
+    scene.add(wheatstoneGroup);
+
+    const circuitTable = new THREE.Mesh(
+      new THREE.BoxGeometry(9.0, 0.2, 6.0),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 })
+    );
+    circuitTable.position.set(0, 0.1, 0);
+    wheatstoneGroup.add(circuitTable);
+
+    // DC Power Supply
+    const powerSupplyBox = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 1.4, 1.6),
+      darkFrameMat
+    );
+    powerSupplyBox.position.set(-3.2, 0.8, -1.8);
+    powerSupplyBox.userData = { draggableParam: 'circuitVoltage', min: 1, max: 24, step: 1, label: 'Tegangan Sumber V' };
+    wheatstoneGroup.add(powerSupplyBox);
+
+    // Resistor cylinders arranged in diamond
+    const resistorMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
+    const r1Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.2, 16), resistorMat);
+    r1Mesh.rotation.z = Math.PI / 4;
+    r1Mesh.position.set(-1.4, 0.35, 0.8);
+    const r2Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.2, 16), resistorMat);
+    r2Mesh.rotation.z = -Math.PI / 4;
+    r2Mesh.position.set(1.4, 0.35, 0.8);
+    const r3Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.2, 16), resistorMat);
+    r3Mesh.rotation.z = -Math.PI / 4;
+    r3Mesh.position.set(-1.4, 0.35, -0.8);
+    const rxMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.2, 0.2, 1.2, 16),
+      new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 })
+    );
+    rxMesh.rotation.z = Math.PI / 4;
+    rxMesh.position.set(1.4, 0.35, -0.8);
+    rxMesh.userData = { draggableParam: 'resistorRx', min: 10, max: 1000, step: 10, label: 'Resistor Rx (Ohm)' };
+    wheatstoneGroup.add(r1Mesh, r2Mesh, r3Mesh, rxMesh);
+
+    // Galvanometer at center
+    const galvoBox = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.9, 0.9, 0.35, 32),
+      brushedSteelMat
+    );
+    galvoBox.position.set(0, 0.3, 0);
+    wheatstoneGroup.add(galvoBox);
+
+    const galvoNeedle = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04, 0.02, 1.2),
+      new THREE.MeshBasicMaterial({ color: 0xef4444 })
+    );
+    galvoNeedle.position.set(0, 0.5, 0);
+    wheatstoneGroup.add(galvoNeedle);
+
+    // =========================================================
+    // 7. YOUNG'S DOUBLE SLIT OPTICS 3D GROUP
+    // =========================================================
+    const youngSlitGroup = new THREE.Group();
+    scene.add(youngSlitGroup);
+
+    const optBenchRail = new THREE.Mesh(
+      new THREE.BoxGeometry(11.0, 0.18, 0.6),
+      darkFrameMat
+    );
+    optBenchRail.position.set(0, 0.09, 0);
+    youngSlitGroup.add(optBenchRail);
+
+    // Laser Emitter Housing at left
+    const laserEmitter = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 1.2, 1.0),
+      brushedSteelMat
+    );
+    laserEmitter.position.set(-4.8, 1.2, 0);
+    laserEmitter.userData = { draggableParam: 'lightWavelength', min: 400, max: 700, step: 10, label: 'Panjang Gelombang λ' };
+    youngSlitGroup.add(laserEmitter);
+
+    const laserBeamLine = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.03, 3.2, 12),
+      new THREE.MeshBasicMaterial({ color: 0x10b981 })
+    );
+    laserBeamLine.rotation.z = Math.PI / 2;
+    laserBeamLine.position.set(-2.8, 1.2, 0);
+    youngSlitGroup.add(laserBeamLine);
+
+    // Double Slit Aperture Plate
+    const slitPlateGroup = new THREE.Group();
+    slitPlateGroup.position.set(-1.2, 1.2, 0);
+    youngSlitGroup.add(slitPlateGroup);
+
+    const slitPlate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 1.8, 1.4),
+      darkFrameMat
+    );
+    slitPlate.userData = { draggableParam: 'slitDistance', min: 0.05, max: 0.8, step: 0.02, label: 'Jarak Celah d' };
+    slitPlateGroup.add(slitPlate);
+
+    // Screen
+    const screenCarrier = new THREE.Group();
+    screenCarrier.position.set(3.8, 1.4, 0);
+    youngSlitGroup.add(screenCarrier);
+
+    // Fringe texture canvas
+    const fringeCanvas = document.createElement('canvas');
+    fringeCanvas.width = 512;
+    fringeCanvas.height = 256;
+    const fringeTexture = new THREE.CanvasTexture(fringeCanvas);
+
+    const projScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.1, 2.6),
+      new THREE.MeshBasicMaterial({ map: fringeTexture, side: THREE.DoubleSide })
+    );
+    projScreen.rotation.y = -Math.PI / 2;
+    projScreen.userData = { draggableParam: 'screenDistance', min: 0.5, max: 3.0, step: 0.1, label: 'Jarak Layar L' };
+    screenCarrier.add(projScreen);
+
+    // =========================================================
+    // 8. PHOTOELECTRIC PLANCK 3D GROUP
+    // =========================================================
+    const photoelectricGroup = new THREE.Group();
+    scene.add(photoelectricGroup);
+
+    const peBase = new THREE.Mesh(
+      new THREE.BoxGeometry(8.0, 0.2, 4.0),
+      darkFrameMat
+    );
+    peBase.position.set(0, 0.1, 0);
+    photoelectricGroup.add(peBase);
+
+    // Glass Phototube bulb
+    const peBulb = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.2, 1.2, 3.2, 28),
+      glassCylMat
+    );
+    peBulb.rotation.z = Math.PI / 2;
+    peBulb.position.set(0, 1.6, 0);
+    photoelectricGroup.add(peBulb);
+
+    // Cathode plate
+    const peCathode = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.9, 0.9, 0.06, 24, 1, false, 0, Math.PI),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.15 })
+    );
+    peCathode.rotation.x = Math.PI / 2;
+    peCathode.position.set(-1.1, 1.6, 0);
+    peCathode.userData = { draggableParam: 'targetMetalWorkFunction', min: 2.0, max: 5.5, step: 0.1, label: 'Fungsi Kerja W (eV)' };
+    photoelectricGroup.add(peCathode);
+
+    // Anode collector ring
+    const peAnode = new THREE.Mesh(
+      new THREE.TorusGeometry(0.7, 0.06, 12, 28),
+      brassMat
+    );
+    peAnode.rotation.y = Math.PI / 2;
+    peAnode.position.set(1.1, 1.6, 0);
+    peAnode.userData = { draggableParam: 'stoppingPotential', min: 0, max: 5.0, step: 0.1, label: 'Potensial Penghenti V₀' };
+    photoelectricGroup.add(peAnode);
+
+    // Photoelectron particles
+    const PE_PARTICLES_COUNT = 30;
+    const peParticles: THREE.Mesh[] = [];
+    const peParticleGeo = new THREE.SphereGeometry(0.06, 12, 12);
+    const peParticleMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+    for (let i = 0; i < PE_PARTICLES_COUNT; i++) {
+      const pMesh = new THREE.Mesh(peParticleGeo, peParticleMat);
+      peParticles.push(pMesh);
+      photoelectricGroup.add(pMesh);
+    }
+
+    // =========================================================
+    // DIRECT 3D MESH DRAGGING (RAYCASTER GIZMOS)
+    // =========================================================
+    let isDragging = false;
+    let activeDragMesh: THREE.Object3D | null = null;
+    let dragParamKey = '';
+    let dragStartPos = { x: 0, y: 0 };
+    let dragStartVal = 0;
+    let dragConfig = { min: 0, max: 100, step: 1, label: '' };
+    const dragRaycaster = new THREE.Raycaster();
+    const dragMouse = new THREE.Vector2();
+
+    const getInteractiveMeshes = (): THREE.Object3D[] => {
+      const list: THREE.Object3D[] = [];
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh && obj.visible && obj.userData?.draggableParam) {
+          list.push(obj);
+        }
+      });
+      return list;
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      dragMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      dragRaycaster.setFromCamera(dragMouse, camera);
+
+      const hits = dragRaycaster.intersectObjects(getInteractiveMeshes(), false);
+      if (hits.length > 0) {
+        const hitObj = hits[0].object;
+        const paramKey = hitObj.userData.draggableParam;
+        if (paramKey && latestRef.current.onUpdateParam) {
+          isDragging = true;
+          activeDragMesh = hitObj;
+          dragParamKey = paramKey;
+          dragStartPos = { x: e.clientX, y: e.clientY };
+          dragConfig = {
+            min: hitObj.userData.min ?? 0,
+            max: hitObj.userData.max ?? 100,
+            step: hitObj.userData.step ?? 1,
+            label: hitObj.userData.label ?? paramKey,
+          };
+          const curVal = (latestRef.current.params as unknown as Record<string, number>)[paramKey] ?? 0;
+          dragStartVal = curVal;
+          controls.enabled = false;
+          renderer.domElement.style.cursor = 'grabbing';
+          labSound.playClick(600);
+          setDragToast({ label: dragConfig.label, value: `${curVal}` });
+        }
+      }
+    };
+
+    const handlePointerUp = () => {
+      if (isDragging) {
+        isDragging = false;
+        activeDragMesh = null;
+        dragParamKey = '';
+        controls.enabled = true;
+        renderer.domElement.style.cursor = 'grab';
+        setTimeout(() => setDragToast(null), 1200);
+      }
+    };
+
+    // Main Tick Loop
     let disposed = false;
     let rafId = 0;
-
-    function afterDraw(cb: () => void) {
-      if (!isSoftwareGl) {
-        rafId = requestAnimationFrame(cb);
-        return;
-      }
-      const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-      gl.flush();
-      const poll = () => {
-        if (disposed) return;
-        if (!sync) {
-          setTimeout(cb, 80);
-          return;
-        }
-        const status = gl.clientWaitSync(sync, 0, 0);
-        if (
-          status === gl.ALREADY_SIGNALED ||
-          status === gl.CONDITION_SATISFIED
-        ) {
-          gl.deleteSync(sync);
-          setTimeout(cb, 80);
-        } else {
-          setTimeout(poll, 16);
-        }
-      };
-      setTimeout(poll, 16);
-    }
 
     const tick = () => {
       if (disposed) return;
@@ -626,266 +824,127 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       } = latestRef.current;
 
       inclineGroup.visible = p.mode === 'newton-incline';
-      projectileGroup.visible = p.mode === 'projectile-gravity';
-      gravityGroup.visible = p.mode === 'orbital-gravity';
-      collisionGroup.visible = p.mode === 'collision-momentum';
+      projectileGroup.visible = p.mode === 'projectile-gravity' || (p.mode as string) === 'projectile-motion';
       springGroup.visible = p.mode === 'spring-hooke';
+      pendulumGroup.visible = p.mode === 'pendulum-harmonic';
+      stokesGroup.visible = p.mode === 'stokes-viscosity';
+      wheatstoneGroup.visible = p.mode === 'ohm-wheatstone';
+      youngSlitGroup.visible = p.mode === 'optics-young-slit';
+      photoelectricGroup.visible = p.mode === 'photoelectric-planck';
 
+      // 1. Incline update
       if (p.mode === 'newton-incline') {
         const thetaRad = (p.inclineAngle * Math.PI) / 180;
         pivotGroup.rotation.z = thetaRad;
-
-        const strutX = 3.2;
-        const distFromPivot = strutX - -4.6;
-        const strutH = Math.max(0.15, distFromPivot * Math.tan(thetaRad));
+        const strutH = Math.max(0.15, 7.8 * Math.tan(thetaRad));
         supportPillar.scale.set(1, strutH, 1);
-        supportPillar.position.set(strutX, 0.24 + strutH / 2, 0);
-        supportPillar.visible = p.inclineAngle > 1;
+        supportPillar.position.set(3.2, 0.24 + strutH / 2, 0);
 
-        const rawDisp =
-          p.initialVelocity * t + 0.5 * m.acceleration * t * t;
-        const clampedDisp = Math.max(-1.2, Math.min(28, rawDisp));
-        const rampPos = 1.6 + clampedDisp * 0.22;
+        const rawDisp = p.initialVelocity * t + 0.5 * m.acceleration * t * t;
+        const rampPos = 1.6 + Math.max(-1.2, Math.min(28, rawDisp)) * 0.22;
         blockGroup.position.set(rampPos, 0, 0);
+      }
 
-        const scaleFactor = Math.max(
-          0.75,
-          Math.min(1.35, 0.8 + p.mass * 0.018)
-        );
-        massBox.scale.set(scaleFactor, scaleFactor, scaleFactor);
-        massBox.position.y = 0.39 * scaleFactor;
-
-        if (showVec) {
-          const fLen = Math.min(2.6, Math.abs(p.appliedForce) * 0.018);
-          orientAndScaleArrow(
-            arrowApplied,
-            new THREE.Vector3(0, 0.45 * scaleFactor, 0),
-            new THREE.Vector3(Math.sign(p.appliedForce || 1), 0, 0),
-            Math.abs(p.appliedForce) > 0.5 ? Math.max(0.65, fLen) : 0
-          );
-
-          const fkLen = Math.min(2.2, Math.abs(m.frictionForce) * 0.022);
-          orientAndScaleArrow(
-            arrowFriction,
-            new THREE.Vector3(0, 0.15, 0.45),
-            new THREE.Vector3(Math.sign(m.frictionForce || -1), 0, 0),
-            Math.abs(m.frictionForce) > 0.5 ? Math.max(0.55, fkLen) : 0
-          );
-
-          const nLen = Math.min(2.3, Math.max(0.7, m.normalForce * 0.012));
-          orientAndScaleArrow(
-            arrowNormal,
-            new THREE.Vector3(0, 0.78 * scaleFactor, 0),
-            new THREE.Vector3(0, 1, 0),
-            nLen
-          );
-
-          const wLen = Math.min(2.4, Math.max(0.75, m.weightForce * 0.012));
-          orientAndScaleArrow(
-            arrowWeight,
-            new THREE.Vector3(0, 0.2, 0),
-            new THREE.Vector3(-Math.sin(thetaRad), -Math.cos(thetaRad), 0),
-            wLen
-          );
-        } else {
-          arrowApplied.visible = false;
-          arrowFriction.visible = false;
-          arrowNormal.visible = false;
-          arrowWeight.visible = false;
-        }
-      } else if (p.mode === 'projectile-gravity') {
+      // 2. Projectile update
+      else if (p.mode === 'projectile-gravity' || (p.mode as string) === 'projectile-motion') {
         const maxRange = Math.max(35, m.projectileRange * 1.1);
-        const maxH = Math.max(18, m.maxProjectileHeight * 1.15);
         const scaleX = 10.4 / maxRange;
-        const scaleY = 4.8 / maxH;
-
-        const towerH = Math.max(0.25, p.initialHeight * scaleY);
-        launchTower.scale.set(1, towerH, 1);
-        launchTower.position.set(-5.2, towerH / 2, 0);
-        cannonPivot.position.set(-5.2, towerH + 0.15, 0);
+        const scaleY = 4.8 / Math.max(18, m.maxProjectileHeight * 1.15);
         cannonPivot.rotation.z = (p.launchAngle * Math.PI) / 180;
-
-        // Update 3D trajectory arch points
-        const totalT = Math.max(0.5, m.timeOfFlight);
-        const posAttr = trajGeo.getAttribute(
-          'position'
-        ) as THREE.BufferAttribute;
-        for (let i = 0; i <= 60; i++) {
-          const tSample = (i / 60) * totalT;
-          const pt = evaluateKinematicsAtTime(p, tSample);
-          posAttr.setXYZ(
-            i,
-            -5.2 + pt.positionX * scaleX,
-            0.25 + pt.positionY * scaleY,
-            0
-          );
-        }
-        posAttr.needsUpdate = true;
-
         const curX = -5.2 + inst.positionX * scaleX;
         const curY = 0.25 + inst.positionY * scaleY;
         projectileBall.position.set(curX, curY, 0);
         targetRing.position.set(-5.2 + m.projectileRange * scaleX, 0.03, 0);
+      }
 
-        if (showVec) {
-          orientAndScaleArrow(
-            projVelXArrow,
-            new THREE.Vector3(curX, curY, 0),
-            new THREE.Vector3(Math.sign(inst.velocityX || 1), 0, 0),
-            Math.min(2.2, Math.abs(inst.velocityX) * 0.08)
-          );
-          orientAndScaleArrow(
-            projVelYArrow,
-            new THREE.Vector3(curX, curY, 0),
-            new THREE.Vector3(0, Math.sign(inst.velocityY || -1), 0),
-            Math.min(2.2, Math.abs(inst.velocityY) * 0.08)
-          );
-        } else {
-          projVelXArrow.visible = false;
-          projVelYArrow.visible = false;
-        }
-      } else if (p.mode === 'orbital-gravity') {
-        const sep = Math.min(4.8, Math.max(1.5, p.separationDistance * 0.12));
-        const r1Scale = Math.min(1.35, Math.max(0.65, 0.6 + p.mass * 0.02));
-        const r2Scale = Math.min(
-          1.6,
-          Math.max(0.8, 0.55 + Math.log10(Math.max(10, p.secondaryMass)) * 0.25)
-        );
-
-        gravSphere1.scale.setScalar(r1Scale);
-        gravSphere2.scale.setScalar(r2Scale);
-        gravSphere1.position.set(-sep, 1.8, 0);
-        gravSphere2.position.set(sep, 1.8, 0);
-
-        tetherRod.scale.set(1, sep * 2, 1);
-        tetherRod.position.set(0, 1.8, 0);
-
-        if (showVec) {
-          const arrowLen = Math.min(
-            2.2,
-            Math.max(0.75, Math.log10(m.universalGravityForce + 1.2) * 1.1)
-          );
-          orientAndScaleArrow(
-            gravArrow1,
-            new THREE.Vector3(-sep + 0.75 * r1Scale, 1.8, 0),
-            new THREE.Vector3(1, 0, 0),
-            arrowLen
-          );
-          orientAndScaleArrow(
-            gravArrow2,
-            new THREE.Vector3(sep - 0.95 * r2Scale, 1.8, 0),
-            new THREE.Vector3(-1, 0, 0),
-            arrowLen
-          );
-        } else {
-          gravArrow1.visible = false;
-          gravArrow2.visible = false;
-        }
-      } else if (p.mode === 'collision-momentum') {
-        const collisionTime = 1.5;
-        const dtImpact = t - collisionTime;
-        const r1 = Math.min(1.25, Math.max(0.7, 0.65 + p.mass * 0.02));
-        const r2 = Math.min(
-          1.25,
-          Math.max(0.7, 0.65 + p.collisionMass2 * 0.02)
-        );
-        colSphere1.scale.setScalar(r1);
-        colSphere2.scale.setScalar(r2);
-
-        const rad1 = 0.62 * r1;
-        const rad2 = 0.62 * r2;
-        const speedScale = 0.28;
-
-        let x1 = 0;
-        let x2 = 0;
-        if (dtImpact <= 0) {
-          x1 = -rad1 + p.initialVelocity * dtImpact * speedScale;
-          x2 = rad2 + p.velocity2Initial * dtImpact * speedScale;
-        } else {
-          x1 = -rad1 + m.v1Final * dtImpact * speedScale;
-          x2 = rad2 + m.v2Final * dtImpact * speedScale;
-        }
-        x1 = Math.max(-5.6, Math.min(5.2, x1));
-        x2 = Math.max(-5.2, Math.min(5.6, x2));
-
-        const y1 = 0.81 + rad1;
-        const y2 = 0.81 + rad2;
-        colSphere1.position.set(x1, y1, 0);
-        colSphere2.position.set(x2, y2, 0);
-
-        const impactProximity = Math.max(0, 1 - Math.abs(dtImpact) * 4.5);
-        (impactFlashRing.material as THREE.MeshBasicMaterial).opacity =
-          impactProximity * 0.85;
-        impactFlashRing.scale.setScalar(0.6 + (1 - impactProximity) * 0.9);
-
-        if (showVec) {
-          const v1Now = dtImpact <= 0 ? p.initialVelocity : m.v1Final;
-          const v2Now = dtImpact <= 0 ? p.velocity2Initial : m.v2Final;
-          orientAndScaleArrow(
-            colVel1Arrow,
-            new THREE.Vector3(x1, y1 + rad1 + 0.15, 0),
-            new THREE.Vector3(Math.sign(v1Now || 1), 0, 0),
-            Math.min(2.4, Math.abs(v1Now) * 0.16)
-          );
-          orientAndScaleArrow(
-            colVel2Arrow,
-            new THREE.Vector3(x2, y2 + rad2 + 0.15, 0),
-            new THREE.Vector3(Math.sign(v2Now || -1), 0, 0),
-            Math.min(2.4, Math.abs(v2Now) * 0.16)
-          );
-        } else {
-          colVel1Arrow.visible = false;
-          colVel2Arrow.visible = false;
-        }
-      } else if (p.mode === 'spring-hooke') {
-        const eqX = 0.5;
-        const massX = eqX + inst.positionX * 2.1;
+      // 3. Spring update
+      else if (p.mode === 'spring-hooke') {
+        const massX = 0.5 + inst.positionX * 2.1;
         springMassBlock.position.set(massX, 0.87, 0);
-
-        const startX = -4.95;
-        const endX = massX - 0.65;
-        const span = Math.max(0.8, endX - startX);
-
-        const posAttr = coilGeo.getAttribute(
-          'position'
-        ) as THREE.BufferAttribute;
-        const turns = 12;
-        for (let i = 0; i < COIL_POINTS; i++) {
-          const frac = i / (COIL_POINTS - 1);
-          const angle = frac * turns * Math.PI * 2;
-          const sx = startX + frac * span;
-          const sy = 0.87 + 0.36 * Math.sin(angle);
-          const sz = 0.36 * Math.cos(angle);
-          posAttr.setXYZ(i, sx, sy, sz);
-        }
-        posAttr.needsUpdate = true;
-
+        const span = Math.max(0.8, massX - 0.65 - -4.95);
         springRings.forEach((ring, idx) => {
-          const frac = (idx + 0.5) / springRings.length;
-          ring.position.set(startX + frac * span, 0.87, 0);
+          ring.position.set(-4.95 + ((idx + 0.5) / springRings.length) * span, 0.87, 0);
         });
+      }
 
+      // 4. Pendulum update
+      else if (p.mode === 'pendulum-harmonic') {
+        const L = Math.max(0.3, p.pendulumLength ?? 1.2);
+        const thetaRad = inst.pendulumAngleRad ?? ((p.pendulumAngle ?? 25) * Math.PI) / 180 * Math.cos(2.8 * t);
+        pendPivotGroup.rotation.z = thetaRad;
+        pendRod.scale.set(1, L * 1.5, 1);
+        pendRod.position.set(0, -L * 0.75, 0);
+        pendBob.position.set(0, -L * 1.5, 0);
+      }
+
+      // 5. Stokes update
+      else if (p.mode === 'stokes-viscosity') {
+        const vt = m.stokesTerminalVelocity ?? 0.8;
+        const yPos = 4.6 - ((t * vt) % 3.6);
+        stokesSphere.position.y = yPos;
+        const rScale = (p.sphereRadius ?? 5) / 10;
+        stokesSphere.scale.setScalar(rScale);
         if (showVec) {
-          const fRestoring = -p.springConstantK * inst.positionX;
-          orientAndScaleArrow(
-            springForceArrow,
-            new THREE.Vector3(massX, 1.65, 0),
-            new THREE.Vector3(Math.sign(fRestoring || -1), 0, 0),
-            Math.min(2.5, Math.abs(fRestoring) * 0.015)
-          );
-          orientAndScaleArrow(
-            springVelArrow,
-            new THREE.Vector3(massX, 1.25, 0.72),
-            new THREE.Vector3(Math.sign(inst.velocityX || 1), 0, 0),
-            Math.min(2.2, Math.abs(inst.velocityX) * 0.25)
-          );
-        } else {
-          springForceArrow.visible = false;
-          springVelArrow.visible = false;
+          orientAndScaleArrow(stokesGravArrow, new THREE.Vector3(0, yPos, 0), new THREE.Vector3(0, -1, 0), 1.2);
+          orientAndScaleArrow(stokesDragArrow, new THREE.Vector3(0, yPos, 0), new THREE.Vector3(0, 1, 0), Math.min(1.8, (m.stokesDragForce ?? 0.05) * 8));
         }
       }
 
-      // Update Phase 3 3D laser cursors for remote lab partners
+      // 6. Wheatstone update
+      else if (p.mode === 'ohm-wheatstone') {
+        const ig = m.galvanometerCurrent ?? 0;
+        const needleAngle = Math.max(-0.6, Math.min(0.6, (ig / 50) * Math.PI * 0.4));
+        galvoNeedle.rotation.y = needleAngle;
+      }
+
+      // 7. Young's slit update
+      else if (p.mode === 'optics-young-slit') {
+        const wl = p.lightWavelength ?? 532;
+        const beamColor = wavelengthToHex(wl);
+        (laserBeamLine.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
+
+        // Redraw interference fringes on screen canvas
+        const ctx = fringeCanvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#050811';
+          ctx.fillRect(0, 0, fringeCanvas.width, fringeCanvas.height);
+          const fringeSpacing = Math.max(8, (m.fringeSpacingMm ?? 3.5) * 8);
+          const rgbHex = beamColor.toString(16).padStart(6, '0');
+          for (let x = 0; x < fringeCanvas.width; x++) {
+            const intensity = Math.pow(Math.cos(((x - 256) / fringeSpacing) * Math.PI), 2);
+            ctx.fillStyle = `#${rgbHex}`;
+            ctx.globalAlpha = intensity;
+            ctx.fillRect(x, 0, 1, fringeCanvas.height);
+          }
+          ctx.globalAlpha = 1.0;
+          fringeTexture.needsUpdate = true;
+        }
+      }
+
+      // 8. Photoelectric update
+      else if (p.mode === 'photoelectric-planck') {
+        const emitted = m.photoelectricEmitted ?? true;
+        peParticles.forEach((particle, idx) => {
+          if (!emitted) {
+            particle.visible = false;
+            return;
+          }
+          particle.visible = true;
+          const pFrac = ((t * 1.5 + idx / PE_PARTICLES_COUNT) % 1.0);
+          const stopV = p.stoppingPotential ?? 1.5;
+          const maxKe = m.photoelectricMaxKe ?? 1.2;
+          // If stopped, parabolic turnaround
+          if (stopV > maxKe) {
+            const turnX = -1.1 + (maxKe / stopV) * 2.0;
+            const x = pFrac < 0.5 ? -1.1 + (turnX - -1.1) * (pFrac * 2) : turnX - (turnX - -1.1) * ((pFrac - 0.5) * 2);
+            particle.position.set(x, 1.6 + Math.sin(idx * 2) * 0.35, Math.cos(idx * 2) * 0.35);
+          } else {
+            particle.position.set(-1.1 + pFrac * 2.2, 1.6 + Math.sin(idx) * 0.3, Math.cos(idx) * 0.3);
+          }
+        });
+      }
+
+      // Update cursors
       cursorManager.update(
         latestRef.current.remoteCursors || {},
         camera.position
@@ -893,102 +952,79 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
       controls.update();
       renderer.render(scene, camera);
-      afterDraw(tick);
+      rafId = requestAnimationFrame(tick);
     };
 
     rafId = requestAnimationFrame(tick);
 
-    // Raycast surface interaction for multiplayer laser pointer
-    const raycaster = new THREE.Raycaster();
-    const pointerNdc = new THREE.Vector2();
-    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    const planeIntersect = new THREE.Vector3();
-
+    // Pointer move & Drag Handler
     const handlePointerMove = (e: PointerEvent) => {
-      if (!latestRef.current.onEmitCursor) return;
       const rect = renderer.domElement.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 
-      pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(pointerNdc, camera);
-
-      const targets: THREE.Object3D[] = [];
-      scene.traverse((obj) => {
-        if (
-          obj instanceof THREE.Mesh &&
-          obj.visible &&
-          obj.name !== 'SpatialLaserCursors' &&
-          !obj.name.startsWith('cursor-') &&
-          obj.name !== 'shaft' &&
-          obj.name !== 'head'
-        ) {
-          targets.push(obj);
+      if (isDragging && dragParamKey && latestRef.current.onUpdateParam) {
+        const deltaX = e.clientX - dragStartPos.x;
+        const deltaY = dragStartPos.y - e.clientY;
+        const sensitivity = (dragConfig.max - dragConfig.min) / 300;
+        const delta = (Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY) * sensitivity;
+        let nextVal = dragStartVal + delta;
+        nextVal = Math.max(dragConfig.min, Math.min(dragConfig.max, nextVal));
+        if (dragConfig.step >= 1) {
+          nextVal = Math.round(nextVal / dragConfig.step) * dragConfig.step;
+        } else {
+          nextVal = Number((Math.round(nextVal / dragConfig.step) * dragConfig.step).toFixed(2));
         }
-      });
-
-      const intersects = raycaster.intersectObjects(targets, false);
-      let hitPos: [number, number, number] | null = null;
-      let hitNormal: [number, number, number] | undefined = undefined;
-      let hoveredName: string | undefined = undefined;
-
-      if (intersects.length > 0) {
-        const hit = intersects[0];
-        hitPos = [
-          Number(hit.point.x.toFixed(3)),
-          Number(hit.point.y.toFixed(3)),
-          Number(hit.point.z.toFixed(3)),
-        ];
-        if (hit.face) {
-          hitNormal = [
-            Number(hit.face.normal.x.toFixed(3)),
-            Number(hit.face.normal.y.toFixed(3)),
-            Number(hit.face.normal.z.toFixed(3)),
-          ];
-        }
-        if (hit.object.name && hit.object.name !== 'Lantai Laboratorium') {
-          hoveredName = hit.object.name;
-        } else if (
-          hit.object.parent &&
-          hit.object.parent.name &&
-          !hit.object.parent.name.startsWith('cursor') &&
-          hit.object.parent.name !== 'SpatialLaserCursors'
-        ) {
-          hoveredName = hit.object.parent.name;
-        }
-      } else {
-        const hit = raycaster.ray.intersectPlane(groundPlane, planeIntersect);
-        if (hit) {
-          hitPos = [Number(hit.x.toFixed(3)), 0.05, Number(hit.z.toFixed(3))];
-        }
+        latestRef.current.onUpdateParam(dragParamKey, nextVal);
+        setDragToast({ label: dragConfig.label, value: `${nextVal}` });
+        return;
       }
 
-      if (hitPos) {
-        latestRef.current.onEmitCursor(hitPos, hitNormal, hoveredName);
+      // Hover check for pointer cursor
+      dragMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      dragRaycaster.setFromCamera(dragMouse, camera);
+      const hits = dragRaycaster.intersectObjects(getInteractiveMeshes(), false);
+      if (hits.length > 0) {
+        renderer.domElement.style.cursor = 'grab';
+      } else {
+        renderer.domElement.style.cursor = 'default';
+      }
+
+      if (latestRef.current.onEmitCursor) {
+        const intersects = dragRaycaster.intersectObjects(scene.children, true);
+        if (intersects.length > 0) {
+          const hit = intersects[0];
+          latestRef.current.onEmitCursor(
+            [hit.point.x, hit.point.y, hit.point.z],
+            hit.face ? [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z] : undefined,
+            hit.object.name
+          );
+        }
       }
     };
 
+    renderer.domElement.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointerup', handlePointerUp);
     renderer.domElement.addEventListener('pointermove', handlePointerMove);
 
     const handleResize = () => {
       if (!container) return;
-      const w = container.clientWidth || window.innerWidth || 960;
-      const h = container.clientHeight || window.innerHeight || 600;
+      const w = container.clientWidth || 960;
+      const h = container.clientHeight || 500;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
     const resizeObserver = new ResizeObserver(() => handleResize());
     resizeObserver.observe(container);
-    window.addEventListener('resize', handleResize);
 
     return () => {
       disposed = true;
       cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
+      renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointerup', handlePointerUp);
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('resize', handleResize);
       cursorManager.dispose();
       controls.dispose();
       renderer.dispose();
@@ -1005,10 +1041,18 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       <div
         ref={mountRef}
         data-testid="physics-simulation-canvas"
-        className="w-full h-full block cursor-grab active:cursor-grabbing"
+        className="w-full h-full block"
       />
 
-      {/* Top-Center Compact 3D Camera & Vector Legend Pill */}
+      {/* Interactive Raycaster Drag Toast */}
+      {dragToast && (
+        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full backdrop-blur-xl bg-sky-950/90 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 animate-pulse text-xs font-mono text-sky-200">
+          <span className="h-2 w-2 rounded-full bg-sky-400" />
+          <span>Menyetel 3D: {dragToast.label} = <b className="text-white">{dragToast.value}</b></span>
+        </div>
+      )}
+
+      {/* Top Camera Controls */}
       <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full backdrop-blur-xl bg-slate-900/75 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
         <span className="text-[10px] font-mono uppercase tracking-wider text-sky-400 font-semibold mr-1">
           Kamera 3D:
@@ -1038,19 +1082,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           <div className="hidden xl:flex items-center gap-2 pl-2 ml-1 border-l border-white/15 text-[10px] font-mono text-slate-300">
             <span className="flex items-center gap-1">
               <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
-              F/vₓ
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-sky-400" />
-              N
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
-              fk/vᵧ
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-rose-400" />
-              W/Fp
+              Gaya/Vektor
             </span>
           </div>
         )}

@@ -47,18 +47,33 @@ interface ConversationTurn {
 const READABLE_TOPIC_NAME: Record<string, string> = {
   'newton-incline': 'Hukum II Newton & Bidang Miring',
   'projectile-gravity': 'Gerak Parabola & Gravitasi',
+  'projectile-motion': 'Gerak Parabola (Projektil)',
   'collision-momentum': 'Tumbukan & Momentum',
   'spring-hooke': 'Osilasi Pegas Hooke',
   'orbital-gravity': 'Gravitasi Dua Massa',
+  'gravity-orbital': 'Gravitasi Universal & Orbit',
+  'pendulum-harmonic': 'Bandul Sederhana Harmonis',
+  'stokes-viscosity': 'Viskositas Fluida & Hukum Stokes',
+  'ohm-wheatstone': 'Hukum Ohm & Jembatan Wheatstone',
+  'optics-young-slit': 'Interferensi Celah Ganda Young',
+  'photoelectric-planck': 'Efek Fotolistrik & Konstanta Planck',
   'thermo-calorimetry': 'Termokimia & Kalorimetri',
   'acid-base-titration': 'Titrasi Asam-Basa',
   'electrochemistry-cell': 'Sel Elektrokimia Galvani',
+  'redox-electrochemistry': 'Sel Volta & Elektrokimia',
+  'ideal-gas-boyle': 'Hukum Gas Ideal & Kompresi',
+  'reaction-kinetics-arrhenius': 'Kinetika Laju Reaksi & Arrhenius',
+  'spectrophotometry-beer': 'Spektrofotometri UV-Vis & Beer',
   'photosynthesis-ingenhousz': 'Fotosintesis Ingenhousz',
   'enzyme-catalase': 'Kinetika Enzim Katalase',
   'osmosis-plasmolysis': 'Osmosis & Plasmolisis Sel',
   'solar-kepler': 'Hukum Orbit Kepler',
   'milkyway-galaxy': 'Rotasi Galaksi Bima Sakti',
-  'stellar-exoplanet': 'Spektrum Bintang & Transit Eksoplanet',
+  'milky-way-rotation': 'Rotasi Galaksi & Materi Gelap',
+  'stellar-exoplanet': 'Spektrum Bintang & Transit',
+  'exoplanet-transit': 'Kurva Transit Eksoplanet',
+  'stellar-wien-spectrum': 'Hukum Wien & Spektroskopi',
+  'hubble-expansion': 'Ekspansi Hubble & Redshift',
 };
 
 export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
@@ -148,20 +163,54 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
 
     let structuredResult: DrLabMuStructuredResponse | null = null;
 
+    // Try free-chat AI endpoint first
     try {
-      const res = await fetch('/api/dr-labmu/ask', {
+      const res = await fetch('/api/ai/dr-labmu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telemetry: payload }),
+        body: JSON.stringify({
+          message: queryToUse,
+          history: domainHistory.slice(0, 4).map((turn) => ({
+            role: 'model',
+            text: turn.response.observation + ' ' + turn.response.socraticQuestion,
+          })),
+          telemetry: payload,
+        }),
       });
+
       if (res.ok) {
         const data = await res.json();
-        if (data?.response?.observation && data?.response?.socraticQuestion) {
-          structuredResult = data.response as DrLabMuStructuredResponse;
+        if (data?.reply) {
+          structuredResult = {
+            observation: data.reply,
+            dataHighlight: `Instrumen ${readableTopic} (${payload.educationLevel}): Nilai R² saat ini ${payload.analytics.rSquared}.`,
+            socraticQuestion: 'Bagaimana hasil amatan Anda bila parameter diubah sedikit lagi?',
+            detectedTrigger: 'concept-analogy',
+            formattedText: `💡 ${data.reply}\n\n🔍 Sorotan: Nilai R² = ${payload.analytics.rSquared}`,
+          };
         }
       }
     } catch {
-      // Fallback to local Socratic engine
+      // fallback
+    }
+
+    // Try structured endpoint if free-chat failed
+    if (!structuredResult) {
+      try {
+        const res = await fetch('/api/dr-labmu/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telemetry: payload }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.response?.observation && data?.response?.socraticQuestion) {
+            structuredResult = data.response as DrLabMuStructuredResponse;
+          }
+        }
+      } catch {
+        // Fallback to local Socratic engine
+      }
     }
 
     if (!structuredResult) {
@@ -263,6 +312,13 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                     💡 {latestTurn.response.socraticQuestion}
                   </div>
                 </div>
+
+                {isLoading && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-2xl rounded-tl-sm bg-slate-800/90 border border-sky-500/30 text-sky-300 text-[11px] animate-pulse">
+                    <Sparkles className="w-3.5 h-3.5 animate-spin text-sky-400" />
+                    <span>Dr. LabMu sedang menganalisis instrumen lab Anda...</span>
+                  </div>
+                )}
               </div>
 
               {/* Quick Socratic Prompts */}

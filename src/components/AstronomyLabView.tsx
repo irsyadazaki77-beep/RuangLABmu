@@ -10,6 +10,8 @@ import {
   ShieldCheck,
   Sliders,
   Compass,
+  HelpCircle,
+  CheckCircle,
 } from 'lucide-react';
 import {
   AstronomyParams,
@@ -39,6 +41,11 @@ import {
   FormulaToken,
 } from './ui/InteractiveFormulaCard';
 import { FloatingLabAnalyticsDrawer } from './FloatingLabAnalyticsDrawer';
+import {
+  MysterySampleChallenge,
+  MysterySubmissionResult,
+  evaluateMysterySubmission,
+} from '../utils/mysteryChallengeEngine';
 
 interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -67,6 +74,8 @@ interface AstronomyLabViewProps {
   onSubmitQuizScore?: (score: number, correctCount: number) => void;
   onProceedToAnalysis?: () => void;
   onBackToCatalog?: () => void;
+  activeMysteryChallenge?: MysterySampleChallenge | null;
+  onSubmitMysteryExam?: (studentName: string, result: MysterySubmissionResult, title: string) => void;
 }
 
 export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
@@ -85,12 +94,18 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   onSubmitQuizScore,
   onProceedToAnalysis,
   onBackToCatalog,
+  activeMysteryChallenge,
+  onSubmitMysteryExam,
 }) => {
   const [isRunning, setIsRunning] = useState<boolean>(true);
   const [simTime, setSimTime] = useState<number>(0);
   const [leftDockCollapsed, setLeftDockCollapsed] = useState<boolean>(false);
   const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
+
+  // Mystery Sample Exam State
+  const [mysteryGuessInput, setMysteryGuessInput] = useState<string>('');
+  const [mysteryFeedbackResult, setMysteryFeedbackResult] = useState<MysterySubmissionResult | null>(null);
 
   const astronomyModules = getExperimentsByDomain('astronomi');
   const [preLabModalOpen, setPreLabModalOpen] = useState<boolean>(false);
@@ -110,7 +125,11 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
       ? 'solar-kepler'
       : params.mode === 'milkyway-galaxy'
       ? 'milky-way-rotation'
-      : 'exoplanet-transit';
+      : params.mode === 'stellar-exoplanet'
+      ? 'exoplanet-transit'
+      : params.mode === 'stellar-wien-spectrum'
+      ? 'stellar-wien-spectrum'
+      : 'hubble-expansion';
 
   const currentModule =
     astronomyModules.find((m) => m.id === currentAstronomyModuleId) ||
@@ -143,8 +162,12 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
       onChangeParams((p) => ({ ...p, mode: 'solar-kepler' }));
     } else if (expId === 'milky-way-rotation') {
       onChangeParams((p) => ({ ...p, mode: 'milkyway-galaxy' }));
-    } else {
+    } else if (expId === 'exoplanet-transit') {
       onChangeParams((p) => ({ ...p, mode: 'stellar-exoplanet' }));
+    } else if (expId === 'stellar-wien-spectrum') {
+      onChangeParams((p) => ({ ...p, mode: 'stellar-wien-spectrum' }));
+    } else if (expId === 'hubble-expansion') {
+      onChangeParams((p) => ({ ...p, mode: 'hubble-expansion' }));
     }
     const found = astronomyModules.find((m) => m.id === expId);
     if (found) setModalExperiment(found);
@@ -177,6 +200,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
         ? `Orbit Hukum Kepler — ${activePlanet.name} (a = ${params.customSemiMajorAxisAu} AU)`
         : params.mode === 'milkyway-galaxy'
         ? `Kurva Rotasi Galaksi Bima Sakti (R = ${params.galactocentricRadiusKpc} kpc)`
+        : params.mode === 'stellar-wien-spectrum'
+        ? `Hukum Pergeseran Wien — Bintang ${metrics.spectralClass} (T = ${params.starEffectiveTempK} K)`
+        : params.mode === 'hubble-expansion'
+        ? `Hukum Ekspansi Hubble — Galaksi (d = ${params.galaxyDistanceMpc} Mpc)`
         : `Diagram H-R Bintang Kelas ${metrics.spectralClass} & Transit Eksoplanet`;
 
     const summary =
@@ -184,6 +211,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
         ? `Planet=${activePlanet.name}, a=${params.customSemiMajorAxisAu} AU, e=${params.customEccentricity}, M*=${params.centralStarMassSolar} M☉`
         : params.mode === 'milkyway-galaxy'
         ? `R=${params.galactocentricRadiusKpc} kpc, Fraksi DM=${params.darkMatterHaloFraction}, Sgr A*=${params.sgrAStarMassMillionSolar}×10⁶ M☉`
+        : params.mode === 'stellar-wien-spectrum'
+        ? `T_eff=${params.starEffectiveTempK} K, R*=${params.starRadiusSolar} R☉, λ_max=${metrics.peakWavelengthNm} nm, Kelas ${metrics.spectralClass}`
+        : params.mode === 'hubble-expansion'
+        ? `d=${params.galaxyDistanceMpc} Mpc, H₀=${params.hubbleConstantH0} km/s/Mpc, v=${metrics.recessionVelocityKms} km/s, z=${metrics.redshiftZ}`
         : `T_eff=${params.starEffectiveTempK} K, R*=${params.starRadiusSolar} R☉, Rp=${params.exoplanetRadiusEarth} R⊕, d=${params.exoplanetOrbitAu} AU`;
 
     const keyMetrics: Record<string, number | string> =
@@ -198,6 +229,20 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
             'v Observasi (DM)': `${metrics.observedDarkMatterVelocityKms} km/s`,
             'v Keplerian': `${metrics.keplerianVelocityKms} km/s`,
             'Massa M(<R)': `${metrics.enclosedMassBillionSolar}×10⁹ M☉`,
+          }
+        : params.mode === 'stellar-wien-spectrum'
+        ? {
+            'Panjang Gelombang Puncak': `${metrics.peakWavelengthNm} nm`,
+            'Kelas Spektral': metrics.spectralClass,
+            'Fluks Permukaan': `${metrics.surfaceFluxWPerM2?.toExponential(2)} W/m²`,
+            'Luminositas L': `${metrics.stellarLuminositySolar} L☉`,
+          }
+        : params.mode === 'hubble-expansion'
+        ? {
+            'Kecepatan Resesi (v)': `${metrics.recessionVelocityKms} km/s`,
+            'Pergeseran Merah (z)': metrics.redshiftZ ?? 0,
+            'Waktu Hubble (t_H)': `${metrics.hubbleAgeBillionYears} Miliar Tahun`,
+            'Jarak Galaksi (d)': `${params.galaxyDistanceMpc} Mpc`,
           }
         : {
             'Luminositas L': `${metrics.stellarLuminositySolar} L☉`,
@@ -220,6 +265,18 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
             y1: metrics.observedDarkMatterVelocityKms,
             y2: metrics.keplerianVelocityKms,
           }
+        : params.mode === 'stellar-wien-spectrum'
+        ? {
+            x: params.starEffectiveTempK,
+            y1: metrics.peakWavelengthNm ?? 500,
+            y2: metrics.stellarLuminositySolar,
+          }
+        : params.mode === 'hubble-expansion'
+        ? {
+            x: params.galaxyDistanceMpc ?? 100,
+            y1: metrics.recessionVelocityKms ?? 7000,
+            y2: metrics.redshiftZ ?? 0.02,
+          }
         : {
             x: params.exoplanetRadiusEarth,
             y1: metrics.transitDepthPct,
@@ -240,6 +297,56 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
     subtitle: string;
     tokens: FormulaToken[];
   } = (() => {
+    if (params.mode === 'stellar-wien-spectrum') {
+      return {
+        title: 'Hukum Pergeseran Wien (Radiasi Bintang)',
+        subtitle: `λ_max · T = b · Tetapan Wien b = 2.898 × 10⁻³ m·K`,
+        tokens: [
+          { symbol: 'λ_max', value: metrics.peakWavelengthNm, unit: 'nm', color: '#818cf8' },
+          { symbol: '=' },
+          { symbol: 'b' },
+          { symbol: '/' },
+          {
+            symbol: 'T_eff',
+            paramKey: 'starEffectiveTempK',
+            value: params.starEffectiveTempK,
+            min: 2500,
+            max: 35000,
+            unit: 'K',
+            color: '#f59e0b',
+          },
+        ],
+      };
+    }
+    if (params.mode === 'hubble-expansion') {
+      return {
+        title: 'Hukum Ekspansi Alam Semesta Hubble',
+        subtitle: `v = H₀ · d · Pergeseran Merah z = v/c`,
+        tokens: [
+          { symbol: 'v', value: metrics.recessionVelocityKms, unit: 'km/s', color: '#10b981' },
+          { symbol: '=' },
+          {
+            symbol: 'H₀',
+            paramKey: 'hubbleConstantH0',
+            value: params.hubbleConstantH0 ?? 70,
+            min: 50,
+            max: 100,
+            unit: 'km/s/Mpc',
+            color: '#818cf8',
+          },
+          { symbol: '·' },
+          {
+            symbol: 'd',
+            paramKey: 'galaxyDistanceMpc',
+            value: params.galaxyDistanceMpc ?? 100,
+            min: 5,
+            max: 300,
+            unit: 'Mpc',
+            color: '#38bdf8',
+          },
+        ],
+      };
+    }
     if (params.mode === 'milkyway-galaxy') {
       return {
         title: 'Kecepatan Rotasi Galaksi & Materi Gelap',
@@ -375,6 +482,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
           simTime={simTime}
           remoteCursors={remoteCursors}
           onEmitCursor={onEmitCursor}
+          onUpdateParam={(key, val) => onChangeParams((p) => ({ ...p, [key]: val }))}
         />
       </div>
 
@@ -409,6 +517,12 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
             </option>
             <option value="exoplanet-transit" className="bg-slate-900 text-white">
               Fotometri Transit Eksoplanet & Diagram H-R
+            </option>
+            <option value="stellar-wien-spectrum" className="bg-slate-900 text-white">
+              Spektroskopi Bintang & Hukum Wien
+            </option>
+            <option value="hubble-expansion" className="bg-slate-900 text-white">
+              Ekspansi Alam Semesta & Hukum Hubble
             </option>
           </select>
         </div>
@@ -457,6 +571,94 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                 </button>
               </div>
 
+              {/* Mystery Sample Exam Banner / Submission Card */}
+              {activeMysteryChallenge && activeMysteryChallenge.domain === 'Astronomi' && (
+                <div className="bg-indigo-950/40 border border-indigo-500/40 rounded-xl p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-300">
+                      <HelpCircle className="w-3.5 h-3.5 text-indigo-400" />
+                      Ujian Pengamatan Misterius
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      {activeMysteryChallenge.codename}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-indigo-200/90 leading-relaxed">
+                    {activeMysteryChallenge.storyDescription}
+                  </p>
+                  <div className="bg-slate-950/80 rounded-lg p-2 border border-indigo-500/20 text-[11px] font-mono text-slate-300">
+                    <div className="text-indigo-400 font-bold">Parameter Tersembunyi:</div>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <span>{activeMysteryChallenge.hiddenParamLabel}:</span>
+                      <span className="text-rose-400 font-bold">??? (Sampel Misterius)</span>
+                    </div>
+                  </div>
+
+                  {/* Submission Form */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const guess = parseFloat(mysteryGuessInput);
+                      if (isNaN(guess)) return;
+                      const res = evaluateMysterySubmission(activeMysteryChallenge, guess);
+                      setMysteryFeedbackResult(res);
+                      if (onSubmitMysteryExam) {
+                        onSubmitMysteryExam(activeStudentName, res, activeMysteryChallenge.title);
+                      }
+                      if (res.passed) labSound.playRecordSuccess();
+                      else labSound.playClick(300);
+                    }}
+                    className="space-y-2 pt-1"
+                  >
+                    <div>
+                      <label className="text-[10px] uppercase font-mono text-slate-400 block mb-1">
+                        Masukkan Hasil Analisis Pengamatan ({activeMysteryChallenge.hiddenParamUnit})
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        value={mysteryGuessInput}
+                        onChange={(e) => setMysteryGuessInput(e.target.value)}
+                        placeholder={`Contoh: ${(activeMysteryChallenge.actualHiddenValue * 0.98).toFixed(1)}`}
+                        className="w-full bg-slate-950 border border-white/20 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full py-1.5 px-3 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs shadow-md transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Kirim Hasil Pengamatan Misterius
+                    </button>
+                  </form>
+
+                  {/* Immediate Feedback Result */}
+                  {mysteryFeedbackResult && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`p-2.5 rounded-lg border text-xs space-y-1 ${
+                        mysteryFeedbackResult.passed
+                          ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
+                          : 'bg-rose-950/60 border-rose-500/50 text-rose-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold">
+                        <span>{mysteryFeedbackResult.verdict}</span>
+                        <span className="font-mono text-sm">{mysteryFeedbackResult.score}/100</span>
+                      </div>
+                      <div className="text-[11px] opacity-90">
+                        Galat: {mysteryFeedbackResult.errorPercentage}% (Nilai Sebenarnya: {mysteryFeedbackResult.actualValue})
+                      </div>
+                      <p className="text-[10px] opacity-80 pt-1 leading-snug">
+                        {mysteryFeedbackResult.feedbackText}
+                      </p>
+                    </motion.div>
+                  )}
+                </div>
+              )}
+
               {/* SVG Radial Speedometer & Astro Gauges */}
               <div className="grid grid-cols-2 gap-2 justify-items-center bg-slate-950/60 border border-white/10 rounded-xl p-2.5">
                 {params.mode === 'solar-kepler' ? (
@@ -500,6 +702,50 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                       max={300}
                       unit="km/s"
                       color="#f59e0b"
+                    />
+                  </>
+                ) : params.mode === 'stellar-wien-spectrum' ? (
+                  <>
+                    <CircularGaugeMeter
+                      size="sm"
+                      label="Puncak λ_max"
+                      value={metrics.peakWavelengthNm ?? 500}
+                      min={80}
+                      max={1200}
+                      unit="nm"
+                      color="#818cf8"
+                    />
+                    <CircularGaugeMeter
+                      size="sm"
+                      label="Suhu Efektif"
+                      value={params.starEffectiveTempK}
+                      min={2500}
+                      max={35000}
+                      unit="K"
+                      precision={0}
+                      color={metrics.starColorHex}
+                    />
+                  </>
+                ) : params.mode === 'hubble-expansion' ? (
+                  <>
+                    <CircularGaugeMeter
+                      size="sm"
+                      label="Kecepatan (v)"
+                      value={metrics.recessionVelocityKms ?? 7000}
+                      min={0}
+                      max={25000}
+                      unit="km/s"
+                      color="#10b981"
+                    />
+                    <CircularGaugeMeter
+                      size="sm"
+                      label="Redshift (z)"
+                      value={metrics.redshiftZ ?? 0.02}
+                      min={0}
+                      max={0.1}
+                      unit=""
+                      precision={4}
+                      color="#f43f5e"
                     />
                   </>
                 ) : (
@@ -564,6 +810,39 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                       accentColor="#10b981"
                     />
                   </>
+                ) : params.mode === 'stellar-wien-spectrum' ? (
+                  <>
+                    <AnimatedNumberReadout
+                      label="Kelas Spektral"
+                      value={metrics.spectralClass}
+                      unit=""
+                      accentColor="#818cf8"
+                    />
+                    <AnimatedNumberReadout
+                      label="Luminositas"
+                      value={metrics.stellarLuminositySolar}
+                      unit="L☉"
+                      precision={2}
+                      accentColor="#f59e0b"
+                    />
+                  </>
+                ) : params.mode === 'hubble-expansion' ? (
+                  <>
+                    <AnimatedNumberReadout
+                      label="Jarak Galaksi"
+                      value={params.galaxyDistanceMpc ?? 100}
+                      unit="Mpc"
+                      precision={1}
+                      accentColor="#38bdf8"
+                    />
+                    <AnimatedNumberReadout
+                      label="Waktu Hubble"
+                      value={metrics.hubbleAgeBillionYears ?? 14}
+                      unit="Milyar Th"
+                      precision={1}
+                      accentColor="#10b981"
+                    />
+                  </>
                 ) : (
                   <>
                     <AnimatedNumberReadout
@@ -594,6 +873,66 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               />
 
               {/* Mode-Specific Controls */}
+              {params.mode === 'stellar-wien-spectrum' && (
+                <div className="space-y-2.5">
+                  <TactileParameterControl
+                    label="Suhu Efektif Bintang (Teff)"
+                    symbol="T"
+                    value={params.starEffectiveTempK}
+                    min={2500}
+                    max={35000}
+                    step={250}
+                    unit="K"
+                    accentColor="#f59e0b"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'starEffectiveTempK' : null)}
+                    onChange={(v) => onChangeParams((p) => ({ ...p, starEffectiveTempK: v }))}
+                  />
+
+                  <TactileParameterControl
+                    label="Radius Bintang (R*)"
+                    symbol="R*"
+                    value={params.starRadiusSolar}
+                    min={0.2}
+                    max={20.0}
+                    step={0.2}
+                    unit="R☉"
+                    accentColor="#818cf8"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'starRadiusSolar' : null)}
+                    onChange={(v) => onChangeParams((p) => ({ ...p, starRadiusSolar: v }))}
+                  />
+                </div>
+              )}
+
+              {params.mode === 'hubble-expansion' && (
+                <div className="space-y-2.5">
+                  <TactileParameterControl
+                    label="Jarak Galaksi Kosmis (d)"
+                    symbol="d"
+                    value={params.galaxyDistanceMpc ?? 100}
+                    min={5}
+                    max={300}
+                    step={5}
+                    unit="Mpc"
+                    accentColor="#38bdf8"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'galaxyDistanceMpc' : null)}
+                    onChange={(v) => onChangeParams((p) => ({ ...p, galaxyDistanceMpc: v }))}
+                  />
+
+                  <TactileParameterControl
+                    label="Konstanta Hubble (H₀)"
+                    symbol="H₀"
+                    value={params.hubbleConstantH0 ?? 70}
+                    min={50}
+                    max={100}
+                    step={1}
+                    unit="km/s/Mpc"
+                    accentColor="#10b981"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'hubbleConstantH0' : null)}
+                    onChange={(v) => onChangeParams((p) => ({ ...p, hubbleConstantH0: v }))}
+                  />
+                </div>
+              )}
+
               {params.mode === 'solar-kepler' && (
                 <div className="space-y-2.5">
                   <div className="space-y-1">

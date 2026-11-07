@@ -3,17 +3,27 @@ export type PhysicsMode =
   | 'projectile-gravity'
   | 'orbital-gravity'
   | 'collision-momentum'
-  | 'spring-hooke';
+  | 'spring-hooke'
+  | 'pendulum-harmonic'
+  | 'stokes-viscosity'
+  | 'ohm-wheatstone'
+  | 'optics-young-slit'
+  | 'photoelectric-planck';
 
 export type ChemistryMode =
   | 'thermo-calorimetry'
   | 'acid-base-titration'
-  | 'electrochemistry-cell';
+  | 'electrochemistry-cell'
+  | 'ideal-gas-boyle'
+  | 'reaction-kinetics-arrhenius'
+  | 'spectrophotometry-beer';
 
 export type AstronomyMode =
   | 'solar-kepler'
   | 'milkyway-galaxy'
-  | 'stellar-exoplanet';
+  | 'stellar-exoplanet'
+  | 'stellar-wien-spectrum'
+  | 'hubble-expansion';
 
 export type ScienceDomain = 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
 
@@ -36,6 +46,33 @@ export interface PhysicsParams {
   springDisplacement: number; // m (-2.0 to 2.0)
   dampingCoeff: number; // N*s/m (0 - 5)
   mode: PhysicsMode;
+  // Advanced Physics Modules Parameters
+  pendulumLength?: number; // m (0.2 - 2.5)
+  pendulumAngle?: number; // degrees (5 - 60)
+  fluidViscosity?: number; // Pa·s (0.01 - 2.0)
+  fluidViscosityPaS?: number;
+  sphereRadius?: number; // mm (1 - 25)
+  sphereRadiusMm?: number;
+  sphereDensity?: number; // kg/m³
+  sphereDensityKgM3?: number;
+  fluidDensity?: number; // kg/m³
+  fluidDensityKgM3?: number;
+  circuitVoltage?: number; // V (1 - 30)
+  circuitVoltageV?: number;
+  resistorR1?: number; // Ohm (10 - 1000)
+  bridgeR1?: number;
+  resistorR2?: number; // Ohm (10 - 1000)
+  bridgeR2?: number;
+  resistorR3?: number; // Ohm (10 - 1000)
+  bridgeR3?: number;
+  resistorRx?: number; // Ohm (10 - 1000)
+  bridgeRx?: number;
+  slitDistance?: number; // mm (0.05 - 1.0)
+  screenDistance?: number; // m (0.5 - 3.0)
+  lightWavelength?: number; // nm (380 - 750)
+  targetMetalWorkFunction?: number; // eV (2.0 - 5.5)
+  photonFrequency?: number; // x10^14 Hz (4.0 - 15.0)
+  stoppingPotential?: number; // V (0 - 5.0)
 }
 
 export interface PhysicsMetrics {
@@ -63,6 +100,18 @@ export interface PhysicsMetrics {
   springPotentialEnergy: number; // Ep = 0.5*k*x^2 (J)
   oscillationPeriod: number; // T = 2*pi*sqrt(m/k) (s)
   angularFrequency: number; // omega = sqrt(k/m) (rad/s)
+  // Advanced Module Metrics
+  pendulumPeriod?: number; // s
+  pendulumFrequency?: number; // Hz
+  stokesTerminalVelocity?: number; // m/s
+  stokesDragForce?: number; // N
+  circuitCurrent?: number; // A
+  galvanometerCurrent?: number; // mA
+  bridgeBalanced?: boolean;
+  fringeSpacingMm?: number; // mm
+  photoelectricMaxKe?: number; // eV
+  photoelectricStoppingVoltage?: number; // V
+  photoelectricEmitted?: boolean;
 }
 
 export interface KinematicsInstant {
@@ -77,6 +126,9 @@ export interface KinematicsInstant {
   potentialEnergy: number; // J
   totalMechanicalEnergy: number; // J
   momentum: number; // kg*m/s
+  // Advanced trajectory states
+  pendulumAngleRad?: number;
+  pendulumAngularVelocity?: number;
 }
 
 export interface ThermoReactionPreset {
@@ -120,6 +172,18 @@ export interface ChemistryParams {
   redoxPairId: string;
   anodeConcM: number; // [Anode ion] mol/L (0.001 - 2.0)
   cathodeConcM: number; // [Cathode ion] mol/L (0.001 - 2.0)
+  // Advanced Chemistry Modules
+  gasMoles?: number; // mol (0.1 - 2.0)
+  gasTemperatureK?: number; // K (250 - 550)
+  gasVolumeL?: number; // L (2 - 25)
+  gasIsAdiabatic?: boolean;
+  kineticsTempC?: number; // °C (10 - 70)
+  kineticsConcA?: number; // M (0.1 - 2.0)
+  kineticsEaKj?: number; // kJ/mol (30 - 90)
+  spectroConcMm?: number; // mM (0.01 - 0.25)
+  spectroPathLengthCm?: number; // cm (0.5 - 2.0)
+  spectroMolarAbsorptivity?: number; // L/(mol·cm)
+  spectroWavelengthNm?: number; // nm (400 - 700)
 }
 
 export interface ChemistryMetrics {
@@ -147,6 +211,20 @@ export interface ChemistryMetrics {
   nernstCellPotentialE: number; // V
   reactionQuotientQ: number;
   electroFreeEnergyDeltaG: number; // kJ/mol (-nFE)
+  // Advanced Module Metrics
+  gasPressureAtm?: number; // atm
+  gasPressureKpa?: number; // kPa
+  gasInternalEnergyJ?: number; // J
+  gasDensity?: number; // g/L
+  kineticsHalfLifeSec?: number; // s
+  spectroAbsorbance?: number;
+  spectroTransmittancePct?: number; // %
+  boyleConstantPv?: number;
+  arrheniusK?: number;
+  absorbanceA?: number;
+  transmittancePct?: number;
+  molarExtinctionEpsilon?: number;
+  absorbedColorName?: string;
 }
 
 export interface SolarPlanetPreset {
@@ -183,6 +261,10 @@ export interface AstronomyParams {
   starRadiusSolar: number; // 0.1 - 15.0 R_sun
   exoplanetRadiusEarth: number; // 0.5 - 15.0 R_earth
   exoplanetOrbitAu: number; // 0.05 - 5.0 AU
+  // Advanced Astronomy Modules
+  galaxyDistanceMpc?: number; // Mpc (20 - 600)
+  hubbleConstantH0?: number; // km/s/Mpc (65 - 78)
+  restWavelengthNm?: number; // nm (390 - 660)
 }
 
 export interface AstronomyMetrics {
@@ -211,6 +293,16 @@ export interface AstronomyMetrics {
   habitableZoneInnerAu: number; // AU
   habitableZoneOuterAu: number; // AU
   isInHabitableZone: boolean;
+  // Advanced Modules Metrics
+  wienPeakWavelengthNm?: number; // nm
+  peakWavelengthNm?: number; // nm
+  surfaceFluxWPerM2?: number; // W/m²
+  hubbleRecessionVelocityKmS?: number; // km/s
+  recessionVelocityKms?: number; // km/s
+  hubbleRedshiftZ?: number;
+  redshiftZ?: number;
+  hubbleObservedWavelengthNm?: number; // nm
+  hubbleAgeBillionYears?: number; // Gyr
 }
 
 export interface ExperimentRecord {
@@ -695,6 +787,48 @@ export function calculatePhysicsMetrics(params: PhysicsParams): PhysicsMetrics {
   const angularFrequency = Math.sqrt(k / m1);
   const oscillationPeriod = (2 * Math.PI) / angularFrequency;
 
+  // Advanced physics calculations
+  const pLength = Math.max(0.1, params.pendulumLength ?? 1.0);
+  const pendulumPeriod = 2 * Math.PI * Math.sqrt(pLength / Math.max(0.01, g));
+  const pendulumFrequency = 1 / pendulumPeriod;
+
+  const rStokesM = Math.max(0.001, (params.sphereRadiusMm ?? params.sphereRadius ?? 5) / 1000);
+  const etaStokes = Math.max(0.01, params.fluidViscosityPaS ?? params.fluidViscosity ?? 0.8);
+  const rhoSphere = params.sphereDensityKgM3 ?? params.sphereDensity ?? 7800;
+  const rhoFluid = params.fluidDensityKgM3 ?? params.fluidDensity ?? 1260;
+  const stokesTerminalVelocity = Math.max(
+    0,
+    (2 * rStokesM * rStokesM * (rhoSphere - rhoFluid) * g) / (9 * etaStokes)
+  );
+  const stokesDragForce = 6 * Math.PI * etaStokes * rStokesM * stokesTerminalVelocity;
+
+  const vCircuit = params.circuitVoltageV ?? params.circuitVoltage ?? 12;
+  const r1 = Math.max(1, params.bridgeR1 ?? params.resistorR1 ?? 100);
+  const r2 = Math.max(1, params.bridgeR2 ?? params.resistorR2 ?? 200);
+  const r3 = Math.max(1, params.bridgeR3 ?? params.resistorR3 ?? 150);
+  const rx = Math.max(1, params.bridgeRx ?? params.resistorRx ?? 300);
+  const rTop = r1 + r2;
+  const rBot = r3 + rx;
+  const rEq = (rTop * rBot) / (rTop + rBot);
+  const circuitCurrent = vCircuit / rEq;
+  const vA = vCircuit * (r2 / rTop);
+  const vB = vCircuit * (rx / rBot);
+  const galvanometerCurrent = (Math.abs(vA - vB) / 50) * 1000;
+  const bridgeBalanced = Math.abs(r1 * rx - r2 * r3) < 0.5;
+
+  const slitDistM = Math.max(1e-5, (params.slitDistance ?? 0.25) / 1000);
+  const screenDistM = Math.max(0.1, params.screenDistance ?? 1.5);
+  const lambdaM = Math.max(380, params.lightWavelength ?? 532) * 1e-9;
+  const fringeSpacingMm = ((lambdaM * screenDistM) / slitDistM) * 1000;
+
+  const hPlanckEv = 4.135667696e-15;
+  const fPhotonHz = (params.photonFrequency ?? 7.5) * 1e14;
+  const ePhotonEv = hPlanckEv * fPhotonHz;
+  const workFuncEv = params.targetMetalWorkFunction ?? 2.28;
+  const photoelectricMaxKe = Math.max(0, ePhotonEv - workFuncEv);
+  const photoelectricStoppingVoltage = photoelectricMaxKe;
+  const photoelectricEmitted = ePhotonEv > workFuncEv;
+
   return {
     weightForce: Number(weightForce.toFixed(3)),
     normalForce: Number(normalForce.toFixed(3)),
@@ -720,6 +854,17 @@ export function calculatePhysicsMetrics(params: PhysicsParams): PhysicsMetrics {
     springPotentialEnergy: Number(springPotentialEnergy.toFixed(2)),
     oscillationPeriod: Number(oscillationPeriod.toFixed(2)),
     angularFrequency: Number(angularFrequency.toFixed(2)),
+    pendulumPeriod: Number(pendulumPeriod.toFixed(2)),
+    pendulumFrequency: Number(pendulumFrequency.toFixed(2)),
+    stokesTerminalVelocity: Number(stokesTerminalVelocity.toFixed(3)),
+    stokesDragForce: Number(stokesDragForce.toFixed(4)),
+    circuitCurrent: Number(circuitCurrent.toFixed(3)),
+    galvanometerCurrent: Number(galvanometerCurrent.toFixed(2)),
+    bridgeBalanced,
+    fringeSpacingMm: Number(fringeSpacingMm.toFixed(2)),
+    photoelectricMaxKe: Number(photoelectricMaxKe.toFixed(2)),
+    photoelectricStoppingVoltage: Number(photoelectricStoppingVoltage.toFixed(2)),
+    photoelectricEmitted,
   };
 }
 
@@ -821,6 +966,34 @@ export function evaluateKinematicsAtTime(params: PhysicsParams, t: number): Kine
         ? metrics.kineticEnergyFinal
         : metrics.kineticEnergyInitial,
       momentum: metrics.initialTotalMomentum,
+    };
+  }
+
+  if (params.mode === 'pendulum-harmonic') {
+    const L = Math.max(0.1, params.pendulumLength ?? 1.0);
+    const theta0Rad = ((params.pendulumAngle ?? 25) * Math.PI) / 180;
+    const omega = Math.sqrt(g / L);
+    const thetaT = theta0Rad * Math.cos(omega * time) * Math.exp(-0.02 * time);
+    const angVel = -theta0Rad * omega * Math.sin(omega * time) * Math.exp(-0.02 * time);
+    const posX = L * Math.sin(thetaT);
+    const posY = -L * Math.cos(thetaT);
+    const speed = Math.abs(L * angVel);
+    const ke = 0.5 * m * speed * speed;
+    const pe = m * g * (posY + L);
+    return {
+      time: Number(time.toFixed(2)),
+      positionX: Number(posX.toFixed(3)),
+      positionY: Number(posY.toFixed(3)),
+      velocityX: Number((speed * Math.cos(thetaT)).toFixed(3)),
+      velocityY: Number((speed * Math.sin(thetaT)).toFixed(3)),
+      speed: Number(speed.toFixed(3)),
+      acceleration: Number((L * angVel * angVel).toFixed(2)),
+      kineticEnergy: Number(ke.toFixed(2)),
+      potentialEnergy: Number(pe.toFixed(2)),
+      totalMechanicalEnergy: Number((ke + pe).toFixed(2)),
+      momentum: Number((m * speed).toFixed(2)),
+      pendulumAngleRad: thetaT,
+      pendulumAngularVelocity: angVel,
     };
   }
 
@@ -1008,6 +1181,29 @@ export function calculateChemistryMetrics(params: ChemistryParams): ChemistryMet
   const electroFreeEnergyDeltaG =
     (-redox.electronsTransferred * FARADAY * nernstCellPotentialE) / 1000;
 
+  // Advanced chemistry modules calculations
+  const nGas = Math.max(0.1, params.gasMoles ?? 1.0);
+  const tGasK = Math.max(100, params.gasTemperatureK ?? 300);
+  const vGasL = Math.max(1.0, params.gasVolumeL ?? 10.0);
+  const R_L_atm = 0.082057; // L·atm/(mol·K)
+  const gasPressureAtm = (nGas * R_L_atm * tGasK) / vGasL;
+  const gasPressureKpa = gasPressureAtm * 101.325;
+  const gasInternalEnergyJ = 1.5 * nGas * 8.314 * tGasK;
+  const gasDensity = (gasPressureAtm * 28.97) / (R_L_atm * tGasK);
+
+  const tKinC = params.kineticsTempC ?? 25;
+  const tKinK = tKinC + 273.15;
+  const eaKinJ = (params.kineticsEaKj ?? 52) * 1000;
+  const kKinetics = 1.0e8 * Math.exp(-eaKinJ / (8.314 * tKinK));
+  const kineticsHalfLifeSec = Math.LN2 / Math.max(1e-9, kKinetics);
+
+  const cAnalyteMm = params.spectroConcMm ?? 0.08;
+  const bPathCm = params.spectroPathLengthCm ?? 1.0;
+  const epsMolar = params.spectroMolarAbsorptivity ?? 9500;
+  const cAnalyteM = cAnalyteMm / 1000;
+  const spectroAbsorbance = Math.min(3.5, epsMolar * bPathCm * cAnalyteM);
+  const spectroTransmittancePct = Math.max(0, 100 * Math.pow(10, -spectroAbsorbance));
+
   return {
     tempKelvin: Number(tempKelvin.toFixed(2)),
     finalTempC: Number(finalTempC.toFixed(2)),
@@ -1033,6 +1229,19 @@ export function calculateChemistryMetrics(params: ChemistryParams): ChemistryMet
     nernstCellPotentialE: Number(nernstCellPotentialE.toFixed(3)),
     reactionQuotientQ: Number(reactionQuotientQ.toFixed(4)),
     electroFreeEnergyDeltaG: Number(electroFreeEnergyDeltaG.toFixed(2)),
+    gasPressureAtm: Number(gasPressureAtm.toFixed(3)),
+    gasPressureKpa: Number(gasPressureKpa.toFixed(1)),
+    gasInternalEnergyJ: Number(gasInternalEnergyJ.toFixed(1)),
+    gasDensity: Number(gasDensity.toFixed(3)),
+    kineticsHalfLifeSec: Number(kineticsHalfLifeSec.toFixed(1)),
+    spectroAbsorbance: Number(spectroAbsorbance.toFixed(3)),
+    spectroTransmittancePct: Number(spectroTransmittancePct.toFixed(2)),
+    boyleConstantPv: Number((gasPressureAtm * vGasL).toFixed(3)),
+    arrheniusK: Number(kKinetics.toExponential(3)),
+    absorbanceA: Number(spectroAbsorbance.toFixed(3)),
+    transmittancePct: Number(spectroTransmittancePct.toFixed(2)),
+    molarExtinctionEpsilon: epsMolar,
+    absorbedColorName: params.spectroWavelengthNm ? (params.spectroWavelengthNm < 450 ? 'Violet/Biru' : params.spectroWavelengthNm < 520 ? 'Sian/Hijau' : params.spectroWavelengthNm < 590 ? 'Kuning' : 'Jingga/Merah') : 'Sian/Biru (480-520 nm)',
   };
 }
 
@@ -1149,6 +1358,17 @@ export function calculateAstronomyMetrics(
   const isInHabitableZone =
     dPlanetAu >= habitableZoneInnerAu && dPlanetAu <= habitableZoneOuterAu;
 
+  // Advanced astronomy modules
+  const tWienK = Math.max(1000, params.starEffectiveTempK || 5800);
+  const wienPeakWavelengthNm = 2.89777e6 / tWienK;
+
+  const dHubbleMpc = Math.max(1, params.galaxyDistanceMpc ?? 150);
+  const h0Hubble = params.hubbleConstantH0 ?? 70;
+  const hubbleRecessionVelocityKmS = h0Hubble * dHubbleMpc;
+  const hubbleRedshiftZ = hubbleRecessionVelocityKmS / 299792;
+  const restLambdaNm = params.restWavelengthNm ?? 393.4;
+  const hubbleObservedWavelengthNm = restLambdaNm * (1 + hubbleRedshiftZ);
+
   return {
     orbitalPeriodYears: Number(orbitalPeriodYears.toFixed(3)),
     perihelionAu: Number(perihelionAu.toFixed(3)),
@@ -1176,6 +1396,15 @@ export function calculateAstronomyMetrics(
     habitableZoneInnerAu: Number(habitableZoneInnerAu.toFixed(2)),
     habitableZoneOuterAu: Number(habitableZoneOuterAu.toFixed(2)),
     isInHabitableZone,
+    wienPeakWavelengthNm: Number(wienPeakWavelengthNm.toFixed(1)),
+    peakWavelengthNm: Number(wienPeakWavelengthNm.toFixed(1)),
+    surfaceFluxWPerM2: Number((5.670374e-8 * Math.pow(tWienK, 4)).toPrecision(4)),
+    hubbleRecessionVelocityKmS: Number(hubbleRecessionVelocityKmS.toFixed(1)),
+    recessionVelocityKms: Number(hubbleRecessionVelocityKmS.toFixed(1)),
+    hubbleRedshiftZ: Number(hubbleRedshiftZ.toFixed(4)),
+    redshiftZ: Number(hubbleRedshiftZ.toFixed(4)),
+    hubbleObservedWavelengthNm: Number(hubbleObservedWavelengthNm.toFixed(2)),
+    hubbleAgeBillionYears: Number((977.8 / Math.max(1, h0Hubble)).toFixed(1)),
   };
 }
 
