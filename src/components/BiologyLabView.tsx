@@ -2,29 +2,21 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sliders,
-  ShieldCheck,
   Play,
   Pause,
   RotateCcw,
   Camera,
-  ChevronLeft,
-  ChevronRight,
-  Compass,
+  Leaf,
 } from 'lucide-react';
 import {
-  ExperimentModule,
   EducationTier,
   getExperimentsByDomain,
 } from '../registry/experimentRegistry';
-import { PreLabSafetyModal } from './PreLabSafetyModal';
 import { BiologyScene3D } from './BiologyScene3D';
 import { SpatialCursorPayload, ParameterLockPayload } from '../utils/collabProtocol';
 import { labSound } from '../utils/soundEngine';
 import {
-  CircularGaugeMeter,
-  LiquidColumnMeter,
   TactileParameterControl,
-  AnimatedNumberReadout,
 } from './ui/LabInstruments';
 import {
   InteractiveFormulaCard,
@@ -34,7 +26,6 @@ import {
   BiologyTelemetryContext,
   ExperimentRecord,
 } from '../utils/scienceEngine';
-import { FloatingLabAnalyticsDrawer } from './FloatingLabAnalyticsDrawer';
 
 interface BiologyLabViewProps {
   activeStudentName: string;
@@ -71,7 +62,6 @@ interface BiologyLabViewProps {
 
 export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   activeStudentName,
-  activeGroupId,
   activeTier,
   onRecordExperiment,
   remoteCursors = {},
@@ -81,13 +71,8 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   onReleaseLock,
   onBiologyContextChange,
   records = [],
-  onDeleteRecord,
-  onExportCSV,
-  onSubmitQuizScore,
   selectedModuleId: externalModuleId,
   onSelectModuleId,
-  onProceedToAnalysis,
-  onBackToCatalog,
 }) => {
   const biologyModules = useMemo(() => getExperimentsByDomain('biologi'), []);
   const [internalModuleId, setInternalModuleId] = useState<string>(
@@ -98,11 +83,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     setInternalModuleId(id);
     if (onSelectModuleId) onSelectModuleId(id);
   };
-  const [preLabModalOpen, setPreLabModalOpen] = useState<boolean>(false);
-  const [modalExperiment, setModalExperiment] = useState<ExperimentModule>(
-    biologyModules[0]
-  );
-  const [leftDockCollapsed, setLeftDockCollapsed] = useState<boolean>(false);
+
   const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [simProgress, setSimProgress] = useState<number>(0.45);
@@ -312,316 +293,178 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     };
   }, [currentMode, currentOutputs, paramsState]);
 
-  const primaryOutput = currentModule.outputs[0];
-  const liveBioTempOrPh =
-    currentMode === 'enzyme-catalase'
-      ? paramsState['solutionPh'] ?? 7.0
-      : currentMode === 'photosynthesis-ingenhousz'
-      ? paramsState['waterTempC'] ?? 28
-      : paramsState['temperatureC'] ?? 25;
-
   return (
-    <div className="relative w-full h-full overflow-hidden bg-slate-950 select-none">
-      {/* FULL-VIEWPORT 3D SCENE CANVAS */}
-      <div className="absolute inset-0 w-full h-full z-0">
-        <BiologyScene3D
-          mode={currentMode}
-          params={paramsState}
-          remoteCursors={remoteCursors}
-          onEmitCursor={onEmitCursor}
-          isPlaying={isPlaying}
-        />
-      </div>
+    <div className="w-full h-full max-w-[1380px] mx-auto p-4 sm:p-6 overflow-y-auto bg-slate-950 text-slate-100 select-none pb-24">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* LEFT COLUMN: 3D Scene Canvas & Playback Bar */}
+        <div className="lg:col-span-8 space-y-4 flex flex-col">
+          {/* 3D Canvas Box */}
+          <div className="relative w-full h-[540px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-2xl">
+            <BiologyScene3D
+              mode={currentMode}
+              params={paramsState}
+              remoteCursors={remoteCursors}
+              onEmitCursor={onEmitCursor}
+              isPlaying={isPlaying}
+            />
 
-      {/* CAMERA SHUTTER FLASH ON RECORD */}
-      <AnimatePresence>
-        {shutterFlash && (
-          <motion.div
-            initial={{ opacity: 0.9 }}
-            animate={{ opacity: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="pointer-events-none absolute inset-0 z-40 bg-gradient-to-tr from-emerald-300/60 via-white/85 to-lime-300/60"
-          />
-        )}
-      </AnimatePresence>
+            {/* Shutter Flash Animation */}
+            <AnimatePresence>
+              {shutterFlash && (
+                <motion.div
+                  initial={{ opacity: 0.9 }}
+                  animate={{ opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="pointer-events-none absolute inset-0 z-40 bg-gradient-to-tr from-emerald-300/60 via-white/85 to-lime-300/60"
+                />
+              )}
+            </AnimatePresence>
+          </div>
 
-      {/* 1. TOP-LEFT FLOATING PILL: Experiment Module Picker + Pre-Lab & Rumus Button */}
-      <div className="pointer-events-auto absolute top-4 left-4 z-30 flex items-center gap-2">
-        <div className="backdrop-blur-xl bg-slate-900/80 border border-white/15 text-white rounded-2xl px-3 py-1.5 shadow-2xl flex items-center gap-2">
-          <Compass className="w-4 h-4 text-emerald-400 shrink-0" />
-          <select
-            aria-label="Pilih Modul Eksperimen Biologi"
-            value={selectedModuleId}
-            onChange={(e) => {
-              labSound.playClick();
-              setSelectedModuleId(e.target.value);
-              const found = biologyModules.find((m) => m.id === e.target.value);
-              if (found) setModalExperiment(found);
-            }}
-            className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer pr-2"
-          >
-            {biologyModules.map((mod) => (
-              <option key={mod.id} value={mod.id} className="bg-slate-900 text-white">
-                {mod.title}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            labSound.playClick();
-            setModalExperiment(currentModule);
-            setPreLabModalOpen(true);
-          }}
-          className="backdrop-blur-xl bg-slate-900/80 hover:bg-slate-800/90 border border-white/15 text-emerald-300 rounded-2xl px-3 py-2 shadow-2xl flex items-center gap-1.5 text-xs font-semibold transition-colors cursor-pointer"
-          title="Buka Panduan Pre-Lab, K3 & Rumus"
-        >
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span className="hidden sm:inline">Pre-Lab & Rumus</span>
-        </button>
-      </div>
-
-      {/* 2. LEFT FLOATING CONTROL DOCK (Collapsible) */}
-      <div className="pointer-events-none absolute top-20 left-4 bottom-20 z-30 flex items-start">
-        <AnimatePresence initial={false}>
-          {!leftDockCollapsed && (
-            <motion.aside
-              initial={{ opacity: 0, x: -32 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -32 }}
-              transition={{ type: 'spring', stiffness: 360, damping: 30 }}
-              className="pointer-events-auto w-76 sm:w-80 h-full overflow-y-auto backdrop-blur-xl bg-slate-900/75 dark:bg-slate-900/80 border border-white/15 text-white rounded-2xl shadow-2xl p-3.5 space-y-3.5"
-            >
-              {/* Dock Header */}
-              <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                <div className="flex items-center gap-2">
-                  <Sliders className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-xs font-bold tracking-wide text-white">
-                    Kontrol Bioreaktor & Instrumen
-                  </span>
-                </div>
+          {/* Bottom Playback & Recording Bar */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Play / Reset controls */}
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setLeftDockCollapsed(true)}
-                  aria-label="Sembunyikan panel kontrol kiri"
-                  className="p-1 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  onClick={() => {
+                    labSound.playClick();
+                    setIsPlaying(!isPlaying);
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-md ${
+                    isPlaying
+                      ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  }`}
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  <span>{isPlaying ? 'Jeda' : 'Jalankan Observasi'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    const resets: Record<string, number> = {};
+                    currentModule.parameters.forEach((p) => {
+                      resets[p.key] = p.defaultValue;
+                    });
+                    setParamsState((prev) => ({ ...prev, ...resets }));
+                  }}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                  title="Reset Parameter Biologi"
+                >
+                  <RotateCcw className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* SVG Radial Gauge + Color-Changing pH / Temperature Tube */}
-              <div className="flex items-center justify-around gap-2 bg-slate-950/60 border border-white/10 rounded-xl p-2.5">
-                {primaryOutput && (
-                  <CircularGaugeMeter
-                    size="sm"
-                    label={primaryOutput.label.slice(0, 15)}
-                    value={currentOutputs[primaryOutput.key] ?? 0}
-                    min={0}
-                    max={
-                      currentMode === 'photosynthesis-ingenhousz'
-                        ? 80
-                        : currentMode === 'enzyme-catalase'
-                        ? 40
-                        : 25
-                    }
-                    unit={primaryOutput.unit}
-                    color="#10b981"
-                  />
-                )}
-                <LiquidColumnMeter
-                  label={currentMode === 'enzyme-catalase' ? 'pH Enzim' : 'Suhu Air'}
-                  value={liveBioTempOrPh}
-                  min={currentMode === 'enzyme-catalase' ? 0 : 0}
-                  max={currentMode === 'enzyme-catalase' ? 14 : 60}
-                  unit={currentMode === 'enzyme-catalase' ? 'pH' : '°C'}
-                  variant={currentMode === 'enzyme-catalase' ? 'ph' : 'temperature'}
+              {/* Progress Slider */}
+              <div className="flex-1 min-w-[180px] flex items-center gap-2">
+                <span className="text-xs font-mono text-slate-400 shrink-0">Waktu:</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={simProgress}
+                  onChange={(e) => setSimProgress(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                 />
+                <span className="text-xs font-mono font-bold text-emerald-400 shrink-0 w-10 tabular-nums">
+                  {Math.round(simProgress * 100)}%
+                </span>
               </div>
 
-              {/* Digital Readouts */}
-              <div className="grid grid-cols-2 gap-2">
-                {currentModule.outputs.slice(0, 2).map((out) => (
-                  <AnimatedNumberReadout
-                    key={out.key}
-                    label={out.label}
-                    value={currentOutputs[out.key] ?? 0}
-                    precision={out.precision}
-                    unit={out.unit}
-                    accentColor="#10b981"
-                  />
-                ))}
-              </div>
+              {/* Prominent + Catat Data Percobaan Button */}
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={handleRecordTrial}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-lime-500 hover:from-emerald-400 hover:to-lime-400 text-slate-950 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer shrink-0"
+              >
+                <Camera className="w-4 h-4 text-slate-950" />
+                <span>+ Catat Data Percobaan</span>
+                <span className="bg-slate-950/20 px-2 py-0.5 rounded-md font-mono text-[11px] text-slate-950">
+                  {records.length}/3 Data
+                </span>
+              </motion.button>
+            </div>
+          </div>
+        </div>
 
-              {/* Interactive Formula Card */}
-              <InteractiveFormulaCard
-                title={biologyFormulaData.title}
-                subtitle={biologyFormulaData.subtitle}
-                tokens={biologyFormulaData.tokens}
-                activeParamKey={hoveredParamKey}
-                accentColor="#10b981"
-              />
+        {/* RIGHT COLUMN: Parameter Sliders & Formula Card */}
+        <div className="lg:col-span-4 space-y-4 flex flex-col">
+          {/* Module Selector */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+              <Sliders className="w-4 h-4 text-emerald-400" />
+              <span>Modul Eksperimen Biologi</span>
+            </div>
 
-              {/* Tactile Parameter Sliders */}
-              <div className="space-y-2.5">
-                {currentModule.parameters.map((param) => {
-                  const val = paramsState[param.key] ?? param.defaultValue;
-                  const lock = paramLocks[param.key];
-                  const isLocked =
-                    !!lock && lock.lockedByName !== activeStudentName;
-
-                  return (
-                    <div
-                      key={param.key}
-                      onPointerDown={() =>
-                        onAcquireLock && onAcquireLock(param.key)
-                      }
-                      onPointerUp={() =>
-                        onReleaseLock && onReleaseLock(param.key)
-                      }
-                    >
-                      <TactileParameterControl
-                        label={param.label}
-                        symbol={param.key.slice(0, 3)}
-                        value={val}
-                        min={param.min}
-                        max={param.max}
-                        step={param.step}
-                        unit={param.unit}
-                        accentColor="#10b981"
-                        lockedBy={isLocked ? lock.lockedByName : undefined}
-                        onHoverChange={(h) =>
-                          setHoveredParamKey(h ? param.key : null)
-                        }
-                        onChange={(v) => handleParamChange(param.key, v)}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.aside>
-          )}
-        </AnimatePresence>
-
-        {/* Sleek Collapse/Expand Toggle Button (< / >) */}
-        <button
-          type="button"
-          onClick={() => {
-            labSound.playClick();
-            setLeftDockCollapsed((c) => !c);
-          }}
-          aria-label={
-            leftDockCollapsed
-              ? 'Buka panel kontrol kiri'
-              : 'Tutup panel kontrol kiri'
-          }
-          className="pointer-events-auto ml-2 mt-3 backdrop-blur-xl bg-slate-900/80 hover:bg-slate-800 border border-white/15 text-white rounded-xl p-2 shadow-2xl transition-colors cursor-pointer flex items-center gap-1 text-xs font-mono"
-        >
-          {leftDockCollapsed ? (
-            <>
-              <ChevronRight className="w-4 h-4 text-emerald-400" />
-              <span className="pr-1">Kontrol</span>
-            </>
-          ) : (
-            <ChevronLeft className="w-4 h-4 text-slate-300" />
-          )}
-        </button>
-      </div>
-
-      {/* 3. BOTTOM-CENTER FLOATING PLAYBACK & ACTION PILL */}
-      <div className="pointer-events-auto absolute bottom-5 left-1/2 -translate-x-1/2 z-30 max-w-[95vw]">
-        <div className="backdrop-blur-xl bg-slate-900/80 border border-white/15 text-white rounded-full px-3.5 py-2 shadow-2xl flex items-center gap-2.5 sm:gap-3.5">
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setIsPlaying(!isPlaying);
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs shadow-[0_0_18px_rgba(16,185,129,0.45)] transition-colors cursor-pointer shrink-0"
-          >
-            {isPlaying ? (
-              <Pause className="w-3.5 h-3.5" />
-            ) : (
-              <Play className="w-3.5 h-3.5" />
-            )}
-            <span>{isPlaying ? 'Jeda' : 'Play'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              const resets: Record<string, number> = {};
-              currentModule.parameters.forEach((p) => {
-                resets[p.key] = p.defaultValue;
-              });
-              setParamsState((prev) => ({ ...prev, ...resets }));
-            }}
-            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-200 transition-colors cursor-pointer shrink-0"
-            title="Reset Parameter Biologi"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Timeline Scrubber */}
-          <div className="hidden sm:flex items-center gap-2 px-1">
-            <span className="font-mono text-[11px] text-emerald-300 tabular-nums">
-              {Math.round(simProgress * 100)}%
-            </span>
-            <input
-              type="range"
-              aria-label="Waktu Pengamatan Biologi"
-              min={0}
-              max={1}
-              step={0.05}
-              value={simProgress}
-              onChange={(e) => setSimProgress(Number(e.target.value))}
-              className="w-28 md:w-36 accent-emerald-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
-            />
+            <select
+              value={selectedModuleId}
+              onChange={(e) => {
+                labSound.playClick();
+                setSelectedModuleId(e.target.value);
+              }}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+            >
+              {biologyModules.map((mod) => (
+                <option key={mod.id} value={mod.id}>
+                  {mod.title}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Glowing Primary Button: + Catat Data Percobaan */}
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleRecordTrial}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold text-xs shadow-[0_0_22px_rgba(132,204,22,0.55)] transition-colors cursor-pointer shrink-0"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>+ Catat Data Percobaan</span>
-          </motion.button>
+          {/* Parameter Sliders Container */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+            <div className="text-xs font-bold text-slate-200">Parameter Bioreaktor</div>
+
+            <div className="space-y-3">
+              {currentModule.parameters.map((param) => {
+                const val = paramsState[param.key] ?? param.defaultValue;
+                const lock = paramLocks[param.key];
+                const isLocked = !!lock && lock.lockedByName !== activeStudentName;
+
+                return (
+                  <div
+                    key={param.key}
+                    onPointerDown={() => onAcquireLock && onAcquireLock(param.key)}
+                    onPointerUp={() => onReleaseLock && onReleaseLock(param.key)}
+                  >
+                    <TactileParameterControl
+                      label={param.label}
+                      symbol={param.key.slice(0, 3)}
+                      value={val}
+                      min={param.min}
+                      max={param.max}
+                      step={param.step}
+                      unit={param.unit}
+                      accentColor="#10b981"
+                      lockedBy={isLocked ? lock.lockedByName : undefined}
+                      onHoverChange={(h) => setHoveredParamKey(h ? param.key : null)}
+                      onChange={(v) => handleParamChange(param.key, v)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Interactive Formula Card */}
+          <InteractiveFormulaCard
+            title={biologyFormulaData.title}
+            subtitle={biologyFormulaData.subtitle}
+            tokens={biologyFormulaData.tokens}
+            activeParamKey={hoveredParamKey}
+            accentColor="#10b981"
+          />
         </div>
       </div>
-
-      {/* 4. RIGHT FLOATING ANALYTICS SUMMARY & STEP TRANSITION */}
-      <FloatingLabAnalyticsDrawer
-        domain="Biologi"
-        experimentTitle={currentModule.title}
-        records={records}
-        activeStudentName={activeStudentName}
-        activeGroupId={activeGroupId}
-        accentColor="#10b981"
-        onDeleteRecord={onDeleteRecord}
-        onExportCSV={onExportCSV}
-        onSubmitQuizScore={onSubmitQuizScore}
-        onProceedToAnalysis={onProceedToAnalysis}
-        onBackToCatalog={onBackToCatalog}
-      />
-
-      {/* PreLab Safety Modal */}
-      <PreLabSafetyModal
-        experiment={modalExperiment}
-        activeTier={activeTier}
-        isOpen={preLabModalOpen}
-        onClose={() => setPreLabModalOpen(false)}
-        onProceedToLab={() => {
-          setSelectedModuleId(modalExperiment.id);
-        }}
-      />
     </div>
   );
 };

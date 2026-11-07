@@ -5,15 +5,12 @@ import {
   Pause,
   RotateCcw,
   Camera,
-  ChevronLeft,
-  ChevronRight,
-  ShieldCheck,
-  Sliders,
-  Compass,
   Eye,
   EyeOff,
   HelpCircle,
   CheckCircle,
+  Activity,
+  Sliders,
 } from 'lucide-react';
 import {
   PhysicsParams,
@@ -36,12 +33,6 @@ import {
   formatMeasurementWithUncertainty,
 } from '../utils/uncertaintyEngine';
 import { SpatialCursorPayload, ParameterLockPayload } from '../utils/collabProtocol';
-import { PreLabSafetyModal } from './PreLabSafetyModal';
-import {
-  ExperimentModule,
-  EducationTier,
-  getExperimentsByDomain,
-} from '../registry/experimentRegistry';
 import {
   CircularGaugeMeter,
   TactileParameterControl,
@@ -51,7 +42,6 @@ import {
   InteractiveFormulaCard,
   FormulaToken,
 } from './ui/InteractiveFormulaCard';
-import { FloatingLabAnalyticsDrawer } from './FloatingLabAnalyticsDrawer';
 import {
   MysterySampleChallenge,
   MysterySubmissionResult,
@@ -91,7 +81,11 @@ interface PhysicsLabViewProps {
   onProceedToAnalysis?: () => void;
   onBackToCatalog?: () => void;
   activeMysteryChallenge?: MysterySampleChallenge | null;
-  onSubmitMysteryExam?: (studentName: string, result: MysterySubmissionResult, title: string) => void;
+  onSubmitMysteryExam?: (
+    studentName: string,
+    result: MysterySubmissionResult,
+    title: string
+  ) => void;
 }
 
 export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
@@ -109,12 +103,6 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   onSyncParamValue,
   records = [],
   activeStudentName = 'Alya Pratama',
-  activeGroupId = 'Kelompok-A1',
-  onDeleteRecord,
-  onExportCSV,
-  onSubmitQuizScore,
-  onProceedToAnalysis,
-  onBackToCatalog,
   activeMysteryChallenge,
   onSubmitMysteryExam,
 }) => {
@@ -123,51 +111,13 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [showVectorOverlay, setShowVectorOverlay] = useState<boolean>(true);
   const [noiseEnabled, setNoiseEnabled] = useState<boolean>(false);
-  const [leftDockCollapsed, setLeftDockCollapsed] = useState<boolean>(false);
   const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
 
   // Mystery Sample Exam State
   const [mysteryGuessInput, setMysteryGuessInput] = useState<string>('');
-  const [mysteryFeedbackResult, setMysteryFeedbackResult] = useState<MysterySubmissionResult | null>(null);
-
-  const physicsModules = getExperimentsByDomain('fisika');
-  const [preLabModalOpen, setPreLabModalOpen] = useState<boolean>(false);
-  const [modalExperiment, setModalExperiment] = useState<ExperimentModule>(
-    physicsModules[0]
-  );
-
-  const activeTier: EducationTier =
-    academicLevel === 'smp'
-      ? 'SMP'
-      : academicLevel === 'mahasiswa'
-      ? 'Mahasiswa'
-      : 'SMA';
-
-  const currentPhysicsModuleId =
-    params.mode === 'newton-incline'
-      ? 'newton-incline'
-      : params.mode === 'projectile-gravity'
-      ? 'projectile-motion'
-      : params.mode === 'collision-momentum'
-      ? 'collision-momentum'
-      : params.mode === 'spring-hooke'
-      ? 'spring-hooke'
-      : params.mode === 'pendulum-harmonic'
-      ? 'pendulum-harmonic'
-      : params.mode === 'stokes-viscosity'
-      ? 'stokes-viscosity'
-      : params.mode === 'ohm-wheatstone'
-      ? 'ohm-wheatstone'
-      : params.mode === 'optics-young-slit'
-      ? 'optics-young-slit'
-      : params.mode === 'photoelectric-planck'
-      ? 'photoelectric-planck'
-      : 'gravity-orbital';
-
-  const currentModule =
-    physicsModules.find((m) => m.id === currentPhysicsModuleId) ||
-    physicsModules[0];
+  const [mysteryFeedbackResult, setMysteryFeedbackResult] =
+    useState<MysterySubmissionResult | null>(null);
 
   const workerParams = {
     mass: params.mass,
@@ -263,13 +213,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
-  }, [
-    isPlaying,
-    playbackSpeed,
-    params.mode,
-    params.restitutionCoeff,
-    maxSimDuration,
-  ]);
+  }, [isPlaying, playbackSpeed, params.mode, params.restitutionCoeff, maxSimDuration]);
 
   const handleParamUpdate = (patch: Partial<PhysicsParams>) => {
     onChangeParams({ ...params, ...patch });
@@ -288,23 +232,6 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       return lock.lockedByName;
     }
     return undefined;
-  };
-
-  const handleSelectExperimentById = (expId: string) => {
-    labSound.playClick();
-    if (expId === 'newton-incline') {
-      handleParamUpdate({ mode: 'newton-incline' });
-    } else if (expId === 'projectile-motion') {
-      handleParamUpdate({ mode: 'projectile-gravity' });
-    } else if (expId === 'collision-momentum') {
-      handleParamUpdate({ mode: 'collision-momentum' });
-    } else if (expId === 'spring-hooke') {
-      handleParamUpdate({ mode: 'spring-hooke' });
-    } else {
-      handleParamUpdate({ mode: 'orbital-gravity' });
-    }
-    const found = physicsModules.find((m) => m.id === expId);
-    if (found) setModalExperiment(found);
   };
 
   const handleStartSimulation = () => {
@@ -685,907 +612,465 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   })();
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-slate-950 select-none">
-      {/* FULL-VIEWPORT 3D SCENE CANVAS */}
-      <div className="absolute inset-0 w-full h-full z-0">
-        <PhysicsScene3D
-          params={params}
-          metrics={metrics}
-          instant={instant}
-          simTime={simTime}
-          showVectorOverlay={showVectorOverlay}
-          simFrame={simWorker.currentFrame}
-          remoteCursors={remoteCursors}
-          onEmitCursor={onEmitCursor}
-          onUpdateParam={(paramKey, value) => handleParamUpdate({ [paramKey]: value })}
-        />
-      </div>
+    <div className="w-full h-full max-w-[1380px] mx-auto p-4 sm:p-6 overflow-y-auto bg-slate-950 text-slate-100 select-none pb-24">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* LEFT COLUMN: 3D Scene Canvas (h-[540px]) & Playback Controls */}
+        <div className="lg:col-span-8 space-y-4 flex flex-col">
+          {/* 3D Canvas Box */}
+          <div className="relative w-full h-[540px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-2xl">
+            <PhysicsScene3D
+              params={params}
+              metrics={metrics}
+              instant={instant}
+              simTime={simTime}
+              showVectorOverlay={showVectorOverlay}
+              simFrame={simWorker.currentFrame}
+              remoteCursors={remoteCursors}
+              onEmitCursor={onEmitCursor}
+              onUpdateParam={(paramKey, value) => handleParamUpdate({ [paramKey]: value })}
+            />
 
-      {/* CAMERA SHUTTER FLASH ON RECORD */}
-      <AnimatePresence>
-        {shutterFlash && (
-          <motion.div
-            initial={{ opacity: 0.9 }}
-            animate={{ opacity: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="pointer-events-none absolute inset-0 z-40 bg-gradient-to-tr from-sky-300/60 via-white/85 to-emerald-300/60"
-          />
-        )}
-      </AnimatePresence>
+            {/* Shutter Flash Animation */}
+            <AnimatePresence>
+              {shutterFlash && (
+                <motion.div
+                  initial={{ opacity: 0.9 }}
+                  animate={{ opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="pointer-events-none absolute inset-0 z-40 bg-gradient-to-tr from-sky-300/60 via-white/85 to-emerald-300/60"
+                />
+              )}
+            </AnimatePresence>
 
-      {/* 1. TOP-LEFT FLOATING PILL: Experiment Module Picker + Pre-Lab & Rumus Button */}
-      <div className="pointer-events-auto absolute top-4 left-4 z-30 flex items-center gap-2">
-        <div className="backdrop-blur-xl bg-slate-900/80 border border-white/15 text-white rounded-2xl px-3 py-1.5 shadow-2xl flex items-center gap-2">
-          <Compass className="w-4 h-4 text-sky-400 shrink-0" />
-          <select
-            aria-label="Pilih Modul Eksperimen Fisika"
-            value={currentPhysicsModuleId}
-            onChange={(e) => handleSelectExperimentById(e.target.value)}
-            className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer pr-2"
-          >
-            <option value="newton-incline" className="bg-slate-900 text-white">
-              Hukum II Newton & Bidang Miring
-            </option>
-            <option value="projectile-motion" className="bg-slate-900 text-white">
-              Gerak Parabola & Gravitasi Planet
-            </option>
-            <option value="collision-momentum" className="bg-slate-900 text-white">
-              Tumbukan 1D & Kekekalan Momentum
-            </option>
-            <option value="spring-hooke" className="bg-slate-900 text-white">
-              Osilasi Pegas Harmonik (Hukum Hooke)
-            </option>
-            <option value="gravity-orbital" className="bg-slate-900 text-white">
-              Gravitasi Universal Dua Massa
-            </option>
-          </select>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            labSound.playClick();
-            setModalExperiment(currentModule);
-            setPreLabModalOpen(true);
-          }}
-          className="backdrop-blur-xl bg-slate-900/80 hover:bg-slate-800/90 border border-white/15 text-sky-300 rounded-2xl px-3 py-2 shadow-2xl flex items-center gap-1.5 text-xs font-semibold transition-colors cursor-pointer"
-          title="Buka Panduan Pre-Lab, K3 & Rumus"
-        >
-          <ShieldCheck className="w-4 h-4 text-sky-400" />
-          <span className="hidden sm:inline">Pre-Lab & Rumus</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setShowVectorOverlay((v) => !v)}
-          className={`backdrop-blur-xl border rounded-2xl px-2.5 py-2 shadow-2xl flex items-center gap-1 text-xs font-mono transition-colors cursor-pointer ${
-            showVectorOverlay
-              ? 'bg-sky-500/20 border-sky-400/50 text-sky-300'
-              : 'bg-slate-900/80 border-white/15 text-slate-400'
-          }`}
-          title="Tampilkan/Sembunyikan Vektor Gaya 3D"
-        >
-          {showVectorOverlay ? (
-            <Eye className="w-3.5 h-3.5" />
-          ) : (
-            <EyeOff className="w-3.5 h-3.5" />
-          )}
-          <span className="hidden lg:inline">Vektor</span>
-        </button>
-      </div>
-
-      {/* 2. LEFT FLOATING CONTROL DOCK (Collapsible) */}
-      <div className="pointer-events-none absolute top-20 left-4 bottom-20 z-30 flex items-start">
-        <AnimatePresence initial={false}>
-          {!leftDockCollapsed && (
-            <motion.aside
-              initial={{ opacity: 0, x: -32 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -32 }}
-              transition={{ type: 'spring', stiffness: 360, damping: 30 }}
-              className="pointer-events-auto w-76 sm:w-80 h-full overflow-y-auto backdrop-blur-xl bg-slate-900/75 dark:bg-slate-900/80 border border-white/15 text-white rounded-2xl shadow-2xl p-3.5 space-y-3.5"
-            >
-              {/* Dock Header */}
-              <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                <div className="flex items-center gap-2">
-                  <Sliders className="w-3.5 h-3.5 text-sky-400" />
-                  <span className="text-xs font-bold tracking-wide text-white">
-                    Kontrol Variabel & Instrumen
-                  </span>
-                </div>
+            {/* Top Overlay Gauges / Vector Toggle */}
+            <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
+              <div className="pointer-events-auto flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setLeftDockCollapsed(true)}
-                  aria-label="Sembunyikan panel kontrol kiri"
-                  className="p-1 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  onClick={() => setShowVectorOverlay((v) => !v)}
+                  className={`backdrop-blur-md border rounded-xl px-3 py-1.5 text-xs font-mono font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shadow-md ${
+                    showVectorOverlay
+                      ? 'bg-sky-500/20 border-sky-400/50 text-sky-300'
+                      : 'bg-slate-900/80 border-slate-700 text-slate-400'
+                  }`}
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  {showVectorOverlay ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  <span>Vektor Gaya 3D</span>
                 </button>
               </div>
 
-              {/* Mystery Sample Exam Banner / Submission Card */}
-              {activeMysteryChallenge && activeMysteryChallenge.domain === 'Fisika' && (
-                <div className="bg-sky-950/40 border border-sky-500/40 rounded-xl p-3 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-sky-300">
-                      <HelpCircle className="w-3.5 h-3.5 text-sky-400" />
-                      Ujian Sampel Misterius
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                      {activeMysteryChallenge.codename}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-sky-200/90 leading-relaxed">
-                    {activeMysteryChallenge.storyDescription}
-                  </p>
-                  <div className="bg-slate-950/80 rounded-lg p-2 border border-sky-500/20 text-[11px] font-mono text-slate-300">
-                    <div className="text-sky-400 font-bold">Parameter Tersembunyi:</div>
-                    <div className="flex items-center justify-between mt-0.5">
-                      <span>{activeMysteryChallenge.hiddenParamLabel}:</span>
-                      <span className="text-rose-400 font-bold">??? (Sampel Misterius)</span>
-                    </div>
-                  </div>
+              {/* Quick Gauges Overlay */}
+              <div className="pointer-events-auto hidden sm:flex items-center gap-2 bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-1.5 text-xs">
+                <span className="text-slate-400 font-mono">v:</span>
+                <span className="font-bold font-mono text-sky-400 tabular-nums">
+                  {instant.speed.toFixed(2)} m/s
+                </span>
+                <span className="text-slate-600">|</span>
+                <span className="text-slate-400 font-mono">a:</span>
+                <span className="font-bold font-mono text-emerald-400 tabular-nums">
+                  {metrics.acceleration.toFixed(2)} m/s²
+                </span>
+              </div>
+            </div>
+          </div>
 
-                  {/* Submission Form */}
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const guess = parseFloat(mysteryGuessInput);
-                      if (isNaN(guess)) return;
-                      const res = evaluateMysterySubmission(activeMysteryChallenge, guess);
-                      setMysteryFeedbackResult(res);
-                      if (onSubmitMysteryExam) {
-                        onSubmitMysteryExam(activeStudentName, res, activeMysteryChallenge.title);
-                      }
-                      if (res.passed) labSound.playRecordSuccess();
-                      else labSound.playClick(300);
+          {/* Bottom Playback & Recording Bar */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Play / Reset controls */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleStartSimulation}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-md ${
+                    isPlaying
+                      ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  }`}
+                >
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  <span>{isPlaying ? 'Jeda' : 'Putar Simulasi'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResetSimulation}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                  title="Reset Simulasi ke Awal"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Time Scrubber */}
+              <div className="flex-1 min-w-[180px] flex items-center gap-2">
+                <span className="text-xs font-mono text-slate-400 shrink-0">t:</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={maxSimDuration}
+                  step={0.05}
+                  value={simTime}
+                  onChange={(e) => setSimTime(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                />
+                <span className="text-xs font-mono font-bold text-sky-400 shrink-0 w-12 tabular-nums">
+                  {simTime.toFixed(2)}s
+                </span>
+              </div>
+
+              {/* Prominent + Catat Data Percobaan Button */}
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={handleRecordClick}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-400 hover:to-emerald-400 text-slate-950 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer shrink-0"
+              >
+                <Camera className="w-4 h-4 text-slate-950" />
+                <span>+ Catat Data Percobaan</span>
+                <span className="bg-slate-950/20 px-2 py-0.5 rounded-md font-mono text-[11px] text-slate-950">
+                  {records.length}/3 Data
+                </span>
+              </motion.button>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Parameter Sliders & Interactive Formula Card */}
+        <div className="lg:col-span-4 space-y-4 flex flex-col">
+          {/* Mode Selector & Gravity Planet Presets */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+              <Sliders className="w-4 h-4 text-sky-400" />
+              <span>Opsi & Mode Simulasi Fisika</span>
+            </div>
+
+            <select
+              value={params.mode}
+              onChange={(e) => {
+                handleParamUpdate({ mode: e.target.value as PhysicsParams['mode'] });
+                labSound.playClick(680);
+              }}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-sky-500 cursor-pointer"
+            >
+              <option value="newton-incline">Hukum II Newton & Bidang Miring</option>
+              <option value="projectile-gravity">Gerak Parabola (Projektil)</option>
+              <option value="spring-hooke">Osilasi Pegas Hooke</option>
+              <option value="collision-momentum">Tumbukan & Momentum</option>
+              <option value="orbital-gravity">Gravitasi Dua Massa</option>
+            </select>
+
+            {/* Planet Presets */}
+            <div className="space-y-1 pt-1">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                Preset Gravitasi (g)
+              </span>
+              <div className="grid grid-cols-4 gap-1">
+                {GRAVITY_PRESETS.map((gp) => (
+                  <button
+                    key={gp.id}
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      handleParamUpdate({ gravity: gp.g });
                     }}
-                    className="space-y-2 pt-1"
+                    className={`px-2 py-1 rounded-lg text-[10px] font-mono font-semibold border transition-colors cursor-pointer truncate ${
+                      Math.abs(params.gravity - gp.g) < 0.05
+                        ? 'bg-sky-500 text-slate-950 border-sky-400 font-bold'
+                        : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
+                    }`}
                   >
-                    <div>
-                      <label className="text-[10px] uppercase font-mono text-slate-400 block mb-1">
-                        Masukkan Hasil Perhitungan / Pengukuran ({activeMysteryChallenge.hiddenParamUnit})
-                      </label>
-                      <input
-                        type="number"
-                        step="any"
-                        required
-                        value={mysteryGuessInput}
-                        onChange={(e) => setMysteryGuessInput(e.target.value)}
-                        placeholder={`Contoh: ${(activeMysteryChallenge.actualHiddenValue * 0.95).toFixed(2)}`}
-                        className="w-full bg-slate-950 border border-white/20 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-sky-400"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      className="w-full py-1.5 px-3 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      Kirim Jawaban Ujian Misterius
-                    </button>
-                  </form>
+                    {gp.name.split(' ')[0]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
 
-                  {/* Immediate Feedback Result */}
-                  {mysteryFeedbackResult && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`p-2.5 rounded-lg border text-xs space-y-1 ${
-                        mysteryFeedbackResult.passed
-                          ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
-                          : 'bg-rose-950/60 border-rose-500/50 text-rose-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between font-bold">
-                        <span>{mysteryFeedbackResult.verdict}</span>
-                        <span className="font-mono text-sm">{mysteryFeedbackResult.score}/100</span>
-                      </div>
-                      <div className="text-[11px] opacity-90">
-                        Galat: {mysteryFeedbackResult.errorPercentage}% (Nilai Sebenarnya: {mysteryFeedbackResult.actualValue})
-                      </div>
-                      <p className="text-[10px] opacity-80 pt-1 leading-snug">
-                        {mysteryFeedbackResult.feedbackText}
-                      </p>
-                    </motion.div>
-                  )}
+          {/* Mystery Challenge Form (ONLY if Active for Fisika) */}
+          {activeMysteryChallenge && activeMysteryChallenge.domain === 'Fisika' && (
+            <div className="bg-sky-950/40 border border-sky-500/40 rounded-2xl p-4 space-y-3 shadow-xl">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-sky-300">
+                  <HelpCircle className="w-4 h-4 text-sky-400" />
+                  Ujian Sampel Misterius
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                  {activeMysteryChallenge.codename}
+                </span>
+              </div>
+              <p className="text-xs text-sky-200/90 leading-relaxed">
+                {activeMysteryChallenge.storyDescription}
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const guess = parseFloat(mysteryGuessInput);
+                  if (isNaN(guess)) return;
+                  const res = evaluateMysterySubmission(activeMysteryChallenge, guess);
+                  setMysteryFeedbackResult(res);
+                  if (onSubmitMysteryExam) {
+                    onSubmitMysteryExam(activeStudentName, res, activeMysteryChallenge.title);
+                  }
+                  if (res.passed) labSound.playRecordSuccess();
+                  else labSound.playClick(300);
+                }}
+                className="space-y-2 pt-1"
+              >
+                <input
+                  type="number"
+                  step="any"
+                  required
+                  value={mysteryGuessInput}
+                  onChange={(e) => setMysteryGuessInput(e.target.value)}
+                  placeholder={`Hasil (${activeMysteryChallenge.hiddenParamUnit})`}
+                  className="w-full bg-slate-950 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-sky-400"
+                />
+                <button
+                  type="submit"
+                  className="w-full py-2 px-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Kirim Jawaban
+                </button>
+              </form>
+
+              {mysteryFeedbackResult && (
+                <div
+                  className={`p-3 rounded-xl border text-xs space-y-1 ${
+                    mysteryFeedbackResult.passed
+                      ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
+                      : 'bg-rose-950/60 border-rose-500/50 text-rose-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between font-bold">
+                    <span>{mysteryFeedbackResult.verdict}</span>
+                    <span className="font-mono">{mysteryFeedbackResult.score}/100</span>
+                  </div>
+                  <p className="text-[11px] opacity-90">{mysteryFeedbackResult.feedbackText}</p>
                 </div>
               )}
+            </div>
+          )}
 
-              {/* Module Switcher Dropdown */}
-              <div className="bg-slate-950/70 border border-white/10 rounded-xl p-2 space-y-1">
-                <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold block">
-                  Modul Praktikum Fisika:
-                </label>
-                <select
-                  value={params.mode}
-                  onChange={(e) => {
-                    const newMode = e.target.value as PhysicsParams['mode'];
-                    handleParamUpdate({ mode: newMode });
-                    labSound.playClick(680);
-                  }}
-                  className="w-full bg-slate-900 border border-white/15 rounded-lg px-2.5 py-1.5 text-xs font-medium text-white focus:outline-none focus:border-sky-400 cursor-pointer"
-                >
-                  <option value="newton-incline">Hukum II Newton & Bidang Miring</option>
-                  <option value="projectile-gravity">Gerak Parabola (Projektil)</option>
-                  <option value="spring-hooke">Osilasi Pegas Hooke</option>
-                  <option value="collision-momentum">Tumbukan & Momentum</option>
-                  <option value="pendulum-harmonic">Bandul Sederhana Harmonis</option>
-                  <option value="stokes-viscosity">Viskositas Fluida Stokes</option>
-                  <option value="ohm-wheatstone">Hukum Ohm & Jembatan Wheatstone</option>
-                  <option value="optics-young-slit">Interferensi Celah Ganda Young</option>
-                  <option value="photoelectric-planck">Efek Fotolistrik & Planck</option>
-                  <option value="orbital-gravity">Gravitasi Dua Massa</option>
-                </select>
-              </div>
+          {/* Parameter Sliders Container */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+            <div className="text-xs font-bold text-slate-200">Parameter Eksperimen</div>
 
-              {/* SVG Radial Speedometer & Kinetic Energy Gauges */}
-              <div className="grid grid-cols-2 gap-2 justify-items-center bg-slate-950/60 border border-white/10 rounded-xl p-2.5">
-                <CircularGaugeMeter
-                  size="sm"
-                  label="Kecepatan (v)"
-                  value={instant.speed}
-                  min={0}
-                  max={60}
-                  unit="m/s"
-                  color="#38bdf8"
-                />
-                <CircularGaugeMeter
-                  size="sm"
-                  label="Energi Kinetik"
-                  value={instant.kineticEnergy}
-                  min={0}
-                  max={2500}
-                  unit="J"
-                  precision={0}
-                  color="#10b981"
+            <div className="space-y-3">
+              <div
+                onPointerDown={() => onAcquireLock && onAcquireLock('mass')}
+                onPointerUp={() => onReleaseLock && onReleaseLock('mass')}
+              >
+                <TactileParameterControl
+                  label="Massa Benda"
+                  symbol="m"
+                  value={params.mass}
+                  min={1}
+                  max={30}
+                  step={0.5}
+                  unit="kg"
+                  accentColor="#f59e0b"
+                  lockedBy={getLockedByName('mass')}
+                  onHoverChange={(h) => setHoveredParamKey(h ? 'mass' : null)}
+                  onChange={(v) => handleParamUpdate({ mass: v })}
                 />
               </div>
 
-              {/* Quick Digital Readout Row */}
-              <div className="grid grid-cols-2 gap-2">
-                <AnimatedNumberReadout
-                  label="Percepatan (a)"
-                  value={metrics.acceleration}
-                  unit="m/s²"
-                  precision={2}
-                  accentColor="#38bdf8"
-                />
-                <AnimatedNumberReadout
-                  label="Resultan (ΣF)"
-                  value={metrics.netForce}
-                  unit="N"
-                  precision={1}
-                  accentColor="#10b981"
-                />
-              </div>
-
-              {/* Interactive Glowing Algebraic Formula Card */}
-              <InteractiveFormulaCard
-                title="Persamaan Hukum Fisika Aktif"
-                tokens={physicsFormulaTokens}
-                activeParamKey={hoveredParamKey}
-                accentColor="#38bdf8"
-              />
-
-              {/* Gravity Planet Presets */}
-              <div className="space-y-1">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
-                  Preset Gravitasi Planet (g)
-                </span>
-                <div className="grid grid-cols-4 gap-1">
-                  {GRAVITY_PRESETS.map((gp) => (
-                    <button
-                      key={gp.id}
-                      type="button"
-                      onClick={() => {
-                        labSound.playClick();
-                        handleParamUpdate({ gravity: gp.g });
-                      }}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-mono font-semibold border transition-colors cursor-pointer truncate ${
-                        Math.abs(params.gravity - gp.g) < 0.05
-                          ? 'bg-sky-500 text-slate-950 border-sky-400 font-bold'
-                          : 'bg-slate-950/60 border-white/10 text-slate-300 hover:bg-white/10'
-                      }`}
-                    >
-                      {gp.name.split(' ')[0]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tactile Parameter Sliders with Algebraic Symbols */}
-              <div className="space-y-2.5">
-                <div
-                  onPointerDown={() => onAcquireLock && onAcquireLock('mass')}
-                  onPointerUp={() => onReleaseLock && onReleaseLock('mass')}
-                >
+              {params.mode === 'newton-incline' && (
+                <>
                   <TactileParameterControl
-                    label="Massa Benda"
-                    symbol="m"
-                    value={params.mass}
+                    label="Gaya Dorong"
+                    symbol="F"
+                    value={params.appliedForce}
+                    min={-100}
+                    max={250}
+                    step={5}
+                    unit="N"
+                    accentColor="#10b981"
+                    lockedBy={getLockedByName('appliedForce')}
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'appliedForce' : null)}
+                    onChange={(v) => handleParamUpdate({ appliedForce: v })}
+                  />
+                  <TactileParameterControl
+                    label="Sudut Kemiringan"
+                    symbol="θ"
+                    value={params.inclineAngle}
+                    min={0}
+                    max={45}
+                    step={1}
+                    unit="°"
+                    accentColor="#a855f7"
+                    lockedBy={getLockedByName('inclineAngle')}
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'inclineAngle' : null)}
+                    onChange={(v) => handleParamUpdate({ inclineAngle: v })}
+                  />
+                  <TactileParameterControl
+                    label="Koefisien Gesek Kinetik"
+                    symbol="μk"
+                    value={params.frictionCoeffKinetic}
+                    min={0}
+                    max={0.8}
+                    step={0.02}
+                    unit=""
+                    accentColor="#f43f5e"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'frictionCoeffKinetic' : null)}
+                    onChange={(v) => handleParamUpdate({ frictionCoeffKinetic: v })}
+                  />
+                </>
+              )}
+
+              {params.mode === 'projectile-gravity' && (
+                <>
+                  <TactileParameterControl
+                    label="Kecepatan Awal"
+                    symbol="v₀"
+                    value={params.initialVelocity}
+                    min={4}
+                    max={50}
+                    step={1}
+                    unit="m/s"
+                    accentColor="#10b981"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'initialVelocity' : null)}
+                    onChange={(v) => handleParamUpdate({ initialVelocity: v })}
+                  />
+                  <TactileParameterControl
+                    label="Sudut Elevasi"
+                    symbol="θ"
+                    value={params.launchAngle}
+                    min={10}
+                    max={80}
+                    step={1}
+                    unit="°"
+                    accentColor="#f59e0b"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'launchAngle' : null)}
+                    onChange={(v) => handleParamUpdate({ launchAngle: v })}
+                  />
+                  <TactileParameterControl
+                    label="Tinggi Menara Awal"
+                    symbol="h₀"
+                    value={params.initialHeight}
+                    min={0}
+                    max={40}
+                    step={1}
+                    unit="m"
+                    accentColor="#38bdf8"
+                    onChange={(v) => handleParamUpdate({ initialHeight: v })}
+                  />
+                </>
+              )}
+
+              {params.mode === 'collision-momentum' && (
+                <>
+                  <TactileParameterControl
+                    label="Kecepatan Benda 1"
+                    symbol="v₁"
+                    value={params.initialVelocity}
+                    min={1}
+                    max={25}
+                    step={0.5}
+                    unit="m/s"
+                    accentColor="#10b981"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'initialVelocity' : null)}
+                    onChange={(v) => handleParamUpdate({ initialVelocity: v })}
+                  />
+                  <TactileParameterControl
+                    label="Massa Benda 2"
+                    symbol="m₂"
+                    value={params.collisionMass2}
                     min={1}
                     max={30}
                     step={0.5}
                     unit="kg"
-                    accentColor="#f59e0b"
-                    lockedBy={getLockedByName('mass')}
-                    onHoverChange={(h) => setHoveredParamKey(h ? 'mass' : null)}
-                    onChange={(v) => handleParamUpdate({ mass: v })}
+                    accentColor="#a855f7"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'collisionMass2' : null)}
+                    onChange={(v) => handleParamUpdate({ collisionMass2: v })}
                   />
-                </div>
+                  <TactileParameterControl
+                    label="Koefisien Restitusi"
+                    symbol="e"
+                    value={params.restitutionCoeff}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    unit=""
+                    accentColor="#38bdf8"
+                    onChange={(v) => handleParamUpdate({ restitutionCoeff: v })}
+                  />
+                </>
+              )}
 
-                {params.mode === 'newton-incline' && (
-                  <>
-                    <TactileParameterControl
-                      label="Gaya Dorong"
-                      symbol="F"
-                      value={params.appliedForce}
-                      min={-100}
-                      max={250}
-                      step={5}
-                      unit="N"
-                      accentColor="#10b981"
-                      lockedBy={getLockedByName('appliedForce')}
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'appliedForce' : null)
-                      }
-                      onChange={(v) => handleParamUpdate({ appliedForce: v })}
-                    />
-                    <TactileParameterControl
-                      label="Sudut Kemiringan"
-                      symbol="θ"
-                      value={params.inclineAngle}
-                      min={0}
-                      max={45}
-                      step={1}
-                      unit="°"
-                      accentColor="#a855f7"
-                      lockedBy={getLockedByName('inclineAngle')}
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'inclineAngle' : null)
-                      }
-                      onChange={(v) => handleParamUpdate({ inclineAngle: v })}
-                    />
-                    <TactileParameterControl
-                      label="Koefisien Gesek Kinetik"
-                      symbol="μk"
-                      value={params.frictionCoeffKinetic}
-                      min={0}
-                      max={0.8}
-                      step={0.02}
-                      unit=""
-                      accentColor="#f43f5e"
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'frictionCoeffKinetic' : null)
-                      }
-                      onChange={(v) =>
-                        handleParamUpdate({ frictionCoeffKinetic: v })
-                      }
-                    />
-                  </>
-                )}
+              {params.mode === 'spring-hooke' && (
+                <>
+                  <TactileParameterControl
+                    label="Konstanta Pegas (k)"
+                    symbol="k"
+                    value={params.springConstantK}
+                    min={10}
+                    max={250}
+                    step={5}
+                    unit="N/m"
+                    accentColor="#38bdf8"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'springConstantK' : null)}
+                    onChange={(v) => handleParamUpdate({ springConstantK: v })}
+                  />
+                  <TactileParameterControl
+                    label="Simpangan Awal (Δx)"
+                    symbol="Δx"
+                    value={params.springDisplacement}
+                    min={-1.5}
+                    max={1.5}
+                    step={0.1}
+                    unit="m"
+                    accentColor="#10b981"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'springDisplacement' : null)}
+                    onChange={(v) => handleParamUpdate({ springDisplacement: v })}
+                  />
+                </>
+              )}
 
-                {params.mode === 'projectile-gravity' && (
-                  <>
-                    <TactileParameterControl
-                      label="Kecepatan Awal"
-                      symbol="v₀"
-                      value={params.initialVelocity}
-                      min={4}
-                      max={50}
-                      step={1}
-                      unit="m/s"
-                      accentColor="#10b981"
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'initialVelocity' : null)
-                      }
-                      onChange={(v) =>
-                        handleParamUpdate({ initialVelocity: v })
-                      }
-                    />
-                    <TactileParameterControl
-                      label="Sudut Elevasi"
-                      symbol="θ"
-                      value={params.launchAngle}
-                      min={10}
-                      max={80}
-                      step={1}
-                      unit="°"
-                      accentColor="#f59e0b"
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'launchAngle' : null)
-                      }
-                      onChange={(v) => handleParamUpdate({ launchAngle: v })}
-                    />
-                    <TactileParameterControl
-                      label="Tinggi Menara Awal"
-                      symbol="h₀"
-                      value={params.initialHeight}
-                      min={0}
-                      max={40}
-                      step={1}
-                      unit="m"
-                      accentColor="#38bdf8"
-                      onChange={(v) => handleParamUpdate({ initialHeight: v })}
-                    />
-                  </>
-                )}
-
-                {params.mode === 'collision-momentum' && (
-                  <>
-                    <TactileParameterControl
-                      label="Kecepatan Benda 1"
-                      symbol="v₁"
-                      value={params.initialVelocity}
-                      min={1}
-                      max={25}
-                      step={0.5}
-                      unit="m/s"
-                      accentColor="#10b981"
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'initialVelocity' : null)
-                      }
-                      onChange={(v) =>
-                        handleParamUpdate({ initialVelocity: v })
-                      }
-                    />
-                    <TactileParameterControl
-                      label="Massa Benda 2"
-                      symbol="m₂"
-                      value={params.collisionMass2}
-                      min={1}
-                      max={30}
-                      step={0.5}
-                      unit="kg"
-                      accentColor="#a855f7"
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'collisionMass2' : null)
-                      }
-                      onChange={(v) => handleParamUpdate({ collisionMass2: v })}
-                    />
-                    <TactileParameterControl
-                      label="Kecepatan Benda 2"
-                      symbol="v₂"
-                      value={params.velocity2Initial}
-                      min={-20}
-                      max={10}
-                      step={0.5}
-                      unit="m/s"
-                      accentColor="#f43f5e"
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'velocity2Initial' : null)
-                      }
-                      onChange={(v) =>
-                        handleParamUpdate({ velocity2Initial: v })
-                      }
-                    />
-                    <TactileParameterControl
-                      label="Koefisien Restitusi"
-                      symbol="e"
-                      value={params.restitutionCoeff}
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      unit=""
-                      accentColor="#38bdf8"
-                      onChange={(v) =>
-                        handleParamUpdate({ restitutionCoeff: v })
-                      }
-                    />
-                  </>
-                )}
-
-                {params.mode === 'spring-hooke' && (
-                  <>
-                    <TactileParameterControl
-                      label="Konstanta Pegas"
-                      symbol="k"
-                      value={params.springConstantK}
-                      min={10}
-                      max={250}
-                      step={5}
-                      unit="N/m"
-                      accentColor="#38bdf8"
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'springConstantK' : null)
-                      }
-                      onChange={(v) =>
-                        handleParamUpdate({ springConstantK: v })
-                      }
-                    />
-                    <TactileParameterControl
-                      label="Simpangan Awal"
-                      symbol="Δx"
-                      value={params.springDisplacement}
-                      min={-1.5}
-                      max={1.5}
-                      step={0.05}
-                      unit="m"
-                      accentColor="#10b981"
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'springDisplacement' : null)
-                      }
-                      onChange={(v) =>
-                        handleParamUpdate({ springDisplacement: v })
-                      }
-                    />
-                    <TactileParameterControl
-                      label="Redaman Udara"
-                      symbol="b"
-                      value={params.dampingCoeff}
-                      min={0}
-                      max={2}
-                      step={0.05}
-                      unit="N·s/m"
-                      accentColor="#f43f5e"
-                      onChange={(v) => handleParamUpdate({ dampingCoeff: v })}
-                    />
-                  </>
-                )}
-
-                {params.mode === 'orbital-gravity' && (
-                  <>
-                    <TactileParameterControl
-                      label="Massa Kedua"
-                      symbol="m₂"
-                      value={params.secondaryMass}
-                      min={10}
-                      max={5000}
-                      step={50}
-                      unit="kg"
-                      accentColor="#a855f7"
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'secondaryMass' : null)
-                      }
-                      onChange={(v) => handleParamUpdate({ secondaryMass: v })}
-                    />
-                    <TactileParameterControl
-                      label="Jarak Pisah Pusat"
-                      symbol="r"
-                      value={params.separationDistance}
-                      min={1}
-                      max={40}
-                      step={0.5}
-                      unit="m"
-                      accentColor="#f59e0b"
-                      onHoverChange={(h) =>
-                        setHoveredParamKey(h ? 'separationDistance' : null)
-                      }
-                      onChange={(v) =>
-                        handleParamUpdate({ separationDistance: v })
-                      }
-                    />
-                  </>
-                )}
-
-                {params.mode === 'pendulum-harmonic' && (
-                  <>
-                    <TactileParameterControl
-                      label="Panjang Tali Bandul"
-                      symbol="L"
-                      value={params.pendulumLength ?? 1.2}
-                      min={0.3}
-                      max={2.5}
-                      step={0.1}
-                      unit="m"
-                      accentColor="#f59e0b"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'pendulumLength' : null)}
-                      onChange={(v) => handleParamUpdate({ pendulumLength: v })}
-                    />
-                    <TactileParameterControl
-                      label="Simpangan Awal"
-                      symbol="θ₀"
-                      value={params.pendulumAngle ?? 25}
-                      min={5}
-                      max={60}
-                      step={1}
-                      unit="°"
-                      accentColor="#38bdf8"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'pendulumAngle' : null)}
-                      onChange={(v) => handleParamUpdate({ pendulumAngle: v })}
-                    />
-                  </>
-                )}
-
-                {params.mode === 'stokes-viscosity' && (
-                  <>
-                    <TactileParameterControl
-                      label="Viskositas Fluida"
-                      symbol="η"
-                      value={params.fluidViscosity ?? 0.8}
-                      min={0.1}
-                      max={2.0}
-                      step={0.05}
-                      unit="Pa·s"
-                      accentColor="#d97706"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'fluidViscosity' : null)}
-                      onChange={(v) => handleParamUpdate({ fluidViscosity: v })}
-                    />
-                    <TactileParameterControl
-                      label="Jari-jari Bola Logam"
-                      symbol="r"
-                      value={params.sphereRadius ?? 5}
-                      min={1}
-                      max={20}
-                      step={0.5}
-                      unit="mm"
-                      accentColor="#38bdf8"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'sphereRadius' : null)}
-                      onChange={(v) => handleParamUpdate({ sphereRadius: v })}
-                    />
-                  </>
-                )}
-
-                {params.mode === 'ohm-wheatstone' && (
-                  <>
-                    <TactileParameterControl
-                      label="Tegangan Sumber"
-                      symbol="V"
-                      value={params.circuitVoltage ?? 12}
-                      min={1}
-                      max={24}
-                      step={1}
-                      unit="V"
-                      accentColor="#10b981"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'circuitVoltage' : null)}
-                      onChange={(v) => handleParamUpdate({ circuitVoltage: v })}
-                    />
-                    <TactileParameterControl
-                      label="Resistor Variabel (Rx)"
-                      symbol="Rx"
-                      value={params.resistorRx ?? 300}
-                      min={10}
-                      max={1000}
-                      step={10}
-                      unit="Ω"
-                      accentColor="#ef4444"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'resistorRx' : null)}
-                      onChange={(v) => handleParamUpdate({ resistorRx: v })}
-                    />
-                  </>
-                )}
-
-                {params.mode === 'optics-young-slit' && (
-                  <>
-                    <TactileParameterControl
-                      label="Panjang Gelombang Laser"
-                      symbol="λ"
-                      value={params.lightWavelength ?? 532}
-                      min={400}
-                      max={700}
-                      step={10}
-                      unit="nm"
-                      accentColor="#10b981"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'lightWavelength' : null)}
-                      onChange={(v) => handleParamUpdate({ lightWavelength: v })}
-                    />
-                    <TactileParameterControl
-                      label="Jarak Antar-Celah"
-                      symbol="d"
-                      value={params.slitDistance ?? 0.25}
-                      min={0.05}
-                      max={0.8}
-                      step={0.02}
-                      unit="mm"
-                      accentColor="#38bdf8"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'slitDistance' : null)}
-                      onChange={(v) => handleParamUpdate({ slitDistance: v })}
-                    />
-                    <TactileParameterControl
-                      label="Jarak ke Layar"
-                      symbol="L"
-                      value={params.screenDistance ?? 1.5}
-                      min={0.5}
-                      max={3.0}
-                      step={0.1}
-                      unit="m"
-                      accentColor="#a855f7"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'screenDistance' : null)}
-                      onChange={(v) => handleParamUpdate({ screenDistance: v })}
-                    />
-                  </>
-                )}
-
-                {params.mode === 'photoelectric-planck' && (
-                  <>
-                    <TactileParameterControl
-                      label="Frekuensi Foton"
-                      symbol="f"
-                      value={params.photonFrequency ?? 7.5}
-                      min={4.0}
-                      max={15.0}
-                      step={0.2}
-                      unit="×10¹⁴Hz"
-                      accentColor="#38bdf8"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'photonFrequency' : null)}
-                      onChange={(v) => handleParamUpdate({ photonFrequency: v })}
-                    />
-                    <TactileParameterControl
-                      label="Fungsi Kerja Katoda"
-                      symbol="W"
-                      value={params.targetMetalWorkFunction ?? 2.28}
-                      min={2.0}
-                      max={5.5}
-                      step={0.1}
-                      unit="eV"
-                      accentColor="#f59e0b"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'targetMetalWorkFunction' : null)}
-                      onChange={(v) => handleParamUpdate({ targetMetalWorkFunction: v })}
-                    />
-                    <TactileParameterControl
-                      label="Potensial Penghenti"
-                      symbol="V₀"
-                      value={params.stoppingPotential ?? 1.5}
-                      min={0}
-                      max={5.0}
-                      step={0.1}
-                      unit="V"
-                      accentColor="#ef4444"
-                      onHoverChange={(h) => setHoveredParamKey(h ? 'stoppingPotential' : null)}
-                      onChange={(v) => handleParamUpdate({ stoppingPotential: v })}
-                    />
-                  </>
-                )}
-
-                <TactileParameterControl
-                  label="Percepatan Gravitasi"
-                  symbol="g"
-                  value={params.gravity}
-                  min={1.6}
-                  max={25}
-                  step={0.1}
-                  unit="m/s²"
-                  accentColor="#38bdf8"
-                  onHoverChange={(h) => setHoveredParamKey(h ? 'gravity' : null)}
-                  onChange={(v) => handleParamUpdate({ gravity: v })}
-                />
-              </div>
-
-              {/* Instrument Noise Toggle */}
-              <div className="pt-1 border-t border-white/10 flex items-center justify-between text-[11px]">
-                <span className="text-slate-300 font-medium">
-                  Simulasi Ketidakpastian Alat (±Δx)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setNoiseEnabled((n) => !n)}
-                  className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold transition-colors cursor-pointer ${
-                    noiseEnabled
-                      ? 'bg-amber-500 text-slate-950'
-                      : 'bg-white/10 text-slate-400'
-                  }`}
-                >
-                  {noiseEnabled ? 'AKTIF' : 'IDEAL'}
-                </button>
-              </div>
-            </motion.aside>
-          )}
-        </AnimatePresence>
-
-        {/* Sleek Collapse/Expand Toggle Button (< / >) */}
-        <button
-          type="button"
-          onClick={() => {
-            labSound.playClick();
-            setLeftDockCollapsed((c) => !c);
-          }}
-          aria-label={
-            leftDockCollapsed
-              ? 'Buka panel kontrol kiri'
-              : 'Tutup panel kontrol kiri'
-          }
-          className="pointer-events-auto ml-2 mt-3 backdrop-blur-xl bg-slate-900/80 hover:bg-slate-800 border border-white/15 text-white rounded-xl p-2 shadow-2xl transition-colors cursor-pointer flex items-center gap-1 text-xs font-mono"
-          title={
-            leftDockCollapsed
-              ? 'Tampilkan Panel Parameter'
-              : 'Sembunyikan Panel Parameter'
-          }
-        >
-          {leftDockCollapsed ? (
-            <>
-              <ChevronRight className="w-4 h-4 text-sky-400" />
-              <span className="pr-1">Kontrol</span>
-            </>
-          ) : (
-            <ChevronLeft className="w-4 h-4 text-slate-300" />
-          )}
-        </button>
-      </div>
-
-      {/* 3. BOTTOM-CENTER FLOATING PLAYBACK & ACTION PILL */}
-      <div className="pointer-events-auto absolute bottom-5 left-1/2 -translate-x-1/2 z-30 max-w-[95vw]">
-        <div className="backdrop-blur-xl bg-slate-900/80 border border-white/15 text-white rounded-full px-3.5 py-2 shadow-2xl flex items-center gap-2.5 sm:gap-3.5">
-          <button
-            type="button"
-            onClick={handleStartSimulation}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-[0_0_18px_rgba(56,189,248,0.45)] transition-colors cursor-pointer shrink-0"
-          >
-            {isPlaying ? (
-              <Pause className="w-3.5 h-3.5" />
-            ) : (
-              <Play className="w-3.5 h-3.5" />
-            )}
-            <span>{isPlaying ? 'Jeda' : 'Play'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleResetSimulation}
-            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-200 transition-colors cursor-pointer shrink-0"
-            title="Reset Waktu Simulasi (t = 0s)"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Timeline Scrubber */}
-          <div className="hidden sm:flex items-center gap-2 px-1">
-            <span className="font-mono text-[11px] text-sky-300 tabular-nums w-12">
-              {simTime.toFixed(2)}s
-            </span>
-            <input
-              type="range"
-              aria-label="Garis Waktu Simulasi"
-              min={0}
-              max={maxSimDuration}
-              step={0.05}
-              value={Math.min(maxSimDuration, simTime)}
-              onChange={(e) => {
-                setIsPlaying(false);
-                setSimTime(Number(e.target.value));
-              }}
-              className="w-28 md:w-36 accent-sky-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
-            />
-            <button
-              type="button"
-              onClick={() =>
-                setPlaybackSpeed((s) => (s === 1 ? 0.5 : s === 0.5 ? 2 : 1))
-              }
-              className="px-2 py-0.5 rounded-full bg-white/10 text-[10px] font-mono text-slate-300 hover:text-white cursor-pointer"
-            >
-              {playbackSpeed}x
-            </button>
+              {params.mode === 'orbital-gravity' && (
+                <>
+                  <TactileParameterControl
+                    label="Massa Sekunder (m₂)"
+                    symbol="m₂"
+                    value={params.secondaryMass}
+                    min={10}
+                    max={5000}
+                    step={50}
+                    unit="kg"
+                    accentColor="#a855f7"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'secondaryMass' : null)}
+                    onChange={(v) => handleParamUpdate({ secondaryMass: v })}
+                  />
+                  <TactileParameterControl
+                    label="Jarak Pemisah (r)"
+                    symbol="r"
+                    value={params.separationDistance}
+                    min={1}
+                    max={40}
+                    step={0.5}
+                    unit="m"
+                    accentColor="#f59e0b"
+                    onHoverChange={(h) => setHoveredParamKey(h ? 'separationDistance' : null)}
+                    onChange={(v) => handleParamUpdate({ separationDistance: v })}
+                  />
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Glowing Primary Button: + Catat Data Percobaan */}
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleRecordClick}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs shadow-[0_0_22px_rgba(16,185,129,0.55)] transition-colors cursor-pointer shrink-0"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>+ Catat Data Percobaan</span>
-          </motion.button>
+          {/* Interactive Formula Card */}
+          <InteractiveFormulaCard
+            title="Persamaan Hukum Fisika Aktif"
+            tokens={physicsFormulaTokens}
+            activeParamKey={hoveredParamKey}
+            accentColor="#38bdf8"
+          />
         </div>
       </div>
-
-      {/* 4. RIGHT FLOATING ANALYTICS SUMMARY & STEP TRANSITION */}
-      <FloatingLabAnalyticsDrawer
-        domain="Fisika"
-        experimentTitle={currentModule.title}
-        records={records}
-        activeStudentName={activeStudentName}
-        activeGroupId={activeGroupId}
-        accentColor="#38bdf8"
-        onDeleteRecord={onDeleteRecord}
-        onExportCSV={onExportCSV}
-        onSubmitQuizScore={onSubmitQuizScore}
-        onProceedToAnalysis={onProceedToAnalysis}
-        onBackToCatalog={onBackToCatalog}
-      />
-
-      {/* Pre-Lab & Safety Modal */}
-      <PreLabSafetyModal
-        experiment={modalExperiment}
-        activeTier={activeTier}
-        isOpen={preLabModalOpen}
-        onClose={() => setPreLabModalOpen(false)}
-        onProceedToLab={() => {
-          handleSelectExperimentById(modalExperiment.id);
-        }}
-      />
     </div>
   );
 };

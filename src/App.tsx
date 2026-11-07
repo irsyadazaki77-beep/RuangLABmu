@@ -1220,7 +1220,7 @@ export default function App() {
               }}
               className="text-xs font-semibold text-slate-400 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
             >
-              <span>← Ganti Modul / Beranda</span>
+              <span>← Kembali ke Katalog Lab</span>
             </button>
           )}
         </div>

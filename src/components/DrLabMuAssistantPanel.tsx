@@ -281,7 +281,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
     liveTelemetry.recordedData.length >= 3;
 
   return (
-    <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end pointer-events-none">
+    <div className="fixed bottom-20 right-5 z-40 flex flex-col items-end pointer-events-none">
       <AnimatePresence>
         {isOpen && (
           <motion.div

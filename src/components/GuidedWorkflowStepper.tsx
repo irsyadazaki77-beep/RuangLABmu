@@ -77,23 +77,12 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
       {/* 1. TOP PROGRESS TRACKER (Sticky under header) */}
       <nav
         aria-label="Tahapan Alur Praktikum"
-        className="w-full bg-slate-900 border-b border-slate-800 px-4 py-2 text-white shrink-0 z-40 select-none shadow-xs"
+        className="w-full bg-slate-900 border-b border-slate-800 py-2.5 px-4 text-white shrink-0 z-40 select-none shadow-xs"
       >
         <div className="max-w-[1380px] mx-auto flex items-center justify-between gap-4">
-          {/* Left: Experiment Context & Back link */}
-          <div className="hidden lg:flex items-center gap-2 text-xs text-slate-400 truncate max-w-xs xl:max-w-md">
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                onBackToLobby();
-              }}
-              className="font-medium text-slate-400 hover:text-white transition-colors cursor-pointer shrink-0"
-            >
-              ← Ganti Modul
-            </button>
-            <span aria-hidden="true">·</span>
-            <span className="font-semibold text-slate-200 truncate" title={experimentTitle}>
+          {/* Left: Active Experiment Title */}
+          <div className="hidden lg:flex items-center gap-2 text-xs text-slate-300 truncate max-w-xs xl:max-w-md font-semibold">
+            <span className="truncate" title={experimentTitle}>
               {experimentTitle}
             </span>
           </div>
