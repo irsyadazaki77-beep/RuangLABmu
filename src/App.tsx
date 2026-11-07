@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Bell,
@@ -46,18 +46,23 @@ import {
   StudentProgressItem,
 } from './components/TeacherDashboardView';
 import { DrLabMuAssistantPanel } from './components/DrLabMuAssistantPanel';
-import { ExperimentCatalogPicker } from './components/ExperimentCatalogPicker';
+import { LabLobbyHub } from './components/LabLobbyHub';
+import { GuidedWorkflowStepper, WorkflowStepNumber } from './components/GuidedWorkflowStepper';
+import { PreLabBriefingView } from './components/PreLabBriefingView';
 import { PreLabSafetyModal } from './components/PreLabSafetyModal';
 import {
   ExperimentModule,
   EducationTier,
   ScienceDomain as RegistryDomain,
   getExperimentsByDomain,
+  getExperimentById,
+  EXPERIMENT_CATALOG,
 } from './registry/experimentRegistry';
 import { useSpatialCollab } from './hooks/useSpatialCollab';
 import {
   MysterySampleChallenge,
   MysterySubmissionResult,
+  PRESET_MYSTERY_CHALLENGES,
 } from './utils/mysteryChallengeEngine';
 
 type LabDomainId = 'fisika' | 'kimia' | 'biologi' | 'astronomi';
@@ -75,6 +80,7 @@ const STUDENT_PROFILES = [
 export default function App() {
   // Structured Role & 4-Step Guided Workflow State
   const [userRole, setUserRole] = useState<UserRoleMode>('siswa');
+  const [isLobbyMode, setIsLobbyMode] = useState<boolean>(true);
   const [workflowStep, setWorkflowStep] = useState<WorkflowStep>(1);
   const [activeDomain, setActiveDomain] = useState<LabDomainId>('fisika');
   const [selectedProfileIdx, setSelectedProfileIdx] = useState<number>(0);
@@ -975,7 +981,10 @@ export default function App() {
     return 'solar-kepler';
   })();
 
-  const handleSelectCatalogExperiment = (exp: ExperimentModule) => {
+  const handleSelectCatalogExperiment = (
+    exp: ExperimentModule,
+    targetStep: WorkflowStep = 1
+  ) => {
     const dom = exp.domain as LabDomainId;
     setActiveDomain(dom);
 
@@ -1028,7 +1037,28 @@ export default function App() {
     setCompletedSafetyIds((prev) =>
       prev.includes(exp.id) ? prev : [...prev, exp.id]
     );
-    setWorkflowStep(2);
+    setIsLobbyMode(false);
+    setWorkflowStep(targetStep);
+  };
+
+  const currentExperimentModule = useMemo(() => {
+    return getExperimentById(currentExperimentId) || EXPERIMENT_CATALOG[0];
+  }, [currentExperimentId]);
+
+  const handleOpenMysteryExamFromLobby = () => {
+    labSound.playRecordSuccess();
+    const preset = PRESET_MYSTERY_CHALLENGES[0];
+    setActiveMysteryChallenge(preset);
+    const exp = EXPERIMENT_CATALOG.find((e) => e.id === preset.moduleId) || EXPERIMENT_CATALOG[0];
+    handleSelectCatalogExperiment(exp, 2);
+    handlePushNotification({
+      id: `notif-mystery-start-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      severity: 'nominal',
+      domain: 'Pengajar',
+      title: `Ujian Sampel Misterius Dimulai: ${preset.codename}`,
+      message: `Parameter ${preset.hiddenParamKey} disembunyikan. Ukur respon telemetri dan kirimkan estimasi Anda!`,
+    });
   };
 
   const activeScienceDomain: ScienceDomain =
@@ -1047,151 +1077,83 @@ export default function App() {
       ? 'Mahasiswa'
       : 'SMA';
 
-  const is3DStageActive = userRole === 'siswa' && workflowStep === 2;
-
-  const WORKFLOW_STEPS = [
-    {
-      step: 1 as const,
-      label: '1. Katalog & K3',
-      icon: BookOpen,
-      done: completedSafetyIds.length > 0,
-    },
-    {
-      step: 2 as const,
-      label: '2. Simulasi 3D',
-      icon: Atom,
-      done: records.length > 0,
-    },
-    {
-      step: 3 as const,
-      label: `3. Grafik & LKS (${records.length})`,
-      icon: BarChart3,
-      done: lksGraded,
-    },
-    {
-      step: 4 as const,
-      label: '4. Laporan & Diskusi',
-      icon: FileCheck2,
-      done: lksGraded && records.length >= 2,
-    },
-  ];
+  const is3DStageActive = !isLobbyMode && userRole === 'siswa' && workflowStep === 2;
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-900 dark:text-slate-100 select-none">
-      {/* Structured Top Header Bar: Zone 1 (Brand & Domain) — Zone 2 (4-Step Workflow / Teacher Mode) — Zone 3 (Role Switcher & Utilities) */}
-      <header className="h-14 shrink-0 flex items-center justify-between gap-3 px-4 bg-slate-950 border-b border-slate-800 text-white z-50">
-        {/* Zone 1: Brand Identity + Quick Science Domain Switcher */}
+      {/* 3-Zone Clean Header Bar */}
+      <header className="h-14 shrink-0 flex items-center justify-between gap-4 px-4 sm:px-6 bg-slate-950 border-b border-slate-800 text-white z-50 select-none">
+        {/* Zone 1: Brand Identity & Ganti Modul / Beranda button */}
         <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
             onClick={() => {
               labSound.playClick();
-              setUserRole('siswa');
-              setWorkflowStep(1);
+              setIsLobbyMode(true);
             }}
-            className="text-base font-extrabold tracking-tight text-white whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-2"
+            className="text-base font-extrabold tracking-tight text-white whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-2 hover:opacity-90 transition-opacity"
           >
-            <span className="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center">
+            <span className="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center shadow-xs">
               <Atom className="w-4 h-4 text-white" />
             </span>
             <span>RuangLABmu</span>
           </button>
 
-          {userRole === 'siswa' && (
-            <div
-              className="hidden xl:flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs"
-              role="group"
-              aria-label="Bidang Sains Aktif"
+          {!isLobbyMode && userRole === 'siswa' && (
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setIsLobbyMode(true);
+              }}
+              className="text-xs font-semibold text-slate-400 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
             >
-              {(
-                [
-                  { id: 'fisika', label: 'Fisika', icon: Atom },
-                  { id: 'kimia', label: 'Kimia', icon: FlaskConical },
-                  { id: 'biologi', label: 'Biologi', icon: Leaf },
-                  { id: 'astronomi', label: 'Astronomi', icon: Orbit },
-                ] as const
-              ).map((dom) => {
-                const Icon = dom.icon;
-                const isSelected = activeDomain === dom.id;
-                return (
-                  <button
-                    key={dom.id}
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick();
-                      setActiveDomain(dom.id);
-                    }}
-                    className={`px-2.5 py-1 rounded-md font-medium flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                      isSelected
-                        ? 'bg-slate-800 text-sky-400 font-semibold'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{dom.label}</span>
-                  </button>
-                );
-              })}
+              <span>← Ganti Modul / Beranda</span>
+            </button>
+          )}
+        </div>
+
+        {/* Zone 2: Context Badge & Active Tier (Center) */}
+        <div className="flex items-center gap-2 shrink-0 truncate max-w-xs sm:max-w-md">
+          {userRole === 'siswa' ? (
+            !isLobbyMode ? (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-900 border border-slate-800 text-xs truncate">
+                <span className="font-semibold text-sky-400 uppercase tracking-wider text-[11px] shrink-0">
+                  {currentExperimentModule.domain}
+                </span>
+                <span aria-hidden="true" className="text-slate-600 shrink-0">·</span>
+                <span className="font-bold text-white truncate" title={currentExperimentModule.title}>
+                  {currentExperimentModule.title}
+                </span>
+                <span aria-hidden="true" className="text-slate-600 shrink-0">·</span>
+                <span className="font-mono text-amber-400 text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-sm shrink-0">
+                  {activeTierLabel}
+                </span>
+              </div>
+            ) : (
+              <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 font-medium">
+                <span className="font-semibold text-slate-200">Pusat Praktikum Sains</span>
+                <span aria-hidden="true" className="text-slate-600">·</span>
+                <span className="font-mono text-amber-400 text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-sm">
+                  Jenjang {activeTierLabel}
+                </span>
+              </div>
+            )
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200">
+              <GraduationCap className="w-4 h-4 text-rose-400 shrink-0" />
+              <span className="font-semibold whitespace-nowrap">
+                Ruang Evaluasi Pengajar ({students.length} Siswa Aktif)
+              </span>
             </div>
           )}
         </div>
 
-        {/* Zone 2: Guided 4-Step Student Stepper OR Teacher Mode Banner */}
-        {userRole === 'siswa' ? (
-          <nav
-            aria-label="Tahapan Praktikum Siswa"
-            className="flex items-center gap-1 p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs font-medium overflow-x-auto no-scrollbar"
-          >
-            {WORKFLOW_STEPS.map((item, idx) => {
-              const isCurrent = workflowStep === item.step;
-              const Icon = item.icon;
-              return (
-                <React.Fragment key={item.step}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick();
-                      setWorkflowStep(item.step);
-                    }}
-                    className={`relative px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                      isCurrent
-                        ? 'bg-sky-600 text-white font-bold'
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-                    }`}
-                  >
-                    {item.done && !isCurrent ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    ) : (
-                      <Icon className="w-3.5 h-3.5 shrink-0" />
-                    )}
-                    <span>{item.label}</span>
-                  </button>
-                  {idx < WORKFLOW_STEPS.length - 1 && (
-                    <span
-                      aria-hidden="true"
-                      className="text-slate-600 text-xs px-0.5 select-none hidden sm:inline"
-                    >
-                      →
-                    </span>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </nav>
-        ) : (
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200">
-            <GraduationCap className="w-4 h-4 text-rose-400 shrink-0" />
-            <span className="font-semibold whitespace-nowrap">
-              Ruang Evaluasi & Rubrik Pengajar ({students.length} Siswa Aktif)
-            </span>
-          </div>
-        )}
-
-        {/* Zone 3: Explicit Role Switcher (Mode Siswa | Mode Pengajar), Tier, Profile & Utilities */}
+        {/* Zone 3: Clean Utility Cluster (Right) */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Role Switcher: Mode Siswa vs Mode Pengajar */}
+          {/* Role Switcher Pill */}
           <div
-            className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5"
+            className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs"
             role="group"
             aria-label="Mode Peran Pengguna"
           >
@@ -1201,7 +1163,7 @@ export default function App() {
                 labSound.playClick();
                 setUserRole('siswa');
               }}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 userRole === 'siswa'
                   ? 'bg-sky-500 text-slate-950 font-bold'
                   : 'text-slate-400 hover:text-white'
@@ -1215,7 +1177,7 @@ export default function App() {
                 labSound.playClick();
                 setUserRole('pengajar');
               }}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1 cursor-pointer ${
                 userRole === 'pengajar'
                   ? 'bg-rose-500 text-white font-bold'
                   : 'text-slate-400 hover:text-white'
@@ -1226,62 +1188,31 @@ export default function App() {
             </button>
           </div>
 
-          {/* SMP / SMA / PT Selector */}
+          {/* Student Profile Selector */}
           {userRole === 'siswa' && (
-            <div
-              className="hidden md:flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5"
-              role="group"
-              aria-label="Tingkat Kurikulum"
-            >
-              {(
-                [
-                  { id: 'smp', label: 'SMP' },
-                  { id: 'sma', label: 'SMA' },
-                  { id: 'mahasiswa', label: 'PT' },
-                ] as const
-              ).map((lvl) => (
-                <button
-                  key={lvl.id}
-                  type="button"
-                  onClick={() => {
-                    labSound.playClick();
-                    setAcademicLevel(lvl.id);
-                  }}
-                  className={`px-2 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
-                    academicLevel === lvl.id
-                      ? 'bg-slate-800 text-sky-400'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {lvl.label}
-                </button>
-              ))}
+            <div className="hidden xl:flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1">
+              <Users className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <select
+                aria-label="Pilih Profil Siswa Aktif"
+                value={selectedProfileIdx}
+                onChange={(e) => {
+                  labSound.playClick();
+                  setSelectedProfileIdx(Number(e.target.value));
+                }}
+                className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer"
+              >
+                {STUDENT_PROFILES.map((p, idx) => (
+                  <option
+                    key={p.name}
+                    value={idx}
+                    className="bg-slate-900 text-white"
+                  >
+                    {p.name} ({p.group.split('—')[0].trim()})
+                  </option>
+                ))}
+              </select>
             </div>
           )}
-
-          {/* Active Student Profile Selector */}
-          <div className="hidden lg:flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1">
-            <Users className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-            <select
-              aria-label="Pilih Profil Siswa Aktif"
-              value={selectedProfileIdx}
-              onChange={(e) => {
-                labSound.playClick();
-                setSelectedProfileIdx(Number(e.target.value));
-              }}
-              className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer"
-            >
-              {STUDENT_PROFILES.map((p, idx) => (
-                <option
-                  key={p.name}
-                  value={idx}
-                  className="bg-slate-900 text-white"
-                >
-                  {p.name} ({p.group.split('—')[0].trim()})
-                </option>
-              ))}
-            </select>
-          </div>
 
           {/* Sound Toggle */}
           <button
@@ -1291,22 +1222,14 @@ export default function App() {
               setSoundEnabled(next);
               if (next) labSound.playClick();
             }}
-            title={
-              soundEnabled
-                ? 'Matikan Efek Suara Lab'
-                : 'Aktifkan Efek Suara Lab'
-            }
+            title={soundEnabled ? 'Matikan Efek Suara Lab' : 'Aktifkan Efek Suara Lab'}
             className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
               soundEnabled
                 ? 'bg-slate-900 border-slate-800 text-sky-400 hover:bg-slate-800'
                 : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:text-slate-300'
             }`}
           >
-            {soundEnabled ? (
-              <Volume2 className="w-4 h-4" />
-            ) : (
-              <VolumeX className="w-4 h-4" />
-            )}
+            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
 
           {/* Theme Toggle */}
@@ -1319,18 +1242,14 @@ export default function App() {
             title="Ubah Tema Terang / Gelap"
             className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            {themeMode === 'dark' ? (
-              <Sun className="w-4 h-4" />
-            ) : (
-              <Moon className="w-4 h-4 text-slate-300" />
-            )}
+            {themeMode === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-slate-300" />}
           </button>
 
-          {/* CSV Quick Export */}
+          {/* Quick CSV Export */}
           <button
             type="button"
             onClick={handleExportAllCSV}
-            title="Unduh CSV Data Eksperimen"
+            title="Unduh CSV Seluruh Data Eksperimen"
             className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <Download className="w-4 h-4" />
@@ -1345,9 +1264,7 @@ export default function App() {
                 setShowNotifDrawer((prev) => !prev);
               }}
               className="relative p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              title={`Notifikasi & Umpan Balik (${
-                wsConnected ? 'Sinkronisasi Aktif' : 'Mode Lokal'
-              })`}
+              title={`Notifikasi & Sesi (${wsConnected ? 'WebSocket Terhubung' : 'Mode Lokal'})`}
             >
               <Bell className="w-4 h-4" />
               {notifications.length > 0 && (
@@ -1403,12 +1320,28 @@ export default function App() {
         </div>
       </header>
 
+      {/* Guided 4-Step Stepper (Active in Student Experiment Mode) */}
+      {!isLobbyMode && userRole === 'siswa' && (
+        <GuidedWorkflowStepper
+          currentStep={workflowStep}
+          experimentTitle={currentExperimentModule.title}
+          recordsCount={records.length}
+          minRecordsRequired={3}
+          lksGraded={lksGraded}
+          onStepChange={(st) => setWorkflowStep(st as WorkflowStep)}
+          onBackToLobby={() => setIsLobbyMode(true)}
+          onPrintReport={() => window.print()}
+        />
+      )}
+
       {/* Main Workspace Container */}
       <main
-        className={`relative w-full h-[calc(100vh-3.5rem)] ${
+        className={`relative w-full ${
           is3DStageActive
-            ? 'overflow-hidden bg-slate-950'
-            : 'overflow-y-auto bg-slate-50 dark:bg-slate-950 p-6 select-text'
+            ? 'h-[calc(100vh-7.5rem)] overflow-hidden bg-slate-950'
+            : !isLobbyMode && userRole === 'siswa'
+            ? 'h-[calc(100vh-7.5rem)] overflow-y-auto bg-slate-50 dark:bg-slate-950 p-6 select-text'
+            : 'h-[calc(100vh-3.5rem)] overflow-y-auto bg-slate-50 dark:bg-slate-950 p-6 select-text'
         }`}
       >
         {/* MODE PENGAJAR: Dedicated Teacher Evaluation & Rubric Workspace */}
@@ -1460,39 +1393,36 @@ export default function App() {
           </div>
         )}
 
-        {/* MODE SISWA — TAHAP 1: Katalog Modul & Persiapan K3 */}
-        {userRole === 'siswa' && workflowStep === 1 && (
-          <div className="max-w-[1380px] mx-auto pb-12">
-            <ExperimentCatalogPicker
-              domain={activeDomain as RegistryDomain}
-              currentExperimentId={currentExperimentId}
-              activeTier={activeTierLabel}
-              completedSafetyIds={completedSafetyIds}
-              onDomainChange={(dom) => setActiveDomain(dom as LabDomainId)}
-              onSelectExperiment={handleSelectCatalogExperiment}
-              onOpenPreLabModal={(exp) => setCatalogModalExp(exp)}
-              onTierChange={(tier) => {
-                setAcademicLevel(tier.toLowerCase() as AcademicLevel);
-              }}
-            />
+        {/* MODE SISWA — Lab Lobby & Module Selection Hub */}
+        {userRole === 'siswa' && isLobbyMode && (
+          <LabLobbyHub
+            activeTier={activeTierLabel}
+            studentName={currentProfile.name}
+            studentGroup={currentProfile.group}
+            completedModuleIds={completedSafetyIds}
+            recordsCount={records.length}
+            onTierChange={(tier) => {
+              setAcademicLevel(tier.toLowerCase() as AcademicLevel);
+            }}
+            onSelectExperiment={(exp) => {
+              handleSelectCatalogExperiment(exp, 1);
+            }}
+            onOpenMysteryExam={handleOpenMysteryExamFromLobby}
+          />
+        )}
 
-            {catalogModalExp && (
-              <PreLabSafetyModal
-                experiment={catalogModalExp}
-                activeTier={activeTierLabel}
-                isOpen={!!catalogModalExp}
-                onClose={() => setCatalogModalExp(null)}
-                onProceedToLab={() => {
-                  handleSelectCatalogExperiment(catalogModalExp);
-                  setCatalogModalExp(null);
-                }}
-              />
-            )}
-          </div>
+        {/* MODE SISWA — TAHAP 1: Pengenalan & K3 */}
+        {userRole === 'siswa' && !isLobbyMode && workflowStep === 1 && (
+          <PreLabBriefingView
+            experiment={currentExperimentModule}
+            activeTier={activeTierLabel}
+            onProceedToSimulation={() => setWorkflowStep(2)}
+            onBackToLobby={() => setIsLobbyMode(true)}
+          />
         )}
 
         {/* MODE SISWA — TAHAP 2: Kokpit Simulasi 3D & Pengambilan Data */}
-        {userRole === 'siswa' && workflowStep === 2 && (
+        {userRole === 'siswa' && !isLobbyMode && workflowStep === 2 && (
           <>
             {activeDomain === 'fisika' && (
               <PhysicsLabView
@@ -1506,7 +1436,7 @@ export default function App() {
                 onExportCSV={handleExportAllCSV}
                 onSubmitQuizScore={handleSubmitQuizScore}
                 onProceedToAnalysis={() => setWorkflowStep(3)}
-                onBackToCatalog={() => setWorkflowStep(1)}
+                onBackToCatalog={() => setIsLobbyMode(true)}
                 onRecordExperiment={(
                   title,
                   summary,
@@ -1549,7 +1479,7 @@ export default function App() {
                 onExportCSV={handleExportAllCSV}
                 onSubmitQuizScore={handleSubmitQuizScore}
                 onProceedToAnalysis={() => setWorkflowStep(3)}
-                onBackToCatalog={() => setWorkflowStep(1)}
+                onBackToCatalog={() => setIsLobbyMode(true)}
                 onRecordExperiment={(
                   title,
                   summary,
@@ -1589,7 +1519,7 @@ export default function App() {
                 onExportCSV={handleExportAllCSV}
                 onSubmitQuizScore={handleSubmitQuizScore}
                 onProceedToAnalysis={() => setWorkflowStep(3)}
-                onBackToCatalog={() => setWorkflowStep(1)}
+                onBackToCatalog={() => setIsLobbyMode(true)}
                 onBiologyContextChange={setBiologyContext}
                 onRecordExperiment={(
                   _domain,
@@ -1631,7 +1561,7 @@ export default function App() {
                 onExportCSV={handleExportAllCSV}
                 onSubmitQuizScore={handleSubmitQuizScore}
                 onProceedToAnalysis={() => setWorkflowStep(3)}
-                onBackToCatalog={() => setWorkflowStep(1)}
+                onBackToCatalog={() => setIsLobbyMode(true)}
                 onRecordExperiment={(
                   title,
                   summary,
@@ -1662,8 +1592,8 @@ export default function App() {
         )}
 
         {/* MODE SISWA — TAHAP 3: Analisis Grafik Regresi & Lembar Kerja Siswa (LKS) */}
-        {userRole === 'siswa' && workflowStep === 3 && (
-          <div className="max-w-[1380px] mx-auto pb-12">
+        {userRole === 'siswa' && !isLobbyMode && workflowStep === 3 && (
+          <div className="max-w-[1380px] mx-auto pb-24">
             <AnalyticsAndWorksheetPanel
               records={records}
               activeStudentName={currentProfile.name}
@@ -1690,8 +1620,8 @@ export default function App() {
         )}
 
         {/* MODE SISWA — TAHAP 4: Laporan Praktikum & Kolaborasi Kelompok */}
-        {userRole === 'siswa' && workflowStep === 4 && (
-          <div className="max-w-[1380px] mx-auto pb-12">
+        {userRole === 'siswa' && !isLobbyMode && workflowStep === 4 && (
+          <div className="max-w-[1380px] mx-auto pb-24">
             <CollaborationAndDataSection
               records={records}
               tasks={tasks}
@@ -1703,7 +1633,7 @@ export default function App() {
               onCreateTask={handleCreateTask}
               onCreateNote={handleCreateNote}
               onBackToAnalysis={() => setWorkflowStep(3)}
-              onBackToCatalog={() => setWorkflowStep(1)}
+              onBackToCatalog={() => setIsLobbyMode(true)}
               onCSVExported={(count) =>
                 handlePushNotification({
                   id: `notif-csv-${Date.now()}`,
