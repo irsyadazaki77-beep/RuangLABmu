@@ -47,11 +47,8 @@ Anda akan menerima data telemetri praktikum siswa dalam format JSON:
 
 # TONE & STYLE
 - Nada: Hangat, suportif, ilmiah, dan bersemangat layaknya rekan riset senior.
-- Bahasa: Bahasa Indonesia santun, komunikatif, dan alami (hindari kalimat kaku seperti robot terjemahan).
-- Format Respon Wajib (3 bagian):
-  1. [Apresiasi/Observasi Singkat]: 1 kalimat mengomentari apa yang sedang mereka lakukan di meja lab 3D.
-  2. [Sorotan Data/Anomali]: Ulasan tajam terhadap parameter atau grafik mereka.
-  3. [Pertanyaan Pemantik]: 1 pertanyaan kunci yang membuat mereka ingin langsung menguji ulang slider simulasi.`;
+- Bahasa: Bahasa Indonesia santun, komunikatif, dan alami (jangan pernah mencetak dump variabel mentah atau header kurung siku).
+- Berikan respons percakapan alami yang mencakup observasi singkat, ulasan data/analogi, dan pertanyaan pemantik Sokratik.`;
 
 interface GroupTask {
   id: string;
@@ -461,17 +458,17 @@ async function startServer() {
               observation: {
                 type: Type.STRING,
                 description:
-                  '[Apresiasi/Observasi Singkat]: 1 kalimat mengomentari apa yang sedang dilakukan siswa di meja lab 3D.',
+                  'Kalimat pembuka hangat yang mengomentari aktivitas eksperimen siswa di meja lab 3D.',
               },
               dataHighlight: {
                 type: Type.STRING,
                 description:
-                  '[Sorotan Data/Anomali]: Ulasan tajam terhadap parameter, slope regresi, outlier R² < 0.85, atau analogi sesuai jenjang.',
+                  'Ulasan tajam terhadap parameter, slope regresi, outlier R² < 0.85, atau analogi sesuai jenjang.',
               },
               socraticQuestion: {
                 type: Type.STRING,
                 description:
-                  '[Pertanyaan Pemantik]: 1 pertanyaan kunci reflektif yang membuat siswa ingin langsung menguji ulang slider simulasi.',
+                  'Satu pertanyaan kunci reflektif yang membuat siswa ingin langsung menguji ulang slider simulasi.',
               },
               detectedTrigger: {
                 type: Type.STRING,
@@ -491,7 +488,7 @@ async function startServer() {
 
       const rawText = (response.text ?? '{}').trim();
       const parsed = JSON.parse(rawText);
-      const formattedText = `1. [Apresiasi/Observasi Singkat]: ${parsed.observation}\n2. [Sorotan Data/Anomali]: ${parsed.dataHighlight}\n3. [Pertanyaan Pemantik]: ${parsed.socraticQuestion}`;
+      const formattedText = `${parsed.observation} ${parsed.dataHighlight} ${parsed.socraticQuestion}`;
 
       res.json({
         source: 'gemini-api',

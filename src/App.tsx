@@ -9,15 +9,15 @@ import {
   FlaskConical,
   Orbit,
   GraduationCap,
-  BookOpen,
-  Maximize2,
-  Minimize2,
-  Compass,
   Sun,
   Moon,
   Volume2,
   VolumeX,
   Leaf,
+  BarChart3,
+  BookOpen,
+  FileCheck2,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   PhysicsParams,
@@ -27,8 +27,8 @@ import {
   AcademicLevel,
   ExperimentRecord,
   LabNotification,
+  BiologyTelemetryContext,
   exportRecordsToCSV,
-  generateAutomaticFeedback,
 } from './utils/scienceEngine';
 import { labSound } from './utils/soundEngine';
 import { PhysicsLabView } from './components/PhysicsLabView';
@@ -46,10 +46,19 @@ import {
   StudentProgressItem,
 } from './components/TeacherDashboardView';
 import { DrLabMuAssistantPanel } from './components/DrLabMuAssistantPanel';
+import { ExperimentCatalogPicker } from './components/ExperimentCatalogPicker';
+import { PreLabSafetyModal } from './components/PreLabSafetyModal';
+import {
+  ExperimentModule,
+  EducationTier,
+  ScienceDomain as RegistryDomain,
+  getExperimentsByDomain,
+} from './registry/experimentRegistry';
 import { useSpatialCollab } from './hooks/useSpatialCollab';
-import { EducationTier } from './registry/experimentRegistry';
 
-type ActiveTab = 'fisika' | 'kimia' | 'biologi' | 'astronomi' | 'kolaborasi' | 'pengajar';
+type LabDomainId = 'fisika' | 'kimia' | 'biologi' | 'astronomi';
+type WorkflowStep = 1 | 2 | 3 | 4;
+type UserRoleMode = 'siswa' | 'pengajar';
 
 const STUDENT_PROFILES = [
   { name: 'Alya Pratama', group: 'Kelompok 1 — Mekanika' },
@@ -60,16 +69,27 @@ const STUDENT_PROFILES = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('fisika');
+  // Structured Role & 4-Step Guided Workflow State
+  const [userRole, setUserRole] = useState<UserRoleMode>('siswa');
+  const [workflowStep, setWorkflowStep] = useState<WorkflowStep>(1);
+  const [activeDomain, setActiveDomain] = useState<LabDomainId>('fisika');
   const [selectedProfileIdx, setSelectedProfileIdx] = useState<number>(0);
   const [academicLevel, setAcademicLevel] = useState<AcademicLevel>('sma');
-  const [focusSimulationMode, setFocusSimulationMode] =
-    useState<boolean>(false);
-  const [showFormulaGuide, setShowFormulaGuide] = useState<boolean>(false);
   const [wsConnected, setWsConnected] = useState<boolean>(false);
   const [showNotifDrawer, setShowNotifDrawer] = useState<boolean>(false);
 
-  // Adaptive Theme (Light / Dark Glassmorphism) & Lab Audio Engine State
+  // Step Completion Tracking
+  const [completedSafetyIds, setCompletedSafetyIds] = useState<string[]>([
+    'newton-incline',
+  ]);
+  const [lksGraded, setLksGraded] = useState<boolean>(false);
+  const [catalogModalExp, setCatalogModalExp] =
+    useState<ExperimentModule | null>(null);
+  const [selectedBioModuleId, setSelectedBioModuleId] = useState<string>(
+    'photosynthesis-ingenhousz'
+  );
+
+  // Adaptive Theme & Lab Audio Engine State
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => {
     try {
       const saved = window.localStorage.getItem('simulab-theme');
@@ -77,7 +97,7 @@ export default function App() {
     } catch {
       // ignore storage error
     }
-    return 'light';
+    return 'dark';
   });
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
@@ -142,6 +162,17 @@ export default function App() {
     redoxPairId: 'zn-cu-daniell',
     anodeConcM: 1.0,
     cathodeConcM: 1.0,
+  });
+
+  // Biology Telemetry Context (kept in sync with BiologyLabView)
+  const [biologyContext, setBiologyContext] = useState<BiologyTelemetryContext>({
+    moduleId: 'photosynthesis-ingenhousz',
+    params: {
+      lightDistanceCm: 25,
+      nahco3ConcPct: 0.5,
+      waterTempC: 28,
+      wavelengthNm: 660,
+    },
   });
 
   // Astronomy State
@@ -386,10 +417,10 @@ export default function App() {
       timestamp: '09:15:00',
       severity: 'nominal',
       domain: 'Astronomi',
-      title: 'Modul Astronomi: Galaksi Bima Sakti, Tata Surya & Diagram H-R Aktif',
+      title: 'Alur Praktikum RuangLABmu Siap Digunakan',
       message:
-        'Eksplorasi 8 planet Tata Surya, kurva rotasi Materi Gelap Bima Sakti (Sgr A*), serta kurva transit eksoplanet kini terintegrasi dengan Regresi & LKS.',
-      formulaHint: 'T²/a³ = 1/M*  |  v_rot = √(GM(<R)/R)',
+        'Ikuti 4 tahap praktikum: (1) Pilih Modul & K3, (2) Simulasi 3D & Rekam Data, (3) Analisis Grafik & LKS, lalu (4) Laporan & Kolaborasi.',
+      formulaHint: 'F = m·a | pH = -log[H⁺] | T²/a³ = 1/M*',
     },
   ]);
 
@@ -509,12 +540,7 @@ export default function App() {
     };
   }, []);
 
-  // Phase 3: Real-Time 3D Laser Pointer Cursors & Collaborative Parameter Mutex Hook
   const currentUserId = currentProfile.name.toLowerCase().replace(/\s+/g, '-');
-  const activeCollabDomain: 'fisika' | 'kimia' | 'biologi' | 'astronomi' =
-    activeTab === 'kimia' || activeTab === 'biologi' || activeTab === 'astronomi'
-      ? activeTab
-      : 'fisika';
 
   const {
     remoteCursors,
@@ -522,20 +548,19 @@ export default function App() {
     emitCursor3D,
     acquireParamLock,
     releaseParamLock,
-    syncParamValue,
   } = useSpatialCollab({
     ws: activeSocket,
     userId: currentUserId,
     userName: currentProfile.name,
-    role: activeTab === 'pengajar' ? 'Pengajar' : 'Siswa',
+    role: userRole === 'pengajar' ? 'Pengajar' : 'Siswa',
     groupId: currentProfile.group,
-    domain: activeCollabDomain,
+    domain: activeDomain,
     onRemoteParamSync: (paramKey, value) => {
-      if (activeCollabDomain === 'fisika') {
+      if (activeDomain === 'fisika') {
         setPhysicsParams((prev) => ({ ...prev, [paramKey]: value }));
-      } else if (activeCollabDomain === 'kimia') {
+      } else if (activeDomain === 'kimia') {
         setChemistryParams((prev) => ({ ...prev, [paramKey]: value }));
-      } else if (activeCollabDomain === 'astronomi') {
+      } else if (activeDomain === 'astronomi') {
         setAstronomyParams((prev) => ({ ...prev, [paramKey]: value }));
       }
     },
@@ -648,6 +673,7 @@ export default function App() {
   };
 
   const handleSubmitQuizScore = (score: number, correctCount: number) => {
+    setLksGraded(true);
     setStudents((prev) =>
       prev.map((s) =>
         s.name === currentProfile.name
@@ -773,7 +799,7 @@ export default function App() {
       severity: 'nominal',
       domain: 'Kolaborasi',
       title: 'Ekspor CSV Berhasil Diunduh',
-      message: `${records.length} baris data eksperimen Fisika, Kimia & Astronomi telah diekspor dalam format CSV.`,
+      message: `${records.length} baris data eksperimen telah diekspor dalam format CSV.`,
     });
   };
 
@@ -809,6 +835,18 @@ export default function App() {
         'Lonjakan pH tajam melewati titik ekuivalen menyebabkan deviasi dari garis linier pra-ekuivalen.',
         { x: 20.5, y1: 11.45, y2: 20.0 }
       );
+    } else if (domain === 'Biologi') {
+      handleRecordExperiment(
+        'Biologi',
+        'Fotosintesis Ingenhousz — Denaturasi Termal (T = 48°C)',
+        'd=20 cm, NaHCO₃=0.5%, T=48°C, λ=660 nm',
+        {
+          'Laju O₂': '2 gelembung/menit',
+          Status: 'Denaturasi Enzim Rubisco (>40°C)',
+        },
+        'Suhu air di atas 40°C mendenaturasi enzim fotosintesis sehingga produksi O₂ anjlok drastis.',
+        { x: 48, y1: 2, y2: 0.4 }
+      );
     } else {
       handleRecordExperiment(
         'Astronomi',
@@ -824,607 +862,547 @@ export default function App() {
     }
   };
 
+  // Resolve current experiment module ID for Catalog highlight
+  const currentExperimentId = (() => {
+    if (activeDomain === 'fisika') {
+      if (physicsParams.mode === 'newton-incline') return 'newton-incline';
+      if (physicsParams.mode === 'projectile-gravity') return 'projectile-motion';
+      if (physicsParams.mode === 'collision-momentum') return 'collision-momentum';
+      if (physicsParams.mode === 'spring-hooke') return 'spring-hooke';
+      return 'gravity-orbital';
+    }
+    if (activeDomain === 'kimia') {
+      if (chemistryParams.mode === 'thermo-calorimetry') return 'thermo-calorimetry';
+      if (chemistryParams.mode === 'acid-base-titration') return 'acid-base-titration';
+      return 'redox-electrochemistry';
+    }
+    if (activeDomain === 'biologi') {
+      return selectedBioModuleId;
+    }
+    if (astronomyParams.mode === 'solar-kepler') return 'solar-kepler';
+    if (astronomyParams.mode === 'milkyway-galaxy') return 'milky-way-rotation';
+    return 'exoplanet-transit';
+  })();
+
+  const handleSelectCatalogExperiment = (exp: ExperimentModule) => {
+    const dom = exp.domain as LabDomainId;
+    setActiveDomain(dom);
+
+    if (dom === 'fisika') {
+      const modeMap: Record<string, PhysicsParams['mode']> = {
+        'newton-incline': 'newton-incline',
+        'projectile-motion': 'projectile-gravity',
+        'collision-momentum': 'collision-momentum',
+        'spring-hooke': 'spring-hooke',
+        'gravity-orbital': 'orbital-gravity',
+      };
+      setPhysicsParams((prev) => ({
+        ...prev,
+        mode: modeMap[exp.id] || 'newton-incline',
+      }));
+    } else if (dom === 'kimia') {
+      const modeMap: Record<string, ChemistryParams['mode']> = {
+        'thermo-calorimetry': 'thermo-calorimetry',
+        'acid-base-titration': 'acid-base-titration',
+        'redox-electrochemistry': 'electrochemistry-cell',
+      };
+      setChemistryParams((prev) => ({
+        ...prev,
+        mode: modeMap[exp.id] || 'thermo-calorimetry',
+      }));
+    } else if (dom === 'biologi') {
+      setSelectedBioModuleId(exp.id);
+    } else if (dom === 'astronomi') {
+      const modeMap: Record<string, AstronomyParams['mode']> = {
+        'solar-kepler': 'solar-kepler',
+        'milky-way-rotation': 'milkyway-galaxy',
+        'exoplanet-transit': 'stellar-exoplanet',
+      };
+      setAstronomyParams((prev) => ({
+        ...prev,
+        mode: modeMap[exp.id] || 'solar-kepler',
+      }));
+    }
+
+    setCompletedSafetyIds((prev) =>
+      prev.includes(exp.id) ? prev : [...prev, exp.id]
+    );
+    setWorkflowStep(2);
+  };
+
   const activeScienceDomain: ScienceDomain =
-    activeTab === 'kimia'
+    activeDomain === 'kimia'
       ? 'Kimia'
-      : activeTab === 'biologi'
+      : activeDomain === 'biologi'
       ? 'Biologi'
-      : activeTab === 'astronomi'
+      : activeDomain === 'astronomi'
       ? 'Astronomi'
       : 'Fisika';
 
-  const latestNotification = notifications[0];
+  const activeTierLabel: EducationTier =
+    academicLevel === 'smp'
+      ? 'SMP'
+      : academicLevel === 'mahasiswa'
+      ? 'Mahasiswa'
+      : 'SMA';
+
+  const is3DStageActive = userRole === 'siswa' && workflowStep === 2;
+
+  const WORKFLOW_STEPS = [
+    {
+      step: 1 as const,
+      label: '1. Katalog & K3',
+      icon: BookOpen,
+      done: completedSafetyIds.length > 0,
+    },
+    {
+      step: 2 as const,
+      label: '2. Simulasi 3D',
+      icon: Atom,
+      done: records.length > 0,
+    },
+    {
+      step: 3 as const,
+      label: `3. Grafik & LKS (${records.length})`,
+      icon: BarChart3,
+      done: lksGraded,
+    },
+    {
+      step: 4 as const,
+      label: '4. Laporan & Diskusi',
+      icon: FileCheck2,
+      done: lksGraded && records.length >= 2,
+    },
+  ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8FAFC] dark:bg-[#07090E] lab-grid-bg text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      {/* Strict 3-Zone Top Navigation Bar Contract */}
-      <header className="flex items-center justify-between gap-8 px-6 py-4 bg-white/95 dark:bg-slate-950/90 lab-glass-panel border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30">
-        <a
-          href="#top"
-          onClick={(e) => {
-            e.preventDefault();
-            labSound.playClick();
-            setActiveTab('fisika');
-          }}
-          className="text-lg font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0"
-        >
-          RuangLABmu · SimuLab Sains
-        </a>
-
-        <nav
-          aria-label="Navigasi Utama Laboratorium"
-          className="flex items-center gap-2 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 text-sm font-medium text-slate-600 dark:text-slate-400 overflow-x-auto"
-        >
-          {[
-            { id: 'fisika' as const, label: 'Lab Fisika' },
-            { id: 'kimia' as const, label: 'Lab Kimia' },
-            { id: 'biologi' as const, label: 'Lab Biologi', isBio: true },
-            { id: 'astronomi' as const, label: 'Lab Astronomi' },
-            { id: 'kolaborasi' as const, label: `Grafik & LKS (${records.length})` },
-            { id: 'pengajar' as const, label: 'Dashboard Pengajar' },
-          ].map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  setActiveTab(item.id);
-                }}
-                className={`relative px-3.5 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                  isActive
-                    ? 'text-slate-950 dark:text-white font-bold'
-                    : 'hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="active-domain-tab"
-                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                    className="absolute inset-0 rounded-lg bg-white dark:bg-sky-600/90 shadow-xs border border-slate-200/80 dark:border-sky-400/40"
-                  />
-                )}
-                {item.isBio && (
-                  <Leaf
-                    className={`w-3.5 h-3.5 relative z-10 ${
-                      isActive ? 'text-emerald-500 dark:text-emerald-300' : 'text-emerald-500'
-                    }`}
-                  />
-                )}
-                <span className="relative z-10">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-900 dark:text-slate-100 select-none">
+      {/* Structured Top Header Bar: Zone 1 (Brand & Domain) — Zone 2 (4-Step Workflow / Teacher Mode) — Zone 3 (Role Switcher & Utilities) */}
+      <header className="h-14 shrink-0 flex items-center justify-between gap-3 px-4 bg-slate-950 border-b border-slate-800 text-white z-50">
+        {/* Zone 1: Brand Identity + Quick Science Domain Switcher */}
         <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
-            onClick={handleExportAllCSV}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-slate-900 dark:bg-sky-600 rounded-lg hover:bg-slate-800 dark:hover:bg-sky-500 transition-colors whitespace-nowrap shrink-0"
+            onClick={() => {
+              labSound.playClick();
+              setUserRole('siswa');
+              setWorkflowStep(1);
+            }}
+            className="text-base font-extrabold tracking-tight text-white whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-2"
           >
-            <Download className="w-3.5 h-3.5" />
-            Ekspor CSV ({records.length})
+            <span className="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center">
+              <Atom className="w-4 h-4 text-white" />
+            </span>
+            <span>RuangLABmu</span>
           </button>
-        </div>
-      </header>
 
-      {/* Secondary Workspace Calibration, Adaptive Theme/Sound & Real-Time Automatic Notification Ribbon */}
-      <div className="bg-slate-900 text-slate-100 border-b border-slate-800 px-6 py-2.5">
-        <div className="max-w-[1380px] mx-auto flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3 text-xs">
-            <span className="font-mono text-slate-400">
-              {wsConnected ? '● SINKRONISASI REAL-TIME AKTIF' : '▲ MODE LOKAL'}
-            </span>
-            <span aria-hidden="true" className="text-slate-700">
-              ·
-            </span>
-            <div className="flex items-center gap-2">
-              <Users className="w-3.5 h-3.5 text-sky-400" />
-              <label
-                htmlFor="student-profile-select"
-                className="text-slate-300"
-              >
-                Identitas Sesi:
-              </label>
-              <select
-                id="student-profile-select"
-                value={selectedProfileIdx}
-                onChange={(e) => {
-                  labSound.playClick();
-                  setSelectedProfileIdx(Number(e.target.value));
-                }}
-                className="bg-slate-800 border border-slate-700 text-white text-xs rounded px-2.5 py-1 font-medium focus:outline-none focus:ring-1 focus:ring-sky-400"
-              >
-                {STUDENT_PROFILES.map((p, idx) => (
-                  <option key={p.name} value={idx}>
-                    {p.name} ({p.group})
-                  </option>
-                ))}
-              </select>
-            </div>
-            {Object.keys(remoteCursors).length > 0 && (
-              <>
-                <span aria-hidden="true" className="text-slate-700">
-                  ·
-                </span>
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sky-950/80 border border-sky-500/50 text-sky-300 font-mono text-[11px] animate-pulse">
-                  <span className="inline-block w-2 h-2 rounded-full bg-sky-400"></span>
-                  {Object.keys(remoteCursors).length} Laser 3D ({Object.values(remoteCursors).map((c) => c.userName).join(', ')})
-                </span>
-              </>
-            )}
-            <span aria-hidden="true" className="text-slate-700">
-              ·
-            </span>
-            {/* Academic Level Switch: SMP vs SMA/SMK vs Perguruan Tinggi */}
+          {userRole === 'siswa' && (
             <div
+              className="hidden xl:flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs"
               role="group"
-              aria-label="Mode Tingkat Akademik"
-              className="flex items-center gap-1 bg-slate-800 border border-slate-700 p-0.5 rounded-md"
+              aria-label="Bidang Sains Aktif"
             >
-              <button
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  setAcademicLevel('smp');
-                }}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 ${
-                  academicLevel === 'smp'
-                    ? 'bg-sky-600 text-white font-semibold'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                SMP
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  setAcademicLevel('sma');
-                }}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 ${
-                  academicLevel === 'sma'
-                    ? 'bg-sky-600 text-white font-semibold'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                SMA/SMK
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  setAcademicLevel('mahasiswa');
-                }}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 ${
-                  academicLevel === 'mahasiswa'
-                    ? 'bg-sky-600 text-white font-semibold'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Perguruan Tinggi
-              </button>
-            </div>
-            <span aria-hidden="true" className="text-slate-700">
-              ·
-            </span>
-            {/* Adaptive Theme Toggle (Light vs Dark Glassmorphism) & Web Audio Synthesizer Toggle */}
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  setThemeMode((prev) => (prev === 'light' ? 'dark' : 'light'));
-                }}
-                aria-label="Ganti Tema Tampilan Laboratorium"
-                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0"
-              >
-                {themeMode === 'dark' ? (
-                  <>
-                    <Sun className="w-3.5 h-3.5 text-amber-400" />
-                    Tema Terang
-                  </>
-                ) : (
-                  <>
-                    <Moon className="w-3.5 h-3.5 text-sky-400" />
-                    Tema Gelap
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !soundEnabled;
-                  setSoundEnabled(next);
-                  labSound.setEnabled(next);
-                  if (next) labSound.playClick();
-                }}
-                aria-label="Aktifkan atau Bisukan Efek Suara Laboratorium"
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                  soundEnabled
-                    ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border-slate-700'
-                    : 'bg-slate-800/60 hover:bg-slate-800 text-slate-400 border-slate-800'
-                }`}
-              >
-                {soundEnabled ? (
-                  <>
-                    <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-                    Audio Lab
-                  </>
-                ) : (
-                  <>
-                    <VolumeX className="w-3.5 h-3.5 text-slate-500" />
-                    Bisu
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {latestNotification && (
-            <div
-              role="status"
-              aria-live="polite"
-              className="flex items-center gap-2.5 text-xs bg-slate-800/90 border border-slate-700 rounded-md px-3 py-1 max-w-md xl:max-w-lg"
-            >
-              <span
-                className={`font-mono font-semibold whitespace-nowrap ${
-                  latestNotification.severity === 'critical'
-                    ? 'text-rose-400'
-                    : latestNotification.severity === 'elevated'
-                    ? 'text-amber-400'
-                    : 'text-emerald-400'
-                }`}
-              >
-                {latestNotification.severity === 'critical'
-                  ? '✖ PERINGATAN'
-                  : latestNotification.severity === 'elevated'
-                  ? '▲ PERHATIAN'
-                  : '● UMPAN BALIK'}
-              </span>
-              <span className="text-slate-200 truncate">
-                <strong>{latestNotification.title}:</strong>{' '}
-                {latestNotification.message}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  setShowNotifDrawer((v) => !v);
-                }}
-                className="flex items-center gap-1 text-sky-400 hover:text-sky-300 font-medium whitespace-nowrap shrink-0 ml-1"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                Riwayat ({notifications.length})
-              </button>
+              {(
+                [
+                  { id: 'fisika', label: 'Fisika', icon: Atom },
+                  { id: 'kimia', label: 'Kimia', icon: FlaskConical },
+                  { id: 'biologi', label: 'Biologi', icon: Leaf },
+                  { id: 'astronomi', label: 'Astronomi', icon: Orbit },
+                ] as const
+              ).map((dom) => {
+                const Icon = dom.icon;
+                const isSelected = activeDomain === dom.id;
+                return (
+                  <button
+                    key={dom.id}
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      setActiveDomain(dom.id);
+                    }}
+                    className={`px-2.5 py-1 rounded-md font-medium flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                      isSelected
+                        ? 'bg-slate-800 text-sky-400 font-semibold'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{dom.label}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
-      </div>
 
-      {/* Collapsible Automatic Feedback Notification Log Drawer */}
-      {showNotifDrawer && (
-        <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 shadow-xs">
-          <div className="max-w-[1380px] mx-auto space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Log Notifikasi & Umpan Balik Otomatis Eksperimen
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Evaluasi cerdas instan berdasarkan hukum gerak Newton, tumbukan, pegas Hooke, termodinamika, titrasi, sel Galvani, serta astrofisika
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowNotifDrawer(false)}
-                aria-label="Tutup panel notifikasi"
-                className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-md"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-56 overflow-y-auto">
-              {notifications.map((n) => (
-                <div
-                  key={n.id}
-                  className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/70 text-xs space-y-1"
-                >
-                  <div className="flex items-center justify-between font-mono">
+        {/* Zone 2: Guided 4-Step Student Stepper OR Teacher Mode Banner */}
+        {userRole === 'siswa' ? (
+          <nav
+            aria-label="Tahapan Praktikum Siswa"
+            className="flex items-center gap-1 p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs font-medium overflow-x-auto no-scrollbar"
+          >
+            {WORKFLOW_STEPS.map((item, idx) => {
+              const isCurrent = workflowStep === item.step;
+              const Icon = item.icon;
+              return (
+                <React.Fragment key={item.step}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      setWorkflowStep(item.step);
+                    }}
+                    className={`relative px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                      isCurrent
+                        ? 'bg-sky-600 text-white font-bold'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                    }`}
+                  >
+                    {item.done && !isCurrent ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    ) : (
+                      <Icon className="w-3.5 h-3.5 shrink-0" />
+                    )}
+                    <span>{item.label}</span>
+                  </button>
+                  {idx < WORKFLOW_STEPS.length - 1 && (
                     <span
-                      className={`font-semibold ${
-                        n.severity === 'critical'
-                          ? 'text-rose-700 dark:text-rose-400'
-                          : n.severity === 'elevated'
-                          ? 'text-amber-700 dark:text-amber-400'
-                          : 'text-emerald-700 dark:text-emerald-400'
-                      }`}
+                      aria-hidden="true"
+                      className="text-slate-600 text-xs px-0.5 select-none hidden sm:inline"
                     >
-                      {n.severity === 'critical'
-                        ? '✖ KRITIS'
-                        : n.severity === 'elevated'
-                        ? '▲ PERHATIAN'
-                        : '● NOMINAL'}{' '}
-                      · {n.domain}
+                      →
                     </span>
-                    <span className="text-slate-400">{n.timestamp}</span>
-                  </div>
-                  <div className="font-semibold text-slate-900 dark:text-white">
-                    {n.title}
-                  </div>
-                  <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {n.message}
-                  </p>
-                  {n.formulaHint && (
-                    <div className="font-mono text-sky-700 dark:text-sky-400 pt-0.5">
-                      Rumus: {n.formulaHint}
-                    </div>
                   )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content Container */}
-      <main className="flex-1 max-w-[1380px] w-full mx-auto px-6 py-6 space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-              {activeTab === 'fisika' &&
-                'Laboratorium Fisika: Hukum Newton, Kinematika, Tumbukan & Pegas Hooke'}
-              {activeTab === 'kimia' &&
-                'Laboratorium Kimia: Termodinamika, Titrasi Asam-Basa & Sel Elektrokimia'}
-              {activeTab === 'biologi' &&
-                'Laboratorium Biologi: Fotosintesis Ingenhousz, Kinetika Katalase & Osmosis Sel'}
-              {activeTab === 'astronomi' &&
-                'Laboratorium Astronomi: Tata Surya Kepler, Galaksi Bima Sakti & Eksoplanet'}
-              {activeTab === 'kolaborasi' &&
-                'Analitik Regresi Multi-Sumbu, LKS Otomatis & Kolaborasi Kelompok'}
-              {activeTab === 'pengajar' &&
-                'Dashboard Pemantauan Progres Siswa & Matriks Rubrik Penilaian'}
-            </h1>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              {activeTab === 'fisika' &&
-                'Simulasikan dinamika bidang miring, gerak parabola lintas planet, gravitasi universal, tumbukan momentum 1D, dan osilasi harmonik pegas.'}
-              {activeTab === 'kimia' &&
-                'Visualisasikan kalorimetri entalpi & Gibbs, kurva pH titrasi asam-basa, serta potensial sel Galvani (Persamaan Nernst).'}
-              {activeTab === 'biologi' &&
-                'Uji laju fotosintesis Hydrilla dengan variasi spektrum cahaya & NaHCO₃, kinetika Michaelis-Menten katalase, serta plasmolisis sel.'}
-              {activeTab === 'astronomi' &&
-                'Eksplorasi orbit elips 8 planet Tata Surya, kurva rotasi Materi Gelap Galaksi Bima Sakti (Sgr A*), serta Diagram H-R dan transit eksoplanet.'}
-              {activeTab === 'kolaborasi' &&
-                'Plot grafik multi-sumbu dengan regresi linier otomatis (R²), unduh laporan PNG/PDF, kerjakan LKS terukur, dan ekspor CSV.'}
-              {activeTab === 'pengajar' &&
-                'Pantau aktivitas eksperimen siswa secara langsung, kelola matriks rubrik 4-kriteria otomatis, dan ekspor daftar nilai kelas ke CSV.'}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {(activeTab === 'fisika' ||
-              activeTab === 'kimia' ||
-              activeTab === 'biologi' ||
-              activeTab === 'astronomi') && (
-              <button
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  setFocusSimulationMode((f) => !f);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-md border transition-colors whitespace-nowrap shrink-0 ${
-                  focusSimulationMode
-                    ? 'bg-slate-900 dark:bg-sky-600 text-white border-slate-900 dark:border-sky-600'
-                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                {focusSimulationMode ? (
-                  <>
-                    <Minimize2 className="w-3.5 h-3.5 text-sky-400 dark:text-white" />
-                    Tampilkan Grafik & LKS
-                  </>
-                ) : (
-                  <>
-                    <Maximize2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                    Mode Fokus Simulasi
-                  </>
-                )}
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setShowFormulaGuide((g) => !g);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-md border transition-colors whitespace-nowrap shrink-0 ${
-                showFormulaGuide
-                  ? 'bg-emerald-700 text-white border-emerald-700'
-                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <BookOpen
-                className={`w-3.5 h-3.5 ${
-                  showFormulaGuide
-                    ? 'text-white'
-                    : 'text-emerald-600 dark:text-emerald-400'
-                }`}
-              />
-              Buku Saku Rumus & Panduan
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                if (activeTab === 'kimia') {
-                  handlePushNotification(
-                    generateAutomaticFeedback('Kimia', undefined, chemistryParams)
-                  );
-                } else if (activeTab === 'astronomi') {
-                  handlePushNotification(
-                    generateAutomaticFeedback(
-                      'Astronomi',
-                      undefined,
-                      undefined,
-                      astronomyParams
-                    )
-                  );
-                } else {
-                  handlePushNotification(
-                    generateAutomaticFeedback('Fisika', physicsParams)
-                  );
-                }
-              }}
-              className="px-3.5 py-2 text-xs font-semibold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/70 border border-sky-200 dark:border-sky-800 rounded-md transition-colors whitespace-nowrap shrink-0"
-            >
-              Analisis & Umpan Balik Instan
-            </button>
-          </div>
-        </div>
-
-        {/* Collapsible Pocket Formula Guide & 3-Step Lab Workflow Banner */}
-        {showFormulaGuide && (
-          <div className="bg-white/95 dark:bg-slate-900/90 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Compass className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  Buku Saku Rumus Cepat & Alur Praktikum Nyaman (Mode{' '}
-                  {academicLevel === 'sma'
-                    ? 'Siswa SMA/SMK'
-                    : 'Mahasiswa S1 Sains & Teknik'}
-                  )
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Ikuti 3 langkah praktis di bawah ini untuk menyelesaikan eksperimen, regresi data, dan LKS tanpa bingung
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowFormulaGuide(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded"
-                aria-label="Tutup Buku Saku"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-1.5">
-                <div className="font-mono font-bold text-sky-700 dark:text-sky-400">
-                  LANGKAH 01 · PILIH SKENARIO & SERET KANVAS
-                </div>
-                <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
-                  Klik salah satu <strong>Misi Eksperimen Terbimbing</strong>, seret langsung objek di kanvas 2D, atau gunakan <strong>Komparasi A/B</strong> untuk membandingkan dua eksperimen.
-                </p>
-                <div className="font-mono text-[11px] text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-700">
-                  Fisika: ΣF = m·a | Ep = ½k·Δx² | p₁+p₂ = konstan
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-1.5">
-                <div className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
-                  LANGKAH 02 · REKAM DATA & CEK REGRESI OLS
-                </div>
-                <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
-                  Klik <strong>Rekam Data Eksperimen ke Tabel Log</strong> minimal 2–3 kali dengan variasi parameter, lalu amati garis regresi linier R² otomatis.
-                </p>
-                <div className="font-mono text-[11px] text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-700">
-                  Kimia: ΔG = ΔH - T·ΔS | M₁·V₁ = M₂·V₂ | E_sel = E° - (RT/nF)ln Q
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-1.5">
-                <div className="font-mono font-bold text-amber-700 dark:text-amber-400">
-                  LANGKAH 03 · KERJAKAN LKS & EKSPOR LAPORAN
-                </div>
-                <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
-                  Gunakan filter bidang pada <strong>Lembar Kerja Siswa (LKS)</strong>, periksa jawaban otomatis ke Rubrik Pengajar, dan unduh grafik PNG/CSV.
-                </p>
-                <div className="font-mono text-[11px] text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-700">
-                  Astronomi: T²/a³ = 1/M* | v_rot = √(GM/R) | ΔF/F = (Rp/R*)²
-                </div>
-              </div>
-            </div>
+                </React.Fragment>
+              );
+            })}
+          </nav>
+        ) : (
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200">
+            <GraduationCap className="w-4 h-4 text-rose-400 shrink-0" />
+            <span className="font-semibold whitespace-nowrap">
+              Ruang Evaluasi & Rubrik Pengajar ({students.length} Siswa Aktif)
+            </span>
           </div>
         )}
 
-        {/* Quick-Jump Section Bar on Lab Tabs so Students Navigate Effortlessly */}
-        {(activeTab === 'fisika' ||
-          activeTab === 'kimia' ||
-          activeTab === 'astronomi') &&
-          !focusSimulationMode && (
-            <div className="flex flex-wrap items-center justify-between gap-2 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-xs">
-              <span className="text-slate-500 dark:text-slate-400 font-medium">
-                Navigasi Cepat RuangLABmu:
-              </span>
-              <div className="flex flex-wrap items-center gap-2">
-                <a
-                  href="#section-simulasi"
-                  className="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium transition-colors"
+        {/* Zone 3: Explicit Role Switcher (Mode Siswa | Mode Pengajar), Tier, Profile & Utilities */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Role Switcher: Mode Siswa vs Mode Pengajar */}
+          <div
+            className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5"
+            role="group"
+            aria-label="Mode Peran Pengguna"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setUserRole('siswa');
+              }}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                userRole === 'siswa'
+                  ? 'bg-sky-500 text-slate-950 font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Mode Siswa
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setUserRole('pengajar');
+              }}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1 cursor-pointer ${
+                userRole === 'pengajar'
+                  ? 'bg-rose-500 text-white font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Pengajar</span>
+            </button>
+          </div>
+
+          {/* SMP / SMA / PT Selector */}
+          {userRole === 'siswa' && (
+            <div
+              className="hidden md:flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5"
+              role="group"
+              aria-label="Tingkat Kurikulum"
+            >
+              {(
+                [
+                  { id: 'smp', label: 'SMP' },
+                  { id: 'sma', label: 'SMA' },
+                  { id: 'mahasiswa', label: 'PT' },
+                ] as const
+              ).map((lvl) => (
+                <button
+                  key={lvl.id}
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setAcademicLevel(lvl.id);
+                  }}
+                  className={`px-2 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                    academicLevel === lvl.id
+                      ? 'bg-slate-800 text-sky-400'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
                 >
-                  1. Kanvas Simulasi 3D/2D & Dock Interaktif
-                </a>
-                <a
-                  href="#section-dr-labmu"
-                  className="px-2.5 py-1 rounded bg-sky-50 dark:bg-sky-950/70 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 font-semibold transition-colors"
-                >
-                  2. Asisten Sokratik Dr. LabMu
-                </a>
-                <a
-                  href="#section-grafik-lks"
-                  className="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium transition-colors"
-                >
-                  3. Grafik Regresi & LKS (6 Soal)
-                </a>
-                <a
-                  href="#section-kolaborasi-log"
-                  className="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium transition-colors"
-                >
-                  4. Tabel Log ({records.length}) & Diskusi Kelompok
-                </a>
-              </div>
+                  {lvl.label}
+                </button>
+              ))}
             </div>
           )}
 
-        {/* Dr. LabMu Socratic Virtual Lab Instructor Panel */}
-        {activeTab !== 'pengajar' && !focusSimulationMode && (
-          <div id="section-dr-labmu">
-            <DrLabMuAssistantPanel
-              domain={activeScienceDomain}
-              academicLevel={academicLevel}
-              physicsParams={physicsParams}
-              chemistryParams={chemistryParams}
-              astronomyParams={astronomyParams}
+          {/* Active Student Profile Selector */}
+          <div className="hidden lg:flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1">
+            <Users className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+            <select
+              aria-label="Pilih Profil Siswa Aktif"
+              value={selectedProfileIdx}
+              onChange={(e) => {
+                labSound.playClick();
+                setSelectedProfileIdx(Number(e.target.value));
+              }}
+              className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer"
+            >
+              {STUDENT_PROFILES.map((p, idx) => (
+                <option
+                  key={p.name}
+                  value={idx}
+                  className="bg-slate-900 text-white"
+                >
+                  {p.name} ({p.group.split('—')[0].trim()})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sound Toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              const next = !soundEnabled;
+              setSoundEnabled(next);
+              if (next) labSound.playClick();
+            }}
+            title={
+              soundEnabled
+                ? 'Matikan Efek Suara Lab'
+                : 'Aktifkan Efek Suara Lab'
+            }
+            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+              soundEnabled
+                ? 'bg-slate-900 border-slate-800 text-sky-400 hover:bg-slate-800'
+                : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            {soundEnabled ? (
+              <Volume2 className="w-4 h-4" />
+            ) : (
+              <VolumeX className="w-4 h-4" />
+            )}
+          </button>
+
+          {/* Theme Toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              labSound.playClick();
+              setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
+            }}
+            title="Ubah Tema Terang / Gelap"
+            className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            {themeMode === 'dark' ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4 text-slate-300" />
+            )}
+          </button>
+
+          {/* CSV Quick Export */}
+          <button
+            type="button"
+            onClick={handleExportAllCSV}
+            title="Unduh CSV Data Eksperimen"
+            className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+
+          {/* Notification Bell */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setShowNotifDrawer((prev) => !prev);
+              }}
+              className="relative p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              title={`Notifikasi & Umpan Balik (${
+                wsConnected ? 'Sinkronisasi Aktif' : 'Mode Lokal'
+              })`}
+            >
+              <Bell className="w-4 h-4" />
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-sky-500 text-slate-950 text-[9px] font-black flex items-center justify-center tabular-nums">
+                  {notifications.length}
+                </span>
+              )}
+            </button>
+
+            <AnimatePresence>
+              {showNotifDrawer && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-3 z-50 text-white"
+                >
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                    <span className="text-xs font-bold text-slate-200">
+                      Umpan Balik & Log Sesi ({notifications.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowNotifDrawer(false)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {notifications.slice(0, 8).map((n) => (
+                      <div
+                        key={n.id}
+                        className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs"
+                      >
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 mb-0.5">
+                          <span className="font-bold text-sky-400">
+                            {n.domain}
+                          </span>
+                          <span className="font-mono">{n.timestamp}</span>
+                        </div>
+                        <p className="font-semibold text-white">{n.title}</p>
+                        <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">
+                          {n.message}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Workspace Container */}
+      <main
+        className={`relative w-full h-[calc(100vh-3.5rem)] ${
+          is3DStageActive
+            ? 'overflow-hidden bg-slate-950'
+            : 'overflow-y-auto bg-slate-50 dark:bg-slate-950 p-6 select-text'
+        }`}
+      >
+        {/* MODE PENGAJAR: Dedicated Teacher Evaluation & Rubric Workspace */}
+        {userRole === 'pengajar' && (
+          <div className="max-w-[1380px] mx-auto pb-12 space-y-5">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+              <div>
+                <div className="text-xs font-mono text-rose-600 dark:text-rose-400 font-semibold">
+                  Mode Evaluasi Pengajar
+                </div>
+                <h1 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Dashboard Pemantauan Kelas, Rubrik Otomatis & Umpan Balik
+                </h1>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setUserRole('siswa');
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                ← Kembali ke Mode Praktikum Siswa
+              </button>
+            </div>
+
+            <TeacherDashboardView
+              students={students}
               records={records}
-              onInjectOutlierDemo={() =>
-                handleInjectOutlierDemo(activeScienceDomain)
+              onSendTeacherFeedback={handleSendTeacherFeedback}
+              onExportGradesNotification={(count) =>
+                handlePushNotification({
+                  id: `notif-grades-${Date.now()}`,
+                  timestamp: new Date().toLocaleTimeString('id-ID', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  }),
+                  severity: 'nominal',
+                  domain: 'Pengajar',
+                  title: 'Rekap Nilai Rubrik Kelas (CSV) Diunduh',
+                  message: `Daftar nilai rubrik otomatis untuk ${count} siswa berhasil diekspor ke CSV.`,
+                })
               }
             />
           </div>
         )}
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 12, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.99 }}
-            transition={{ duration: 0.22 }}
-          >
-        {activeTab === 'fisika' && (
-          <div className="space-y-8">
-            <div id="section-simulasi">
+        {/* MODE SISWA — TAHAP 1: Katalog Modul & Persiapan K3 */}
+        {userRole === 'siswa' && workflowStep === 1 && (
+          <div className="max-w-[1380px] mx-auto pb-12">
+            <ExperimentCatalogPicker
+              domain={activeDomain as RegistryDomain}
+              currentExperimentId={currentExperimentId}
+              activeTier={activeTierLabel}
+              completedSafetyIds={completedSafetyIds}
+              onDomainChange={(dom) => setActiveDomain(dom as LabDomainId)}
+              onSelectExperiment={handleSelectCatalogExperiment}
+              onOpenPreLabModal={(exp) => setCatalogModalExp(exp)}
+              onTierChange={(tier) => {
+                setAcademicLevel(tier.toLowerCase() as AcademicLevel);
+              }}
+            />
+
+            {catalogModalExp && (
+              <PreLabSafetyModal
+                experiment={catalogModalExp}
+                activeTier={activeTierLabel}
+                isOpen={!!catalogModalExp}
+                onClose={() => setCatalogModalExp(null)}
+                onProceedToLab={() => {
+                  handleSelectCatalogExperiment(catalogModalExp);
+                  setCatalogModalExp(null);
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* MODE SISWA — TAHAP 2: Kokpit Simulasi 3D & Pengambilan Data */}
+        {userRole === 'siswa' && workflowStep === 2 && (
+          <>
+            {activeDomain === 'fisika' && (
               <PhysicsLabView
                 params={physicsParams}
                 onChangeParams={setPhysicsParams}
                 academicLevel={academicLevel}
+                records={records}
+                activeStudentName={currentProfile.name}
+                activeGroupId={currentProfile.group}
+                onDeleteRecord={handleDeleteRecord}
+                onExportCSV={handleExportAllCSV}
+                onSubmitQuizScore={handleSubmitQuizScore}
+                onProceedToAnalysis={() => setWorkflowStep(3)}
+                onBackToCatalog={() => setWorkflowStep(1)}
                 onRecordExperiment={(
                   title,
                   summary,
@@ -1445,80 +1423,27 @@ export default function App() {
                 onSyncWithGroup={(summary) =>
                   handleSyncWithGroup('Fisika', summary)
                 }
-                currentUserId={currentUserId}
                 remoteCursors={remoteCursors}
-                paramLocks={paramLocks}
                 onEmitCursor={emitCursor3D}
+                paramLocks={paramLocks}
                 onAcquireLock={acquireParamLock}
                 onReleaseLock={releaseParamLock}
-                onSyncParamValue={syncParamValue}
               />
-            </div>
-
-            {!focusSimulationMode && (
-              <>
-                <div id="section-grafik-lks">
-                  <AnalyticsAndWorksheetPanel
-                    records={records}
-                    activeStudentName={currentProfile.name}
-                    activeGroupId={currentProfile.group}
-                    onSubmitQuizScore={handleSubmitQuizScore}
-                    onExportChartNotification={(fmt) =>
-                      handlePushNotification({
-                        id: `notif-chart-${Date.now()}`,
-                        timestamp: new Date().toLocaleTimeString('id-ID', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        }),
-                        severity: 'nominal',
-                        domain: 'Fisika',
-                        title: `Laporan Grafik Regresi (${fmt}) Berhasil Dibuat`,
-                        message: `Visualisasi multi-sumbu dan persamaan regresi linier telah diekspor dalam format ${fmt}.`,
-                      })
-                    }
-                  />
-                </div>
-
-                <div id="section-kolaborasi-log">
-                  <CollaborationAndDataSection
-                    records={records}
-                    tasks={tasks}
-                    notes={notes}
-                    activeGroupId={currentProfile.group}
-                    activeStudentName={currentProfile.name}
-                    onDeleteRecord={handleDeleteRecord}
-                    onToggleTask={handleToggleTask}
-                    onCreateTask={handleCreateTask}
-                    onCreateNote={handleCreateNote}
-                    onCSVExported={(count) =>
-                      handlePushNotification({
-                        id: `notif-csv-${Date.now()}`,
-                        timestamp: new Date().toLocaleTimeString('id-ID', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        }),
-                        severity: 'nominal',
-                        domain: 'Fisika',
-                        title: 'Data Eksperimen Berhasil Diekspor ke CSV',
-                        message: `${count} rekaman eksperimen telah diunduh dalam format CSV.`,
-                      })
-                    }
-                  />
-                </div>
-              </>
             )}
-          </div>
-        )}
 
-        {activeTab === 'kimia' && (
-          <div className="space-y-8">
-            <div id="section-simulasi">
+            {activeDomain === 'kimia' && (
               <ChemistryLabView
                 params={chemistryParams}
                 onChangeParams={setChemistryParams}
                 academicLevel={academicLevel}
+                records={records}
+                activeStudentName={currentProfile.name}
+                activeGroupId={currentProfile.group}
+                onDeleteRecord={handleDeleteRecord}
+                onExportCSV={handleExportAllCSV}
+                onSubmitQuizScore={handleSubmitQuizScore}
+                onProceedToAnalysis={() => setWorkflowStep(3)}
+                onBackToCatalog={() => setWorkflowStep(1)}
                 onRecordExperiment={(
                   title,
                   summary,
@@ -1542,80 +1467,24 @@ export default function App() {
                 remoteCursors={remoteCursors}
                 onEmitCursor={emitCursor3D}
               />
-            </div>
-
-            {!focusSimulationMode && (
-              <>
-                <div id="section-grafik-lks">
-                  <AnalyticsAndWorksheetPanel
-                    records={records}
-                    activeStudentName={currentProfile.name}
-                    activeGroupId={currentProfile.group}
-                    onSubmitQuizScore={handleSubmitQuizScore}
-                    onExportChartNotification={(fmt) =>
-                      handlePushNotification({
-                        id: `notif-chart-${Date.now()}`,
-                        timestamp: new Date().toLocaleTimeString('id-ID', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        }),
-                        severity: 'nominal',
-                        domain: 'Kimia',
-                        title: `Laporan Grafik Regresi (${fmt}) Berhasil Dibuat`,
-                        message: `Visualisasi multi-sumbu dan persamaan regresi linier telah diekspor dalam format ${fmt}.`,
-                      })
-                    }
-                  />
-                </div>
-
-                <div id="section-kolaborasi-log">
-                  <CollaborationAndDataSection
-                    records={records}
-                    tasks={tasks}
-                    notes={notes}
-                    activeGroupId={currentProfile.group}
-                    activeStudentName={currentProfile.name}
-                    onDeleteRecord={handleDeleteRecord}
-                    onToggleTask={handleToggleTask}
-                    onCreateTask={handleCreateTask}
-                    onCreateNote={handleCreateNote}
-                    onCSVExported={(count) =>
-                      handlePushNotification({
-                        id: `notif-csv-${Date.now()}`,
-                        timestamp: new Date().toLocaleTimeString('id-ID', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        }),
-                        severity: 'nominal',
-                        domain: 'Kimia',
-                        title: 'Data Kimia Berhasil Diekspor ke CSV',
-                        message: `${count} rekaman eksperimen telah diunduh dalam format CSV.`,
-                      })
-                    }
-                  />
-                </div>
-              </>
             )}
-          </div>
-        )}
 
-        {activeTab === 'biologi' && (
-          <div className="space-y-8">
-            <div id="section-simulasi">
+            {activeDomain === 'biologi' && (
               <BiologyLabView
                 activeStudentName={currentProfile.name}
                 activeGroupId={currentProfile.group}
-                activeTier={
-                  academicLevel === 'smp'
-                    ? 'SMP'
-                    : academicLevel === 'mahasiswa'
-                    ? 'Mahasiswa'
-                    : 'SMA'
-                }
+                activeTier={activeTierLabel}
+                selectedModuleId={selectedBioModuleId}
+                onSelectModuleId={setSelectedBioModuleId}
+                records={records}
+                onDeleteRecord={handleDeleteRecord}
+                onExportCSV={handleExportAllCSV}
+                onSubmitQuizScore={handleSubmitQuizScore}
+                onProceedToAnalysis={() => setWorkflowStep(3)}
+                onBackToCatalog={() => setWorkflowStep(1)}
+                onBiologyContextChange={setBiologyContext}
                 onRecordExperiment={(
-                  domain,
+                  _domain,
                   title,
                   paramsSummary,
                   keyMetrics,
@@ -1640,72 +1509,21 @@ export default function App() {
                   setAcademicLevel(newTier.toLowerCase() as AcademicLevel);
                 }}
               />
-            </div>
-
-            {!focusSimulationMode && (
-              <>
-                <div id="section-grafik-lks">
-                  <AnalyticsAndWorksheetPanel
-                    records={records}
-                    activeStudentName={currentProfile.name}
-                    activeGroupId={currentProfile.group}
-                    onSubmitQuizScore={handleSubmitQuizScore}
-                    onExportChartNotification={(fmt) =>
-                      handlePushNotification({
-                        id: `notif-chart-${Date.now()}`,
-                        timestamp: new Date().toLocaleTimeString('id-ID', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        }),
-                        severity: 'nominal',
-                        domain: 'Biologi',
-                        title: `Laporan Grafik Biologi (${fmt}) Dibuat`,
-                        message: `Grafik fotosintesis dan kinetika enzim berhasil diekspor ke ${fmt}.`,
-                      })
-                    }
-                  />
-                </div>
-
-                <div id="section-kolaborasi-log">
-                  <CollaborationAndDataSection
-                    records={records}
-                    tasks={tasks}
-                    notes={notes}
-                    activeGroupId={currentProfile.group}
-                    activeStudentName={currentProfile.name}
-                    onDeleteRecord={handleDeleteRecord}
-                    onToggleTask={handleToggleTask}
-                    onCreateTask={handleCreateTask}
-                    onCreateNote={handleCreateNote}
-                    onCSVExported={(count) =>
-                      handlePushNotification({
-                        id: `notif-csv-${Date.now()}`,
-                        timestamp: new Date().toLocaleTimeString('id-ID', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        }),
-                        severity: 'nominal',
-                        domain: 'Biologi',
-                        title: 'Data Biologi Berhasil Diekspor ke CSV',
-                        message: `${count} rekaman eksperimen telah diunduh dalam format CSV.`,
-                      })
-                    }
-                  />
-                </div>
-              </>
             )}
-          </div>
-        )}
 
-        {activeTab === 'astronomi' && (
-          <div className="space-y-8">
-            <div id="section-simulasi">
+            {activeDomain === 'astronomi' && (
               <AstronomyLabView
                 params={astronomyParams}
                 onChangeParams={setAstronomyParams}
                 academicLevel={academicLevel}
+                records={records}
+                activeStudentName={currentProfile.name}
+                activeGroupId={currentProfile.group}
+                onDeleteRecord={handleDeleteRecord}
+                onExportCSV={handleExportAllCSV}
+                onSubmitQuizScore={handleSubmitQuizScore}
+                onProceedToAnalysis={() => setWorkflowStep(3)}
+                onBackToCatalog={() => setWorkflowStep(1)}
                 onRecordExperiment={(
                   title,
                   summary,
@@ -1729,72 +1547,20 @@ export default function App() {
                 remoteCursors={remoteCursors}
                 onEmitCursor={emitCursor3D}
               />
-            </div>
-
-            {!focusSimulationMode && (
-              <>
-                <div id="section-grafik-lks">
-                  <AnalyticsAndWorksheetPanel
-                    records={records}
-                    activeStudentName={currentProfile.name}
-                    activeGroupId={currentProfile.group}
-                    onSubmitQuizScore={handleSubmitQuizScore}
-                    onExportChartNotification={(fmt) =>
-                      handlePushNotification({
-                        id: `notif-chart-${Date.now()}`,
-                        timestamp: new Date().toLocaleTimeString('id-ID', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        }),
-                        severity: 'nominal',
-                        domain: 'Astronomi',
-                        title: `Laporan Grafik Regresi Astronomi (${fmt}) Selesai`,
-                        message: `Grafik Hukum III Kepler dan regresi linier berhasil diekspor ke ${fmt}.`,
-                      })
-                    }
-                  />
-                </div>
-
-                <div id="section-kolaborasi-log">
-                  <CollaborationAndDataSection
-                    records={records}
-                    tasks={tasks}
-                    notes={notes}
-                    activeGroupId={currentProfile.group}
-                    activeStudentName={currentProfile.name}
-                    onDeleteRecord={handleDeleteRecord}
-                    onToggleTask={handleToggleTask}
-                    onCreateTask={handleCreateTask}
-                    onCreateNote={handleCreateNote}
-                    onCSVExported={(count) =>
-                      handlePushNotification({
-                        id: `notif-csv-${Date.now()}`,
-                        timestamp: new Date().toLocaleTimeString('id-ID', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        }),
-                        severity: 'nominal',
-                        domain: 'Astronomi',
-                        title: 'Data Astronomi Berhasil Diekspor ke CSV',
-                        message: `${count} rekaman eksperimen telah diunduh dalam format CSV.`,
-                      })
-                    }
-                  />
-                </div>
-              </>
             )}
-          </div>
+          </>
         )}
 
-        {activeTab === 'kolaborasi' && (
-          <div className="space-y-8">
+        {/* MODE SISWA — TAHAP 3: Analisis Grafik Regresi & Lembar Kerja Siswa (LKS) */}
+        {userRole === 'siswa' && workflowStep === 3 && (
+          <div className="max-w-[1380px] mx-auto pb-12">
             <AnalyticsAndWorksheetPanel
               records={records}
               activeStudentName={currentProfile.name}
               activeGroupId={currentProfile.group}
               onSubmitQuizScore={handleSubmitQuizScore}
+              onBackToLab={() => setWorkflowStep(2)}
+              onProceedToReport={() => setWorkflowStep(4)}
               onExportChartNotification={(fmt) =>
                 handlePushNotification({
                   id: `notif-chart-${Date.now()}`,
@@ -1810,7 +1576,12 @@ export default function App() {
                 })
               }
             />
+          </div>
+        )}
 
+        {/* MODE SISWA — TAHAP 4: Laporan Praktikum & Kolaborasi Kelompok */}
+        {userRole === 'siswa' && workflowStep === 4 && (
+          <div className="max-w-[1380px] mx-auto pb-12">
             <CollaborationAndDataSection
               records={records}
               tasks={tasks}
@@ -1821,6 +1592,8 @@ export default function App() {
               onToggleTask={handleToggleTask}
               onCreateTask={handleCreateTask}
               onCreateNote={handleCreateNote}
+              onBackToAnalysis={() => setWorkflowStep(3)}
+              onBackToCatalog={() => setWorkflowStep(1)}
               onCSVExported={(count) =>
                 handlePushNotification({
                   id: `notif-csv-${Date.now()}`,
@@ -1839,90 +1612,18 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'pengajar' && (
-          <TeacherDashboardView
-            students={students}
-            records={records}
-            onSendTeacherFeedback={handleSendTeacherFeedback}
-            onExportGradesNotification={(count) =>
-              handlePushNotification({
-                id: `notif-grades-${Date.now()}`,
-                timestamp: new Date().toLocaleTimeString('id-ID', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                }),
-                severity: 'nominal',
-                domain: 'Pengajar',
-                title: 'Rekap Nilai Rubrik Kelas (CSV) Diunduh',
-                message: `Daftar nilai rubrik otomatis untuk ${count} siswa berhasil diekspor ke CSV.`,
-              })
-            }
-          />
-        )}
-          </motion.div>
-        </AnimatePresence>
+        {/* Streamlined Floating AI Mentor Pill & Chat Popover */}
+        <DrLabMuAssistantPanel
+          domain={activeScienceDomain}
+          academicLevel={academicLevel}
+          physicsParams={physicsParams}
+          chemistryParams={chemistryParams}
+          astronomyParams={astronomyParams}
+          biologyContext={biologyContext}
+          records={records}
+          onInjectOutlierDemo={() => handleInjectOutlierDemo(activeScienceDomain)}
+        />
       </main>
-
-      <footer className="bg-white/95 dark:bg-slate-950/90 lab-glass-panel border-t border-slate-200 dark:border-slate-800 px-6 py-4 mt-12">
-        <div className="max-w-[1380px] mx-auto flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-          <div className="flex items-center gap-4">
-            <span className="font-semibold text-slate-800 dark:text-slate-200">
-              SimuLab Sains
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              Laboratorium Praktikum Fisika, Kimia & Astronomi Interaktif
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setActiveTab('fisika');
-              }}
-              className="hover:text-slate-900 dark:hover:text-white flex items-center gap-1"
-            >
-              <Atom className="w-3.5 h-3.5" />
-              Modul Fisika
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setActiveTab('kimia');
-              }}
-              className="hover:text-slate-900 dark:hover:text-white flex items-center gap-1"
-            >
-              <FlaskConical className="w-3.5 h-3.5" />
-              Modul Kimia
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setActiveTab('astronomi');
-              }}
-              className="hover:text-slate-900 dark:hover:text-white flex items-center gap-1"
-            >
-              <Orbit className="w-3.5 h-3.5" />
-              Modul Astronomi
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setActiveTab('pengajar');
-              }}
-              className="hover:text-slate-900 dark:hover:text-white flex items-center gap-1"
-            >
-              <GraduationCap className="w-3.5 h-3.5" />
-              Panel Pengajar
-            </button>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

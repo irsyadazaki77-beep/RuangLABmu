@@ -966,17 +966,20 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
     const handleResize = () => {
       if (!container) return;
-      const w = container.clientWidth || 760;
-      const h = container.clientHeight || 380;
+      const w = container.clientWidth || window.innerWidth || 960;
+      const h = container.clientHeight || window.innerHeight || 600;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
+    const resizeObserver = new ResizeObserver(() => handleResize());
+    resizeObserver.observe(container);
     window.addEventListener('resize', handleResize);
 
     return () => {
       disposed = true;
       cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('resize', handleResize);
       cursorManager.dispose();
@@ -991,92 +994,63 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-800/90 bg-[#0B1120]">
+    <div className="relative w-full h-full overflow-hidden bg-[#0B1120]">
       <div
         ref={mountRef}
         data-testid="chemistry-simulation-canvas"
-        className="w-full h-[460px] sm:h-[520px] block cursor-grab active:cursor-grabbing"
+        className="w-full h-full block cursor-grab active:cursor-grabbing"
       />
 
-      {/* Bottom-Left 3D Chemistry Status Badge */}
-      <div className="pointer-events-none absolute bottom-14 left-3 rounded-lg border border-slate-700/90 bg-[#0F172A]/95 px-3 py-2 text-xs shadow-md">
-        <div className="font-mono text-[11px] font-semibold text-emerald-400">
-          {params.mode === 'thermo-calorimetry'
-            ? `KALORIMETER 3D · T = ${(params.initialTempC + metrics.deltaTempC * reactionProgress).toFixed(1)} °C`
-            : params.mode === 'acid-base-titration'
-            ? `BURET & ERLENMEYER 3D · pH = ${metrics.currentPh}`
-            : `SEL GALVANI 3D · E_sel = +${metrics.nernstCellPotentialE} V`}
-        </div>
-        <div className="mt-0.5 font-mono text-xs font-semibold text-slate-100">
-          {params.mode === 'thermo-calorimetry'
-            ? `${preset.equation}`
-            : params.mode === 'acid-base-titration'
-            ? `Indikator: ${metrics.indicatorColorName}`
-            : `${redoxPreset.anodeHalf} || ${redoxPreset.cathodeHalf}`}
-        </div>
+      {/* Top-Center 3D Camera & Mini Curve Toggle Pill */}
+      <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full backdrop-blur-xl bg-slate-900/75 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
+        <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-semibold mr-1">
+          Kamera 3D:
+        </span>
+        {(
+          [
+            { id: 'isometric', label: 'Isometrik' },
+            { id: 'front', label: 'Depan' },
+            { id: 'top', label: 'Atas' },
+            { id: 'closeup', label: 'Bejana' },
+          ] as const
+        ).map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => handleSelectCameraPreset(p.id)}
+            className={`px-2.5 py-1 text-[11px] font-mono font-medium rounded-full transition-colors cursor-pointer ${
+              activePreset === p.id
+                ? 'bg-emerald-500 text-slate-950 font-bold shadow-xs'
+                : 'text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setShowMiniCurve((s) => !s)}
+          className={`ml-1 px-2.5 py-1 text-[11px] font-mono font-medium rounded-full transition-colors cursor-pointer ${
+            showMiniCurve
+              ? 'bg-sky-500/25 border border-sky-400/50 text-sky-300'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          {showMiniCurve ? 'Kurva PiP: Aktif' : 'Kurva PiP'}
+        </button>
       </div>
 
-      {/* Bottom-Right Companion 2D Quantitative Curve PiP */}
+      {/* Top-Center-Below Companion 2D Quantitative Curve PiP */}
       {showMiniCurve && !hudCollapsed && (
-        <div className="pointer-events-none absolute bottom-14 right-3 hidden xl:block overflow-hidden rounded-lg border border-slate-700/90 bg-[#0F172A] shadow-lg">
+        <div className="pointer-events-none absolute top-16 left-1/2 -translate-x-1/2 hidden xl:block overflow-hidden rounded-xl border border-white/15 bg-slate-900/80 backdrop-blur-md shadow-2xl z-10">
           <canvas
             ref={miniChartRef}
             width={235}
-            height={116}
+            height={110}
             className="block"
           />
         </div>
       )}
-
-      {/* Collapsible Bottom 3D Camera & Curve Dock */}
-      <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 z-10">
-        {!hudCollapsed && (
-          <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-md border border-slate-700 bg-[#0F172A] px-2.5 py-1.5 shadow-lg">
-            <span className="text-[11px] font-mono text-slate-400 mr-1 hidden sm:inline">
-              Kamera 3D:
-            </span>
-            {(
-              [
-                { id: 'isometric', label: 'Isometrik 3D' },
-                { id: 'front', label: 'Tampak Depan' },
-                { id: 'top', label: 'Tampak Atas' },
-                { id: 'closeup', label: 'Fokus Bejana' },
-              ] as const
-            ).map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleSelectCameraPreset(p.id)}
-                className={`px-2 py-1 text-[11px] font-mono font-medium rounded transition-colors ${
-                  activePreset === p.id
-                    ? 'bg-sky-600 text-white'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setShowMiniCurve((s) => !s)}
-              className={`px-2 py-1 text-[11px] font-mono font-medium rounded transition-colors ${
-                showMiniCurve
-                  ? 'bg-emerald-700 text-white'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              {showMiniCurve ? 'Kurva 2D: Aktif' : 'Kurva 2D: Nonaktif'}
-            </button>
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={() => setHudCollapsed((c) => !c)}
-          className="rounded border border-slate-700 bg-[#0F172A] px-2.5 py-0.5 text-[10px] font-mono text-slate-300 hover:text-white shadow"
-        >
-          {hudCollapsed ? '▴ Tampilkan Kontrol Kamera 3D' : '▾ Sembunyikan HUD'}
-        </button>
-      </div>
     </div>
   );
 };

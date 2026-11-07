@@ -1,128 +1,154 @@
-# SimuLab Sains — Modernisasi UI Interaktif & Ruang Kerja Eksperimen Adaptif
+# Penataan Ulang Alur & Navigasi Terstruktur RuangLABmu
 
-Transformasi antarmuka laboratorium virtual SimuLab Sains (Fisika, Kimia, Astronomi, Analitik LKS, dan Dashboard Pengajar) menjadi ruang kerja sains modern berpresisi tinggi dengan tema adaptif Light/Dark Glassmorphism, manipulasi kanvas secara langsung, efek audio sintetis laboratorium, serta fitur perbandingan eksperimen berdampingan (A/B).
+Restrukturisasi pengalaman pengguna **RuangLABmu** dari kumpulan tab yang tersebar dan tumpang-tindih menjadi alur praktikum ilmiah bertahap (**1. Katalog & K3 $\rightarrow$ 2. Eksperimen 3D $\rightarrow$ 3. Analisis Grafik & LKS $\rightarrow$ 4. Laporan & Evaluasi**) dengan pemisahan peran **Siswa** dan **Pengajar** yang tegas serta kanvas 3D yang bersih dan lega.
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Seluruh keputusan desain di bawah ini disusun berdasarkan preferensi yang telah Anda konfirmasi dan siap dieksekusi tanpa menghilangkan fitur simulasi, perhitungan ilmiah, maupun sinkronisasi kolaborasi real-time yang sudah berjalan.
+> Seluruh keputusan arsitektur alur di bawah ini telah disesuaikan berdasarkan konfirmasi Anda pada tahap klarifikasi dan siap dieksekusi setelah Anda menekan tombol **Proceed**.
 
-- **Tema Adaptif Light & Dark Glassmorphism (Terkonfirmasi)**: Menyediakan pengalih tema instan (Light Mode klinis `#F8FAFC` dan Dark Mode observatorium `#0B0E17`) dengan permukaan panel *translucent backdrop-blur* halus, batas garis rambut (*hairline border* 1px), serta kontras WCAG AA di seluruh komponen.
-- **Tata Letak Split-Screen dengan HUD Mengambang & Dock Bawah (Terkonfirmasi)**: Mengatur ulang ruang kerja praktikum menjadi proporsi kanvas visual dominan (65% lebar) dengan kartu telemetri HUD mengambang di sudut kanvas, bilah pemutar waktu (*timeline scrubber* & *playback dock*) melayang di bagian bawah kanvas, serta dek kalibrasi parameter yang ringkas dan terstruktur di sisi samping (35% lebar).
-- **Manipulasi Langsung di Kanvas, Audio Sintetis & Mode Perbandingan A/B (Terkonfirmasi)**:
-  - *Direct Canvas Manipulation*: Siswa dapat menyeret langsung objek atau vektor di kanvas 2D/3D (seperti sudut bidang miring, vektor kecepatan projektil, simpangan pegas Hooke, keran buret titrasi, atau jari-jari orbit planet) dengan kursor *crosshair* dan umpan balik koordinat instan.
-  - *Synthesized Lab Sound Effects*: Umpan balik suara prosedural menggunakan Web Audio API murni (tanpa berkas audio eksternal) untuk dentuman tumbukan, osilasi pegas, tetesan buret titrasi, dengung orbit, dan notifikasi pencatatan data (dilengkapi tombol Mute/Unmute).
-  - *Side-by-Side Experiment Comparison (Mode A/B)*: Mode pembanding langsung antara *Konfigurasi Saat Ini (Live)* dengan *Snapshot Referensi (Baseline)* atau rekaman tabel log sebelumnya, menampilkan selisih metrik ($\Delta$) secara berdampingan.
+- **Keputusan Terkonfirmasi 1 — Alur Bertahap (4 Langkah Praktikum)**: Pengguna dipandu melalui tahapan berurutan mulai dari **Tahap 1: Pilih Modul & Pre-Lab K3**, **Tahap 2: Eksperimen 3D & Rekam Data**, **Tahap 3: Analisis Grafik Regresi & LKS**, hingga **Tahap 4: Kolaborasi Kelompok & Unduh Laporan (PDF/CSV)**, sambil tetap mengizinkan perpindahan cepat antar-tahap melalui *Stepper Bar*.
+- **Keputusan Terkonfirmasi 2 — Pemisahan Mode Siswa vs. Mode Pengajar**: Navigasi atas tidak lagi mencampur tab laboratorium dengan tab pengajar. Disediakan pengalih peran (*Role Switcher*: **Mode Praktikum Siswa** | **Mode Evaluasi Pengajar**) yang memisahkan ruang kerja eksperimen dari ruang pantau kelas dan rubrik penilaian.
+- **Keputusan Terkonfirmasi 3 — Eliminasi Duplikasi Grafik & LKS**: Fitur Grafik Regresi dan LKS disatukan ke dalam alur terpadu: saat di Tahap 2 (Simulasi 3D), siswa fokus mengamati fenomena 3D, mencatat titik pengamatan, dan melihat *counter badge* jumlah data yang terekam beserta tombol lanjut langsung menuju **Tahap 3 (Analisis & LKS)** tanpa duplikasi laci dan halaman yang membingungkan.
+- **Keputusan Terkonfirmasi 4 — Kanvas 3D Lega & Dr.LabMu Ringkas**: Panel parameter dan telemetri 3D disatukan ke dalam satu dok kontrol yang rapi dan dapat disembunyikan (*collapsible*), sementara tombol mengambang asisten Sokratik **Dr.LabMu** diringkas menjadi tombol *pill/icon* minimalis dengan lencana notifikasi pintar saat terdeteksi anomali regresi ($R^2 < 0.85$).
 
 ---
 
 ### 1. Overview & Core Concept
 
-- **What It Does**: Menghadirkan pengalaman laboratorium sains interaktif generasi baru yang memadukan estetika instrumen ilmiah modern dengan kemudahan eksplorasi langsung di atas kanvas untuk 11 mode simulasi (5 Fisika, 3 Kimia, 3 Astronomi), lembar kerja otomatis (LKS), dan pemantauan guru secara real-time.
-- **Target Audience / Persona**: Siswa SMA/SMK, Mahasiswa S1 Sains & Teknik, serta Pengajar/Dosen yang membutuhkan laboratorium virtual yang responsif, bebas kesan kaku, dan intuitif.
-- **Key Value**: Meningkatkan keterlibatan belajar melalui interaksi sentuh/seret langsung pada objek eksperimen, perbandingan langsung dua skenario ilmiah ($\Delta$ variabel), dan kenyamanan visual di ruangan terang maupun gelap.
+- **What It Does**: Mengubah navigasi datar 6-tab menjadi sistem pembelajaran laboratorium terpandu (*Guided Scientific Inquiry Workflow*). Setiap sesi praktikum memiliki alur awal hingga akhir yang jelas, mulai dari pemilihan eksperimen lintas bidang (Fisika, Kimia, Biologi, Astronomi) dan persetujuan K3, pengambilan data di kokpit 3D interaktif, pengolahan regresi linier beserta pengisian LKS, hingga ekspor laporan resmi praktikum.
+- **Target Audience / Persona**:
+  - **Siswa & Mahasiswa (SMP / SMA / Perguruan Tinggi)**: Membutuhkan panduan langkah demi langkah yang jelas tanpa kebingungan harus menekan tombol mana setelah menjalankan simulasi 3D.
+  - **Guru & Dosen Pembimbing (Mode Pengajar)**: Membutuhkan tampilan fokus untuk memantau progres tahapan tiap siswa secara *real-time*, memeriksa skor LKS otomatis, memberikan umpan balik langsung, dan mengunduh rekap nilai kelas.
+- **Key Value**:
+  - Menghilangkan kebingungan akibat fitur ganda (Grafik & LKS yang sebelumnya muncul bersamaan di laci dalam kanvas 3D dan di tab navigasi atas).
+  - Memperluas ruang pandang kanvas WebGL/Three.js hingga $\ge 75\%$ area layar dengan menyatukan kontrol parameter dan rumus interaktif.
+  - Memperjelas progres belajar siswa melalui indikator tahapan (*Progress Stepper*) dari Pre-Lab hingga ekspor laporan PDF/CSV.
 
 ---
 
 ### 2. User Experience & Visual Design
 
-- **Key User Flows**:
-  1. **Kalibrasi Tema, Audio & Tingkat Akademik**: Pengguna beralih antara Light/Dark Mode, mengaktifkan/mematikan efek suara laboratorium (Web Audio API), atau mengganti mode Siswa SMA/SMK vs Mahasiswa S1 dari pita kontrol ruang kerja tanpa memuat ulang halaman.
-  2. **Interaksi Langsung di Kanvas & Dock Bawah**: Di dalam kanvas simulasi, pengguna dapat mengklik dan menyeret langsung elemen fisik (misal menarik balok pegas, mengubah sudut peluncuran projektil, atau memutar keran titrasi) sambil memantau perubahan vektor dan kurva secara langsung, atau mengontrol jalannya waktu (`Play`, `Pause`, `Step`, `Kecepatan 0.5x–2x`, `Reset`) dari *Floating Bottom Dock*.
-  3. **Mode Perbandingan Eksperimen Berdampingan (A/B Comparison)**: Pengguna menekan tombol **Bandingkan Skenario (A/B)** untuk membekukan parameter saat ini sebagai *Skenario A (Baseline)*, lalu mengubah parameter untuk *Skenario B (Eksperimen Aktif)* dan melihat perbandingan grafik/metrik secara berdampingan lengkap dengan indikator selisih ($\Delta$).
-  4. **Pencatatan Satu Klik & Evaluasi LKS**: Saat menekan **Rekam Data**, antarmuka memberikan umpan balik suara klik instrumen dan animasi transisi mulus ke lencana log data serta memperbarui garis regresi OLS ($R^2$).
+#### A. Key User Flows (Alur Kerja Baru)
 
-- **Visual Identity & Theme**:
-  - *Aesthetic Direction*: **Precision Scientific Glass & Telemetry Workbench** — memadukan ketegasan instrumen laboratorium dan observatorium antariksa dengan panel kaca akrilik halus (`backdrop-blur-md`).
-  - *Color Palette & Mood (60-30-10 Discipline)*:
-    - **60% Dominant Canvas**: Pristine Lab Slate (`#F8FAFC`) pada Light Mode dan Deep Space Obsidian (`#07090E` / `#0B0E17`) pada Dark Mode.
-    - **30% Structural Surfaces & Glass HUD**: Panel struktural `bg-white/85 dark:bg-slate-900/80` dengan batas garis rambut 1px (`border-slate-200/80 dark:border-slate-800/80`).
-    - **10% Semantic Focal Accents**: Laser Cyan / Azure (`#0284C7` / `#06B6D4`) untuk kontrol aktif dan vektor utama, Emerald (`#059669` / `#10B981`) untuk status `● NOMINAL`, Amber (`#D97706` / `#F59E0B`) untuk `▲ PERHATIAN`, dan Coral Rose (`#E11D48` / `#F43F5E`) untuk `✖ KRITIS`.
-  - *Typography & Hierarchy*:
-    - **Display & UI Labels**: `Plus Jakarta Sans` (SemiBold/Bold dengan `text-wrap: balance` dan kompensasi optik pada mode gelap).
-    - **Telemetry, Coordinates & Equations**: `IBM Plex Mono` dengan `tabular-nums` wajib pada seluruh angka metrik, pembacaan waktu, koordinat kursor, dan tabel data agar tidak terjadi pergeseran tata letak (*layout jitter*) saat angka berubah cepat.
-    - **Zero-Pill Metadata Discipline**: Seluruh informasi metadata statis (unit, waktu, kategori, status koneksi) ditampilkan sebagai teks bersih dengan pemisah tipografi (`·` atau `/`) tanpa kapsul dekoratif berlebihan, sementara tombol filter dan tab mode tetap menggunakan *segmented control* interaktif yang tegas.
-  - *Component Styling & Layout*:
-    - **Top Bar Contract (3 Zona Ketat)**: Zona 1 menampilkan wordmark `SimuLab Sains` satu baris; Zona 2 menampilkan 5 tautan navigasi utama satu baris dengan indikator garis bawah aktif yang mulus; Zona 3 menampilkan tombol aksi utama `Ekspor CSV`.
-    - **Asymmetric Split-Screen Workbench**: Kanvas interaktif menempati area utama di sebelah kiri/atas dilengkapi *Floating Telemetry HUD* di sudut atas dan *Playback & Camera Dock* mengambang di bagian bawah, didampingi *Parameter & Concept Deck* di sebelah kanan.
+1. **Header Utama Tiga Zona & Pengalih Peran (Role Switcher)**:
+   - **Zona Kiri**: Identitas **RuangLABmu** beserta pemilih bidang sains aktif (*Fisika · Kimia · Biologi · Astronomi*) dan tingkat kurikulum (*SMP · SMA · PT*).
+   - **Zona Tengah (Mode Siswa)**: **Indikator Progres 4 Tahap Praktikum** (*1. Katalog & K3 $\rightarrow$ 2. Simulasi 3D $\rightarrow$ 3. Grafik & LKS $\rightarrow$ 4. Laporan & Diskusi*) yang menunjukkan tahap aktif dan status penyelesaian tiap tahap.
+   - **Zona Kanan**: Pengalih peran (**Mode Siswa** / **Mode Pengajar**), pemilih profil siswa/kelompok aktif, tombol tema/suara, dan lonceng notifikasi sesi.
+2. **Tahap 1 — Katalog Modul & Persiapan Pre-Lab K3**:
+   - Siswa memilih bidang sains (Fisika, Kimia, Biologi, atau Astronomi) dan memfilter modul berdasarkan jenjang kurikulum.
+   - Setiap kartu modul menampilkan tujuan eksperimen, rumus kunci, daftar alat, serta status apakah briefing K3 sudah diselesaikan.
+   - Menekan **"Siapkan & Cek K3"** membuka ringkasan prosedur keselamatan kerja (APD & bahaya); menekan **"Mulai Eksperimen 3D"** langsung membawa siswa ke Tahap 2 dengan modul terpilih.
+3. **Tahap 2 — Eksperimen 3D & Pengambilan Data Terpadu**:
+   - **Kanvas 3D Fokus Penuh**: Ruang tengah sepenuhnya didedikasikan untuk visualisasi 3D interaktif tanpa tertutup banyak laci melayang.
+   - **Panel Kontrol & Telemetri Terpadu (Kiri)**: Menyatukan pemilihan sub-modul, *slider* parameter eksperimen, pembacaan metrik *real-time*, dan kartu rumus interaktif dalam satu panel ramping yang dapat dilipat (*collapsible*).
+   - **Bar Eksekusi & Rekam Data (Bawah)**: Menggabungkan kontrol *Play/Pause/Reset*, pengatur kecepatan waktu, tombol **"Rekam Data Pengamatan"**, serta tombol aksi berlanjut **"Lanjut ke Analisis & LKS ($N$ Data)"** yang otomatis menyala begitu siswa merekam minimal 2–3 titik pengamatan.
+4. **Tahap 3 — Analisis Grafik Regresi & Lembar Kerja Siswa (LKS)**:
+   - Tampilan *Two-Zone Sandbox* yang bersih: sisi kiri menampilkan **Grafik Regresi Linier OLS ($R^2$)** dan **Tabel Log Pengamatan** (lengkap dengan fitur hapus/filter data), sedangkan sisi kanan menampilkan **Lembar Kerja Siswa (LKS)** terstruktur yang terhubung langsung dengan data hasil rekaman.
+   - Begitu siswa menekan **"Periksa & Simpan Skor LKS"**, progres Tahap 3 ditandai selesai dan tombol **"Lanjut ke Ringkasan & Ekspor Laporan"** siap diakses.
+5. **Tahap 4 — Kolaborasi Kelompok & Ekspor Laporan Akhir**:
+   - Menampilkan papan tugas kelompok (*Checklist Investigasi*), ruang diskusi catatan siswa-pengajar secara *real-time*, serta kartu **Pusat Ekspor Praktikum** untuk mengunduh **Laporan Akademik Cetak/PDF** dan **Berkas Data CSV** dalam satu klik.
+6. **Mode Evaluasi Pengajar (Terpisah dari Alur Siswa)**:
+   - Saat beralih ke **Mode Pengajar**, tampilan berfokus pada Matriks Rubrik Kelas, grafik distribusi ketuntasan siswa, pantauan tahap aktif masing-masing siswa, pengiriman umpan balik instan via WebSocket, dan unduhan nilai CSV.
 
-- **Interactive Feedback & Motion**:
-  - Transisi antar-tab, pembukaan panel perbandingan A/B, dan perubahan nilai metrik menggunakan animasi halus (`transform` dan `opacity` $\le 200\text{ms}$ dengan kurva `cubic-bezier(0.16, 1, 0.3, 1)`).
-  - Kursor kanvas berubah menjadi `cursor-crosshair` atau `cursor-grab`/`cursor-grabbing` saat berada di atas titik kontrol objek yang dapat diseret langsung di kanvas 2D disertai tooltip koordinat $(x, y)$ real-time.
+#### B. Visual Identity & Theme
+
+- **Aesthetic Direction**: *Precision Scientific Studio* — menggabungkan imersi laboratorium gelap pada panggung 3D dengan keterbacaan dokumen akademik tinggi pada tahap Katalog, Analisis Grafik, LKS, dan Laporan.
+- **Color Palette & Mood (60-30-10 Discipline)**:
+  - **60% Dominant Canvas**: Deep Obsidian Slate (`#090D16` / `slate-950`) untuk ruang simulasi 3D dan Clean Alabaster (`#F8FAFC` / `slate-50` pada mode terang) untuk ruang baca LKS & katalog.
+  - **30% Structural Surfaces**: Panel instrumen semi-transparan (`bg-slate-900/90 border-white/10`) dengan garis pemisah tipis (*hairline borders* `1px`) tanpa kotak di dalam kotak yang berlebihan.
+  - **10% Semantic Focal Accents**:
+    - Fisika: Cerulean Sky (`#0EA5E9`)
+    - Kimia: Analytical Teal (`#14B8A6`)
+    - Biologi: Botanical Emerald (`#10B981`)
+    - Astronomi: Celestial Indigo (`#6366F1`)
+    - Indikator Status: Teks berlabel eksplisit (`● TERCAPAI`, `▲ ANOMALI R²`) mendampingi warna semantik.
+- **Typography & Hierarchy (2+1 Font Rule)**:
+  - **Display & Headings**: `Plus Jakarta Sans` (SemiBold/Bold) untuk judul modul, navigasi tahapan, dan metrik utama.
+  - **Body Prose**: `Plus Jakarta Sans` (Regular/Medium) untuk instruksi praktikum, teori singkat, dan soal LKS.
+  - **Data, Rumus & Telemetri**: `IBM Plex Mono` dengan `tabular-nums` untuk tabel pengamatan, persamaan regresi, nilai *slider*, dan waktu simulasi.
+- **Component Styling & Spatial Math**:
+  - Menghilangkan lencana kapsul (*static pill clutter*) pada metadata kartu katalog; menggantinya dengan teks bersih berpemisah titik tengah (`Mekanika · SMA · 25 Menit`).
+  - Tombol mengambang **Dr.LabMu** di pojok kanan bawah disederhanakan menjadi kapsul kompak satu baris (`Dr. LabMu · Tanya Mentor`) yang tidak menutupi kontrol simulasi 3D.
 
 ---
 
 ### 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Sintesis Audio Laboratorium Berbasis Web Audio API Murni**
-  - *Chosen Approach*: Membangun modul synthesizer audio prosedural berbasis `AudioContext` bawaan peramban (osilator gelombang sinus/segitiga dan *filtered noise* terukur) dengan tombol kontrol bisukan (*Mute/Unmute*).
-  - *Why*: Menghasilkan efek suara tumbukan fisika, pegas harmonik, tetesan titrasi kimia, dan sinyal telemetri astronomi dengan latensi nol serta bebas risiko gagal muat aset eksternal.
-  - *Alternatives Considered*: Memuat file MP3 eksternal (berisiko gagal dimuat di jaringan terbatas dan menambah beban unduhan).
-
-- **Decision 2: Mode Perbandingan Berdampingan (A/B Snapshot & Delta Engine)**
-  - *Chosen Approach*: Menyediakan fitur *Pin Baseline Snapshot* pada setiap laboratorium (Fisika, Kimia, Astronomi) sehingga pengguna dapat menyematkan kondisi eksperimen A dan membandingkannya secara berdampingan dengan kondisi eksperimen B yang sedang berjalan, lengkap dengan kartu perbandingan metrik $\Delta$ dan kurva *overlay*.
-  - *Why*: Memungkinkan siswa membuktikan hipotesis ilmiah secara visual (misal: lintasan projektil di Bumi vs Mars, pH titrasi dengan konsentrasi berbeda, atau kurva rotasi galaksi dengan vs tanpa Materi Gelap) tanpa harus bolak-balik mencatat manual.
-  - *Alternatives Considered*: Merender dua kanvas WebGL 3D secara bersamaan (dapat menurunkan *frame rate* GPU pada perangkat laptop sekolah standar). Dengan menggabungkan *overlay* kurva pada kanvas dan panel komparasi berdampingan A/B, performa tetap 60 FPS.
-
-- **Decision 3: Manipulasi Langsung (*Direct Canvas Dragging*) + Scrubbing Presisi**
-  - *Chosen Approach*: Menambahkan deteksi *hit-target* pointer (`onPointerDown`, `onPointerMove`, `onPointerUp`) pada kanvas 2D untuk menyeret parameter kunci secara visual, yang tersinkronisasi dua arah dengan slider presisi dan tombol stepper `-/+`.
-  - *Why*: Memberikan sensasi taktilitas laboratorium nyata sekaligus mempertahankan akurasi angka desimal ketika siswa mengerjakan soal LKS.
+- **Decision 1: Mengganti 6 Tab Sejajar Menjadi "Pemilih Bidang Sains + Stepper 4 Tahap"**
+  - *Chosen Approach*: Memisahkan **Apa yang dipelajari** (Fisika/Kimia/Biologi/Astronomi) dari **Tahap pengerjaan** (1. Katalog & K3 $\rightarrow$ 2. Simulasi 3D $\rightarrow$ 3. Analisis & LKS $\rightarrow$ 4. Laporan & Kolaborasi).
+  - *Why*: Sebelumnya, bidang sains ("Lab Fisika") berada sejajar dengan langkah kerja ("Grafik & LKS") dan peran ("Dashboard Pengajar"), sehingga siswa bingung apakah harus berpindah tab atau membuka laci di dalam 3D. Dengan pemisahan ini, alur belajar menjadi linier dan terarah.
+  - *Alternatives Considered*: Mempertahankan 6 tab di atas dan hanya mengubah nama labelnya — ditolak karena tidak menyelesaikan masalah tumpang-tindih antara laci analitik di dalam 3D dan halaman Grafik & LKS.
+- **Decision 2: Konsolidasi Laci Analitik 3D ke Tahap Analisis & Ringkasan Cepat**
+  - *Chosen Approach*: Di dalam Tahap 2 (Simulasi 3D), laci kanan yang penuh sesak diganti dengan indikator ringkas jumlah data terekam + pratinjau mini status regresi dan tombol langsung **"Buka Analisis & LKS (Tahap 3)"**, sementara analisis grafik penuh, tabel data lengkap, dan pengisian 6 soal LKS ditempatkan secara lega di **Tahap 3**.
+  - *Why*: Mencegah duplikasi kode dan state antara laci sempit (`w-96`) dan halaman analisis utama, sekaligus membebaskan area kanan kanvas 3D agar objek eksperimen terlihat utuh.
+  - *Alternatives Considered*: Menghapus kemampuan melihat daftar rekaman sama sekali saat di 3D — ditolak karena siswa tetap membutuhkan konfirmasi visual bahwa titik data yang baru saja direkam sudah masuk.
+- **Decision 3: Mode Siswa vs. Mode Pengajar dengan Pengalih Peran Eksplisit**
+  - *Chosen Approach*: Menambahkan sakelar peran (*Role Switcher*) di bilah atas. Saat **Mode Siswa** aktif, pengguna melihat alur 4 tahap praktikum. Saat **Mode Pengajar** aktif, pengguna melihat ruang kerja evaluasi kelas, pantauan progres tahapan siswa, dan rubrik penilaian.
+  - *Why*: Menjaga fokus antarmuka sesuai tugas pengguna tanpa mencampur instrumen penilaian guru ke dalam langkah praktikum siswa.
 
 ---
 
 ### 4. Technical Architecture & Data Strategy *(Technical Reference)*
 
-- **Architecture & Component Diagram**:
+#### A. Architecture & Component Diagram
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                   App Root & Theme / Audio Context Shell                   │
-│  ┌──────────────────────┐  ┌────────────────────────┐  ┌────────────────┐  │
-│  │ 3-Zone Top Bar       │  │ Workspace Calibration  │  │ Web Audio API  │  │
-│  │ (Brand · Nav · CSV)  │  │ (Light/Dark · Sound ·  │  │ Lab Synth      │  │
-│  │                      │  │  SMA/S1 · A/B Toggle)  │  │ Engine         │  │
-│  └──────────┬───────────┘  └───────────┬────────────┘  └───────┬────────┘  │
-└─────────────┼──────────────────────────┼───────────────────────┼───────────┘
-              │                          │                       │
-              ▼                          ▼                       ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│                Interactive Split-Screen Lab Workbench                      │
-│                                                                            │
-│  ┌───────────────────────────────────────────┐  ┌───────────────────────┐  │
-│  │ Main Interactive Stage (65% Viewport)     │  │ Parameter & Concept   │  │
-│  │                                           │  │ Deck (35% Viewport)   │  │
-│  │  ┌─────────────────────────────────────┐  │  │                       │  │
-│  │  │ Floating Glass HUD Overlay          │  │  │ • Guided Mission Tabs │  │
-│  │  │ (Live Tabular Telemetry & Status)   │  │  │ • Grouped Sliders &   │  │
-│  │  └─────────────────────────────────────┘  │  │   -/+ Fine Steppers   │  │
-│  │                                           │  │ • A/B Comparison      │  │
-│  │  • 2D Direct-Drag Canvas / 3D WebGL       │  │   Snapshot & Δ Cards  │  │
-│  │  • Crosshair Coordinate Probe             │  │ • Concept & Formula   │  │
-│  │  • Baseline Ghost Trajectory Overlay      │  │   Interactive Card    │  │
-│  │                                           │  │ • One-Click Record &  │  │
-│  │  ┌─────────────────────────────────────┐  │  │   WebSocket Sync      │  │
-│  │  │ Floating Bottom Dock                │  │  └───────────────────────┘  │
-│  │  │ (Play/Pause · Speed · 2D/3D · Reset)│  │                             │
-│  │  └─────────────────────────────────────┘  │                             │
-│  └───────────────────────────────────────────┘                             │
-└─────────────────────────────────────┬──────────────────────────────────────┘
-                                      │
-                                      ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│         Multi-Axis OLS Regression, Auto-Graded LKS & Teacher Matrix        │
-│  • Dual-Theme SVG Regression Charts with Crosshair Snapping                │
-│  • 6-Question Auto-Graded LKS & Real-Time WebSocket Broadcast (/ws-lab)    │
-└────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                         TOP NAVIGATION & ROLE ORCHESTRATOR                        │
+│  [RuangLABmu · Pemilih Bidang & Jenjang]   [Stepper 1→2→3→4]   [Siswa | Pengajar] │
+└───────────────────┬───────────────────────────────────────────────┬───────────────┘
+                    │ (Mode Siswa)                                  │ (Mode Pengajar)
+                    ▼                                               ▼
+┌───────────────────────────────────────────────────────┐   ┌───────────────────────┐
+│            STUDENT GUIDED WORKFLOW CONTAINER          │   │   TEACHER DASHBOARD   │
+│                                                       │   │  - Pantauan Tahap     │
+│  ┌─────────────────────────────────────────────────┐  │   │    Tiap Siswa         │
+│  │ Tahap 1: Katalog Modul & Pre-Lab K3             │  │   │  - Matriks Rubrik     │
+│  │ - Filter Bidang (Fisika/Kimia/Biologi/Astronomi)│  │   │  - Broadcast Umpan    │
+│  │ - Ceklis APD & Keamanan K3 → Mulai Simulasi     │  │   │    Balik WebSocket    │
+│  └────────────────────────┬────────────────────────┘  │   │  - Ekspor Nilai CSV   │
+│                           ▼                           │   └───────────────────────┘
+│  ┌─────────────────────────────────────────────────┐  │
+│  │ Tahap 2: Kokpit Simulasi 3D & Rekam Data        │  │
+│  │ - Kanvas 3D Lega (Fisika/Kimia/Biologi/Astro)   │  │
+│  │ - Dok Kontrol & Rumus Terpadu (Collapsible)     │  │
+│  │ - Bar Playback + Tombol Rekam → Lanjut Tahap 3  │  │
+│  └────────────────────────┬────────────────────────┘  │
+│                           ▼                           │
+│  ┌─────────────────────────────────────────────────┐  │
+│  │ Tahap 3: Analisis Grafik Regresi & LKS          │  │
+│  │ - Kiri: Grafik Regresi Linier OLS & Tabel Data  │  │
+│  │ - Kanan: Lembar Kerja Siswa (LKS) Auto-Grading  │  │
+│  └────────────────────────┬────────────────────────┘  │
+│                           ▼                           │
+│  ┌─────────────────────────────────────────────────┐  │
+│  │ Tahap 4: Laporan Praktikum & Kolaborasi         │  │
+│  │ - Pusat Ekspor Laporan Resmi (PDF/Cetak & CSV)  │  │
+│  │ - Checklist Tugas & Diskusi Kelompok Real-Time  │  │
+│  └─────────────────────────────────────────────────┘  │
+└───────────────────────────┬───────────────────────────┘
+                            │
+                            ▼
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│             COMPACT DR. LABMU MENTOR ORB & WEBSOCKET SYNC (/ws-lab)               │
+└───────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Data Model & State**:
-  - `themeMode`: `'light' | 'dark'` (disimpan di `localStorage` dan disinkronkan dengan kelas `.dark` pada `document.documentElement`).
-  - `soundEnabled`: `boolean` (mengontrol synthesizer Web Audio API untuk efek interaksi tombol, pegas, tumbukan, tetesan titrasi, dan pencatatan data).
-  - `comparisonSnapshots`: Menyimpan *snapshot* parameter dan metrik hasil perhitungan (`physicsBaseline`, `chemistryBaseline`, `astronomyBaseline`) untuk menghitung selisih ($\Delta = \text{Live} - \text{Baseline}$) secara instan pada mode perbandingan berdampingan A/B.
-  - `pointerDragState`: State lokal kanvas yang memetakan posisi pointer $(x, y)$ ke variabel fisik (sudut kemiringan $\theta$, vektor kecepatan awal $v_0$ dan $\angle$, simpangan pegas $\Delta x$, volume titran $\text{mL}$, atau sumbu semi-mayor orbit $a$).
+#### B. Data Model & State
 
-- **Interactive Component & State Mapping**:
-  - **Pengalih Tema Light/Dark & Audio**: Memperbarui kelas `.dark` pada root dokumen dan memicu bunyi konfirmasi lembut jika audio aktif; seluruh permukaan kanvas, grafik regresi, dan kartu otomatis menyesuaikan kontras warna.
-  - **Manipulasi Kanvas Langsung (Pointer Drag)**: Saat pengguna menyeret titik kontrol pada kanvas 2D, handler `onPointerMove` mengonversi koordinat piksel ke nilai ilmiah terkalibrasi, memperbarui parameter simulasi secara real-time, dan memicu suara umpan balik halus sesuai perubahan nilai.
-  - **Floating Bottom Dock**: Mengendalikan siklus animasi (`isPlaying`), pengali kecepatan waktu (`0.5x`, `1x`, `2x`), peralihan kamera `2D Vektor` vs `3D Interaktif`, perataan lapisan vektor, serta tombol cepat penyematan *Snapshot A/B*.
-  - **Panel Perbandingan Berdampingan (A/B Mode)**: Saat diaktifkan, menampilkan kartu perbandingan berdampingan antara *Skenario A (Disematkan)* dan *Skenario B (Aktif)* dengan kalkulasi selisih numerik dan persentase perubahan otomatis, serta menggambar bayangan lintasan referensi (*ghost curve*) di atas kanvas.
+- **`userRole` (`'siswa' | 'pengajar'`)**: Mengatur tampilan utama antara ruang kerja bertahap siswa dan dashboard evaluasi pengajar.
+- **`activeDomain` (`'fisika' | 'kimia' | 'biologi' | 'astronomi'`)**: Menentukan bidang sains aktif yang menyinkronkan katalog modul, kanvas 3D, parameter eksperimen, dan konteks telemetri Dr.LabMu.
+- **`workflowStep` (`1 | 2 | 3 | 4`)**:
+  - `1`: **Katalog & Pre-Lab K3** (Memilih modul eksperimen & memverifikasi kesiapan K3).
+  - `2`: **Simulasi 3D & Rekam Data** (Menjalankan simulasi 3D, mengubah variabel, dan merekam titik pengamatan).
+  - `3`: **Analisis Grafik & LKS** (Melihat regresi linier $R^2$, mengelola tabel data, dan mengerjakan kuis LKS).
+  - `4`: **Laporan & Evaluasi Kelompok** (Menyelesaikan checklist tugas kelompok, diskusi catatan, dan mengunduh laporan PDF/CSV).
+- **`completedSafetyModuleIds` (`string[]`) & `lksSubmitted` (`boolean`)**: Melacak status penyelesaian tiap tahapan untuk memberi tanda centang hijau pada *Stepper Bar* di bagian atas.
+
+#### C. Interactive Component & State Mapping
+
+- **Transisi Tahap 1 $\rightarrow$ Tahap 2**: Saat pengguna memilih modul di Katalog atau menyelesaikan modal Pre-Lab K3 dan menekan **"Mulai Praktikum 3D"**, parameter modul otomatis dimuat ke *engine* domain terkait dan `workflowStep` berpindah ke `2`.
+- **Transisi Tahap 2 $\rightarrow$ Tahap 3**: Setiap kali pengguna menekan **"Rekam Data"** di kokpit 3D, data masuk ke `records` (tersinkronisasi via WebSocket) dan lencana progres di bilah bawah menampilkan jumlah rekaman terbaru beserta tombol **"Lanjut ke Analisis & LKS"** yang memindahkan `workflowStep` ke `3`.
+- **Transisi Tahap 3 $\rightarrow$ Tahap 4**: Setelah siswa memeriksa grafik regresi dan mengirimkan jawaban LKS, skor otomatis disinkronkan ke rubrik pengajar dan muncul tombol **"Lanjut ke Ekspor Laporan & Diskusi"** menuju `workflowStep = 4`.
+- **Penyederhanaan Dr.LabMu**: Tombol pemicu Dr.LabMu diringkas menjadi kapsul tipis di kanan bawah yang tidak menghalangi bar kontrol bawah maupun kanvas 3D, namun tetap menampilkan indikator peringatan jika regresi data siswa memiliki $R^2 < 0.85$.

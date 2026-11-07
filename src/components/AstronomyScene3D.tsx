@@ -913,17 +913,20 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
     const handleResize = () => {
       if (!container) return;
-      const w = container.clientWidth || 740;
-      const h = container.clientHeight || 390;
+      const w = container.clientWidth || window.innerWidth || 960;
+      const h = container.clientHeight || window.innerHeight || 600;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
+    const resizeObserver = new ResizeObserver(() => handleResize());
+    resizeObserver.observe(container);
     window.addEventListener('resize', handleResize);
 
     return () => {
       disposed = true;
       cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('resize', handleResize);
       cursorManager.dispose();
@@ -938,92 +941,63 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-800/90 bg-[#060913]">
+    <div className="relative w-full h-full overflow-hidden bg-[#060913]">
       <div
         ref={mountRef}
         data-testid="astronomy-simulation-canvas"
-        className="w-full h-[460px] sm:h-[520px] block cursor-grab active:cursor-grabbing"
+        className="w-full h-full block cursor-grab active:cursor-grabbing"
       />
 
-      {/* Bottom-Left 3D Observatory HUD Badge */}
-      <div className="pointer-events-none absolute bottom-14 left-3 rounded-lg border border-slate-700/90 bg-[#0F172A]/95 px-3 py-2 text-xs shadow-md">
-        <div className="font-mono text-[11px] font-semibold text-sky-400">
-          {params.mode === 'solar-kepler'
-            ? `ORBIT 3D HUKUM KEPLER — ${activePlanet.name.toUpperCase()}`
-            : params.mode === 'milkyway-galaxy'
-            ? 'GALAKSI BIMA SAKTI 3D & LUBANG HITAM SGR A*'
-            : `BINTANG KELAS SPEKTRAL ${metrics.spectralClass} & TRANSIT 3D`}
-        </div>
-        <div className="mt-0.5 font-mono text-xs font-semibold text-slate-100 tabular-nums">
-          {params.mode === 'solar-kepler'
-            ? `a = ${params.customSemiMajorAxisAu} AU · e = ${params.customEccentricity} · T = ${metrics.orbitalPeriodYears} thn`
-            : params.mode === 'milkyway-galaxy'
-            ? `v_obs = ${metrics.observedDarkMatterVelocityKms} km/s · M(<R) = ${metrics.enclosedMassBillionSolar}×10⁹ M☉`
-            : `L = ${metrics.stellarLuminositySolar} L☉ · Zona Laik Huni: ${metrics.habitableZoneInnerAu}–${metrics.habitableZoneOuterAu} AU`}
-        </div>
+      {/* Top-Center 3D Camera & Astro Plot Pill */}
+      <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full backdrop-blur-xl bg-slate-900/75 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
+        <span className="text-[10px] font-mono uppercase tracking-wider text-indigo-400 font-semibold mr-1">
+          Kamera 3D:
+        </span>
+        {(
+          [
+            { id: 'isometric', label: 'Isometrik' },
+            { id: 'ecliptic', label: 'Ekliptika' },
+            { id: 'top', label: 'Kutub Utara' },
+            { id: 'focus', label: 'Fokus Inti' },
+          ] as const
+        ).map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => handleSelectCameraPreset(p.id)}
+            className={`px-2.5 py-1 text-[11px] font-mono font-medium rounded-full transition-colors cursor-pointer ${
+              activePreset === p.id
+                ? 'bg-indigo-500 text-white font-bold shadow-xs'
+                : 'text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setShowMiniPlot((s) => !s)}
+          className={`ml-1 px-2.5 py-1 text-[11px] font-mono font-medium rounded-full transition-colors cursor-pointer ${
+            showMiniPlot
+              ? 'bg-emerald-500/25 border border-emerald-400/50 text-emerald-300'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          {showMiniPlot ? 'Plot PiP: Aktif' : 'Plot PiP'}
+        </button>
       </div>
 
-      {/* Bottom-Right Companion 2D Astro Plot PiP */}
+      {/* Top-Center-Below Companion 2D Astro Plot PiP */}
       {showMiniPlot && !hudCollapsed && (
-        <div className="pointer-events-none absolute bottom-14 right-3 hidden xl:block overflow-hidden rounded-lg border border-slate-700/90 bg-[#090D16] shadow-lg">
+        <div className="pointer-events-none absolute top-16 left-1/2 -translate-x-1/2 hidden xl:block overflow-hidden rounded-xl border border-white/15 bg-[#090D16]/90 backdrop-blur-md shadow-2xl z-10">
           <canvas
             ref={miniPlotRef}
             width={235}
-            height={116}
+            height={110}
             className="block"
           />
         </div>
       )}
-
-      {/* Collapsible Bottom 3D Camera & Plot Dock */}
-      <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 z-10">
-        {!hudCollapsed && (
-          <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-md border border-slate-700 bg-[#0F172A] px-2.5 py-1.5 shadow-lg">
-            <span className="text-[11px] font-mono text-slate-400 mr-1 hidden sm:inline">
-              Kamera 3D:
-            </span>
-            {(
-              [
-                { id: 'isometric', label: 'Isometrik 3D' },
-                { id: 'ecliptic', label: 'Bidang Ekliptika' },
-                { id: 'top', label: 'Kutub Utara' },
-                { id: 'focus', label: 'Fokus Inti' },
-              ] as const
-            ).map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleSelectCameraPreset(p.id)}
-                className={`px-2 py-1 text-[11px] font-mono font-medium rounded transition-colors ${
-                  activePreset === p.id
-                    ? 'bg-sky-600 text-white'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setShowMiniPlot((s) => !s)}
-              className={`px-2 py-1 text-[11px] font-mono font-medium rounded transition-colors ${
-                showMiniPlot
-                  ? 'bg-emerald-700 text-white'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              {showMiniPlot ? 'Grafik Astro: Aktif' : 'Grafik Astro: Nonaktif'}
-            </button>
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={() => setHudCollapsed((c) => !c)}
-          className="rounded border border-slate-700 bg-[#0F172A] px-2.5 py-0.5 text-[10px] font-mono text-slate-300 hover:text-white shadow"
-        >
-          {hudCollapsed ? '▴ Tampilkan Kontrol Kamera 3D' : '▾ Sembunyikan HUD'}
-        </button>
-      </div>
     </div>
   );
 };

@@ -2148,6 +2148,28 @@ export interface DrLabMuStructuredResponse {
   formattedText: string;
 }
 
+export interface BiologyTelemetryContext {
+  moduleId: string;
+  params: Record<string, number>;
+}
+
+const HUMAN_MODULE_LABELS: Record<string, string> = {
+  'newton-incline': 'Hukum II Newton & Bidang Miring',
+  'projectile-gravity': 'Kinematika Gerak Parabola',
+  'collision-momentum': 'Tumbukan & Kekekalan Momentum',
+  'spring-hooke': 'Osilasi Pegas Hukum Hooke',
+  'orbital-gravity': 'Gravitasi Universal Dua Massa',
+  'thermo-calorimetry': 'Termokimia & Kalorimetri',
+  'acid-base-titration': 'Titrasi Asam-Basa',
+  'electrochemistry-cell': 'Sel Elektrokimia Galvani',
+  'photosynthesis-ingenhousz': 'Fotosintesis Ingenhousz (Hydrilla)',
+  'enzyme-catalase': 'Kinetika Enzim Katalase',
+  'osmosis-plasmolysis': 'Osmosis & Plasmolisis Sel',
+  'solar-kepler': 'Dinamika Orbit Hukum Kepler',
+  'milkyway-galaxy': 'Kurva Rotasi Galaksi Bima Sakti',
+  'stellar-exoplanet': 'Spektrum Bintang & Transit Eksoplanet',
+};
+
 export function buildDrLabMuTelemetry(
   domain: ScienceDomain,
   academicLevel: AcademicLevel,
@@ -2155,7 +2177,8 @@ export function buildDrLabMuTelemetry(
   chemistryParams: ChemistryParams,
   astronomyParams: AstronomyParams,
   records: ExperimentRecord[],
-  studentQuery: string
+  studentQuery: string,
+  biologyContext?: BiologyTelemetryContext
 ): DrLabMuTelemetryPayload {
   const educationLevel = mapAcademicLevelToTelemetry(academicLevel);
   let topic = 'newton-incline';
@@ -2230,14 +2253,21 @@ export function buildDrLabMuTelemetry(
         useCatalyst: chemistryParams.useCatalyst,
       };
     }
+  } else if (domain === 'Biologi') {
+    topic = biologyContext?.moduleId || 'photosynthesis-ingenhousz';
+    currentParameters = {
+      mode: topic,
+      ...(biologyContext?.params || {
+        lightIntensityLux: 5000,
+        nahco3ConcPct: 0.5,
+        waterTempC: 28,
+      }),
+    };
   } else {
-    topic =
-      astronomyParams.mode === 'solar-kepler'
-        ? 'orbital-kepler'
-        : astronomyParams.mode;
+    topic = astronomyParams.mode;
     if (astronomyParams.mode === 'solar-kepler') {
       currentParameters = {
-        mode: 'orbital-kepler',
+        mode: 'solar-kepler',
         selectedPlanetId: astronomyParams.selectedPlanetId,
         semiMajorAxisAu: astronomyParams.customSemiMajorAxisAu,
         eccentricity: astronomyParams.customEccentricity,
@@ -2340,21 +2370,19 @@ export function generateSocraticDrLabMuResponse(
     domain,
     topic,
     educationLevel,
-    currentParameters,
     recordedData,
     analytics,
     studentQuery,
   } = telemetry;
 
   const qLower = studentQuery.toLowerCase();
+  const readableTopic = HUMAN_MODULE_LABELS[topic] || topic;
 
-  // Check if student is asking directly for a final answer / formula / exact number
   const isAskingDirectAnswer =
     /berapa\s+(nilai|besar|angka|hasil|jawaban|rumus)|kasih\s+tahu\s+jawaban|jawabannya\s+apa|hitungin|nilai\s+g[- ]?nya|langsung\s+jawab/i.test(
       qLower
     );
 
-  // Check if R^2 < 0.85 or extreme outlier or student asks about outlier/anomaly
   const isAnomalyOrLowR2 =
     analytics.rSquared < 0.85 && recordedData.length >= 3
       ? true
@@ -2363,34 +2391,30 @@ export function generateSocraticDrLabMuResponse(
           qLower
         );
 
-  const paramEntries = Object.entries(currentParameters)
-    .slice(0, 4)
-    .map(([k, v]) => `${k}=${v}`)
-    .join(', ');
-
-  // 1. Apresiasi / Observasi Singkat (1 kalimat mengomentari apa yang sedang dilakukan di meja lab 3D)
-  const observation = `Eksplorasi yang sangat menarik di meja lab 3D ${domain} pada modul "${topic}" (Jenjang ${educationLevel}) dengan setelan aktif (${paramEntries}) dan ${recordedData.length} rekaman percobaan!`;
+  const observation = `Eksplorasi yang bagus di laboratorium 3D ${domain} pada eksperimen ${readableTopic} untuk jenjang ${educationLevel}. Sejauh ini kamu telah mengumpulkan ${recordedData.length} titik data pengamatan.`;
 
   // RULE 3: JIKA Siswa Meminta Jawaban Langsung ("Berapa nilai g-nya bro?")
   if (isAskingDirectAnswer) {
     const dataHighlight =
       recordedData.length >= 2
-        ? `Saya punya catatannya, tapi ilmuwan sejati menemukan rahasianya dari grafik sendiri! Lihat kemiringan (slope = ${analytics.slope}) dan persamaan garis regresi (${analytics.equation}, R² = ${analytics.rSquared}) yang baru saja kamu bangun dari ${recordedData.length} titik data percobaanmu.`
-        : `Saya punya catatannya, tapi ilmuwan sejati menemukan rahasianya dari grafik sendiri! Saat ini kamu baru memiliki ${recordedData.length} titik data di tabel, sehingga gradien (slope) garis regresinya belum bisa bercerita penuh.`;
+        ? `Saya punya catatannya, tapi ilmuwan sejati menemukan rahasianya dari grafik sendiri! Coba perhatikan gradien garis regresi (${analytics.equation} dengan R² = ${analytics.rSquared}) dari ${recordedData.length} titik data percobaanmu.`
+        : `Saya punya catatannya, tapi ilmuwan sejati menemukan rahasianya dari grafik sendiri! Saat ini kamu baru memiliki ${recordedData.length} titik data di tabel, jadi yuk tambahkan beberapa titik pengamatan lagi agar pola grafiknya terlihat jelas.`;
 
     const socraticQuestion =
       domain === 'Fisika'
-        ? `Jika sumbu-X mewakili variabel bebas yang kamu ubah di slider dan sumbu-Y adalah respons terukurnya, bagaimana kemiringan (slope = ${analytics.slope}) pada grafikmu berelasi dengan konstanta fisis yang sedang kamu cari ketika kamu menggeser slider sekali lagi?`
+        ? `Jika sumbu mendatar mewakili variabel bebas yang kamu atur di slider dan sumbu tegak adalah respons terukurnya, bagaimana kemiringan garis regresi pada grafikmu berkaitan dengan konstanta fisis yang sedang kamu cari?`
         : domain === 'Kimia'
-        ? `Coba amati laju perubahan pada kurva/grafikmu (slope = ${analytics.slope}): apa yang terjadi pada titik infleksi atau kesetimbangan larutan jika kamu menggeser konsentrasi atau volume titran 1 langkah lagi?`
-        : `Perhatikan gradien garis regresi orbitmu (slope = ${analytics.slope}): bagaimana perbandingan antara kuadrat periode (T²) dan pangkat tiga jarak rata-rata (a³) berubah jika kamu menggeser slider massa bintang induk atau jari-jari orbit?`;
+        ? `Coba amati laju perubahan pada kurva pengamatanmu: apa yang terjadi pada titik ekuivalen atau kesetimbangan reaksi jika kamu menggeser konsentrasi atau volume reaktan satu langkah lagi?`
+        : domain === 'Biologi'
+        ? `Perhatikan perubahan laju gelembung oksigen atau respons sel pada grafikmu: variabel lingkungan manakah yang saat ini menjadi faktor pembatas utama pada eksperimen biologi ini?`
+        : `Perhatikan gradien garis regresi orbitmu: bagaimana perbandingan antara kuadrat periode orbit dan pangkat tiga jarak rata-rata berubah jika kamu menggeser massa bintang induk atau jari-jari orbit?`;
 
     return {
       observation,
       dataHighlight,
       socraticQuestion,
       detectedTrigger: 'direct-answer-refusal',
-      formattedText: `1. [Apresiasi/Observasi Singkat]: ${observation}\n2. [Sorotan Data/Anomali]: ${dataHighlight}\n3. [Pertanyaan Pemantik]: ${socraticQuestion}`,
+      formattedText: `${observation} ${dataHighlight} ${socraticQuestion}`,
     };
   }
 
@@ -2398,19 +2422,19 @@ export function generateSocraticDrLabMuResponse(
   if (isAnomalyOrLowR2) {
     const outlier = analytics.outlierTrial;
     const dataHighlight = outlier
-      ? `Koefisien determinasi grafikmu saat ini R² = ${analytics.rSquared} (dengan deviasi standar ${analytics.stdDev}). Coba perhatikan percobaan ke-${outlier.trialNumber} (${outlier.id}: ${outlier.parametersSummary}) di mana nilai terukur y = ${outlier.yObserved} menyimpang cukup jauh (residual Δy = ${outlier.residual}) dari prediksi garis tren y = ${outlier.yPredicted}.`
-      : `Nilai kecocokan regresi liniermu saat ini adalah R² = ${analytics.rSquared} dengan slope ${analytics.slope}, yang menandakan ada titik percobaan yang keluar dari tren linier akibat perubahan lebih dari satu variabel sekaligus atau efek non-linier.`;
+      ? `Nilai kecocokan regresi grafikmu saat ini adalah R² = ${analytics.rSquared}. Coba perhatikan percobaan ke-${outlier.trialNumber} (${outlier.title}) di mana nilai terukur sebesar ${outlier.yObserved} menyimpang cukup jauh dari prediksi garis lurus (${outlier.yPredicted}).`
+      : `Nilai kecocokan regresi liniermu saat ini adalah R² = ${analytics.rSquared}, yang menandakan ada titik percobaan yang berbelok dari tren lurus akibat pengaruh non-linier atau perubahan lebih dari satu variabel sekaligus.`;
 
     const socraticQuestion = outlier
-      ? `Menurut hipotesismu, mengapa pada percobaan ke-${outlier.trialNumber} (${outlier.parametersSummary}) titik datanya melenceng dari garis lurus—apakah karena hubungan matematisnya memang melengkung (non-linier) pada angka ekstrem tersebut, atau ada variabel kontrol yang ikut tergeser di slider simulasi?`
-      : `Coba uji hipotesismu di meja lab: jika kamu mengunci semua variabel kontrol tetap sama dan hanya menggeser satu slider variabel bebas secara bertahap, apakah titik data berikutnya akan membuat nilai R² naik mendekati 1.00?`;
+      ? `Menurut hipotesismu, mengapa pada percobaan ke-${outlier.trialNumber} titik datanya melenceng dari garis lurus—apakah karena hubungan matematisnya memang melengkung pada nilai ekstrem tersebut, atau ada variabel kontrol yang ikut berubah?`
+      : `Jika kamu mengunci semua variabel kontrol tetap konstan dan hanya mengubah satu slider variabel bebas secara bertahap, apakah titik data berikutnya akan membuat nilai R² naik mendekati 1,00?`;
 
     return {
       observation,
       dataHighlight,
       socraticQuestion,
       detectedTrigger: 'anomaly-outlier',
-      formattedText: `1. [Apresiasi/Observasi Singkat]: ${observation}\n2. [Sorotan Data/Anomali]: ${dataHighlight}\n3. [Pertanyaan Pemantik]: ${socraticQuestion}`,
+      formattedText: `${observation} ${dataHighlight} ${socraticQuestion}`,
     };
   }
 
@@ -2420,37 +2444,46 @@ export function generateSocraticDrLabMuResponse(
 
   if (educationLevel === 'SMP') {
     if (domain === 'Fisika') {
-      analogyHighlight = `Bayangkan kamu sedang melempar bola basket ke arah ring atau mendorong kotak di lantai: pada setelanmu saat ini (${paramEntries}) dengan R² = ${analytics.rSquared}, dorongan awal dan sudut lemparan menentukan seberapa tinggi dan jauh bola melambung sebelum gravitasi menariknya kembali ke tanah.`;
-      socraticQuestion = `Jika kamu melempar bola basket terlalu mendatar (sudut sangat kecil) dibanding terlalu tegak ke atas (sudut mendekati 85°), coba geser slider sudut di meja simulasi: pada sudut berapakah bolamu mendarat paling jauh?`;
+      analogyHighlight = `Bayangkan kamu sedang melempar bola basket ke arah ring atau mendorong kotak di lantai: dorongan awal dan sudut lemparan menentukan seberapa tinggi serta seberapa jauh bola melambung sebelum gravitasi menariknya kembali ke bawah.`;
+      socraticQuestion = `Jika kamu melempar bola basket terlalu mendatar dibanding terlalu tegak ke atas, coba geser slider sudut di panel kiri: pada sudut berapakah bolamu mendarat paling jauh?`;
     } else if (domain === 'Kimia') {
-      analogyHighlight = `Bayangkan kamu sedang melarutkan gula di teh hangat atau menetesi perasan jeruk yang asam dengan air baking soda sedikit demi sedikit: data percobaanmu (${paramEntries}) merekam bagaimana sifat larutan berubah secara bertahap.`;
-      socraticQuestion = `Coba geser slider suhu atau volume tetesan sedikit demi sedikit di simulasi: pada titik manakah kamu melihat perubahan suhu atau lompatan warna paling mencolok di gelas kimia 3D?`;
+      analogyHighlight = `Bayangkan kamu sedang melarutkan gula di teh hangat atau menetesi perasan jeruk yang asam dengan air soda kue sedikit demi sedikit: sifat dan suhu larutan akan berubah secara bertahap mengikuti takaran yang kamu campurkan.`;
+      socraticQuestion = `Coba geser slider suhu atau volume tetesan sedikit demi sedikit di simulasi: pada titik manakah kamu melihat perubahan suhu atau perubahan warna paling mencolok di gelas kimia 3D?`;
+    } else if (domain === 'Biologi') {
+      analogyHighlight = `Bayangkan tanaman air Hydrilla yang sedang berjemur di bawah sinar matahari pagi: makin terang cahayanya dan makin cukup kadar karbon dioksidanya, makin semangat tanaman mengeluarkan gelembung oksigen.`;
+      socraticQuestion = `Coba geser slider intensitas cahaya atau suhu air di panel kiri: pada kondisi manakah gelembung oksigen di tabung reaksi muncul paling cepat?`;
     } else {
-      analogyHighlight = `Bayangkan saat kamu mengamati Bulan mengelilingi Bumi atau pelari di lintasan stadion: pelari di jalur paling dalam (dekat Matahari) menempuh satu putaran jauh lebih cepat dibandingkan pelari di jalur luar (${paramEntries}).`;
-      socraticQuestion = `Coba geser slider jarak planet dari bintang induk di meja simulasi 3D: apa yang terjadi pada kecepatan gerak planet saat jaraknya kamu dekatkan setengah kali semula?`;
+      analogyHighlight = `Bayangkan saat kamu mengamati Bulan mengelilingi Bumi atau pelari di lintasan stadion: pelari di lintasan paling dalam dekat pusat harus bergerak jauh lebih cepat dibandingkan pelari di jalur luar.`;
+      socraticQuestion = `Coba geser slider jarak planet dari bintang induk di simulasi 3D: apa yang terjadi pada kecepatan gerak planet saat jaraknya kamu dekatkan?`;
     }
   } else if (educationLevel === 'SMA') {
     if (domain === 'Fisika') {
-      analogyHighlight = `Mari kita amati hubungan sebab-akibat dua variabel pada parametermu (${paramEntries}, R² = ${analytics.rSquared}): perubahan kecepatan awal (v₀) atau gaya penggerak (F) secara langsung memengaruhi jangkauan maksimum (x_max) maupun percepatan melalui dekomposisi komponen vektor.`;
-      socraticQuestion = `Jika kamu menggandakan kecepatan awal v₀ (atau gaya dorong F) sambil menahan sudut dan massa tetap konstan di slider, apakah jarak tempuh atau percepatannya meningkat dua kali lipat atau empat kali lipat? Yuk buktikan dengan menekan slider!`;
+      analogyHighlight = `Mari kita amati hubungan sebab-akibat antar variabel pada eksperimen ${readableTopic} ini: perubahan kecepatan awal atau gaya dorong secara langsung memengaruhi jangkauan maksimum maupun percepatan benda melalui komponen vektornya.`;
+      socraticQuestion = `Jika kamu menggandakan kecepatan awal atau gaya dorong sambil menjaga sudut dan massa tetap konstan, apakah jarak tempuh atau percepatannya meningkat dua kali lipat atau empat kali lipat? Yuk buktikan dengan mencatat datanya!`;
     } else if (domain === 'Kimia') {
-      analogyHighlight = `Perhatikan hubungan sebab-akibat stoikiometri pada datamu (${paramEntries}, R² = ${analytics.rSquared}): rasio mol asam terhadap basa (atau perubahan suhu T terhadap suku T·ΔS) menjadi penentu utama lonjakan pH dan spontanitas reaksi.`;
-      socraticQuestion = `Jika konsentrasi reaktan asam kamu naikkan dua kali lipat pada slider, berapa mL volume basa titran yang kini dibutuhkan agar kurva pH kembali mencapai titik ekuivalen?`;
+      analogyHighlight = `Perhatikan hubungan stoikiometri pada eksperimen ${readableTopic}: rasio mol asam terhadap basa serta perubahan suhu terhadap entropi menjadi penentu utama lonjakan kurva pH dan spontanitas reaksi.`;
+      socraticQuestion = `Jika konsentrasi reaktan asam kamu naikkan dua kali lipat pada slider, berapa mL volume basa titran yang kini dibutuhkan agar larutan tepat mencapai titik ekuivalen?`;
+    } else if (domain === 'Biologi') {
+      analogyHighlight = `Pada eksperimen ${readableTopic}, laju proses biologis dipengaruhi oleh faktor pembatas seperti intensitas cahaya, konsentrasi substrat, serta suhu optimum kerja enzim sebelum mengalami denaturasi.`;
+      socraticQuestion = `Jika suhu kamu naikkan melewati batas optimum 40°C pada slider, mengapa laju pembentukan gelembung oksigen justru menurun drastis meskipun cahayanya sangat terang?`;
     } else {
-      analogyHighlight = `Lihat hubungan sebab-akibat antara jarak sumbu semi-mayor (a) dan periode orbit (T) pada datamu (${paramEntries}, R² = ${analytics.rSquared}): gaya gravitasi sentripetal yang melemah sebanding 1/r² menyebabkan periode orbit memanjang secara eksponensial.`;
-      socraticQuestion = `Coba geser slider jarak orbit (a) atau fraksi materi gelap di kanvas 3D: bagaimana perubahan variabel tersebut mengubah nilai rasio T²/a³ atau kecepatan rotasi tepi galaksi?`;
+      analogyHighlight = `Lihat hubungan sebab-akibat antara jarak sumbu semi-mayor dan periode orbit pada eksperimen ${readableTopic}: gaya gravitasi sentripetal yang melemah sebanding kuadrat jarak menyebabkan periode orbit memanjang.`;
+      socraticQuestion = `Coba geser slider jarak orbit atau fraksi materi gelap di kanvas 3D: bagaimana perubahan variabel tersebut mengubah nilai rasio Hukum III Kepler atau kecepatan rotasi tepi galaksi?`;
     }
   } else {
     // Perguruan Tinggi (PT)
     if (domain === 'Fisika') {
-      analogyHighlight = `Dari tinjauan sistemik tingkat Perguruan Tinggi (${paramEntries}, regresi ${analytics.equation} dengan R² = ${analytics.rSquared}, σ = ${analytics.stdDev}), kita perlu menimbang efek orde lanjut seperti disipasi redaman viskos, kuadratik hambatan fluida, atau ketidakpastian linierisasi di dekat ambang gesek statis.`;
-      socraticQuestion = `Jika kamu memasukkan koefisien redaman b > 0 atau memvariasikan sudut di dekat batas kritis θ_c = arctan(μ_s), bagaimana deviasi non-linier tersebut menggeser gradien efektif (slope = ${analytics.slope}) pada plot regresi OLS-mu?`;
+      analogyHighlight = `Dari tinjauan mekanika analitik tingkat Perguruan Tinggi (regresi ${analytics.equation}, R² = ${analytics.rSquared}), kita dapat mengamati bagaimana disipasi redaman viskos dan dekomposisi gaya non-konservatif memengaruhi gradien kurva empiris.`;
+      socraticQuestion = `Jika kamu memasukkan koefisien redaman atau memvariasikan sudut di dekat batas kritis gesek statis, bagaimana deviasi non-linier tersebut menggeser kemiringan garis regresi pada grafikmu?`;
     } else if (domain === 'Kimia') {
-      analogyHighlight = `Secara sistemik (${paramEntries}, regresi ${analytics.equation} dengan R² = ${analytics.rSquared}), dinamika sistem ini dikendalikan oleh kesetimbangan disosiasi ionik (persamaan Henderson-Hasselbalch), kapasitas bufer dC/dpH, serta koreksi kuosien reaksi logaritmik ln(Q) pada persamaan Nernst/Gibbs.`;
-      socraticQuestion = `Bagaimana pergeseran nilai pKa atau rasio aktivitas ionik [Anoda]/[Katoda] sejauh satu dekade mengubah kemiringan kurva potensial sel dan ketidakpastian titik infleksi saat kamu menguji ulang slidernya?`;
+      analogyHighlight = `Secara termodinamika dan kesetimbangan ionik (regresi ${analytics.equation}, R² = ${analytics.rSquared}), dinamika sistem ini dikendalikan oleh persamaan Henderson-Hasselbalch, kapasitas bufer larutan, serta koreksi kuosien reaksi logaritmik pada persamaan Nernst dan Gibbs.`;
+      socraticQuestion = `Bagaimana pergeseran nilai pKa atau rasio aktivitas ionik [Anoda]/[Katoda] sejauh satu dekade mengubah kemiringan kurva potensial sel dan titik infleksi saat kamu menguji ulang slidernya?`;
+    } else if (domain === 'Biologi') {
+      analogyHighlight = `Dalam tinjauan biofisika dan kinetika enzim Michaelis-Menten (regresi ${analytics.equation}, R² = ${analytics.rSquared}), laju reaksi jenuh pada V_max ketika seluruh sisi aktif enzim terikat substrat, sementara gradien potensial air mengendalikan plasmolisis sel.`;
+      socraticQuestion = `Bagaimana perubahan konsentrasi substrat terhadap konstanta afinitas K_m atau peningkatan molaritas sukrosa hipertonik mengubah kemiringan kurva respons biologis pada tabel pengamatanmu?`;
     } else {
-      analogyHighlight = `Dalam tinjauan astrofisika sistemik (${paramEntries}, regresi ${analytics.equation} dengan R² = ${analytics.rSquared}), penyimpangan dari dinamika dua-benda Keplerian murni mencerminkan distribusi potensial gravitasi halo materi gelap ρ(r) ∝ r⁻² serta ketidakpastian fotometrik transit ΔF/F.`;
-      socraticQuestion = `Jika kamu memvariasikan profil massa bintang induk M* atau fraksi halo materi gelap pada slider, bagaimana gradien kurva rotasi v(R) dan konstanta proporsionalitas T²/a³ = 4π²/(GM*) berevolusi?`;
+      analogyHighlight = `Dalam tinjauan astrofisika sistemik (regresi ${analytics.equation}, R² = ${analytics.rSquared}), penyimpangan dari dinamika dua-benda Keplerian murni mencerminkan distribusi potensial gravitasi halo materi gelap serta kedalaman fotometrik transit eksoplanet.`;
+      socraticQuestion = `Jika kamu memvariasikan profil massa bintang induk atau fraksi halo materi gelap pada slider, bagaimana gradien kurva rotasi galaksi dan konstanta proporsionalitas Kepler berevolusi?`;
     }
   }
 
@@ -2459,8 +2492,9 @@ export function generateSocraticDrLabMuResponse(
     dataHighlight: analogyHighlight,
     socraticQuestion,
     detectedTrigger: 'concept-analogy',
-    formattedText: `1. [Apresiasi/Observasi Singkat]: ${observation}\n2. [Sorotan Data/Anomali]: ${analogyHighlight}\n3. [Pertanyaan Pemantik]: ${socraticQuestion}`,
+    formattedText: `${observation} ${analogyHighlight} ${socraticQuestion}`,
   };
 }
+
 
 

@@ -45,6 +45,8 @@ interface CollaborationAndDataSectionProps {
   onCreateTask: (title: string, domain: ScienceDomain) => void;
   onCreateNote: (text: string) => void;
   onCSVExported: (count: number) => void;
+  onBackToAnalysis?: () => void;
+  onBackToCatalog?: () => void;
 }
 
 export const CollaborationAndDataSection: React.FC<
@@ -60,6 +62,8 @@ export const CollaborationAndDataSection: React.FC<
   onCreateTask,
   onCreateNote,
   onCSVExported,
+  onBackToAnalysis,
+  onBackToCatalog,
 }) => {
   const [domainFilter, setDomainFilter] = useState<
     'Semua' | ScienceDomain
@@ -139,7 +143,68 @@ export const CollaborationAndDataSection: React.FC<
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+    <div className="space-y-5">
+      {/* Step 4 Header & Final Export Center */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs">
+        <div>
+          <div className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+            04. Tahap Penyelesaian Laporan & Kolaborasi Kelompok
+          </div>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
+            Pusat Ekspor Laporan Praktikum & Diskusi Kelompok
+          </h1>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+            Pastikan seluruh target pengamatan kelompok terpenuhi, lalu unduh laporan akademik resmi (PDF/Cetak) atau berkas data CSV.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {onBackToAnalysis && (
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                onBackToAnalysis();
+              }}
+              className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              ← Kembali ke Grafik & LKS
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handlePrintAcademicReport}
+            disabled={records.length === 0}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Unduh / Cetak Laporan PDF
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadCSV}
+            disabled={filteredRecords.length === 0}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Unduh Data CSV ({filteredRecords.length})
+          </button>
+          {onBackToCatalog && (
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                onBackToCatalog();
+              }}
+              className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              Pilih Modul Baru
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
       {/* Experiment Data Log & CSV Export Table (7 cols) */}
       <div className="lg:col-span-7 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -444,6 +509,7 @@ export const CollaborationAndDataSection: React.FC<
             </button>
           </form>
         </div>
+      </div>
       </div>
     </div>
   );

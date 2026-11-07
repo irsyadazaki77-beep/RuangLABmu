@@ -320,9 +320,10 @@ test('Dr. LabMu Socratic Engine: Telemetry JSON, Outlier R² < 0.85, Direct Answ
 
   const outlierResponse = generateSocraticDrLabMuResponse(outlierTelemetry);
   assert.equal(outlierResponse.detectedTrigger, 'anomaly-outlier');
-  assert.ok(outlierResponse.formattedText.includes('[Apresiasi/Observasi Singkat]'));
-  assert.ok(outlierResponse.formattedText.includes('[Sorotan Data/Anomali]'));
-  assert.ok(outlierResponse.formattedText.includes('[Pertanyaan Pemantik]'));
+  assert.ok(outlierResponse.observation.length > 10);
+  assert.ok(outlierResponse.dataHighlight.length > 10);
+  assert.ok(outlierResponse.socraticQuestion.length > 10);
+  assert.ok(outlierResponse.formattedText.length > 20);
 
   // 2. Test Direct Answer Refusal ("Berapa nilai g-nya bro?")
   const directQueryTelemetry = buildDrLabMuTelemetry(

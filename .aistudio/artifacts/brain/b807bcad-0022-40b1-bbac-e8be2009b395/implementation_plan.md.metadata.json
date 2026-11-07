@@ -1,6 +1,6 @@
 {
-  "summary": "Rencana implementasi komprehensif untuk memodernisasi antarmuka SimuLab Sains dengan tema adaptif Light/Dark Glassmorphism, tata letak split-screen interaktif ber-HUD mengambang dan dock bawah, manipulasi langsung di kanvas, sintesis audio Web Audio API, serta mode perbandingan berdampingan (A/B).",
-  "updatedAt": "2026-11-06T00:49:42.244920298Z",
+  "summary": "Rencana penataan ulang alur website RuangLABmu menjadi alur praktikum bertahap (1. Katalog & Pre-Lab K3 -> 2. Simulasi 3D & Rekam Data -> 3. Analisis Grafik & LKS -> 4. Laporan & Evaluasi), pemisahan jelas antara Mode Siswa dan Mode Pengajar, penghapusan duplikasi panel Grafik/LKS, penyatuan panel kontrol 3D agar kanvas lebih lega, serta penyederhanaan tombol mengambang asisten Dr.LabMu.",
+  "updatedAt": "2026-11-07T00:42:10.542704857Z",
   "requestFeedback": true,
   "userFacing": true
 }

@@ -27,6 +27,8 @@ interface AnalyticsAndWorksheetPanelProps {
   activeGroupId: string;
   onSubmitQuizScore: (score: number, correctCount: number) => void;
   onExportChartNotification: (format: 'PNG' | 'PDF') => void;
+  onProceedToReport?: () => void;
+  onBackToLab?: () => void;
 }
 
 const PRESET_DATASETS: Record<
@@ -101,6 +103,8 @@ export const AnalyticsAndWorksheetPanel: React.FC<
   activeGroupId,
   onSubmitQuizScore,
   onExportChartNotification,
+  onProceedToReport,
+  onBackToLab,
 }) => {
   const [selectedDatasetKey, setSelectedDatasetKey] =
     useState<string>('newton-force-acc');
@@ -489,7 +493,46 @@ export const AnalyticsAndWorksheetPanel: React.FC<
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+    <div className="space-y-5">
+      {/* Step 3 Header & Navigation Bar */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div>
+          <div className="text-xs font-mono text-sky-600 dark:text-sky-400 font-semibold">
+            03. Tahap Analisis Kuantitatif & Evaluasi LKS
+          </div>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-white">
+            Analisis Grafik Regresi Linier & Lembar Kerja Siswa (LKS)
+          </h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {onBackToLab && (
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                onBackToLab();
+              }}
+              className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              ← Kembali ke Simulasi 3D
+            </button>
+          )}
+          {onProceedToReport && (
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                onProceedToReport();
+              }}
+              className="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors cursor-pointer whitespace-nowrap"
+            >
+              Lanjut ke Tahap 4: Laporan & Kolaborasi →
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
       {/* Left 7 Cols: Interactive Multi-Axis Chart & Automatic Linear Regression + PNG/PDF Export */}
       <div className="lg:col-span-7 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -956,14 +999,29 @@ export const AnalyticsAndWorksheetPanel: React.FC<
         </form>
 
         {gradedState && (
-          <div className="flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/80 rounded-md p-2.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>
-              Skor LKS ({gradedState.totalScore}/100 — {gradedState.correctCount}/
-              {gradedState.totalQuestions} benar) telah disinkronkan ke Rubrik Penilaian Pengajar.
-            </span>
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/80 rounded-md p-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>
+                Skor LKS ({gradedState.totalScore}/100 — {gradedState.correctCount}/
+                {gradedState.totalQuestions} benar) telah disinkronkan ke Rubrik Penilaian Pengajar.
+              </span>
+            </div>
+            {onProceedToReport && (
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playRecordSuccess();
+                  onProceedToReport();
+                }}
+                className="w-full py-2.5 px-4 rounded-md bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Lanjut ke Tahap 4: Unduh Laporan Akhir & Kolaborasi Kelompok →
+              </button>
+            )}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

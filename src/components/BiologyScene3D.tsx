@@ -448,20 +448,23 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
 
     animate();
 
-    // Handle Window Resize
+    // Handle Window & Container Resize
     const handleResize = () => {
       if (!container) return;
-      const w = container.clientWidth;
-      const h = container.clientHeight;
+      const w = container.clientWidth || window.innerWidth || 960;
+      const h = container.clientHeight || window.innerHeight || 600;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
 
+    const resizeObserver = new ResizeObserver(() => handleResize());
+    resizeObserver.observe(container);
     window.addEventListener('resize', handleResize);
 
     return () => {
       cancelAnimationFrame(animationFrameId);
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('mousemove', handlePointerMove);
 
@@ -495,15 +498,15 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   }, [remoteCursors]);
 
   return (
-    <div className="relative w-full h-[480px] sm:h-[520px] rounded-xl overflow-hidden bg-slate-950 border border-slate-800/90 shadow-inner">
+    <div className="relative w-full h-full overflow-hidden bg-slate-950">
       <div
         ref={mountRef}
         data-testid="biology-simulation-canvas"
-        className="w-full h-full cursor-crosshair"
+        className="w-full h-full block cursor-crosshair"
       />
 
-      {/* 3D Mode Label Badge */}
-      <div className="pointer-events-none absolute bottom-3 left-3 bg-slate-900/95 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-200 flex items-center gap-2">
+      {/* Top-Center 3D Mode Label Pill */}
+      <div className="pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-2 rounded-full backdrop-blur-xl bg-slate-900/75 border border-white/15 px-3.5 py-1.5 text-xs font-mono text-slate-200 shadow-2xl z-20">
         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
         <span>
           {mode === 'photosynthesis-ingenhousz' && 'Aparatus Ingenhousz 3D · Fotobiologi'}
