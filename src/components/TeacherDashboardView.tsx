@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Send,
   CheckCircle2,
@@ -11,6 +11,13 @@ import {
   HelpCircle,
   Radio,
   Flame,
+  Clock,
+  MessageSquare,
+  Sparkles,
+  ChevronRight,
+  X,
+  Compass,
+  AlertCircle,
 } from 'lucide-react';
 import {
   ExperimentRecord,
@@ -24,6 +31,11 @@ import {
   MysterySubmissionResult,
   PRESET_MYSTERY_CHALLENGES,
 } from '../utils/mysteryChallengeEngine';
+import {
+  buildRadarLanes,
+  RadarLaneSummary,
+  StudentRadarCard,
+} from '../utils/telemetryRadar';
 
 export interface StudentProgressItem {
   id: string;
@@ -38,6 +50,10 @@ export interface StudentProgressItem {
   quizScore?: number;
   lastActive: string;
   status: 'Nominal' | 'Butuh Bantuan' | 'Selesai';
+  currentStep?: 1 | 2 | 3 | 4;
+  activeModuleTitle?: string;
+  timeInStepMinutes?: number;
+  rSquared?: number;
 }
 
 interface TeacherDashboardViewProps {
@@ -66,6 +82,39 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
   const [selectedChallengeId, setSelectedChallengeId] = useState<string>(
     PRESET_MYSTERY_CHALLENGES[0].id
   );
+
+  // Quick note modal state for Telemetry Radar cards
+  const [quickNoteStudent, setQuickNoteStudent] = useState<StudentRadarCard | null>(null);
+  const [quickNoteText, setQuickNoteText] = useState<string>('');
+
+  const radarLanes = useMemo(() => {
+    return buildRadarLanes(students, groupFilter);
+  }, [students, groupFilter]);
+
+  const handleOpenQuickNote = (student: StudentRadarCard) => {
+    labSound.playClick();
+    setQuickNoteStudent(student);
+    if (student.needsHelp) {
+      setQuickNoteText(
+        student.rSquared && student.rSquared < 0.8
+          ? `Halo ${student.name.split(' ')[0]}, nilai R² = ${student.rSquared.toFixed(2)} terindikasi menyimpang. Coba periksa kembali titik data yang melenceng atau ulangi pengambilan sampel.`
+          : `Halo ${student.name.split(' ')[0]}, ada kendala pada tahap ${student.resolvedStep}? Perhatikan variabel bebas dan petunjuk di modul.`
+      );
+    } else {
+      setQuickNoteText(
+        `Kerja bagus ${student.name.split(' ')[0]}, progres praktikum Anda berjalan optimal. Lanjutkan pengisian LKS!`
+      );
+    }
+  };
+
+  const handleSendQuickNote = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickNoteStudent || !quickNoteText.trim()) return;
+    labSound.playRecordSuccess();
+    onSendTeacherFeedback(quickNoteStudent.id, quickNoteText.trim());
+    setQuickNoteStudent(null);
+    setQuickNoteText('');
+  };
 
   const avgCompletion =
     students.length > 0
@@ -196,6 +245,311 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* TAMPILAN BARU: RADAR PROGRES KELAS REAL-TIME (4 TAHAP PRAKTIKUM) */}
+      <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-sky-500" />
+              </span>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                Radar Progres Kelas Real-Time
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
+                LIVE TELEMETRI
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Distribusi siswa sepanjang 4 tahap alur terstruktur · Deteksi anomali (R² &lt; 0.80 atau tertahan &gt; 8 menit)
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">Filter:</span>
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg border border-slate-200/70 dark:border-slate-700">
+              {groups.map((grp) => (
+                <button
+                  key={grp}
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setGroupFilter(grp);
+                  }}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    groupFilter === grp
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {grp === 'Semua' ? 'Semua Kelompok' : grp.split(' — ')[0]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Active Workflow Columns / Radar Lanes */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {radarLanes.map((lane) => {
+            const laneColors = [
+              { border: 'border-sky-500/30', headerBg: 'bg-sky-500/10 text-sky-400', stepBadge: 'bg-sky-500 text-slate-950' },
+              { border: 'border-emerald-500/30', headerBg: 'bg-emerald-500/10 text-emerald-400', stepBadge: 'bg-emerald-500 text-slate-950' },
+              { border: 'border-amber-500/30', headerBg: 'bg-amber-500/10 text-amber-400', stepBadge: 'bg-amber-500 text-slate-950' },
+              { border: 'border-purple-500/30', headerBg: 'bg-purple-500/10 text-purple-400', stepBadge: 'bg-purple-500 text-white' },
+            ][lane.step - 1];
+
+            return (
+              <div
+                key={lane.step}
+                className="flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-3 space-y-3"
+              >
+                {/* Lane Header */}
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800/80">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-5 h-5 rounded-md ${laneColors.stepBadge} font-mono font-bold text-[10px] flex items-center justify-center shrink-0`}>
+                      {lane.step}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        {lane.title}
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                        {lane.subtitle}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0 font-mono text-[11px]">
+                    <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
+                      {lane.students.length}
+                    </span>
+                    {lane.needsHelpCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-500 font-bold border border-amber-500/30 flex items-center gap-0.5 animate-pulse">
+                        <AlertCircle className="w-2.5 h-2.5" />
+                        {lane.needsHelpCount}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Students Container */}
+                <div className="flex-1 space-y-2.5 min-h-[160px]">
+                  {lane.students.length === 0 ? (
+                    <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 border border-dashed border-slate-200 dark:border-slate-800/60 rounded-xl text-slate-400 dark:text-slate-600">
+                      <p className="text-xs">Tidak ada siswa</p>
+                      <p className="text-[10px] text-slate-400">di tahap ini</p>
+                    </div>
+                  ) : (
+                    lane.students.map((stu) => {
+                      const domainColorClass =
+                        stu.activeDomain === 'Fisika'
+                          ? 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+                          : stu.activeDomain === 'Kimia'
+                          ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                          : stu.activeDomain === 'Biologi'
+                          ? 'bg-lime-500/15 text-lime-400 border-lime-500/30'
+                          : 'bg-purple-500/15 text-purple-400 border-purple-500/30';
+
+                      const moduleDisplayName =
+                        stu.activeModuleTitle ||
+                        stu.currentActivity.replace(/^Menjalankan Simulasi |^Menganalisis |^Menguji |^Eksplorasi /i, '').split('(')[0].trim() ||
+                        `Praktikum ${stu.activeDomain}`;
+
+                      return (
+                        <div
+                          key={stu.id}
+                          className={`rounded-xl p-3 border transition-all text-xs space-y-2.5 ${
+                            stu.needsHelp
+                              ? 'bg-amber-50/70 dark:bg-amber-950/25 border-amber-400 dark:border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.18)] ring-1 ring-amber-400/30'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xs hover:border-slate-300 dark:hover:border-slate-700'
+                          }`}
+                        >
+                          {/* Student Header */}
+                          <div className="flex items-start justify-between gap-1.5">
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-900 dark:text-white truncate">
+                                {stu.name}
+                              </div>
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                {stu.groupId.split(' — ')[0]}
+                              </div>
+                            </div>
+
+                            {/* Active Module Domain Pill */}
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono border font-semibold shrink-0 ${domainColorClass}`}>
+                              {stu.activeDomain}
+                            </span>
+                          </div>
+
+                          {/* Active Module Badge */}
+                          <div className="text-[11px] font-medium text-slate-800 dark:text-slate-200 line-clamp-1 bg-slate-100/80 dark:bg-slate-800/60 px-2 py-1 rounded-md">
+                            {moduleDisplayName}
+                          </div>
+
+                          {/* Metrics Row: Time Spent + Recorded Trials */}
+                          <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400 pt-0.5">
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span className={stu.timeInStepMinutes && stu.timeInStepMinutes > 8 ? 'text-amber-500 font-bold' : ''}>
+                                {stu.formattedTimeInStep}
+                              </span>
+                            </div>
+                            <div className="text-slate-700 dark:text-slate-300 font-semibold">
+                              {stu.trialsRecorded > 0 ? `${stu.trialsRecorded}/3 Data` : '0 Data'}
+                            </div>
+                          </div>
+
+                          {/* Status Flag */}
+                          {stu.needsHelp ? (
+                            <div className="p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-300 flex items-start gap-1.5 text-[10px] leading-tight font-medium">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5 animate-bounce" />
+                              <div>
+                                <span className="font-bold">Butuh Bantuan:</span>{' '}
+                                <span>{stu.helpReason}</span>
+                              </div>
+                            </div>
+                          ) : stu.status === 'Selesai' ? (
+                            <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Sesi Selesai (100%)</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                              <span>Nominal (Progres {stu.completionPct}%)</span>
+                            </div>
+                          )}
+
+                          {/* Action Button: Beri Catatan Instruktur */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenQuickNote(stu)}
+                            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 text-[11px] font-semibold rounded-lg bg-slate-100 hover:bg-sky-50 dark:bg-slate-800 dark:hover:bg-sky-950/50 text-slate-700 hover:text-sky-600 dark:text-slate-200 dark:hover:text-sky-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                          >
+                            <MessageSquare className="w-3 h-3 text-sky-500" />
+                            <span>Beri Catatan Instruktur</span>
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* QUICK INSTRUCTOR NOTE MODAL */}
+      {quickNoteStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="space-y-0.5">
+                <div className="text-[11px] font-mono font-semibold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
+                  Arahan Instruktur Langsung
+                </div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Kirim Catatan ke {quickNoteStudent.name}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {quickNoteStudent.groupId} · Tahap {quickNoteStudent.resolvedStep} ({quickNoteStudent.activeModuleTitle || quickNoteStudent.currentActivity.split('(')[0].trim()})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickNoteStudent(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendQuickNote} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="quick-note-input"
+                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1"
+                >
+                  Pesan Pembimbingan (akan tampil langsung di layar siswa):
+                </label>
+                <textarea
+                  id="quick-note-input"
+                  rows={3}
+                  value={quickNoteText}
+                  onChange={(e) => setQuickNoteText(e.target.value)}
+                  className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  placeholder="Ketik catatan atau pilih saran cepat di bawah..."
+                  autoFocus
+                />
+              </div>
+
+              {/* Quick Template Chips */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  Pilihan Cepat:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuickNoteText(
+                        'Perhatikan kemiringan garis regresi ΣF = m·a. Pastikan ada minimal 3 variasi data dengan jarak nilai seimbang.'
+                      )
+                    }
+                    className="px-2 py-1 text-[11px] rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+                  >
+                    Petunjuk Garis Regresi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuickNoteText(
+                        'Amati titik belok pH pada kurva titrasi buret di sekitar volume 20 mL untuk akurasi titik ekuivalen.'
+                      )
+                    }
+                    className="px-2 py-1 text-[11px] rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+                  >
+                    Titik Ekuivalen Kimia
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuickNoteText(
+                        'Kerja bagus! Lanjutkan ke tahap analisis grafik dan lengkapi pertanyaan LKS.'
+                      )
+                    }
+                    className="px-2 py-1 text-[11px] rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+                  >
+                    Apresiasi & Lanjut LKS
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setQuickNoteStudent(null)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={!quickNoteText.trim()}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Kirim ke Siswa</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Main Split: Student Roster & Live Telemetry (8 cols) + Instructor Broadcast Feedback (4 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

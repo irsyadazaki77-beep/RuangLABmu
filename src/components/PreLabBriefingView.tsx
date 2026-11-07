@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -10,12 +10,21 @@ import {
   Atom,
   Clock,
   Sparkles,
+  Volume2,
+  VolumeX,
+  Square,
 } from 'lucide-react';
 import {
   ExperimentModule,
   EducationTier,
 } from '../registry/experimentRegistry';
 import { labSound } from '../utils/soundEngine';
+import {
+  speakNarration,
+  stopNarration,
+  isSpeaking,
+  voiceNarration,
+} from '../utils/voiceNarrationEngine';
 
 interface PreLabBriefingViewProps {
   experiment: ExperimentModule;
@@ -33,6 +42,35 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
   const [activeTab, setActiveTab] = useState<'objectives' | 'safety' | 'quiz'>('objectives');
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState<boolean>(false);
+  const [isSpeakingK3, setIsSpeakingK3] = useState<boolean>(false);
+
+  useEffect(() => {
+    const unsubscribe = voiceNarration.subscribe((speaking) => {
+      setIsSpeakingK3(speaking);
+    });
+    return () => {
+      stopNarration();
+      unsubscribe();
+    };
+  }, []);
+
+  const handleToggleK3Narration = () => {
+    labSound.playClick();
+    if (isSpeakingK3) {
+      stopNarration();
+      setIsSpeakingK3(false);
+      return;
+    }
+
+    const narrationScript = `Pengarahan Keselamatan Kerja Laboratorium untuk modul ${experiment.title}. Harap diperhatikan dengan saksama: ${experiment.safetyNotes.join('. ')}. Pastikan seluruh alat pelindung diri telah dikenakan sebelum memulai praktikum.`;
+
+    speakNarration(narrationScript, {
+      rate: 0.95,
+      onStart: () => setIsSpeakingK3(true),
+      onEnd: () => setIsSpeakingK3(false),
+      onError: () => setIsSpeakingK3(false),
+    });
+  };
 
   const currentObjectives =
     experiment.objectives[activeTier] ||
@@ -227,9 +265,41 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
 
           {/* Safety Protocols (K3) */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
-            <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm">
-              <ShieldCheck className="w-4 h-4 text-amber-500" />
-              <h2>Aturan Keselamatan Kerja Lab (K3)</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm">
+                <ShieldCheck className="w-4 h-4 text-amber-500" />
+                <h2>Aturan Keselamatan Kerja Lab (K3)</h2>
+              </div>
+
+              {/* Voice Narration Audio Button */}
+              <button
+                type="button"
+                onClick={handleToggleK3Narration}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-xs ${
+                  isSpeakingK3
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400/50'
+                    : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+                }`}
+                title={isSpeakingK3 ? 'Hentikan narasi suara K3' : 'Dengarkan pembacaan aturan K3 laboratorium'}
+              >
+                {isSpeakingK3 ? (
+                  <>
+                    {/* Visual Sound Wave Animation */}
+                    <span className="flex items-center gap-0.5 h-3">
+                      <span className="w-0.5 h-2.5 bg-slate-950 animate-pulse" />
+                      <span className="w-0.5 h-4 bg-slate-950 animate-bounce" />
+                      <span className="w-0.5 h-3 bg-slate-950 animate-pulse" />
+                      <span className="w-0.5 h-1.5 bg-slate-950 animate-bounce" />
+                    </span>
+                    <span>Hentikan Suara</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Dengarkan Pengarahan K3</span>
+                  </>
+                )}
+              </button>
             </div>
             <div className="space-y-2.5">
               {experiment.safetyNotes.map((note, idx) => (

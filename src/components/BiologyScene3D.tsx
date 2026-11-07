@@ -1,7 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { SpatialCursorManager } from '../utils/spatialCursorGroup';
+import { labSound } from '../utils/soundEngine';
 
 interface BiologyScene3DProps {
   mode: 'photosynthesis-ingenhousz' | 'enzyme-catalase' | 'osmosis-plasmolysis';
@@ -497,8 +499,33 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     }
   }, [remoteCursors]);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  const handleToggleFullscreen = () => {
+    labSound.playClick();
+    if (!containerRef.current) return;
+
+    if (!isFullscreen) {
+      if (containerRef.current.requestFullscreen) {
+        containerRef.current.requestFullscreen().catch(() => {});
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+      setIsFullscreen(false);
+    }
+  };
+
   return (
-    <div className="relative w-full h-full overflow-hidden bg-slate-950">
+    <div
+      ref={containerRef}
+      className={`relative w-full h-full overflow-hidden bg-slate-950 ${
+        isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : ''
+      }`}
+    >
       <div
         ref={mountRef}
         data-testid="biology-simulation-canvas"
@@ -513,6 +540,28 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           {mode === 'enzyme-catalase' && 'Kinetika Dekomposisi H₂O₂ 3D · Enzimologi'}
           {mode === 'osmosis-plasmolysis' && 'Kamar Osmometer & Plasmolisis 3D · Sitologi'}
         </span>
+      </div>
+
+      {/* Top-Right Fullscreen Toggle Button */}
+      <div className="pointer-events-auto absolute top-4 right-4 z-30">
+        <button
+          type="button"
+          onClick={handleToggleFullscreen}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl backdrop-blur-xl bg-slate-900/80 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
+          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D (Sentuh & Mobile)'}
+        >
+          {isFullscreen ? (
+            <>
+              <Minimize2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Kecilkan 3D</span>
+            </>
+          ) : (
+            <>
+              <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline font-semibold">Layar Penuh 3D</span>
+            </>
+          )}
+        </button>
       </div>
     </div>
   );

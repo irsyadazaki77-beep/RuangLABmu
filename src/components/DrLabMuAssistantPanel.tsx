@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles,
@@ -8,7 +8,15 @@ import {
   Compass,
   X,
   MessageCircle,
+  Volume2,
+  VolumeX,
+  Square,
 } from 'lucide-react';
+import {
+  speakNarration,
+  stopNarration,
+  voiceNarration,
+} from '../utils/voiceNarrationEngine';
 import {
   ScienceDomain,
   AcademicLevel,
@@ -89,9 +97,37 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [studentQuery, setStudentQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSpeakingAnswer, setIsSpeakingAnswer] = useState<boolean>(false);
   const [historyByDomain, setHistoryByDomain] = useState<
     Record<string, ConversationTurn[]>
   >({});
+
+  useEffect(() => {
+    const unsub = voiceNarration.subscribe((speaking) => {
+      setIsSpeakingAnswer(speaking);
+    });
+    return () => {
+      stopNarration();
+      unsub();
+    };
+  }, []);
+
+  const handleToggleSpeakAnswer = (turn: ConversationTurn) => {
+    labSound.playClick();
+    if (isSpeakingAnswer) {
+      stopNarration();
+      setIsSpeakingAnswer(false);
+      return;
+    }
+
+    const script = `${turn.response.observation} ${turn.response.dataHighlight} Pertanyaan sokratik: ${turn.response.socraticQuestion}`;
+    speakNarration(script, {
+      rate: 0.95,
+      onStart: () => setIsSpeakingAnswer(true),
+      onEnd: () => setIsSpeakingAnswer(false),
+      onError: () => setIsSpeakingAnswer(false),
+    });
+  };
 
   const liveTelemetry = useMemo(
     () =>
@@ -302,6 +338,33 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
               {/* Dr. LabMu Conversational Bubbles */}
               <div className="space-y-2">
                 <div className="rounded-2xl rounded-tl-sm bg-slate-800/90 border border-white/10 px-3.5 py-2.5 text-slate-100 space-y-2 shadow-sm">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
+                    <span className="text-[10px] font-mono text-sky-400 font-semibold uppercase tracking-wider">
+                      Dr. LabMu
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSpeakAnswer(latestTurn)}
+                      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                        isSpeakingAnswer
+                          ? 'bg-amber-500 text-slate-950 font-bold animate-pulse'
+                          : 'bg-white/10 hover:bg-white/20 text-slate-300'
+                      }`}
+                      title="Bacakan saran Dr. LabMu secara otomatis"
+                    >
+                      {isSpeakingAnswer ? (
+                        <>
+                          <Square className="w-3 h-3 fill-current" />
+                          <span>Hentikan Suara</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="w-3 h-3 text-sky-400" />
+                          <span>Bacakan Jawaban</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <p className="leading-relaxed text-slate-200">
                     {latestTurn.response.observation}
                   </p>

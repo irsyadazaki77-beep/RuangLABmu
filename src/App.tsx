@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Bell,
@@ -18,6 +18,8 @@ import {
   BookOpen,
   FileCheck2,
   CheckCircle2,
+  RotateCcw,
+  Loader2,
 } from 'lucide-react';
 import {
   PhysicsParams,
@@ -31,25 +33,50 @@ import {
   exportRecordsToCSV,
 } from './utils/scienceEngine';
 import { labSound } from './utils/soundEngine';
-import { PhysicsLabView } from './components/PhysicsLabView';
-import { ChemistryLabView } from './components/ChemistryLabView';
-import { AstronomyLabView } from './components/AstronomyLabView';
-import { BiologyLabView } from './components/BiologyLabView';
+import { useLabSessionAutoSave } from './hooks/useLabSessionAutoSave';
 import {
   CollaborationAndDataSection,
   GroupTaskItem,
   CollabNoteItem,
 } from './components/CollaborationAndDataSection';
 import { AnalyticsAndWorksheetPanel } from './components/AnalyticsAndWorksheetPanel';
-import {
-  TeacherDashboardView,
-  StudentProgressItem,
-} from './components/TeacherDashboardView';
+import { StudentProgressItem } from './components/TeacherDashboardView';
 import { DrLabMuAssistantPanel } from './components/DrLabMuAssistantPanel';
 import { LabLobbyHub } from './components/LabLobbyHub';
 import { GuidedWorkflowStepper, WorkflowStepNumber } from './components/GuidedWorkflowStepper';
 import { PreLabBriefingView } from './components/PreLabBriefingView';
 import { PreLabSafetyModal } from './components/PreLabSafetyModal';
+
+// Code Splitting via React.lazy for performance optimization
+const PhysicsLabView = lazy(() =>
+  import('./components/PhysicsLabView').then((m) => ({ default: m.PhysicsLabView }))
+);
+const ChemistryLabView = lazy(() =>
+  import('./components/ChemistryLabView').then((m) => ({ default: m.ChemistryLabView }))
+);
+const BiologyLabView = lazy(() =>
+  import('./components/BiologyLabView').then((m) => ({ default: m.BiologyLabView }))
+);
+const AstronomyLabView = lazy(() =>
+  import('./components/AstronomyLabView').then((m) => ({ default: m.AstronomyLabView }))
+);
+const TeacherDashboardView = lazy(() =>
+  import('./components/TeacherDashboardView').then((m) => ({ default: m.TeacherDashboardView }))
+);
+
+function LabLoadingSkeleton() {
+  return (
+    <div className="w-full h-[600px] flex flex-col items-center justify-center bg-slate-900/60 rounded-2xl border border-slate-800 p-8 space-y-4">
+      <div className="w-12 h-12 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 animate-spin">
+        <Loader2 className="w-6 h-6" />
+      </div>
+      <div className="text-center space-y-1">
+        <div className="text-sm font-bold text-white">Memuat Lingkungan Laboratorium 3D...</div>
+        <div className="text-xs text-slate-400">Menyiapkan mesin fisika & shader WebGL</div>
+      </div>
+    </div>
+  );
+}
 import {
   ExperimentModule,
   EducationTier,
@@ -362,6 +389,10 @@ export default function App() {
       groupId: 'Kelompok 1 — Mekanika',
       activeDomain: 'Fisika',
       currentActivity: 'Menjalankan Simulasi Hukum II Newton (m = 4.0 kg)',
+      activeModuleTitle: 'Hukum II Newton & Bidang Miring',
+      currentStep: 2,
+      timeInStepMinutes: 4,
+      rSquared: 0.985,
       trialsRecorded: 3,
       tasksCompleted: 2,
       totalTasks: 4,
@@ -376,6 +407,10 @@ export default function App() {
       groupId: 'Kelompok 1 — Mekanika',
       activeDomain: 'Fisika',
       currentActivity: 'Menganalisis Tumbukan & Kinematika Gravitasi Mars',
+      activeModuleTitle: 'Tumbukan 1D & Momentum',
+      currentStep: 2,
+      timeInStepMinutes: 6,
+      rSquared: 0.92,
       trialsRecorded: 2,
       tasksCompleted: 2,
       totalTasks: 4,
@@ -390,10 +425,14 @@ export default function App() {
       groupId: 'Kelompok 2 — Termokimia',
       activeDomain: 'Kimia',
       currentActivity: 'Titrasi Asam-Basa & Kalorimetri HCl + NaOH',
+      activeModuleTitle: 'Titrasi Asam Basa',
+      currentStep: 4,
+      timeInStepMinutes: 2,
+      rSquared: 0.995,
       trialsRecorded: 4,
       tasksCompleted: 3,
       totalTasks: 3,
-      completionPct: 92,
+      completionPct: 100,
       quizScore: 100,
       lastActive: 'Baru saja',
       status: 'Selesai',
@@ -404,6 +443,10 @@ export default function App() {
       groupId: 'Kelompok 2 — Termokimia',
       activeDomain: 'Kimia',
       currentActivity: 'Menguji Dekomposisi Endotermik CaCO₃ pada 50°C (ΔG > 0)',
+      activeModuleTitle: 'Kalorimeter & Termokimia',
+      currentStep: 3,
+      timeInStepMinutes: 10,
+      rSquared: 0.72,
       trialsRecorded: 1,
       tasksCompleted: 1,
       totalTasks: 3,
@@ -418,11 +461,32 @@ export default function App() {
       groupId: 'Kelompok 3 — Astrofisika',
       activeDomain: 'Astronomi',
       currentActivity: 'Eksplorasi Galaksi Bima Sakti (Sgr A*) & Orbit Kepler',
-      trialsRecorded: 3,
-      tasksCompleted: 2,
+      activeModuleTitle: 'Hukum III Kepler & Tata Surya',
+      currentStep: 1,
+      timeInStepMinutes: 3,
+      trialsRecorded: 0,
+      tasksCompleted: 0,
       totalTasks: 3,
-      completionPct: 86,
+      completionPct: 15,
       quizScore: 100,
+      lastActive: 'Baru saja',
+      status: 'Nominal',
+    },
+    {
+      id: 'stu-6',
+      name: 'Fajar Ramadhan',
+      groupId: 'Kelompok 3 — Astrofisika',
+      activeDomain: 'Biologi',
+      currentActivity: 'Menghitung Laju Gelembung O₂ pada Intensitas 80W',
+      activeModuleTitle: 'Fotosintesis Ingenhousz',
+      currentStep: 2,
+      timeInStepMinutes: 5,
+      rSquared: 0.94,
+      trialsRecorded: 2,
+      tasksCompleted: 1,
+      totalTasks: 3,
+      completionPct: 60,
+      quizScore: 90,
       lastActive: 'Baru saja',
       status: 'Nominal',
     },
@@ -1061,6 +1125,54 @@ export default function App() {
     });
   };
 
+  const [lksAnswers, setLksAnswers] = useState<Record<string, string>>({});
+
+  const {
+    recoverableSession,
+    showRecoveryBanner,
+    formattedRecoveryTime,
+    restoreSession,
+    discardAndRestart,
+  } = useLabSessionAutoSave({
+    studentId: currentProfile.name,
+    activeModuleId: currentExperimentId,
+    activeWorkflowStep: workflowStep,
+    recordedTrials: records,
+    lksAnswers,
+    safetyPledgeAgreed: completedSafetyIds.includes(currentExperimentId),
+    physicsParams,
+    chemistryParams,
+    astronomyParams,
+    isLobbyMode,
+    onRestoreSession: (session) => {
+      labSound.playRecordSuccess();
+      setIsLobbyMode(false);
+      setWorkflowStep(session.activeWorkflowStep);
+      if (session.recordedTrials && session.recordedTrials.length > 0) {
+        setRecords(session.recordedTrials);
+      }
+      if (session.lksAnswers) {
+        setLksAnswers(session.lksAnswers);
+      }
+      if (session.physicsParams) setPhysicsParams(session.physicsParams);
+      if (session.chemistryParams) setChemistryParams(session.chemistryParams);
+      if (session.astronomyParams) setAstronomyParams(session.astronomyParams);
+      if (session.safetyPledgeAgreed) {
+        setCompletedSafetyIds((prev) =>
+          prev.includes(session.moduleId) ? prev : [...prev, session.moduleId]
+        );
+      }
+      handlePushNotification({
+        id: `notif-restore-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        severity: 'nominal',
+        domain: 'Fisika',
+        title: 'Sesi Praktikum Berhasil Dipulihkan',
+        message: `Melanjutkan dari Tahap ${session.activeWorkflowStep} dengan ${session.recordedTrials.length} data percobaan tersimpan.`,
+      });
+    },
+  });
+
   const activeScienceDomain: ScienceDomain =
     activeDomain === 'kimia'
       ? 'Kimia'
@@ -1334,6 +1446,49 @@ export default function App() {
         />
       )}
 
+      {/* SESSION AUTO-SAVE RECOVERY PROMPT BANNER */}
+      <AnimatePresence>
+        {showRecoveryBanner && recoverableSession && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="max-w-[1380px] mx-auto my-3 px-4 py-3 bg-gradient-to-r from-sky-950 via-slate-900 to-emerald-950 border border-sky-500/40 rounded-2xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-white z-40"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 shrink-0">
+                <RotateCcw className="w-4 h-4 animate-spin-slow" />
+              </div>
+              <div>
+                <div className="font-bold text-sky-300">
+                  Sesi Praktikum Sebelumnya Terdeteksi ({formattedRecoveryTime})
+                </div>
+                <div className="text-slate-300 text-[11px] mt-0.5">
+                  Lanjutkan dari Tahap {recoverableSession.activeWorkflowStep} ({recoverableSession.recordedTrials.length} data tersimpan)?
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={discardAndRestart}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors cursor-pointer"
+              >
+                Mulai Ulang
+              </button>
+              <button
+                type="button"
+                onClick={restoreSession}
+                className="px-4 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <span>Lanjutkan Sesi →</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main Workspace Container */}
       <main
         className={`relative w-full ${
@@ -1344,7 +1499,8 @@ export default function App() {
             : 'h-[calc(100vh-3.5rem)] overflow-y-auto bg-slate-50 dark:bg-slate-950 p-6 select-text'
         }`}
       >
-        {/* MODE PENGAJAR: Dedicated Teacher Evaluation & Rubric Workspace */}
+        <Suspense fallback={<LabLoadingSkeleton />}>
+          {/* MODE PENGAJAR: Dedicated Teacher Evaluation & Rubric Workspace */}
         {userRole === 'pengajar' && (
           <div className="max-w-[1380px] mx-auto pb-12 space-y-5">
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
@@ -1651,6 +1807,7 @@ export default function App() {
             />
           </div>
         )}
+        </Suspense>
 
         {/* Streamlined Floating AI Mentor Pill & Chat Popover */}
         <DrLabMuAssistantPanel

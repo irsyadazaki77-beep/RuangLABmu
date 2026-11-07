@@ -11,6 +11,7 @@ import {
 import { SimulationFrame } from '../utils/simulationBuffer';
 import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
 
 interface PhysicsScene3DProps {
@@ -1031,13 +1032,38 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     };
   }, []);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
   const handleSelectCameraPreset = (preset: CameraPreset) => {
     setActivePreset(preset);
     cameraCtrlRef.current?.setPreset(preset);
   };
 
+  const handleToggleFullscreen = () => {
+    labSound.playClick();
+    if (!containerRef.current) return;
+
+    if (!isFullscreen) {
+      if (containerRef.current.requestFullscreen) {
+        containerRef.current.requestFullscreen().catch(() => {});
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+      setIsFullscreen(false);
+    }
+  };
+
   return (
-    <div className="relative w-full h-full overflow-hidden bg-[#0B1120]">
+    <div
+      ref={containerRef}
+      className={`relative w-full h-full overflow-hidden bg-[#0B1120] ${
+        isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : ''
+      }`}
+    >
       <div
         ref={mountRef}
         data-testid="physics-simulation-canvas"
@@ -1086,6 +1112,28 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
             </span>
           </div>
         )}
+      </div>
+
+      {/* Top-Right Fullscreen Toggle Button (Mobile & Desktop) */}
+      <div className="pointer-events-auto absolute top-4 right-4 z-30">
+        <button
+          type="button"
+          onClick={handleToggleFullscreen}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl backdrop-blur-xl bg-slate-900/80 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
+          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D (Sentuh & Mobile)'}
+        >
+          {isFullscreen ? (
+            <>
+              <Minimize2 className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden sm:inline">Kecilkan 3D</span>
+            </>
+          ) : (
+            <>
+              <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden sm:inline font-semibold">Layar Penuh 3D</span>
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
