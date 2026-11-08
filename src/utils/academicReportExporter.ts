@@ -2,7 +2,6 @@ import { ExperimentRecord } from './scienceEngine';
 import {
   ExperimentModule,
   EducationTier,
-  getExperimentById,
 } from '../registry/experimentRegistry';
 
 export interface AcademicReportData {
@@ -21,14 +20,40 @@ export interface AcademicReportData {
     rSquared: number;
     formula: string;
     expectedSlopeMeaning?: string;
+    modelLabel?: string;
+    equationString?: string;
+  };
+  outlierSummary?: {
+    outlierCount: number;
+    rSquaredRaw: number;
+    rSquaredClean: number;
+    excludedOutliers: boolean;
+  };
+  chartImageDataUrl?: string;
+  trialComparisonSummary?: {
+    runALabel: string;
+    runBLabel: string;
+    keyDifferences: string[];
   };
   worksheetScore?: {
     score: number;
     correctCount: number;
     totalCount: number;
+    diagnosticItems?: Array<{
+      title: string;
+      badge: string;
+      feedback: string;
+    }>;
   };
+  calibrationNotes?: string;
   discussionNotes?: string;
   conclusionNotes?: string;
+  hypothesisSummary?: {
+    independentVar?: string;
+    dependentVar?: string;
+    hypothesisText?: string;
+    reflectionText?: string;
+  };
 }
 
 export function generateAcademicReportHTML(data: AcademicReportData): string {
@@ -43,9 +68,14 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
     module,
     records,
     regressionSummary,
+    outlierSummary,
+    chartImageDataUrl,
+    trialComparisonSummary,
     worksheetScore,
+    calibrationNotes,
     discussionNotes,
     conclusionNotes,
+    hypothesisSummary,
   } = data;
 
   const objectives =
@@ -53,7 +83,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
     module?.objectives.SMA ||
     [
       'Memahami konsep dasar hukum fisika/kimia/biologi/astronomi melalui pengamatan eksperimen kuantitatif.',
-      'Mengolah data pengamatan dengan ketidakpastian dan analisis regresi linier.',
+      'Mengolah data pengamatan dengan ketidakpastian dan analisis regresi kurva.',
     ];
 
   const theory =
@@ -64,7 +94,6 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
   const apparatus = module?.apparatusList || ['Alat ukur terkalibrasi', 'Bahan uji terstandarisasi'];
   const safety = module?.safetyNotes || ['Gunakan alat pelindung diri sesuai SOP K3 laboratorium.'];
 
-  // Build records table rows
   const tableRowsHtml =
     records.length > 0
       ? records
@@ -92,7 +121,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
   <meta charset="UTF-8">
   <title>Laporan Resmi Praktikum - ${experimentTitle}</title>
   <style>
-    @page { size: A4; margin: 20mm; }
+    @page { size: A4; margin: 18mm; }
     body {
       font-family: 'Times New Roman', Times, serif;
       font-size: 11pt;
@@ -169,7 +198,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
     }
     .sign-table {
       width: 100%;
-      margin-top: 40px;
+      margin-top: 36px;
       border-collapse: collapse;
     }
     .sign-table td {
@@ -193,7 +222,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
 <body>
   <div class="no-print" style="margin-bottom: 20px; padding: 12px; background: #e0f2fe; border: 1px solid #7dd3fc; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
     <span style="font-family: sans-serif; font-size: 12px; color: #0369a1; font-weight: bold;">
-      📄 Pratinjau Cetak Laporan Resmi Praktikum RuangLABmu
+      Pratinjau Cetak Laporan Resmi Praktikum RuangLABmu (Standar Akademik A4)
     </span>
     <button onclick="window.print()" style="background: #0284c7; color: white; border: none; padding: 6px 16px; border-radius: 4px; font-weight: bold; cursor: pointer;">
       Cetak / Simpan PDF
@@ -223,7 +252,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
       <td style="font-weight: bold;">Tanggal Pengujian</td>
       <td>: ${dateStr} (${timeStr} WIB)</td>
       <td style="font-weight: bold;">Status Penilaian</td>
-      <td>: ${worksheetScore ? `LKS Dinilai (${worksheetScore.score}/100)` : 'Terverifikasi Sistem'}</td>
+      <td>: ${worksheetScore ? `LKS Dinilai (${worksheetScore.score}/100 · ${worksheetScore.correctCount}/${worksheetScore.totalCount} Benar)` : 'Terverifikasi Sistem'}</td>
     </tr>
   </table>
 
@@ -245,7 +274,29 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
       : ''
   }
 
-  <div class="section-title">III. Alat, Bahan, & Keselamatan Kerja (K3)</div>
+  ${
+    hypothesisSummary &&
+    (hypothesisSummary.independentVar ||
+      hypothesisSummary.dependentVar ||
+      hypothesisSummary.hypothesisText ||
+      hypothesisSummary.reflectionText)
+      ? `
+  <div class="section-title">II-B. Perumusan Hipotesis & Identifikasi Variabel</div>
+  <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 10px 14px; border-radius: 4px; font-size: 10pt; margin: 6px 0;">
+    <div><strong>Variabel Bebas (X):</strong> ${hypothesisSummary.independentVar || '-'}</div>
+    <div><strong>Variabel Terikat (Y):</strong> ${hypothesisSummary.dependentVar || '-'}</div>
+    <div style="margin-top: 4px;"><strong>Hipotesis Awal:</strong> <em>${hypothesisSummary.hypothesisText || '-'}</em></div>
+    ${
+      hypothesisSummary.reflectionText
+        ? `<div style="margin-top: 4px;"><strong>Refleksi & Evaluasi Hipotesis:</strong> ${hypothesisSummary.reflectionText}</div>`
+        : ''
+    }
+  </div>
+  `
+      : ''
+  }
+
+  <div class="section-title">III. Alat, Bahan, Kalibrasi Instrumen, & K3</div>
   <div style="display: flex; gap: 20px;">
     <div style="flex: 1;">
       <strong>Daftar Alat & Bahan:</strong>
@@ -260,10 +311,15 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
       </ul>
     </div>
   </div>
+  ${
+    calibrationNotes
+      ? `<div style="margin-top: 6px; font-size: 9.5pt; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 4px;"><strong>Status Kalibrasi & Ketidakpastian Alat Ukur:</strong> ${calibrationNotes}</div>`
+      : ''
+  }
 
   <div class="section-title">IV. Data Pengamatan Eksperimen</div>
   <p style="margin: 4px 0; font-size: 10pt; color: #334155;">
-    Data hasil perekaman sensor laboratorium terkalibrasi:
+    Data hasil perekaman sensor laboratorium terkalibrasi (${records.length} variasi uji):
   </p>
   <table class="data-table">
     <thead>
@@ -272,7 +328,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
         <th style="width: 12%;">Waktu</th>
         <th style="width: 28%;">Parameter Eksperimen</th>
         <th style="width: 35%;">Besaran Output Terukur</th>
-        <th style="width: 20%;">Catatan Ralat</th>
+        <th style="width: 20%;">Catatan / Ralat (Δx)</th>
       </tr>
     </thead>
     <tbody>
@@ -280,28 +336,76 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
     </tbody>
   </table>
 
-  <div class="section-title">V. Analisis Data & Regresi Linier OLS</div>
+  ${
+    trialComparisonSummary && trialComparisonSummary.keyDifferences.length > 0
+      ? `
+  <div class="section-title">IV-B. Perbandingan Eksperimen Berdampingan (${trialComparisonSummary.runALabel} vs ${trialComparisonSummary.runBLabel})</div>
+  <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 8px 12px; border-radius: 4px; font-size: 9.5pt; margin: 6px 0;">
+    <ul style="margin: 2px 0; padding-left: 18px;">
+      ${trialComparisonSummary.keyDifferences.map((d) => `<li>${d}</li>`).join('')}
+    </ul>
+  </div>
+  `
+      : ''
+  }
+
+  <div class="section-title">V. Analisis Fitting Kurva, Deteksi Outlier, & Visualisasi Grafik</div>
   ${
     regressionSummary
       ? `
     <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 4px; font-size: 10pt;">
-      <div><strong>Persamaan Garis Regresi:</strong> <span style="font-family: monospace;">y = ${regressionSummary.slope.toFixed(4)}x + ${regressionSummary.intercept.toFixed(4)}</span></div>
-      <div><strong>Koefisien Determinasi (R²):</strong> <span style="font-family: monospace;">${regressionSummary.rSquared.toFixed(4)}</span> (${(regressionSummary.rSquared * 100).toFixed(2)}% variansi data linier)</div>
+      <div><strong>Model Fitting Kurva:</strong> ${regressionSummary.modelLabel || 'Regresi Linier OLS'}</div>
+      <div><strong>Persamaan Kurva:</strong> <span style="font-family: monospace;">${regressionSummary.equationString || `y = ${regressionSummary.slope.toFixed(4)}x + ${regressionSummary.intercept.toFixed(4)}`}</span></div>
+      <div><strong>Koefisien Determinasi (R²):</strong> <span style="font-family: monospace;">${regressionSummary.rSquared.toFixed(4)}</span> (${(regressionSummary.rSquared * 100).toFixed(2)}% kesesuaian model)</div>
       ${
         regressionSummary.expectedSlopeMeaning
-          ? `<div><strong>Interpretasi Fisik Kemiringan (Slope):</strong> ${regressionSummary.expectedSlopeMeaning}</div>`
+          ? `<div><strong>Interpretasi Fisik Parameter Kurva:</strong> ${regressionSummary.expectedSlopeMeaning}</div>`
+          : ''
+      }
+      ${
+        outlierSummary
+          ? `<div style="margin-top: 4px; color: #475569;"><strong>Analisis Residual Outlier:</strong> Terdeteksi ${outlierSummary.outlierCount} titik pencilan (R² mentah = ${outlierSummary.rSquaredRaw.toFixed(4)} → R² bersih = ${outlierSummary.rSquaredClean.toFixed(4)}).</div>`
           : ''
       }
     </div>
   `
-      : `<p style="font-size: 10pt; color: #64748b;">Analisis regresi linier dihitung secara otomatis saat data kuantitatif memenuhi syarat sebaran.</p>`
+      : `<p style="font-size: 10pt; color: #64748b;">Analisis regresi kurva dihitung secara otomatis saat data kuantitatif memenuhi syarat sebaran.</p>`
   }
 
-  <div class="section-title">VI. Pembahasan Hasil & Lembar Kerja</div>
+  ${
+    chartImageDataUrl
+      ? `
+    <div style="margin-top: 12px; text-align: center; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #0f172a;">
+      <img src="${chartImageDataUrl}" alt="Grafik Regresi & Sebaran Data Praktikum" style="max-width: 100%; height: auto; max-height: 240px; border-radius: 4px;" />
+      <div style="font-family: sans-serif; font-size: 9pt; color: #cbd5e1; margin-top: 6px;">
+        Gambar 1. Visualisasi kurva fitting dan pita deviasi standar dari rekaman eksperimen RuangLABmu.
+      </div>
+    </div>
+  `
+      : ''
+  }
+
+  ${
+    worksheetScore && worksheetScore.diagnosticItems && worksheetScore.diagnosticItems.length > 0
+      ? `
+  <div class="section-title">V-B. Evaluasi Diagnostik Lembar Kerja Siswa (LKS)</div>
+  <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 4px; font-size: 9.5pt;">
+    <div><strong>Skor Evaluasi LKS:</strong> ${worksheetScore.score}/100 (${worksheetScore.correctCount} dari ${worksheetScore.totalCount} soal tepat)</div>
+    <ul style="margin: 4px 0 0; padding-left: 18px;">
+      ${worksheetScore.diagnosticItems
+        .map((item) => `<li><strong>${item.title} [${item.badge}]:</strong> ${item.feedback}</li>`)
+        .join('')}
+    </ul>
+  </div>
+  `
+      : ''
+  }
+
+  <div class="section-title">VI. Pembahasan Hasil & Analisis Ralat</div>
   <p style="text-align: justify; margin-top: 4px;">
     ${
       discussionNotes ||
-      `Berdasarkan data ${records.length} variasi percobaan yang telah dilaksanakan, seluruh instrumen beroperasi dalam batas toleransi standar. Respon sistem menunjukkan kepatuhan terhadap hukum dasar fisika/kimia/biologi yang diuji dengan linearitas yang tinggi.`
+      `Berdasarkan data ${records.length} variasi percobaan yang telah dilaksanakan, seluruh instrumen beroperasi dalam batas toleransi standar dengan propagasi ketidakpastian yang tercatat. Respon sistem menunjukkan kepatuhan terhadap hukum dasar sains yang diuji.`
     }
   </p>
 
@@ -357,7 +461,6 @@ export function downloadAcademicReportFile(
     filename = `Laporan_Resmi_${data.experimentTitle.replace(/\s+/g, '_')}_${data.studentName.replace(/\s+/g, '_')}.html`;
     mimeType = 'text/html';
   } else {
-    // Markdown format
     content = `# LAPORAN RESMI PRAKTIKUM LABORATORIUM
 **RuangLABmu · Virtual Science Computing & Data Analytics**
 
@@ -366,6 +469,7 @@ export function downloadAcademicReportFile(
 - **Praktikan**: ${data.studentName}
 - **Kelompok**: ${data.groupId}
 - **Tanggal/Waktu**: ${data.dateStr} ${data.timeStr} WIB
+- **Status Evaluasi LKS**: ${data.worksheetScore ? `${data.worksheetScore.score}/100 (${data.worksheetScore.correctCount}/${data.worksheetScore.totalCount})` : 'Terverifikasi'}
 
 ---
 
@@ -377,6 +481,16 @@ ${data.module?.theorySummary || ''}
 
 ### Persamaan Kunci
 ${(data.module?.keyEquations || []).map((eq) => `- \`${eq}\``).join('\n')}
+
+${
+  data.hypothesisSummary?.hypothesisText
+    ? `### Hipotesis & Variabel
+- **Variabel Bebas (X)**: ${data.hypothesisSummary.independentVar || '-'}
+- **Variabel Terikat (Y)**: ${data.hypothesisSummary.dependentVar || '-'}
+- **Hipotesis Awal**: ${data.hypothesisSummary.hypothesisText}
+- **Refleksi**: ${data.hypothesisSummary.reflectionText || '-'}\n`
+    : ''
+}
 
 ## III. Alat, Bahan & K3
 **Alat & Bahan:**
@@ -397,17 +511,20 @@ ${data.records
   )
   .join('\n')}
 
-## V. Analisis Data & Regresi Linier
+## V. Analisis Fitting Kurva & Deteksi Outlier
 ${
   data.regressionSummary
-    ? `- **Garis Regresi**: y = ${data.regressionSummary.slope.toFixed(4)}x + ${data.regressionSummary.intercept.toFixed(4)}
+    ? `- **Model Fitting**: ${data.regressionSummary.modelLabel || 'Regresi Linier OLS'}
+- **Persamaan**: ${data.regressionSummary.equationString || `y = ${data.regressionSummary.slope.toFixed(4)}x + ${data.regressionSummary.intercept.toFixed(4)}`}
 - **R²**: ${data.regressionSummary.rSquared.toFixed(4)}
-- **Makna Gradien**: ${data.regressionSummary.expectedSlopeMeaning || '-'}`
+- **Makna Parameter**: ${data.regressionSummary.expectedSlopeMeaning || '-'}`
     : 'Data belum dihitung regresi.'
 }
 
 ## VI. Pembahasan & Kesimpulan
-Praktikum ${data.experimentTitle} telah terlaksana secara komputasional dengan validitas instrumen terkalibrasi.
+${data.discussionNotes || `Praktikum ${data.experimentTitle} telah terlaksana secara komputasional dengan validitas instrumen terkalibrasi.`}
+
+${data.conclusionNotes || ''}
 `;
     filename = `Laporan_Resmi_${data.experimentTitle.replace(/\s+/g, '_')}_${data.studentName.replace(/\s+/g, '_')}.md`;
     mimeType = 'text/markdown';

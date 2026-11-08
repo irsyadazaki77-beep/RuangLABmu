@@ -82,10 +82,24 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
   const [selectedChallengeId, setSelectedChallengeId] = useState<string>(
     PRESET_MYSTERY_CHALLENGES[0].id
   );
+  const [challengeBuilderMode, setChallengeBuilderMode] = useState<
+    'preset' | 'custom'
+  >('preset');
+  const [customDomain, setCustomDomain] = useState<'Fisika' | 'Kimia' | 'Astronomi'>('Kimia');
+  const [customCodename, setCustomCodename] = useState<string>('SAMPEL-KUSTOM-09');
+  const [customTitle, setCustomTitle] = useState<string>('Uji Konsentrasi Larutan Asam X');
+  const [customParamLabel, setCustomParamLabel] = useState<string>('Molaritas Asam (M_a)');
+  const [customSecretValue, setCustomSecretValue] = useState<string>('0.32');
+  const [customUnit, setCustomUnit] = useState<string>('M');
+  const [customTolerancePct, setCustomTolerancePct] = useState<string>('5');
+  const [customStory, setCustomStory] = useState<string>(
+    'Lakukan titrasi sampel larutan asam tak dikenal ini menggunakan NaOH standar hingga mencapai titik ekuivalen, lalu hitung konsentrasi molarnya!'
+  );
 
   // Quick note modal state for Telemetry Radar cards
   const [quickNoteStudent, setQuickNoteStudent] = useState<StudentRadarCard | null>(null);
   const [quickNoteText, setQuickNoteText] = useState<string>('');
+  const [teacherTab, setTeacherTab] = useState<'radar' | 'rubrik' | 'ujian-misteri'>('radar');
 
   const radarLanes = useMemo(() => {
     return buildRadarLanes(students, groupFilter);
@@ -241,29 +255,104 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             </span>
           </div>
           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Deteksi otomatis saat percobaan belum konvergen
+            Deteksi otomatis saat R² &lt; 0.80 atau tertahan &gt; 8 menit
           </div>
         </div>
       </div>
 
-      {/* TAMPILAN BARU: RADAR PROGRES KELAS REAL-TIME (4 TAHAP PRAKTIKUM) */}
+      {/* Ringkasan Ergonomi Belajar & Perancah Kognitif (Scaffolding) Kelas */}
+      <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-0.5">
+          <div className="text-[11px] font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold">
+            Telemetri Ergonomi Kognitif & Scaffolding Belajar
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-300">
+            Siswa difasilitasi dengan Buku Catatan Hipotesis Terstruktur, Komparator Diff 2 Percobaan, dan Petunjuk Bertahap (3-Tier Hints) untuk mereduksi beban kognitif.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-xs font-mono shrink-0">
+          <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold tabular-nums">
+            ● Konvergen (R² ≥ 0.80): {students.filter((s) => (s.rSquared ?? 0.95) >= 0.8).length}/{students.length} Siswa
+          </span>
+          <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-semibold tabular-nums">
+            ▲ Intervensi Terdeteksi: {studentsNeedingHelp} Siswa
+          </span>
+        </div>
+      </div>
+
+      {/* Focused 3-Tab Switcher for Teacher Dashboard */}
+      <div
+        role="tablist"
+        aria-label="Navigasi Dashboard Pengajar"
+        className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={teacherTab === 'radar'}
+          onClick={() => {
+            labSound.playClick();
+            setTeacherTab('radar');
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
+            teacherTab === 'radar'
+              ? 'bg-sky-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Compass className="w-4 h-4 shrink-0" />
+          <span>1. Radar Progres Kelas (4 Tahap)</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={teacherTab === 'rubrik'}
+          onClick={() => {
+            labSound.playClick();
+            setTeacherTab('rubrik');
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
+            teacherTab === 'rubrik'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <FileCheck2 className="w-4 h-4 shrink-0" />
+          <span>2. Tabel Aktivitas &amp; Rubrik Nilai</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={teacherTab === 'ujian-misteri'}
+          onClick={() => {
+            labSound.playClick();
+            setTeacherTab('ujian-misteri');
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
+            teacherTab === 'ujian-misteri'
+              ? 'bg-amber-500 text-slate-950 shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Radio className="w-4 h-4 shrink-0" />
+          <span>3. Ujian Sampel Misterius &amp; Broadcast Arahan</span>
+        </button>
+      </div>
+
+      {/* TAB 1: RADAR PROGRES KELAS REAL-TIME (4 TAHAP PRAKTIKUM) */}
+      {teacherTab === 'radar' && (
       <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-sky-500" />
-              </span>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Radar Progres Kelas Real-Time
+                Radar Progres Kelas Real-Time (4 Tahap Praktikum)
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
-                LIVE TELEMETRI
-              </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Distribusi siswa sepanjang 4 tahap alur terstruktur · Deteksi anomali (R² &lt; 0.80 atau tertahan &gt; 8 menit)
+              Distribusi siswa sepanjang 4 tahap alur terstruktur · Deteksi otomatis saat R² &lt; 0.80 atau tertahan &gt; 8 menit
             </p>
           </div>
 
@@ -327,7 +416,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                       {lane.students.length}
                     </span>
                     {lane.needsHelpCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-500 font-bold border border-amber-500/30 flex items-center gap-0.5 animate-pulse">
+                      <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/30 flex items-center gap-0.5">
                         <AlertCircle className="w-2.5 h-2.5" />
                         {lane.needsHelpCount}
                       </span>
@@ -404,10 +493,10 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
 
                           {/* Status Flag */}
                           {stu.needsHelp ? (
-                            <div className="p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-300 flex items-start gap-1.5 text-[10px] leading-tight font-medium">
-                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5 animate-bounce" />
+                            <div className="p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 flex items-start gap-1.5 text-[10px] leading-tight font-medium">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                               <div>
-                                <span className="font-bold">Butuh Bantuan:</span>{' '}
+                                <span className="font-bold">▲ Butuh Bantuan:</span>{' '}
                                 <span>{stu.helpReason}</span>
                               </div>
                             </div>
@@ -442,6 +531,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
           })}
         </div>
       </div>
+      )}
 
       {/* QUICK INSTRUCTOR NOTE MODAL */}
       {quickNoteStudent && (
@@ -551,343 +641,182 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
         </div>
       )}
 
-      {/* Main Split: Student Roster & Live Telemetry (8 cols) + Instructor Broadcast Feedback (4 cols) */}
+      {/* TAB 2 & TAB 3 CONTENT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-8 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-            <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-                Pemantauan Aktivitas & Progres Siswa Secara Langsung
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Memantau parameter yang sedang diuji, jumlah rekaman data, dan penyelesaian tugas tiap siswa
-              </p>
-            </div>
-
-            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg border border-slate-200/70 dark:border-slate-700">
-              {groups.map((grp) => (
-                <button
-                  key={grp}
-                  type="button"
-                  onClick={() => {
-                    labSound.playClick();
-                    setGroupFilter(grp);
-                  }}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                    groupFilter === grp
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  {grp === 'Semua' ? 'Semua Kelompok' : grp.split(' — ')[0]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  <th className="py-2.5 pr-3">Nama Siswa & Kelompok</th>
-                  <th className="py-2.5 px-3">Aktivitas Eksperimen Saat Ini</th>
-                  <th className="py-2.5 px-3">Data & Tugas</th>
-                  <th className="py-2.5 px-3">Progres</th>
-                  <th className="py-2.5 pl-3">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                {visibleStudents.map((stu) => (
-                  <tr
-                    key={stu.id}
-                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
-                  >
-                    <td className="py-3.5 pr-3 align-middle">
-                      <div className="font-semibold text-slate-900 dark:text-white">
-                        {stu.name}
-                      </div>
-                      <div className="text-slate-500 dark:text-slate-400 mt-0.5">
-                        {stu.groupId} · {stu.lastActive}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-3 align-middle">
-                      <div className="text-slate-900 dark:text-white font-medium">
-                        {stu.currentActivity}
-                      </div>
-                      <div className="text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                        Modul: Praktikum {stu.activeDomain}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-3 align-middle font-mono tabular-nums text-slate-700 dark:text-slate-300">
-                      <div>{stu.trialsRecorded} Percobaan</div>
-                      <div className="text-slate-500 dark:text-slate-400">
-                        {stu.tasksCompleted}/{stu.totalTasks} Tugas
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-3 align-middle w-36">
-                      <div className="flex items-center justify-between font-mono tabular-nums mb-1">
-                        <span className="font-semibold text-slate-900 dark:text-white">
-                          {stu.completionPct}%
-                        </span>
-                      </div>
-                      <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${
-                            stu.completionPct >= 80
-                              ? 'bg-emerald-600 dark:bg-emerald-500'
-                              : stu.completionPct >= 50
-                              ? 'bg-sky-600 dark:bg-sky-500'
-                              : 'bg-amber-500'
-                          }`}
-                          style={{ width: `${stu.completionPct}%` }}
-                        />
-                      </div>
-                    </td>
-                    <td className="py-3.5 pl-3 align-middle font-mono whitespace-nowrap">
-                      {stu.status === 'Selesai' && (
-                        <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
-                          ● Selesai
-                        </span>
-                      )}
-                      {stu.status === 'Nominal' && (
-                        <span className="text-sky-700 dark:text-sky-400 font-semibold">
-                          ● Aktif
-                        </span>
-                      )}
-                      {stu.status === 'Butuh Bantuan' && (
-                        <span className="text-amber-700 dark:text-amber-400 font-semibold">
-                          ▲ Butuh Arahan
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Right Column: Instructor Direct Feedback & Guidance Console (4 cols) */}
-        <div className="lg:col-span-4 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-              Kirim Umpan Balik & Instruksi Pengajar
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Pesan akan muncul sebagai notifikasi instan di layar siswa serta tercatat di ruang diskusi kelompok
-            </p>
-          </div>
-
-          <form onSubmit={handleBroadcastSubmit} className="space-y-4">
-            <div>
-              <label
-                htmlFor="teacher-target-select"
-                className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1"
-              >
-                Penerima Arahan
-              </label>
-              <select
-                id="teacher-target-select"
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
-              >
-                <option value="all">
-                  Seluruh Kelompok Praktikum (Broadcast)
-                </option>
-                {students.map((stu) => (
-                  <option key={stu.id} value={stu.id}>
-                    {stu.name} ({stu.groupId} — {stu.status})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label
-                htmlFor="teacher-feedback-textarea"
-                className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1"
-              >
-                Isi Umpan Balik / Petunjuk Eksperimen
-              </label>
-              <textarea
-                id="teacher-feedback-textarea"
-                rows={4}
-                value={feedbackMessage}
-                onChange={(e) => {
-                  setFeedbackMessage(e.target.value);
-                  if (feedbackError) setFeedbackError('');
-                }}
-                placeholder="Contoh: Untuk Dimas (Kelompok 2), naikkan suhu kalorimeter di atas 85°C agar dekomposisi CaCO₃ mencapai ΔG < 0..."
-                className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
-              />
-              {feedbackError && (
-                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium mt-1">
-                  {feedbackError}
+        {/* TAB 2: Live Student Activity Table + Automated Rubric Matrix */}
+        {teacherTab === 'rubrik' && (
+        <div className="lg:col-span-12 space-y-6">
+          {/* 1. Student Live Activity Table */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                  Pemantauan Aktivitas & Progres Siswa Secara Langsung
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Memantau parameter yang sedang diuji, jumlah rekaman data, dan penyelesaian tugas tiap siswa
                 </p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                Template Umpan Balik Cepat:
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    labSound.playClick();
-                    setFeedbackMessage(
-                      'Perhatikan hubungan linier ΣF terhadap percepatan a. Pastikan minimal 3 variasi massa dicatat sebelum ekspor CSV.'
-                    );
-                  }}
-                  className="px-2.5 py-1 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded transition-colors"
-                >
-                  Cek Kemiringan Grafik F = m·a
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    labSound.playClick();
-                    setFeedbackMessage(
-                      'Pada titrasi asam-basa, amati lonjakan tajam pH di sekitar titik ekuivalen 20.0 mL dan catat ke LKS.'
-                    );
-                  }}
-                  className="px-2.5 py-1 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded transition-colors"
-                >
-                  Petunjuk Titik Ekuivalen Titrasi
-                </button>
               </div>
             </div>
 
-            <button
-              type="submit"
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-md transition-colors whitespace-nowrap"
-            >
-              <Send className="w-4 h-4" />
-              Kirim Notifikasi Umpan Balik ke Siswa
-            </button>
-          </form>
-
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-200">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              Indikator Evaluasi Otomatis Aktif
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Sistem secara otomatis menilai kemajuan eksperimen, kualitas regresi data, penyelesaian tugas kolaborasi, dan skor LKS setiap siswa.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* NEW: Mystery Challenge Broadcast & Exam Leaderboard Panel */}
-      <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-amber-300 dark:border-amber-500/30 rounded-xl p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 dark:border-amber-500/20 pb-3">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <Radio className="w-4 h-4 text-amber-500 animate-pulse" />
-              Siaran Ujian Sampel Misterius (Mystery Challenge Engine)
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Guru dapat menyiarkan sampel tak dikenal ke semua siswa. Nilai parameter disamarkan menjadi &quot;???&quot; di lab siswa hingga mereka melakukan analisis dan mengirimkan perkiraan.
-            </p>
-          </div>
-
-          {activeMysteryChallenge && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono">
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-              <span>SEDANG AKTIF: {activeMysteryChallenge.codename} ({activeMysteryChallenge.domain})</span>
-            </div>
-          )}
-        </div>
-
-        {/* Challenge Selection & Broadcast Action */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-          <div className="md:col-span-8 space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-              Pilih Paket Tantangan Ujian Misterius:
-            </label>
-            <select
-              value={selectedChallengeId}
-              onChange={(e) => setSelectedChallengeId(e.target.value)}
-              className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-            >
-              {PRESET_MYSTERY_CHALLENGES.map((ch) => (
-                <option key={ch.id} value={ch.id}>
-                  [{ch.domain.toUpperCase()}] {ch.codename}: {ch.title} ({ch.difficulty} — Parameter: {ch.hiddenParamLabel})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="md:col-span-4">
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playRecordSuccess();
-                const ch = PRESET_MYSTERY_CHALLENGES.find((c) => c.id === selectedChallengeId);
-                if (ch && onBroadcastMysteryChallenge) {
-                  onBroadcastMysteryChallenge(ch);
-                }
-              }}
-              className="w-full py-2.5 px-4 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
-            >
-              <Radio className="w-4 h-4" />
-              Siarkan Tantangan ke Semua Siswa
-            </button>
-          </div>
-        </div>
-
-        {/* Live Mystery Submissions Table */}
-        <div className="space-y-2 pt-2">
-          <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-            Hasil Jawaban Siswa Pada Ujian Misterius ({mysterySubmissions.length} Dikirim)
-          </h3>
-
-          {mysterySubmissions.length === 0 ? (
-            <div className="text-center py-6 text-xs text-slate-400 dark:text-slate-500 italic bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
-              Belum ada siswa yang mengirimkan estimasi ujian misterius. Siarkan tantangan di atas untuk memulai sesi evaluasi sampel.
-            </div>
-          ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                    <th className="py-2 pr-3">Sampel</th>
-                    <th className="py-2 px-3 text-right">Tebakan Siswa</th>
-                    <th className="py-2 px-3 text-right">Nilai Asli</th>
-                    <th className="py-2 px-3 text-right">Galat (%)</th>
-                    <th className="py-2 px-3 text-right">Skor</th>
-                    <th className="py-2 pl-3">Predikat</th>
+                    <th className="py-2.5 pr-3">Nama Siswa & Kelompok</th>
+                    <th className="py-2.5 px-3">Aktivitas Eksperimen Saat Ini</th>
+                    <th className="py-2.5 px-3">Data & Tugas</th>
+                    <th className="py-2.5 px-3">Progres</th>
+                    <th className="py-2.5 pl-3">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-mono">
-                  {mysterySubmissions.map((sub, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                      <td className="py-2.5 pr-3 font-sans font-semibold text-slate-900 dark:text-white">
-                        {sub.codename}
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                  {visibleStudents.map((stu) => (
+                    <tr
+                      key={stu.id}
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <td className="py-3 pr-3 align-middle">
+                        <div className="font-semibold text-slate-900 dark:text-white">
+                          {stu.name}
+                        </div>
+                        <div className="text-slate-500 dark:text-slate-400 mt-0.5">
+                          {stu.groupId} · {stu.lastActive}
+                        </div>
                       </td>
-                      <td className="py-2.5 px-3 text-right text-slate-700 dark:text-slate-300">
-                        {sub.studentGuess}
+                      <td className="py-3 px-3 align-middle">
+                        <div className="text-slate-900 dark:text-white font-medium">
+                          {stu.currentActivity}
+                        </div>
+                        <div className="text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                          Modul: Praktikum {stu.activeDomain}
+                        </div>
                       </td>
-                      <td className="py-2.5 px-3 text-right text-slate-500">
-                        {sub.actualValue}
+                      <td className="py-3 px-3 align-middle font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                        <div>{stu.trialsRecorded} Percobaan</div>
+                        <div className="text-slate-500 dark:text-slate-400">
+                          {stu.tasksCompleted}/{stu.totalTasks} Tugas
+                        </div>
                       </td>
-                      <td className="py-2.5 px-3 text-right text-amber-500 font-bold">
-                        {sub.errorPercentage}%
+                      <td className="py-3 px-3 align-middle w-32">
+                        <div className="flex items-center justify-between font-mono tabular-nums mb-1">
+                          <span className="font-semibold text-slate-900 dark:text-white">
+                            {stu.completionPct}%
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              stu.completionPct >= 80
+                                ? 'bg-emerald-600 dark:bg-emerald-500'
+                                : stu.completionPct >= 50
+                                ? 'bg-sky-600 dark:bg-sky-500'
+                                : 'bg-amber-500'
+                            }`}
+                            style={{ width: `${stu.completionPct}%` }}
+                          />
+                        </div>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-slate-900 dark:text-white">
-                        {sub.score}/100
+                      <td className="py-3 pl-3 align-middle font-mono whitespace-nowrap">
+                        {stu.status === 'Selesai' && (
+                          <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                            Selesai
+                          </span>
+                        )}
+                        {stu.status === 'Nominal' && (
+                          <span className="text-sky-700 dark:text-sky-400 font-semibold">
+                            Aktif
+                          </span>
+                        )}
+                        {stu.status === 'Butuh Bantuan' && (
+                          <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                            ▲ Butuh Arahan
+                          </span>
+                        )}
                       </td>
-                      <td className="py-2.5 pl-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          sub.passed
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                        }`}>
-                          {sub.verdict}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 2. Automated Rubric Grading Matrix & Class CSV Export */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <FileCheck2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Matriks Rubrik Penilaian Otomatis & Rekap Nilai Kelas</span>
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Eksperimen (25%) · Analisis Regresi (25%) · Tugas Kolaborasi (25%) · Skor LKS/Kuis (25%)
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleExportClassGradesCSV}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Ekspor Nilai Kelas (CSV)</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    <th className="py-2.5 pr-3">Nama Siswa & Kelompok</th>
+                    <th className="py-2.5 px-3 text-right">Eksperimen (25%)</th>
+                    <th className="py-2.5 px-3 text-right">Regresi Data (25%)</th>
+                    <th className="py-2.5 px-3 text-right">Kolaborasi (25%)</th>
+                    <th className="py-2.5 px-3 text-right">Skor LKS (25%)</th>
+                    <th className="py-2.5 px-3 text-right">Nilai Akhir</th>
+                    <th className="py-2.5 pl-3">Predikat Rubrik</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-mono tabular-nums">
+                  {rubricRows.map((row) => (
+                    <tr
+                      key={row.studentId}
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <td className="py-3 pr-3 font-sans">
+                        <div className="font-semibold text-slate-900 dark:text-white">
+                          {row.studentName}
+                        </div>
+                        <div className="text-slate-500 dark:text-slate-400">
+                          {row.groupId}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
+                        {row.experimentScore}
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
+                        {row.regressionAnalysisScore}
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
+                        {row.collaborationScore}
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
+                        {row.worksheetQuizScore}
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-slate-900 dark:text-white text-sm">
+                        {row.finalTotalScore}
+                      </td>
+                      <td className="py-3 pl-3 whitespace-nowrap">
+                        <span
+                          className={`font-semibold ${
+                            row.letterGrade === 'A'
+                              ? 'text-emerald-700 dark:text-emerald-400'
+                              : row.letterGrade === 'B'
+                              ? 'text-sky-700 dark:text-sky-400'
+                              : 'text-amber-700 dark:text-amber-400'
+                          }`}
+                        >
+                          Grade {row.letterGrade} · {row.predicate}
                         </span>
                       </td>
                     </tr>
@@ -895,93 +824,387 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+        )}
 
-      {/* Automated Rubric Grading Matrix & Class CSV Export */}
-      <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <FileCheck2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              Matriks Rubrik Penilaian Otomatis & Rekap Nilai Kelas
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Kalkulasi objektif berbasis bukti aktivitas: Eksperimen (25%) · Analisis Regresi (25%) · Tugas Kolaborasi (25%) · Skor LKS/Kuis (25%)
-            </p>
+        {/* TAB 3: Mystery Challenge Broadcast + Instructor Direct Feedback Console */}
+        {teacherTab === 'ujian-misteri' && (
+        <div className="lg:col-span-12 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          {/* 1. Mystery Challenge Broadcast & Submissions */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+            <div className="border-b border-slate-100 dark:border-slate-800 pb-3 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-amber-500" />
+                  <span>Siaran Ujian Sampel Misterius</span>
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Siarkan sampel tak dikenal ke seluruh siswa untuk diuji secara kuantitatif.
+              </p>
+              {activeMysteryChallenge && (
+                <div className="pt-1 text-xs font-mono font-semibold text-amber-600 dark:text-amber-400">
+                  Aktif: {activeMysteryChallenge.codename} ({activeMysteryChallenge.domain})
+                </div>
+              )}
+            </div>
+
+            {/* Mode Switcher: Preset vs Custom Builder */}
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setChallengeBuilderMode('preset');
+                }}
+                className={`py-1.5 px-2 rounded-lg font-semibold transition-colors cursor-pointer ${
+                  challengeBuilderMode === 'preset'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                Paket Preset ({PRESET_MYSTERY_CHALLENGES.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setChallengeBuilderMode('custom');
+                }}
+                className={`py-1.5 px-2 rounded-lg font-semibold transition-colors cursor-pointer ${
+                  challengeBuilderMode === 'custom'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                + Racik Sampel Kustom
+              </button>
+            </div>
+
+            {challengeBuilderMode === 'preset' ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300 block mb-1">
+                    Pilih Paket Tantangan:
+                  </label>
+                  <select
+                    value={selectedChallengeId}
+                    onChange={(e) => setSelectedChallengeId(e.target.value)}
+                    className="w-full text-xs font-mono bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    {PRESET_MYSTERY_CHALLENGES.map((ch) => (
+                      <option key={ch.id} value={ch.id}>
+                        [{ch.domain.toUpperCase()}] {ch.codename}: {ch.title} ({ch.hiddenParamLabel})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playRecordSuccess();
+                    const ch = PRESET_MYSTERY_CHALLENGES.find(
+                      (c) => c.id === selectedChallengeId
+                    );
+                    if (ch && onBroadcastMysteryChallenge) {
+                      onBroadcastMysteryChallenge(ch);
+                    }
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Radio className="w-4 h-4" />
+                  <span>Siarkan Tantangan ke Kelas</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2.5 text-xs">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+                      Domain Lab
+                    </label>
+                    <select
+                      value={customDomain}
+                      onChange={(e) =>
+                        setCustomDomain(
+                          e.target.value as 'Fisika' | 'Kimia' | 'Astronomi'
+                        )
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs"
+                    >
+                      <option value="Fisika">Fisika</option>
+                      <option value="Kimia">Kimia</option>
+                      <option value="Astronomi">Astronomi</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+                      Kode Sampel
+                    </label>
+                    <input
+                      type="text"
+                      value={customCodename}
+                      onChange={(e) => setCustomCodename(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 font-mono text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+                    Judul Ujian Sampel
+                  </label>
+                  <input
+                    type="text"
+                    value={customTitle}
+                    onChange={(e) => setCustomTitle(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 font-mono">
+                  <div>
+                    <label className="block text-[10px] text-slate-600 dark:text-slate-400 mb-0.5">
+                      Nilai Rahasia
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={customSecretValue}
+                      onChange={(e) => setCustomSecretValue(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs tabular-nums"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-600 dark:text-slate-400 mb-0.5">
+                      Satuan
+                    </label>
+                    <input
+                      type="text"
+                      value={customUnit}
+                      onChange={(e) => setCustomUnit(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-600 dark:text-slate-400 mb-0.5">
+                      Toleransi (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={customTolerancePct}
+                      onChange={(e) => setCustomTolerancePct(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs tabular-nums"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+                    Instruksi Kasus untuk Siswa
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={customStory}
+                    onChange={(e) => setCustomStory(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const secretNum = parseFloat(customSecretValue);
+                    if (Number.isNaN(secretNum)) return;
+                    labSound.playRecordSuccess();
+                    const customChallenge: MysterySampleChallenge = {
+                      id: `custom-${Date.now()}`,
+                      codename: customCodename.trim() || 'SAMPEL-KUSTOM',
+                      domain: customDomain,
+                      moduleId:
+                        customDomain === 'Fisika'
+                          ? 'spring-hooke'
+                          : customDomain === 'Kimia'
+                          ? 'acid-base-titration'
+                          : 'solar-kepler',
+                      difficulty: 'Sedang',
+                      title: customTitle.trim() || 'Ujian Sampel Kustom',
+                      storyDescription: customStory.trim(),
+                      hiddenParamKey: 'customTarget',
+                      hiddenParamLabel: customParamLabel.trim() || 'Parameter Target',
+                      hiddenParamUnit: customUnit.trim() || 'satuan',
+                      actualHiddenValue: secretNum,
+                      acceptableTolerancePct: Math.max(1, parseFloat(customTolerancePct) || 5),
+                      clues: [
+                        'Lakukan minimal 3 variasi pengukuran dan catat pada tabel pengamatan.',
+                        'Gunakan grafik regresi dan kalkulator ketidakpastian untuk mengestimasi parameter tersembunyi.',
+                      ],
+                      suggestedProcedure: [
+                        '1. Atur parameter variabel bebas secara bertahap.',
+                        '2. Catat hasil pengukuran di setiap variasi.',
+                        '3. Hitung nilai parameter dari gradien atau persamaan modul.',
+                      ],
+                      formulaHint: 'Gunakan regresi dan persamaan modul terkait',
+                      explanationSolution: `Nilai parameter sebenarnya adalah ${secretNum} ${customUnit.trim() || 'satuan'}.`,
+                    };
+                    if (onBroadcastMysteryChallenge) {
+                      onBroadcastMysteryChallenge(customChallenge);
+                    }
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Radio className="w-4 h-4" />
+                  <span>Siarkan Sampel Kustom ke Kelas</span>
+                </button>
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <div className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Hasil Jawaban Siswa ({mysterySubmissions.length} Dikirim)
+              </div>
+              {mysterySubmissions.length === 0 ? (
+                <div className="p-3 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                  Belum ada kiriman estimasi ujian misterius dari siswa.
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 font-mono text-xs">
+                  {mysterySubmissions.map((sub, idx) => (
+                    <div
+                      key={idx}
+                      className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2"
+                    >
+                      <div>
+                        <div className="font-sans font-semibold text-slate-900 dark:text-white">
+                          {sub.codename} · Tebakan: {sub.studentGuess}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Asli: {sub.actualValue} · Galat: {sub.errorPercentage}%
+                        </div>
+                      </div>
+                      <span
+                        className={`font-bold ${
+                          sub.passed
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-rose-600 dark:text-rose-400'
+                        }`}
+                      >
+                        {sub.score}/100
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleExportClassGradesCSV}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors whitespace-nowrap shrink-0"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Ekspor Nilai Kelas (CSV)
-          </button>
-        </div>
+          {/* 2. Instructor Direct Feedback & Guidance Console */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+            <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Kirim Umpan Balik & Instruksi Pengajar
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Pesan tampil di laci notifikasi siswa serta tercatat di diskusi kelompok
+              </p>
+            </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                <th className="py-2.5 pr-3">Nama Siswa & Kelompok</th>
-                <th className="py-2.5 px-3 text-right">Eksperimen (25%)</th>
-                <th className="py-2.5 px-3 text-right">Regresi Data (25%)</th>
-                <th className="py-2.5 px-3 text-right">Kolaborasi (25%)</th>
-                <th className="py-2.5 px-3 text-right">Skor LKS (25%)</th>
-                <th className="py-2.5 px-3 text-right">Nilai Akhir</th>
-                <th className="py-2.5 pl-3">Predikat Rubrik</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-mono tabular-nums">
-              {rubricRows.map((row) => (
-                <tr
-                  key={row.studentId}
-                  className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
+            <form onSubmit={handleBroadcastSubmit} className="space-y-3.5">
+              <div>
+                <label
+                  htmlFor="teacher-target-select"
+                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1"
                 >
-                  <td className="py-3 pr-3 font-sans">
-                    <div className="font-semibold text-slate-900 dark:text-white">
-                      {row.studentName}
-                    </div>
-                    <div className="text-slate-500 dark:text-slate-400">
-                      {row.groupId}
-                    </div>
-                  </td>
-                  <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
-                    {row.experimentScore}
-                  </td>
-                  <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
-                    {row.regressionAnalysisScore}
-                  </td>
-                  <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
-                    {row.collaborationScore}
-                  </td>
-                  <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
-                    {row.worksheetQuizScore}
-                  </td>
-                  <td className="py-3 px-3 text-right font-bold text-slate-900 dark:text-white text-sm">
-                    {row.finalTotalScore}
-                  </td>
-                  <td className="py-3 pl-3 whitespace-nowrap">
-                    <span
-                      className={`font-semibold ${
-                        row.letterGrade === 'A'
-                          ? 'text-emerald-700 dark:text-emerald-400'
-                          : row.letterGrade === 'B'
-                          ? 'text-sky-700 dark:text-sky-400'
-                          : 'text-amber-700 dark:text-amber-400'
-                      }`}
-                    >
-                      Grade {row.letterGrade} · {row.predicate}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  Penerima Arahan
+                </label>
+                <select
+                  id="teacher-target-select"
+                  value={selectedStudentId}
+                  onChange={(e) => setSelectedStudentId(e.target.value)}
+                  className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
+                >
+                  <option value="all">
+                    Seluruh Kelompok Praktikum (Broadcast)
+                  </option>
+                  {students.map((stu) => (
+                    <option key={stu.id} value={stu.id}>
+                      {stu.name} ({stu.groupId} — {stu.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="teacher-feedback-textarea"
+                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1"
+                >
+                  Isi Umpan Balik / Petunjuk Eksperimen
+                </label>
+                <textarea
+                  id="teacher-feedback-textarea"
+                  rows={3}
+                  value={feedbackMessage}
+                  onChange={(e) => {
+                    setFeedbackMessage(e.target.value);
+                    if (feedbackError) setFeedbackError('');
+                  }}
+                  placeholder="Contoh: Untuk Dimas (Kelompok 2), naikkan suhu kalorimeter di atas 85°C agar dekomposisi CaCO₃ mencapai ΔG < 0..."
+                  className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
+                />
+                {feedbackError && (
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-medium mt-1">
+                    {feedbackError}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  Template Cepat:
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      setFeedbackMessage(
+                        'Perhatikan hubungan linier ΣF terhadap percepatan a. Pastikan minimal 3 variasi massa dicatat sebelum ekspor CSV.'
+                      );
+                    }}
+                    className="px-2.5 py-1 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Cek Kemiringan Grafik F = m·a
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      setFeedbackMessage(
+                        'Pada titrasi asam-basa, amati lonjakan tajam pH di sekitar titik ekuivalen 20.0 mL dan catat ke LKS.'
+                      );
+                    }}
+                    className="px-2.5 py-1 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Petunjuk Titik Ekuivalen Titrasi
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded-xl transition-colors whitespace-nowrap cursor-pointer"
+              >
+                <Send className="w-4 h-4" />
+                <span>Kirim Notifikasi Umpan Balik ke Siswa</span>
+              </button>
+            </form>
+          </div>
         </div>
+        )}
       </div>
     </div>
   );

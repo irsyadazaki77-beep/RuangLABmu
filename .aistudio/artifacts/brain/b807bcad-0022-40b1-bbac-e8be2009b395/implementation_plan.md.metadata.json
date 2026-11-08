@@ -1,6 +1,6 @@
 {
-  "summary": "Rencana penataan ulang alur website RuangLABmu menjadi alur praktikum bertahap (1. Katalog & Pre-Lab K3 -> 2. Simulasi 3D & Rekam Data -> 3. Analisis Grafik & LKS -> 4. Laporan & Evaluasi), pemisahan jelas antara Mode Siswa dan Mode Pengajar, penghapusan duplikasi panel Grafik/LKS, penyatuan panel kontrol 3D agar kanvas lebih lega, serta penyederhanaan tombol mengambang asisten Dr.LabMu.",
-  "updatedAt": "2026-11-07T00:42:10.542704857Z",
-  "requestFeedback": true,
-  "userFacing": true
+  "summary":  "Rencana penataan ulang UI/UX menyeluruh RuangLABmu (SimuLab) dengan pengungkapan bertahap (progressive disclosure), akordion lipat untuk instrumen lanjutan di kokpit 3D, navigasi bar atas yang bersih, panduan langkah demi langkah dengan tombol Lanjut kontekstual, serta penyederhanaan halaman Analisis LKS, Katalog Lobi, dan Dashboard Pengajar.",
+  "updatedAt":  "2026-11-08T10:39:14.930251202Z",
+  "requestFeedback":  true,
+  "userFacing":  true
 }

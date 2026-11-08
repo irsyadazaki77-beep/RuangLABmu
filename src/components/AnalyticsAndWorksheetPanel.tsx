@@ -9,17 +9,33 @@ import {
   Calculator,
   FileText,
   Sparkles,
+  Lightbulb,
+  ArrowLeftRight,
+  AlertTriangle,
+  Filter,
+  MessageSquareShare,
 } from 'lucide-react';
 import {
   DataPointMultiAxis,
   ExperimentRecord,
   WORKSHEET_QUESTIONS,
-  calculateLinearRegression,
+  CurveModelType,
+  calculateCurveFitting,
+  detectRegressionOutliers,
   gradeWorksheetAnswers,
 } from '../utils/scienceEngine';
 import { labSound } from '../utils/soundEngine';
-import { openPrintableAcademicReport } from '../utils/academicReportExporter';
-import { CircularGaugeMeter } from './ui/LabInstruments';
+import {
+  AcademicReportData,
+  openPrintableAcademicReport,
+} from '../utils/academicReportExporter';
+import { AcademicReportPreviewModal } from './ui/AcademicReportPreviewModal';
+import { CircularGaugeMeter, CollapsibleLabSection } from './ui/LabInstruments';
+import {
+  HypothesisNote,
+  HypothesisScratchpadCard,
+  ExperimentTrialComparePanel,
+} from './ui/HypothesisAndCompareDock';
 
 interface AnalyticsAndWorksheetPanelProps {
   records: ExperimentRecord[];
@@ -29,6 +45,9 @@ interface AnalyticsAndWorksheetPanelProps {
   onExportChartNotification: (format: 'PNG' | 'PDF') => void;
   onProceedToReport?: () => void;
   onBackToLab?: () => void;
+  hypothesisNote?: HypothesisNote;
+  onChangeHypothesisNote?: (next: HypothesisNote) => void;
+  onAskDrLabMu?: (prompt: string) => void;
 }
 
 const PRESET_DATASETS: Record<
@@ -105,14 +124,38 @@ export const AnalyticsAndWorksheetPanel: React.FC<
   onExportChartNotification,
   onProceedToReport,
   onBackToLab,
+  hypothesisNote,
+  onChangeHypothesisNote,
+  onAskDrLabMu,
 }) => {
   const [selectedDatasetKey, setSelectedDatasetKey] =
     useState<string>('newton-force-acc');
+  const [curveModel, setCurveModel] = useState<CurveModelType>('linear');
+  const [excludeOutliers, setExcludeOutliers] = useState<boolean>(false);
+  const [simulateOutlierAnomaly, setSimulateOutlierAnomaly] =
+    useState<boolean>(false);
+  const [showFormulaCalc, setShowFormulaCalc] = useState<boolean>(false);
+  const [calcValA, setCalcValA] = useState<string>('20.0');
+  const [calcDeltaA, setCalcDeltaA] = useState<string>('0.1');
+  const [calcValB, setCalcValB] = useState<string>('4.0');
+  const [calcDeltaB, setCalcDeltaB] = useState<string>('0.05');
+  const [calcOp, setCalcOp] = useState<'multiply' | 'divide' | 'add' | 'power2'>('divide');
+  const [reportModalData, setReportModalData] =
+    useState<AcademicReportData | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(
     null
   );
   const chartCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Auxiliary study docks in Step 3
+  const [showCompareDock, setShowCompareDock] = useState<boolean>(false);
+  const [showHypothesisDock, setShowHypothesisDock] = useState<boolean>(false);
+
+  // 3-Tier Scaffolded Hints State per LKS Question (0 = closed, 1 = Tier 1, 2 = Tier 2, 3 = Tier 3)
+  const [hintLevelByQuestion, setHintLevelByQuestion] = useState<
+    Record<string, number>
+  >({});
 
   // Worksheet & Quiz state
   const [answers, setAnswers] = useState<Record<string, string>>({
@@ -141,6 +184,15 @@ export const AnalyticsAndWorksheetPanel: React.FC<
     (answeredCount / WORKSHEET_QUESTIONS.length) * 100
   );
 
+  const handleAdvanceHint = (qId: string) => {
+    labSound.playClick();
+    setHintLevelByQuestion((prev) => {
+      const current = prev[qId] ?? 0;
+      const next = current >= 3 ? 0 : current + 1;
+      return { ...prev, [qId]: next };
+    });
+  };
+
   // Resolve active points (either preset or custom recorded points)
   const customRecordPoints: DataPointMultiAxis[] = records
     .filter((r) => r.numericX !== undefined && r.numericY1 !== undefined)
@@ -151,7 +203,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<
       y2: r.numericY2 ?? 0,
     }));
 
-  const activeConfig =
+  const baseConfig =
     selectedDatasetKey === 'custom-records' && customRecordPoints.length >= 2
       ? {
           title: 'Dataset Rekaman Tabel Log Eksperimen Siswa',
@@ -163,8 +215,44 @@ export const AnalyticsAndWorksheetPanel: React.FC<
       : PRESET_DATASETS[selectedDatasetKey] ||
         PRESET_DATASETS['newton-force-acc'];
 
-  const regression = calculateLinearRegression(
-    activeConfig.points.map((p) => ({ x: p.x, y: p.y1 }))
+  const rawPointsWithOptionalAnomaly: DataPointMultiAxis[] =
+    simulateOutlierAnomaly && baseConfig.points.length >= 3
+      ? baseConfig.points.map((p, idx) =>
+          idx === Math.floor(baseConfig.points.length / 2)
+            ? {
+                ...p,
+                label: `${p.label} (Anomali)`,
+                y1: Number((p.y1 * 1.65 + 4.2).toFixed(2)),
+              }
+            : p
+        )
+      : baseConfig.points;
+
+  const outlierAnalysis = detectRegressionOutliers(
+    rawPointsWithOptionalAnomaly.map((p) => ({
+      x: p.x,
+      y: p.y1,
+      label: p.label,
+    }))
+  );
+
+  const outlierIndices = new Set(outlierAnalysis.outliers.map((o) => o.index));
+
+  const filteredPointsForFit = excludeOutliers
+    ? rawPointsWithOptionalAnomaly.filter((_, idx) => !outlierIndices.has(idx))
+    : rawPointsWithOptionalAnomaly;
+
+  const activeConfig = {
+    ...baseConfig,
+    points: rawPointsWithOptionalAnomaly,
+  };
+
+  const regression = calculateCurveFitting(
+    (filteredPointsForFit.length >= 2
+      ? filteredPointsForFit
+      : rawPointsWithOptionalAnomaly
+    ).map((p) => ({ x: p.x, y: p.y1 })),
+    curveModel
   );
 
   // Handle interactive pointer hover over the canvas points
@@ -290,18 +378,22 @@ export const AnalyticsAndWorksheetPanel: React.FC<
       height - 12
     );
 
-    // 1. Draw OLS Linear Regression Line for Y1 (Dashed Emerald)
+    // 1. Draw Fitted Curve (Linear OLS, Quadratic Order-2, or Exponential) for Y1 (Dashed Emerald)
     if (regression.predictedPoints.length >= 2) {
-      const firstPred = regression.predictedPoints[0];
-      const lastPred =
-        regression.predictedPoints[regression.predictedPoints.length - 1];
       ctx.save();
       ctx.strokeStyle = '#10B981';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.2;
       ctx.setLineDash([6, 4]);
       ctx.beginPath();
-      ctx.moveTo(toScreenX(firstPred.x), toScreenY1(firstPred.yPred));
-      ctx.lineTo(toScreenX(lastPred.x), toScreenY1(lastPred.yPred));
+      const steps = 48;
+      for (let s = 0; s <= steps; s++) {
+        const xVal = minX + (s / steps) * (maxX - minX);
+        const yVal = regression.evaluateAt(xVal);
+        const sx = toScreenX(xVal);
+        const sy = toScreenY1(yVal);
+        if (s === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      }
       ctx.stroke();
       ctx.restore();
     }
@@ -353,12 +445,19 @@ export const AnalyticsAndWorksheetPanel: React.FC<
       ctx.arc(sx, sy2, hoverIdx === idx ? 6 : 4.5, 0, Math.PI * 2);
       ctx.fill();
 
-      // Y1 node
-      ctx.fillStyle = hoverIdx === idx ? '#10B981' : '#38BDF8';
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2;
+      // Y1 node (highlight outliers in rose/amber)
+      const isPtOutlier = outlierIndices.has(idx);
+      ctx.fillStyle = isPtOutlier
+        ? excludeOutliers
+          ? '#64748B'
+          : '#F43F5E'
+        : hoverIdx === idx
+        ? '#10B981'
+        : '#38BDF8';
+      ctx.strokeStyle = isPtOutlier ? '#FDE047' : '#FFFFFF';
+      ctx.lineWidth = isPtOutlier ? 2.5 : 2;
       ctx.beginPath();
-      ctx.arc(sx, sy1, hoverIdx === idx ? 7.5 : 6, 0, Math.PI * 2);
+      ctx.arc(sx, sy1, hoverIdx === idx || isPtOutlier ? 7.5 : 6, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
@@ -373,20 +472,20 @@ export const AnalyticsAndWorksheetPanel: React.FC<
     ctx.strokeStyle = '#334155';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(padLeft + 14, padTop + 10, 265, 52, 6);
+    ctx.roundRect(padLeft + 14, padTop + 10, 295, 52, 6);
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = '#10B981';
     ctx.font = '600 11px "IBM Plex Mono", monospace';
     ctx.fillText(
-      `REGRESI OLS: ${regression.equationString}`,
+      `${regression.modelLabel.toUpperCase()}: ${regression.equationString}`,
       padLeft + 24,
       padTop + 30
     );
     ctx.fillStyle = '#E2E8F0';
     ctx.fillText(
-      `Koefisien Determinasi R² = ${regression.rSquared.toFixed(4)}`,
+      `Koefisien Determinasi R² = ${regression.rSquared.toFixed(4)}${excludeOutliers ? ' (Outlier Difilter)' : ''}`,
       padLeft + 24,
       padTop + 48
     );
@@ -435,13 +534,26 @@ export const AnalyticsAndWorksheetPanel: React.FC<
     onExportChartNotification('PNG');
   };
 
-  const handlePrintAcademicReport = () => {
-    labSound.playClick();
+  const buildCurrentAcademicReportData = (): AcademicReportData => {
     const firstRec = records[0];
     const expTitle = firstRec ? firstRec.experimentTitle : activeConfig.title;
     const domainStr = firstRec ? firstRec.domain : 'Sains Terintegrasi';
+    const chartDataUrl = chartCanvasRef.current
+      ? chartCanvasRef.current.toDataURL('image/png')
+      : undefined;
 
-    openPrintableAcademicReport({
+    const diagnosticItems = gradedState
+      ? WORKSHEET_QUESTIONS.map((q) => {
+          const r = gradedState.results[q.id];
+          return {
+            title: `${q.domain} (${q.topic})`,
+            badge: r?.diagnosticBadge || 'Belum Dinilai',
+            feedback: r?.diagnosticFeedback || '-',
+          };
+        })
+      : undefined;
+
+    return {
       experimentTitle: expTitle,
       studentName: activeStudentName,
       groupId: activeGroupId,
@@ -457,31 +569,57 @@ export const AnalyticsAndWorksheetPanel: React.FC<
       }),
       domain: domainStr,
       records: records,
+      chartImageDataUrl: chartDataUrl,
       regressionSummary: regression
         ? {
             slope: regression.slopeM,
             intercept: regression.interceptC,
             rSquared: regression.rSquared,
             formula: regression.equationString,
-            expectedSlopeMeaning: 'Gradien Sebaran Terukur',
+            modelLabel: regression.modelLabel,
+            equationString: regression.equationString,
+            expectedSlopeMeaning: 'Parameter Kurva Terukur dari Sebaran Data',
           }
         : undefined,
+      outlierSummary: {
+        outlierCount: outlierAnalysis.outliers.length,
+        rSquaredRaw: outlierAnalysis.rSquaredRaw,
+        rSquaredClean: outlierAnalysis.rSquaredClean,
+        excludedOutliers: excludeOutliers,
+      },
       worksheetScore: gradedState
         ? {
             score: gradedState.totalScore,
             correctCount: gradedState.correctCount,
-            totalCount: 6,
+            totalCount: WORKSHEET_QUESTIONS.length,
+            diagnosticItems,
           }
         : undefined,
-      discussionNotes: `Grafik data analitik menunjukkan korelasi ${regression && regression.rSquared > 0.85 ? 'sangat kuat' : 'moderat'} dengan persamaan regresi ${regression ? regression.equationString : '-'}.`,
-      conclusionNotes: `Praktikum berhasil mengumpulkan data kuantitatif dan memverifikasi hukum alam yang diuji dengan batas galat yang dapat diterima.`,
-    });
+      hypothesisSummary: hypothesisNote
+        ? {
+            independentVar: hypothesisNote.independentVar,
+            dependentVar: hypothesisNote.dependentVar,
+            hypothesisText: hypothesisNote.hypothesisText,
+            reflectionText: hypothesisNote.reflectionText,
+          }
+        : undefined,
+      discussionNotes: `Grafik data analitik (${regression.modelLabel}) menunjukkan korelasi ${regression.rSquared > 0.85 ? 'sangat kuat' : 'moderat'} dengan persamaan ${regression.equationString} (R² = ${regression.rSquared.toFixed(4)}).`,
+      conclusionNotes: `Praktikum berhasil mengumpulkan data kuantitatif, mengevaluasi ketidakpastian instrumen serta deteksi outlier, dan memverifikasi hukum sains yang diuji.`,
+    };
+  };
+
+  const handlePrintAcademicReport = () => {
+    labSound.playClick();
+    const reportPayload = buildCurrentAcademicReportData();
+    setReportModalData(reportPayload);
   };
 
   const handlePrintPDFReport = () => {
     labSound.playClick();
     onExportChartNotification('PDF');
-    window.print();
+    const reportPayload = buildCurrentAcademicReportData();
+    setReportModalData(reportPayload);
+    openPrintableAcademicReport(reportPayload);
   };
 
   const handleCheckWorksheet = (e: React.FormEvent) => {
@@ -495,16 +633,48 @@ export const AnalyticsAndWorksheetPanel: React.FC<
   return (
     <div className="space-y-5">
       {/* Step 3 Header & Navigation Bar */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-xs">
         <div>
           <div className="text-xs font-mono text-sky-600 dark:text-sky-400 font-semibold">
-            03. Tahap Analisis Kuantitatif & Evaluasi LKS
+            03. Tahap Analisis Kuantitatif, Komparasi Data &amp; Evaluasi LKS
           </div>
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">
-            Analisis Grafik Regresi Linier & Lembar Kerja Siswa (LKS)
+            Analisis Grafik Regresi Linier &amp; Lembar Kerja Siswa (LKS)
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              labSound.playClick();
+              setShowHypothesisDock((v) => !v);
+            }}
+            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              showHypothesisDock
+                ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Lightbulb className="w-3.5 h-3.5" />
+            <span>Catatan Hipotesis</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              labSound.playClick();
+              setShowCompareDock((v) => !v);
+            }}
+            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              showCompareDock
+                ? 'bg-sky-600 text-white border-sky-500 font-bold'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5" />
+            <span>Bandingkan 2 Percobaan (Diff)</span>
+          </button>
+
           {onBackToLab && (
             <button
               type="button"
@@ -526,503 +696,903 @@ export const AnalyticsAndWorksheetPanel: React.FC<
               }}
               className="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors cursor-pointer whitespace-nowrap"
             >
-              Lanjut ke Tahap 4: Laporan & Kolaborasi →
+              Lanjut ke Tahap 4: Laporan &amp; Kolaborasi →
             </button>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      {/* Left 7 Cols: Interactive Multi-Axis Chart & Automatic Linear Regression + PNG/PDF Export */}
-      <div className="lg:col-span-7 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-              Grafik Interaktif Multi-Sumbu & Regresi Linier Otomatis
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Memplot kurva Sumbu-Y1 (Biru), Sumbu-Y2 (Amber), dan garis regresi Least-Squares (Hijau Putus-putus)
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handlePrintAcademicReport}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0 border border-slate-300 dark:border-slate-700"
-            >
-              <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              Cetak Laporan Resmi Praktikum
-            </button>
-            <button
-              type="button"
-              onClick={handleExportPNG}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0"
-            >
-              <ImageDown className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-              Unduh Grafik PNG
-            </button>
-            <button
-              type="button"
-              onClick={handlePrintPDFReport}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-md transition-colors whitespace-nowrap shrink-0"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              Cetak PDF
-            </button>
-          </div>
+      {/* Expandable Hypothesis Scratchpad or Side-by-Side Trial Comparator */}
+      {(showHypothesisDock || showCompareDock) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+          {showHypothesisDock && hypothesisNote && onChangeHypothesisNote && (
+            <HypothesisScratchpadCard
+              moduleTitle={activeConfig.title}
+              note={hypothesisNote}
+              onChangeNote={onChangeHypothesisNote}
+              records={records}
+              onClose={() => setShowHypothesisDock(false)}
+            />
+          )}
+          {showCompareDock && (
+            <div className={showHypothesisDock ? '' : 'lg:col-span-2'}>
+              <ExperimentTrialComparePanel
+                records={records}
+                onClose={() => setShowCompareDock(false)}
+              />
+            </div>
+          )}
         </div>
+      )}
 
-        {/* Dataset Selector */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg border border-slate-200/70 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setSelectedDatasetKey('newton-force-acc');
-              }}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                selectedDatasetKey === 'newton-force-acc'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Fisika: Gaya vs Percepatan
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setSelectedDatasetKey('hooke-spring');
-              }}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                selectedDatasetKey === 'hooke-spring'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Fisika: Pegas Hooke
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setSelectedDatasetKey('thermo-gibbs');
-              }}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                selectedDatasetKey === 'thermo-gibbs'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Kimia: Suhu vs ΔG & Laju
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setSelectedDatasetKey('kepler-third-law');
-              }}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                selectedDatasetKey === 'kepler-third-law'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Astronomi: Hukum III Kepler (a³ vs T²)
-            </button>
-            {customRecordPoints.length >= 2 && (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left 7 Cols: Interactive Multi-Axis Chart & Automatic Linear Regression + PNG/PDF Export */}
+        <div className="lg:col-span-7 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                Grafik Interaktif Multi-Sumbu &amp; Regresi Linier Otomatis
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Memplot kurva Sumbu-Y1 (Biru), Sumbu-Y2 (Amber), dan garis regresi Least-Squares (Hijau Putus-putus)
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePrintAcademicReport}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0 border border-slate-300 dark:border-slate-700 cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                Cetak Laporan Resmi Praktikum
+              </button>
+              <button
+                type="button"
+                onClick={handleExportPNG}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <ImageDown className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                Unduh Grafik PNG
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintPDFReport}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                Cetak PDF
+              </button>
+            </div>
+          </div>
+
+          {/* Dataset Selector */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg border border-slate-200/70 dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => {
                   labSound.playClick();
-                  setSelectedDatasetKey('custom-records');
+                  setSelectedDatasetKey('newton-force-acc');
                 }}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                  selectedDatasetKey === 'custom-records'
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  selectedDatasetKey === 'newton-force-acc'
                     ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                Data Rekaman Log ({customRecordPoints.length})
+                Fisika: Gaya vs Percepatan
               </button>
-            )}
-          </div>
-        </div>
-
-        <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-950">
-          <canvas
-            ref={chartCanvasRef}
-            data-testid="multi-axis-regression-canvas"
-            width={720}
-            height={280}
-            onPointerMove={handleCanvasPointerMove}
-            onPointerLeave={() => {
-              setHoverIdx(null);
-              setTooltipPos(null);
-            }}
-            className="w-full h-[260px] sm:h-[280px] block cursor-crosshair"
-          />
-
-          {/* Floating Glassmorphic HTML Tooltip on Mouse Hover */}
-          <AnimatePresence>
-            {hoverIdx !== null && activeConfig.points[hoverIdx] && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.92, y: 4 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.92, y: 4 }}
-                transition={{ duration: 0.14 }}
-                style={{
-                  left: tooltipPos ? `${tooltipPos.x}px` : 'auto',
-                  top: tooltipPos ? `${tooltipPos.y}px` : '12px',
-                  right: tooltipPos ? 'auto' : '12px',
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setSelectedDatasetKey('hooke-spring');
                 }}
-                className="pointer-events-none absolute z-20 rounded-xl border border-sky-400/50 bg-slate-900/95 px-3 py-2 text-xs text-white shadow-xl"
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  selectedDatasetKey === 'hooke-spring'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
               >
-                <div className="flex items-center justify-between gap-3 font-mono text-[11px] font-bold text-sky-400">
-                  <span>Uji #{hoverIdx + 1} · {activeConfig.points[hoverIdx].label}</span>
-                  <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300">
-                    X = {activeConfig.points[hoverIdx].x}
-                  </span>
-                </div>
-                <div className="mt-1 grid grid-cols-2 gap-2 font-mono text-[11px] tabular-nums">
-                  <div className="text-slate-300">
-                    Y1: <strong className="text-white">{activeConfig.points[hoverIdx].y1}</strong>
-                  </div>
-                  <div className="text-amber-300">
-                    Y2: <strong className="text-white">{activeConfig.points[hoverIdx].y2}</strong>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Regression Statistical Summary Strip + R² CircularGaugeMeter Ring */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-1 items-stretch">
-          <div className="md:col-span-4 flex items-center justify-center">
-            <CircularGaugeMeter
-              label={`Linearitas R² (${regression.rSquared.toFixed(4)})`}
-              value={regression.rSquared * 100}
-              min={0}
-              max={100}
-              unit="%"
-              precision={1}
-              color={regression.rSquared >= 0.95 ? '#10B981' : '#0EA5E9'}
-              badgeText={regression.rSquared >= 0.95 ? 'Sangat Presisi!' : undefined}
-            />
-          </div>
-
-          <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                Persamaan Regresi Linier
-              </div>
-              <div className="mt-1 font-mono font-bold text-sm text-emerald-700 dark:text-emerald-400 tabular-nums">
-                {regression.equationString}
-              </div>
-              {regression.rSquared >= 0.95 && (
-                <span className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                  <Sparkles className="w-3 h-3" /> Sangat Presisi! (R² ≥ 0.95)
-                </span>
+                Fisika: Pegas Hooke
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setSelectedDatasetKey('thermo-gibbs');
+                }}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  selectedDatasetKey === 'thermo-gibbs'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Kimia: Suhu vs ΔG &amp; Laju
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setSelectedDatasetKey('kepler-third-law');
+                }}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  selectedDatasetKey === 'kepler-third-law'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Astronomi: Hukum III Kepler (a³ vs T²)
+              </button>
+              {customRecordPoints.length >= 2 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setSelectedDatasetKey('custom-records');
+                  }}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    selectedDatasetKey === 'custom-records'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  Data Rekaman Log ({customRecordPoints.length})
+                </button>
               )}
             </div>
-            <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                Rata-Rata (Mean X / Y1)
+
+            {/* Curve Model Selector & Formula Calculator Toggle */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg border border-slate-200/70 dark:border-slate-700">
+                {(
+                  [
+                    { id: 'linear', label: 'Linier OLS' },
+                    { id: 'quadratic', label: 'Kuadratik (Orde-2)' },
+                    { id: 'exponential', label: 'Eksponensial' },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      setCurveModel(m.id);
+                    }}
+                    className={`px-2 py-1 text-[11px] font-mono font-semibold rounded transition-colors cursor-pointer ${
+                      curveModel === m.id
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
               </div>
-              <div className="mt-1 font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
-                {regression.meanX} / {regression.meanY}
-              </div>
-              <span className="mt-1.5 text-[11px] font-mono text-slate-400">
-                Gradien m = {regression.slopeM}
-              </span>
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                Simpangan Baku (σ_Y1)
-              </div>
-              <div className="mt-1 font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
-                ±{regression.stdDevY}
-              </div>
-              <span className="mt-1.5 text-[11px] font-mono text-slate-400">
-                Intersep c = {regression.interceptC}
-              </span>
             </div>
           </div>
-        </div>
 
-        {/* Interactive Point Inspection Row */}
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-          <span className="font-medium">Titik Pengamatan:</span>
-          {activeConfig.points.map((pt, i) => (
-            <button
-              key={pt.label}
-              type="button"
-              onMouseEnter={() => {
-                setHoverIdx(i);
+          <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-950">
+            <canvas
+              ref={chartCanvasRef}
+              data-testid="multi-axis-regression-canvas"
+              width={720}
+              height={280}
+              onPointerMove={handleCanvasPointerMove}
+              onPointerLeave={() => {
+                setHoverIdx(null);
                 setTooltipPos(null);
               }}
-              onMouseLeave={() => setHoverIdx(null)}
-              onClick={() => {
-                labSound.playStep();
-                setHoverIdx(i);
-              }}
-              className={`px-2 py-1 font-mono rounded border transition-colors ${
-                hoverIdx === i
-                  ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-600 text-sky-900 dark:text-sky-300 font-semibold'
-                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-              }`}
+              className="w-full h-[260px] sm:h-[280px] block cursor-crosshair"
+            />
+
+            {/* Floating Glassmorphic HTML Tooltip on Mouse Hover */}
+            <AnimatePresence>
+              {hoverIdx !== null && activeConfig.points[hoverIdx] && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.92, y: 4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.92, y: 4 }}
+                  transition={{ duration: 0.14 }}
+                  style={{
+                    left: tooltipPos ? `${tooltipPos.x}px` : 'auto',
+                    top: tooltipPos ? `${tooltipPos.y}px` : '12px',
+                    right: tooltipPos ? 'auto' : '12px',
+                  }}
+                  className="pointer-events-none absolute z-20 rounded-xl border border-sky-400/50 bg-slate-900/95 px-3 py-2 text-xs text-white shadow-xl"
+                >
+                  <div className="flex items-center justify-between gap-3 font-mono text-[11px] font-bold text-sky-400">
+                    <span>Uji #{hoverIdx + 1} · {activeConfig.points[hoverIdx].label}</span>
+                    <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300">
+                      X = {activeConfig.points[hoverIdx].x}
+                    </span>
+                  </div>
+                  <div className="mt-1 grid grid-cols-2 gap-2 font-mono text-[11px] tabular-nums">
+                    <div className="text-slate-300">
+                      Y1: <strong className="text-white">{activeConfig.points[hoverIdx].y1}</strong>
+                    </div>
+                    <div className="text-amber-300">
+                      Y2: <strong className="text-white">{activeConfig.points[hoverIdx].y2}</strong>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Regression Statistical Summary Strip + R² CircularGaugeMeter Ring */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-1 items-stretch">
+            <div className="md:col-span-4 flex items-center justify-center">
+              <CircularGaugeMeter
+                label={`Linearitas R² (${regression.rSquared.toFixed(4)})`}
+                value={regression.rSquared * 100}
+                min={0}
+                max={100}
+                unit="%"
+                precision={1}
+                color={regression.rSquared >= 0.95 ? '#10B981' : '#0EA5E9'}
+                badgeText={regression.rSquared >= 0.95 ? 'Sangat Presisi!' : undefined}
+              />
+            </div>
+
+            <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Persamaan Regresi Linier
+                </div>
+                <div className="mt-1 font-mono font-bold text-sm text-emerald-700 dark:text-emerald-400 tabular-nums">
+                  {regression.equationString}
+                </div>
+                {regression.rSquared >= 0.95 && (
+                  <span className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                    <Sparkles className="w-3 h-3" /> Sangat Presisi! (R² ≥ 0.95)
+                  </span>
+                )}
+              </div>
+              <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Rata-Rata (Mean X / Y1)
+                </div>
+                <div className="mt-1 font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
+                  {regression.meanX} / {regression.meanY}
+                </div>
+                <span className="mt-1.5 text-[11px] font-mono text-slate-400">
+                  Gradien m = {regression.slopeM}
+                </span>
+              </div>
+              <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Simpangan Baku (σ_Y1)
+                </div>
+                <div className="mt-1 font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
+                  ±{regression.stdDevY}
+                </div>
+                <span className="mt-1.5 text-[11px] font-mono text-slate-400">
+                  Intersep c = {regression.interceptC}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Point Inspection Row */}
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+            <span className="font-medium">Titik Pengamatan:</span>
+            {activeConfig.points.map((pt, i) => (
+              <button
+                key={pt.label}
+                type="button"
+                onMouseEnter={() => {
+                  setHoverIdx(i);
+                  setTooltipPos(null);
+                }}
+                onMouseLeave={() => setHoverIdx(null)}
+                onClick={() => {
+                  labSound.playStep();
+                  setHoverIdx(i);
+                }}
+                className={`px-2 py-1 font-mono rounded border transition-colors cursor-pointer ${
+                  hoverIdx === i
+                    ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-600 text-sky-900 dark:text-sky-300 font-semibold'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                ({pt.x}, Y1:{pt.y1}, Y2:{pt.y2})
+              </button>
+            ))}
+          </div>
+
+          {/* Progressive Disclosure Accordions: Outlier Detector & Uncertainty Calculator */}
+          <div className="space-y-2.5 pt-2">
+            <CollapsibleLabSection
+              title="Deteksi & Filter Outlier Residual Otomatis"
+              subtitle="Identifikasi titik data anomali (|Z| > 1.8σ) dan bandingkan R² Mentah vs Bersih"
+              statusText={
+                outlierAnalysis.outliers.length > 0
+                  ? `${outlierAnalysis.outliers.length} Outlier Terdeteksi`
+                  : '0 Outlier (Bersih)'
+              }
+              defaultOpen={outlierAnalysis.outliers.length > 0}
+              accentColor={outlierAnalysis.outliers.length > 0 ? '#f43f5e' : '#10b981'}
             >
-              ({pt.x}, Y1:{pt.y1}, Y2:{pt.y2})
-            </button>
-          ))}
-        </div>
+              <div className="pt-2 space-y-2.5 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertTriangle
+                      className={`w-4 h-4 shrink-0 ${
+                        outlierAnalysis.outliers.length > 0
+                          ? 'text-rose-500'
+                          : 'text-emerald-500'
+                      }`}
+                    />
+                    <div>
+                      <div className="font-semibold text-slate-800 dark:text-slate-100">
+                        Status Sebaran Residual:{' '}
+                        {outlierAnalysis.outliers.length > 0 ? (
+                          <span className="text-rose-600 dark:text-rose-400 font-mono">
+                            {outlierAnalysis.outliers.length} Titik Pencilan Terdeteksi
+                          </span>
+                        ) : (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-mono">
+                            Sebaran Bersih (RMSE = ±{outlierAnalysis.rmseResiduals})
+                          </span>
+                        )}
+                      </div>
+                      {outlierAnalysis.outliers.length > 0 && (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                          Dampak Filter Outlier: R² Mentah = {outlierAnalysis.rSquaredRaw.toFixed(4)} → R² Bersih = {outlierAnalysis.rSquaredClean.toFixed(4)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
-        {/* Animated Recent Recorded Experiment Rows Preview */}
-        {records.length > 0 && (
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-slate-800 dark:text-slate-200">
-                Log Pengukuran Terbaru ({records.length} Data Tercatat)
-              </span>
-              <span className="font-mono text-[11px] text-sky-600 dark:text-sky-400">
-                Sinkronisasi Real-Time
-              </span>
-            </div>
-            <div className="overflow-x-auto max-h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/90 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-                    <th className="py-1.5 px-2.5">ID & Waktu</th>
-                    <th className="py-1.5 px-2.5">Eksperimen</th>
-                    <th className="py-1.5 px-2.5">Koordinat (X, Y1, Y2)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono tabular-nums">
-                  {records.slice(0, 5).map((rec) => (
-                    <motion.tr
-                      key={rec.id}
-                      initial={{
-                        opacity: 0,
-                        x: -16,
-                        backgroundColor: 'rgba(14, 165, 233, 0.25)',
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        labSound.playClick();
+                        setSimulateOutlierAnomaly((v) => !v);
+                        if (simulateOutlierAnomaly) setExcludeOutliers(false);
                       }}
-                      animate={{
-                        opacity: 1,
-                        x: 0,
-                        backgroundColor: 'rgba(0, 0, 0, 0)',
-                      }}
-                      transition={{ duration: 0.35 }}
-                      className="text-slate-700 dark:text-slate-300"
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
+                        simulateOutlierAnomaly
+                          ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/40'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400'
+                      }`}
                     >
-                      <td className="py-1.5 px-2.5 whitespace-nowrap">
-                        <span className="font-semibold text-sky-600 dark:text-sky-400">
-                          {rec.id}
-                        </span>{' '}
-                        · {rec.timestamp}
-                      </td>
-                      <td className="py-1.5 px-2.5 truncate max-w-[180px] font-sans">
-                        {rec.experimentTitle}
-                      </td>
-                      <td className="py-1.5 px-2.5 whitespace-nowrap">
-                        X:{rec.numericX ?? '-'} | Y1:{rec.numericY1 ?? '-'} | Y2:{rec.numericY2 ?? '-'}
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
+                      {simulateOutlierAnomaly ? 'Hapus Simulasi Anomali' : 'Uji Deteksi Anomali Outlier'}
+                    </button>
 
-      {/* Right 5 Cols: Interactive Worksheet (LKS) & Auto-Graded Science Quiz */}
-      <div className="lg:col-span-5 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <BookOpenCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              Lembar Kerja Siswa (LKS) & Kuis Penilaian Otomatis
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Siswa:{' '}
-              <strong className="text-slate-800 dark:text-slate-200">
-                {activeStudentName}
-              </strong>{' '}
-              · <span>{activeGroupId}</span>
-            </p>
+                    {outlierAnalysis.outliers.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          labSound.playSuccessChime();
+                          setExcludeOutliers((v) => !v);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors flex items-center gap-1 cursor-pointer ${
+                          excludeOutliers
+                            ? 'bg-emerald-600 text-white border-emerald-500'
+                            : 'bg-rose-600 hover:bg-rose-500 text-white border-rose-500'
+                        }`}
+                      >
+                        <Filter className="w-3 h-3" />
+                        <span>
+                          {excludeOutliers
+                            ? 'Outlier Dikecualikan (R² Optimal)'
+                            : 'Kecualikan Outlier dari Fitting'}
+                        </span>
+                      </button>
+                    )}
+
+                    {onAskDrLabMu && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          labSound.playClick();
+                          const outlierMsg =
+                            outlierAnalysis.outliers.length > 0
+                              ? `Saya menemukan titik outlier pada X=${outlierAnalysis.outliers[0].x}, Y=${outlierAnalysis.outliers[0].y} (residual ${outlierAnalysis.outliers[0].residual}). Mengapa anomali ini terjadi dan bagaimana pengaruhnya terhadap kemiringan kurva ${regression.equationString}?`
+                              : `Bantu saya menginterpretasikan makna fisis gradien kurva ${regression.modelLabel} (${regression.equationString}) dengan R² = ${regression.rSquared.toFixed(4)} pada grafik ${activeConfig.title}.`;
+                          onAskDrLabMu(outlierMsg);
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-sky-600/15 hover:bg-sky-600/25 text-sky-700 dark:text-sky-300 border border-sky-500/30 flex items-center gap-1 cursor-pointer"
+                      >
+                        <MessageSquareShare className="w-3 h-3" />
+                        <span>Tanya Dr. LabMu</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CollapsibleLabSection>
+
+            <CollapsibleLabSection
+              title="Kalkulator Rumus & Propagasi Ketidakpastian (Ralat Gauss)"
+              subtitle="Hitung nilai hasil beserta rambatan ralat (A ± ΔA dan B ± ΔB)"
+              statusText="Z ± ΔZ"
+              accentColor="#0ea5e9"
+            >
+              <div className="pt-2 space-y-2.5 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end font-mono">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-0.5">
+                      Nilai A
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={calcValA}
+                      onChange={(e) => setCalcValA(e.target.value)}
+                      className="w-full px-2 py-1 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs tabular-nums"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-0.5">
+                      Ralat ±ΔA
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={calcDeltaA}
+                      onChange={(e) => setCalcDeltaA(e.target.value)}
+                      className="w-full px-2 py-1 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs tabular-nums"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-0.5">
+                      Operasi Rumus
+                    </label>
+                    <select
+                      value={calcOp}
+                      onChange={(e) => setCalcOp(e.target.value as typeof calcOp)}
+                      className="w-full px-2 py-1 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs"
+                    >
+                      <option value="divide">Z = A / B</option>
+                      <option value="multiply">Z = A × B</option>
+                      <option value="add">Z = A + B</option>
+                      <option value="power2">Z = A²</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-0.5">
+                      Nilai B
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      disabled={calcOp === 'power2'}
+                      value={calcValB}
+                      onChange={(e) => setCalcValB(e.target.value)}
+                      className="w-full px-2 py-1 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs tabular-nums disabled:opacity-40"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-0.5">
+                      Ralat ±ΔB
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      disabled={calcOp === 'power2'}
+                      value={calcDeltaB}
+                      onChange={(e) => setCalcDeltaB(e.target.value)}
+                      className="w-full px-2 py-1 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs tabular-nums disabled:opacity-40"
+                    />
+                  </div>
+                </div>
+                {(() => {
+                  const a = parseFloat(calcValA) || 0;
+                  const da = Math.abs(parseFloat(calcDeltaA) || 0);
+                  const b = parseFloat(calcValB) || 1;
+                  const db = Math.abs(parseFloat(calcDeltaB) || 0);
+                  let z = 0;
+                  let dz = 0;
+                  if (calcOp === 'add') {
+                    z = a + b;
+                    dz = Math.sqrt(da * da + db * db);
+                  } else if (calcOp === 'multiply') {
+                    z = a * b;
+                    const rel = Math.sqrt(
+                      Math.pow(da / (Math.abs(a) || 1e-9), 2) +
+                        Math.pow(db / (Math.abs(b) || 1e-9), 2)
+                    );
+                    dz = Math.abs(z) * rel;
+                  } else if (calcOp === 'divide') {
+                    z = a / (b || 1e-9);
+                    const rel = Math.sqrt(
+                      Math.pow(da / (Math.abs(a) || 1e-9), 2) +
+                        Math.pow(db / (Math.abs(b) || 1e-9), 2)
+                    );
+                    dz = Math.abs(z) * rel;
+                  } else {
+                    z = a * a;
+                    dz = Math.abs(2 * a * da);
+                  }
+                  const relPct = Math.abs(z) > 1e-9 ? (dz / Math.abs(z)) * 100 : 0;
+                  return (
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-800 font-mono">
+                      <span className="text-slate-600 dark:text-slate-300">
+                        Hasil Propagasi: <strong className="text-emerald-600 dark:text-emerald-400">{z.toFixed(3)} ± {dz.toFixed(3)}</strong>
+                      </span>
+                      <span className="text-sky-600 dark:text-sky-400">
+                        Ralat Relatif (ΔZ/Z): <strong>{relPct.toFixed(2)}%</strong>
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </CollapsibleLabSection>
           </div>
-          {gradedState && (
-            <div className="text-right font-mono">
-              <span className="text-xs text-slate-500 dark:text-slate-400 block">
-                Skor LKS
-              </span>
-              <span className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                {gradedState.totalScore}/100
-              </span>
+
+          {/* Animated Recent Recorded Experiment Rows Preview */}
+          {records.length > 0 && (
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  Log Pengukuran Terbaru ({records.length} Data Tercatat)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setShowCompareDock((v) => !v);
+                  }}
+                  className="font-mono text-[11px] text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                >
+                  {showCompareDock ? 'Tutup Komparator Diff' : 'Bandingkan 2 Data (Diff) →'}
+                </button>
+              </div>
+              <div className="overflow-x-auto max-h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/90 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                      <th className="py-1.5 px-2.5">ID &amp; Waktu</th>
+                      <th className="py-1.5 px-2.5">Eksperimen</th>
+                      <th className="py-1.5 px-2.5">Koordinat (X, Y1, Y2)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono tabular-nums">
+                    {records.slice(0, 5).map((rec) => (
+                      <motion.tr
+                        key={rec.id}
+                        initial={{
+                          opacity: 0,
+                          x: -16,
+                          backgroundColor: 'rgba(14, 165, 233, 0.25)',
+                        }}
+                        animate={{
+                          opacity: 1,
+                          x: 0,
+                          backgroundColor: 'rgba(0, 0, 0, 0)',
+                        }}
+                        transition={{ duration: 0.35 }}
+                        className="text-slate-700 dark:text-slate-300"
+                      >
+                        <td className="py-1.5 px-2.5 whitespace-nowrap">
+                          <span className="font-semibold text-sky-600 dark:text-sky-400">
+                            {rec.id}
+                          </span>{' '}
+                          · {rec.timestamp}
+                        </td>
+                        <td className="py-1.5 px-2.5 truncate max-w-[180px] font-sans">
+                          {rec.experimentTitle}
+                        </td>
+                        <td className="py-1.5 px-2.5 whitespace-nowrap">
+                          X:{rec.numericX ?? '-'} | Y1:{rec.numericY1 ?? '-'} | Y2:{rec.numericY2 ?? '-'}
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Student Comfort Controls: Progress Bar, Domain Filter & Formula Hint Toggle */}
-        <div className="space-y-2.5 bg-slate-50 dark:bg-slate-800/75 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-slate-700 dark:text-slate-200">
-              Progres Pengerjaan LKS ({answeredCount}/{WORKSHEET_QUESTIONS.length} Soal Terisi)
-            </span>
-            <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums">
-              {answeredPct}%
-            </span>
-          </div>
-          <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-emerald-600 dark:bg-emerald-500 transition-all duration-300"
-              style={{ width: `${answeredPct}%` }}
-            />
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <div className="flex flex-wrap items-center gap-1">
-              {(['Semua', 'Fisika', 'Kimia', 'Astronomi'] as const).map(
-                (dom) => (
-                  <button
-                    key={dom}
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick();
-                      setLksDomainFilter(dom);
-                    }}
-                    className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${
-                      lksDomainFilter === dom
-                        ? 'bg-slate-900 dark:bg-sky-600 text-white'
-                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    {dom}
-                  </button>
-                )
-              )}
+        {/* Right 5 Cols: Interactive Worksheet (LKS) with 3-Tier Scaffolded Hints */}
+        <div className="lg:col-span-5 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <BookOpenCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                Lembar Kerja Siswa (LKS) &amp; Kuis Penilaian Otomatis
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Siswa:{' '}
+                <strong className="text-slate-800 dark:text-slate-200">
+                  {activeStudentName}
+                </strong>{' '}
+                · <span>{activeGroupId}</span>
+              </p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setShowFormulaHints((h) => !h);
-              }}
-              className="text-[11px] font-medium text-sky-700 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 underline"
-            >
-              {showFormulaHints
-                ? 'Sembunyikan Petunjuk Rumus'
-                : 'Tampilkan Petunjuk Rumus'}
-            </button>
-          </div>
-        </div>
-
-        <form onSubmit={handleCheckWorksheet} className="space-y-3.5">
-          <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
-            {filteredQuestions.map((q) => {
-              const originalIndex = WORKSHEET_QUESTIONS.findIndex(
-                (item) => item.id === q.id
-              );
-              const itemResult = gradedState?.results[q.id];
-              return (
-                <div
-                  key={q.id}
-                  className="p-3 rounded-lg border border-slate-200 dark:border-slate-700/80 bg-slate-50/70 dark:bg-slate-800/50 space-y-2 text-xs"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-1 text-slate-500 dark:text-slate-400 font-mono">
-                    <span className="font-semibold text-slate-700 dark:text-slate-200">
-                      0{originalIndex + 1}. {q.domain} · {q.topic}
-                    </span>
-                    {showFormulaHints && (
-                      <span className="text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded border border-sky-200 dark:border-sky-800 whitespace-nowrap">
-                        Rumus: {q.formulaHint}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
-                    {q.questionText}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <label htmlFor={`lks-input-${q.id}`} className="sr-only">
-                      Jawaban {q.topic}
-                    </label>
-                    <input
-                      id={`lks-input-${q.id}`}
-                      type="number"
-                      step="any"
-                      value={answers[q.id] ?? ''}
-                      onChange={(e) =>
-                        setAnswers((prev) => ({
-                          ...prev,
-                          [q.id]: e.target.value,
-                        }))
-                      }
-                      className="w-36 font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2.5 py-1.5 text-slate-900 dark:text-white tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-600"
-                    />
-                    <span className="font-mono text-slate-500 dark:text-slate-400">
-                      {q.unit}
-                    </span>
-                    {itemResult && (
-                      <span
-                        className={`ml-auto font-mono font-semibold ${
-                          itemResult.isCorrect
-                            ? 'text-emerald-700 dark:text-emerald-400'
-                            : 'text-rose-600 dark:text-rose-400'
-                        }`}
-                      >
-                        {itemResult.isCorrect
-                          ? '● BENAR'
-                          : `✖ KUNCI: ${itemResult.expected} ${q.unit}`}
-                      </span>
-                    )}
-                  </div>
-                  {itemResult && (
-                    <p className="text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 p-2 rounded border border-slate-200 dark:border-slate-700 leading-relaxed">
-                      <strong>Pembahasan:</strong> {itemResult.explanation}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <button
-            type="submit"
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors whitespace-nowrap"
-          >
-            <Calculator className="w-4 h-4" />
-            Periksa Jawaban & Kirim Skor LKS ke Rubrik Pengajar
-          </button>
-        </form>
-
-        {gradedState && (
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/80 rounded-md p-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>
-                Skor LKS ({gradedState.totalScore}/100 — {gradedState.correctCount}/
-                {gradedState.totalQuestions} benar) telah disinkronkan ke Rubrik Penilaian Pengajar.
-              </span>
-            </div>
-            {onProceedToReport && (
-              <button
-                type="button"
-                onClick={() => {
-                  labSound.playRecordSuccess();
-                  onProceedToReport();
-                }}
-                className="w-full py-2.5 px-4 rounded-md bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-colors cursor-pointer"
-              >
-                Lanjut ke Tahap 4: Unduh Laporan Akhir & Kolaborasi Kelompok →
-              </button>
+            {gradedState && (
+              <div className="text-right font-mono">
+                <span className="text-xs text-slate-500 dark:text-slate-400 block">
+                  Skor LKS
+                </span>
+                <span className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
+                  {gradedState.totalScore}/100
+                </span>
+              </div>
             )}
           </div>
-        )}
+
+          {/* Student Comfort Controls: Progress Bar, Domain Filter & Formula Hint Toggle */}
+          <div className="space-y-2.5 bg-slate-50 dark:bg-slate-800/75 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-slate-700 dark:text-slate-200">
+                Progres Pengerjaan LKS ({answeredCount}/{WORKSHEET_QUESTIONS.length} Soal Terisi)
+              </span>
+              <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums">
+                {answeredPct}%
+              </span>
+            </div>
+            <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-600 dark:bg-emerald-500 transition-all duration-300"
+                style={{ width: `${answeredPct}%` }}
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-1">
+                {(['Semua', 'Fisika', 'Kimia', 'Astronomi'] as const).map(
+                  (dom) => (
+                    <button
+                      key={dom}
+                      type="button"
+                      onClick={() => {
+                        labSound.playClick();
+                        setLksDomainFilter(dom);
+                      }}
+                      className={`px-2 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer ${
+                        lksDomainFilter === dom
+                          ? 'bg-slate-900 dark:bg-sky-600 text-white'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      {dom}
+                    </button>
+                  )
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setShowFormulaHints((h) => !h);
+                  }}
+                  className="text-[11px] font-medium text-sky-700 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 underline cursor-pointer"
+                >
+                  {showFormulaHints
+                    ? 'Sembunyikan Rumus'
+                    : 'Tampilkan Rumus'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setGradedState(null);
+                    if (answeredCount > 0) {
+                      setAnswers({});
+                    } else {
+                      setAnswers({
+                        'q-newton-1': '9.0',
+                        'q-collision-2': '4.0',
+                        'q-thermo-3': '-90.0',
+                        'q-titration-4': '20.0',
+                        'q-kepler-5': '8.0',
+                        'q-exoplanet-6': '1.0',
+                      });
+                    }
+                  }}
+                  className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                >
+                  {answeredCount > 0
+                    ? 'Reset Latihan Mandiri'
+                    : 'Isi Contoh Jawaban'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleCheckWorksheet} className="space-y-3.5">
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {filteredQuestions.map((q) => {
+                const originalIndex = WORKSHEET_QUESTIONS.findIndex(
+                  (item) => item.id === q.id
+                );
+                const itemResult = gradedState?.results[q.id];
+                const activeHintTier = hintLevelByQuestion[q.id] ?? 0;
+
+                return (
+                  <div
+                    key={q.id}
+                    className="p-3 rounded-lg border border-slate-200 dark:border-slate-700/80 bg-slate-50/70 dark:bg-slate-800/50 space-y-2 text-xs"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-1 text-slate-500 dark:text-slate-400 font-mono">
+                      <span className="font-semibold text-slate-700 dark:text-slate-200">
+                        0{originalIndex + 1}. {q.domain} · {q.topic}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {showFormulaHints && (
+                          <span className="text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded border border-sky-200 dark:border-sky-800 whitespace-nowrap">
+                            Rumus: {q.formulaHint}
+                          </span>
+                        )}
+                        {q.scaffoldedHints && (
+                          <button
+                            type="button"
+                            onClick={() => handleAdvanceHint(q.id)}
+                            className={`px-2 py-0.5 rounded font-sans font-semibold text-[10px] border transition-colors flex items-center gap-1 cursor-pointer ${
+                              activeHintTier > 0
+                                ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                            }`}
+                            title="Buka Petunjuk Bertahap (Scaffolded Hints)"
+                          >
+                            <Lightbulb className="w-3 h-3" />
+                            <span>
+                              {activeHintTier === 0
+                                ? 'Petunjuk (0/3)'
+                                : activeHintTier < 3
+                                ? `Petunjuk (${activeHintTier}/3) +`
+                                : 'Tutup Petunjuk (3/3)'}
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-slate-800 dark:text-slate-200 font-medium leading-relaxed comfort-prose">
+                      {q.questionText}
+                    </p>
+
+                    {/* Progressive 3-Tier Scaffolded Hints Display */}
+                    {q.scaffoldedHints && activeHintTier > 0 && (
+                      <div className="space-y-1.5 pt-0.5">
+                        {q.scaffoldedHints.slice(0, activeHintTier).map((hintText, hIdx) => (
+                          <div
+                            key={hIdx}
+                            className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-slate-800 dark:text-amber-100 leading-relaxed flex items-start justify-between gap-2"
+                          >
+                            <div className="flex items-start gap-2">
+                              <span className="font-mono font-bold text-amber-600 dark:text-amber-400 shrink-0">
+                                Tahap {hIdx + 1}:
+                              </span>
+                              <span>{hintText}</span>
+                            </div>
+                            {hIdx === 2 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  labSound.playClick();
+                                  setAnswers((prev) => ({
+                                    ...prev,
+                                    [q.id]: String(q.correctValue),
+                                  }));
+                                }}
+                                className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-[10px] shrink-0 cursor-pointer"
+                              >
+                                Isi {q.correctValue}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <label htmlFor={`lks-input-${q.id}`} className="sr-only">
+                        Jawaban {q.topic}
+                      </label>
+                      <input
+                        id={`lks-input-${q.id}`}
+                        type="number"
+                        step="any"
+                        value={answers[q.id] ?? ''}
+                        onChange={(e) =>
+                          setAnswers((prev) => ({
+                            ...prev,
+                            [q.id]: e.target.value,
+                          }))
+                        }
+                        className="w-36 font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2.5 py-1.5 text-slate-900 dark:text-white tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-600"
+                      />
+                      <span className="font-mono text-slate-500 dark:text-slate-400">
+                        {q.unit}
+                      </span>
+                      {itemResult && (
+                        <span
+                          className={`ml-auto font-mono font-semibold px-2 py-0.5 rounded text-[11px] ${
+                            itemResult.isCorrect
+                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                              : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
+                          }`}
+                        >
+                          {itemResult.isCorrect
+                            ? `✓ ${itemResult.diagnosticBadge}`
+                            : `✖ ${itemResult.diagnosticBadge} (Acuan: ${itemResult.expected} ${q.unit})`}
+                        </span>
+                      )}
+                    </div>
+                    {itemResult && (
+                      <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1.5 leading-relaxed">
+                        <div className="text-[11px] font-semibold text-sky-700 dark:text-sky-300">
+                          Diagnostik Spesifik: {itemResult.diagnosticFeedback}
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-300 text-[11px]">
+                          <strong>Pembahasan:</strong> {itemResult.explanation}
+                        </p>
+                        {onAskDrLabMu && (
+                          <div className="pt-1 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                labSound.playClick();
+                                onAskDrLabMu(
+                                  `Pada soal LKS "${q.topic}" (${q.questionText}), jawaban saya adalah ${answers[q.id] || 'kosong'} ${q.unit} sedangkan kunci teoretisnya ${q.correctValue} ${q.unit}. Diagnostik sistem menyebutkan: "${itemResult.diagnosticBadge}". Bisakah Dr. LabMu membimbing saya memahami langkah perhitungannya secara Sokratik?`
+                                );
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 border border-sky-500/30 cursor-pointer"
+                            >
+                              <MessageSquareShare className="w-3 h-3" />
+                              Bahas Soal Ini bersama Dr. LabMu
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors whitespace-nowrap cursor-pointer"
+            >
+              <Calculator className="w-4 h-4" />
+              Periksa Jawaban &amp; Kirim Skor LKS ke Rubrik Pengajar
+            </button>
+          </form>
+
+          {gradedState && (
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/80 rounded-md p-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>
+                  Skor LKS ({gradedState.totalScore}/100 — {gradedState.correctCount}/
+                  {gradedState.totalQuestions} benar) telah disinkronkan ke Rubrik Penilaian Pengajar.
+                </span>
+              </div>
+              {onProceedToReport && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playRecordSuccess();
+                    onProceedToReport();
+                  }}
+                  className="w-full py-2.5 px-4 rounded-md bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-colors cursor-pointer"
+                >
+                  Lanjut ke Tahap 4: Unduh Laporan Akhir &amp; Kolaborasi Kelompok →
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-      </div>
+
+      {/* In-App Printable A4 Academic Report Preview Modal */}
+      {reportModalData && (
+        <AcademicReportPreviewModal
+          isOpen={Boolean(reportModalData)}
+          onClose={() => setReportModalData(null)}
+          reportData={reportModalData}
+        />
+      )}
     </div>
   );
 };

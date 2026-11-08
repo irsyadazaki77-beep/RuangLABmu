@@ -9,6 +9,8 @@ import {
   CheckCircle,
   FlaskConical,
   Sliders,
+  NotebookPen,
+  GitCompareArrows,
 } from 'lucide-react';
 import {
   ChemistryParams,
@@ -18,6 +20,7 @@ import {
   AcademicLevel,
   calculateChemistryMetrics,
   generateAutomaticFeedback,
+  GUIDED_LAB_SCENARIOS,
   LabNotification,
   ExperimentRecord,
 } from '../utils/scienceEngine';
@@ -25,10 +28,21 @@ import { ChemistryScene3D } from './ChemistryScene3D';
 import { labSound } from '../utils/soundEngine';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import {
+  DEFAULT_INSTRUMENTS,
+  DEFAULT_CALIBRATION_CONFIG,
+  InstrumentCalibrationConfig,
+  applyInstrumentNoise,
+  formatMeasurementWithUncertainty,
+} from '../utils/uncertaintyEngine';
+import {
   CircularGaugeMeter,
   LiquidColumnMeter,
   TactileParameterControl,
   AnimatedNumberReadout,
+  LiveTelemetryOscilloscope,
+  InstrumentCalibrationCard,
+  CollapsibleLabSection,
+  CockpitStepGuideBanner,
 } from './ui/LabInstruments';
 import {
   InteractiveFormulaCard,
@@ -39,6 +53,12 @@ import {
   MysterySubmissionResult,
   evaluateMysterySubmission,
 } from '../utils/mysteryChallengeEngine';
+import {
+  ContextualMicroGuideHUD,
+  HypothesisScratchpadCard,
+  ExperimentTrialComparePanel,
+  HypothesisNote,
+} from './ui/HypothesisAndCompareDock';
 
 interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -73,6 +93,9 @@ interface ChemistryLabViewProps {
     result: MysterySubmissionResult,
     title: string
   ) => void;
+  hypothesisNote?: HypothesisNote;
+  onChangeHypothesisNote?: (next: HypothesisNote) => void;
+  zenMode?: boolean;
 }
 
 export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
@@ -84,13 +107,32 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   onEmitCursor,
   records = [],
   activeStudentName = 'Alya Pratama',
+  onProceedToAnalysis,
   activeMysteryChallenge,
   onSubmitMysteryExam,
+  hypothesisNote,
+  onChangeHypothesisNote,
+  zenMode = false,
 }) => {
   const [isReacting, setIsReacting] = useState<boolean>(false);
   const [reactionProgress, setReactionProgress] = useState<number>(0);
   const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
+  const [calibrationConfig, setCalibrationConfig] =
+    useState<InstrumentCalibrationConfig>(DEFAULT_CALIBRATION_CONFIG);
+  const [cockpitTab, setCockpitTab] = useState<'controls' | 'data-diff' | 'hypothesis'>('controls');
+  const [localHypothesis, setLocalHypothesis] = useState<HypothesisNote>({
+    independentVar: 'Volume Titran / Suhu Awal (T₀)',
+    dependentVar: 'pH Larutan / Perubahan Entalpi (ΔH)',
+    hypothesisText: '',
+    reflectionText: '',
+    updatedAt: '',
+  });
+  const effectiveHypothesis = hypothesisNote ?? localHypothesis;
+  const handleUpdateHypothesis = (next: HypothesisNote) => {
+    setLocalHypothesis(next);
+    if (onChangeHypothesisNote) onChangeHypothesisNote(next);
+  };
 
   // Mystery Sample Exam State
   const [mysteryGuessInput, setMysteryGuessInput] = useState<string>('');
@@ -188,17 +230,23 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     };
 
     if (params.mode === 'acid-base-titration') {
+      const mPh = applyInstrumentNoise(
+        metrics.currentPh,
+        DEFAULT_INSTRUMENTS.phMeter,
+        !calibrationConfig.isZeroCalibrated || calibrationConfig.precisionTier === 'high-precision',
+        calibrationConfig
+      );
       title = `Titrasi Asam-Basa (V_NaOH = ${params.titrantAddedMl} mL)`;
       summary = `[Asam]=${params.analyteAcidConc}M (${params.analyteVolumeMl}mL), [Basa]=${params.titrantBaseConc}M, V_b=${params.titrantAddedMl}mL`;
       keyMetrics = {
-        'pH Larutan': metrics.currentPh,
+        'pH Larutan': formatMeasurementWithUncertainty(mPh.measuredValue, mPh.uncertainty, ''),
         'Volume Ekuivalen': `${metrics.equivalenceVolumeMl} mL`,
         Zona: metrics.titrationRegion,
         Indikator: metrics.indicatorColorName,
       };
       numericCoords = {
         x: params.titrantAddedMl,
-        y1: metrics.currentPh,
+        y1: mPh.measuredValue,
         y2: metrics.equivalenceVolumeMl,
       };
     } else if (params.mode === 'electrochemistry-cell') {
@@ -529,12 +577,12 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   );
 
   return (
-    <div className="w-full h-full max-w-[1380px] mx-auto p-4 sm:p-6 overflow-y-auto bg-slate-950 text-slate-100 select-none pb-24">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* LEFT COLUMN: 3D Scene Canvas (h-[540px]) & Playback Bar */}
-        <div className="lg:col-span-8 space-y-4 flex flex-col">
+    <div className="w-full h-full max-w-[1600px] mx-auto px-4 py-3 lg:overflow-hidden overflow-y-auto bg-slate-950 text-slate-100 select-none flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 items-stretch">
+        {/* LEFT COLUMN: Fixed 3D Scene Canvas & Playback Bar */}
+        <div className={`${zenMode ? 'lg:col-span-12' : 'lg:col-span-8'} flex flex-col h-full min-h-0 gap-3 transition-all`}>
           {/* 3D Canvas Box */}
-          <div className="relative w-full h-[540px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-2xl">
+          <div className="relative w-full flex-1 min-h-[360px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-2xl">
             <ChemistryScene3D
               params={params}
               metrics={metrics}
@@ -590,17 +638,62 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Bottom-Left Contextual Micro-Step Guide HUD */}
+            <div className="absolute bottom-3 left-3 z-20 pointer-events-none hidden sm:block">
+              <ContextualMicroGuideHUD
+                moduleTitle={
+                  params.mode === 'acid-base-titration'
+                    ? 'Titrasi Asam-Basa & Kurva pH'
+                    : params.mode === 'electrochemistry-cell'
+                    ? 'Sel Elektrokimia Galvani'
+                    : params.mode === 'ideal-gas-boyle'
+                    ? 'Hukum Gas Ideal (PV = nRT)'
+                    : params.mode === 'reaction-kinetics-arrhenius'
+                    ? 'Kinetika Reaksi Arrhenius'
+                    : params.mode === 'spectrophotometry-beer'
+                    ? 'Spektrofotometri Beer-Lambert'
+                    : 'Kalorimetri & Termokimia'
+                }
+                IndependentVarLabel={
+                  params.mode === 'acid-base-titration'
+                    ? 'Volume Titran NaOH (Vb)'
+                    : params.mode === 'ideal-gas-boyle'
+                    ? 'Volume Gas (V) / Suhu (T)'
+                    : params.mode === 'spectrophotometry-beer'
+                    ? 'Konsentrasi Analit (c)'
+                    : 'Suhu Awal (T₀) / Konsentrasi [M]'
+                }
+                DependentVarLabel={
+                  params.mode === 'acid-base-titration'
+                    ? 'pH Larutan'
+                    : params.mode === 'ideal-gas-boyle'
+                    ? 'Tekanan Gas (P)'
+                    : params.mode === 'spectrophotometry-beer'
+                    ? 'Absorbansi (A)'
+                    : 'Energi Bebas ΔG & Suhu Akhir'
+                }
+                recordsCount={records.length}
+                targetRecords={3}
+                isPlaying={isReacting}
+                hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
+                onOpenHypothesis={() => setCockpitTab('hypothesis')}
+                onOpenCompare={() => setCockpitTab('data-diff')}
+                onQuickRecord={handleRecordChemistry}
+                onProceedToAnalysis={onProceedToAnalysis}
+              />
+            </div>
           </div>
 
           {/* Bottom Playback Bar */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+          <div className="shrink-0 bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* Play / Reset controls */}
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleToggleReaction}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-md ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-md whitespace-nowrap ${
                     isReacting
                       ? 'bg-amber-600 hover:bg-amber-500 text-white'
                       : 'bg-emerald-600 hover:bg-emerald-500 text-white'
@@ -621,7 +714,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               </div>
 
               {/* Progress Slider */}
-              <div className="flex-1 min-w-[180px] flex items-center gap-2">
+              <div className="flex-1 min-w-[150px] flex items-center gap-2">
                 <span className="text-xs font-mono text-slate-400 shrink-0">Progres:</span>
                 <input
                   type="range"
@@ -637,49 +730,137 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                 </span>
               </div>
 
-              {/* Prominent + Catat Data Percobaan Button */}
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={handleRecordChemistry}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer shrink-0"
-              >
-                <Camera className="w-4 h-4 text-slate-950" />
-                <span>+ Catat Data Percobaan</span>
-                <span className="bg-slate-950/20 px-2 py-0.5 rounded-md font-mono text-[11px] text-slate-950">
-                  {records.length}/3 Data
-                </span>
-              </motion.button>
+              {/* Action Buttons: Catat Data & Analisis Grafik */}
+              <div className="flex items-center gap-2 shrink-0">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={handleRecordChemistry}
+                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap"
+                >
+                  <Camera className="w-4 h-4 text-slate-950" />
+                  <span>+ Catat Data</span>
+                  <span className="bg-slate-950/20 px-1.5 py-0.5 rounded font-mono text-[11px] text-slate-950 tabular-nums">
+                    {records.length}/3
+                  </span>
+                </motion.button>
+
+                {onProceedToAnalysis && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      onProceedToAnalysis();
+                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                      records.length >= 3
+                        ? 'bg-sky-600 hover:bg-sky-500 text-white shadow-md'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                    }`}
+                  >
+                    Grafik & LKS →
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Parameter Sliders & Formula Card */}
-        <div className="lg:col-span-4 space-y-4 flex flex-col">
-          {/* Mode Selector */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-              <Sliders className="w-4 h-4 text-emerald-400" />
-              <span>Opsi & Mode Simulasi Kimia</span>
+        {/* RIGHT COLUMN: Tabbed Control Deck (Hidden in Zen Mode) */}
+        {!zenMode && (
+          <div className="lg:col-span-4 h-full lg:overflow-y-auto pr-1 space-y-3 pb-4 flex flex-col">
+            {/* Sticky Cockpit Tab Switcher */}
+            <div
+              role="tablist"
+              aria-label="Panel Kontrol Praktikum Kimia"
+              className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg shrink-0 sticky top-0 z-30"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitTab === 'controls'}
+                onClick={() => {
+                  labSound.playClick();
+                  setCockpitTab('controls');
+                }}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                  cockpitTab === 'controls'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Kontrol &amp; Rumus</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitTab === 'data-diff'}
+                onClick={() => {
+                  labSound.playClick();
+                  setCockpitTab('data-diff');
+                }}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                  cockpitTab === 'data-diff'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <GitCompareArrows className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Data &amp; Diff ({records.length})</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitTab === 'hypothesis'}
+                onClick={() => {
+                  labSound.playClick();
+                  setCockpitTab('hypothesis');
+                }}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                  cockpitTab === 'hypothesis'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <NotebookPen className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Hipotesis</span>
+              </button>
             </div>
 
-            <select
-              value={params.mode}
-              onChange={(e) => {
-                handleParamChange({ mode: e.target.value as ChemistryParams['mode'] });
-                labSound.playClick(680);
-              }}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-            >
-              <option value="thermo-calorimetry">Termodinamika & Kalorimetri Reaksi</option>
-              <option value="acid-base-titration">Titrasi Asam-Basa & Kurva pH</option>
-              <option value="electrochemistry-cell">Sel Elektrokimia Galvani (Nernst)</option>
-              <option value="ideal-gas-boyle">Hukum Gas Ideal & Boyle (PV = nRT)</option>
-              <option value="reaction-kinetics-arrhenius">Kinetika Reaksi & Persamaan Arrhenius</option>
-              <option value="spectrophotometry-beer">Spektrofotometri UV-Vis & Beer-Lambert</option>
-            </select>
-          </div>
+            {/* Step-by-Step Guide & Next Step Action Banner */}
+            <CockpitStepGuideBanner
+              recordsCount={records.length}
+              onProceedToAnalysis={onProceedToAnalysis}
+              domainLabel="Kimia"
+            />
+
+            {cockpitTab === 'controls' && (
+              <>
+                {/* Mode Selector */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+                    <Sliders className="w-4 h-4 text-emerald-400" />
+                    <span>Pilih Sub-Eksperimen Kimia</span>
+                  </div>
+
+                  <select
+                    value={params.mode}
+                    onChange={(e) => {
+                      handleParamChange({ mode: e.target.value as ChemistryParams['mode'] });
+                      labSound.playClick(680);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="thermo-calorimetry">Termodinamika & Kalorimetri Reaksi</option>
+                    <option value="acid-base-titration">Titrasi Asam-Basa & Kurva pH</option>
+                    <option value="electrochemistry-cell">Sel Elektrokimia Galvani (Nernst)</option>
+                    <option value="ideal-gas-boyle">Hukum Gas Ideal & Boyle (PV = nRT)</option>
+                    <option value="reaction-kinetics-arrhenius">Kinetika Reaksi & Persamaan Arrhenius</option>
+                    <option value="spectrophotometry-beer">Spektrofotometri UV-Vis & Beer-Lambert</option>
+                  </select>
+                </div>
 
           {/* Mystery Challenge Form (ONLY if Active for Kimia) */}
           {activeMysteryChallenge && activeMysteryChallenge.domain === 'Kimia' && (
@@ -962,15 +1143,212 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
             </div>
           </div>
 
-          {/* Interactive Formula Card */}
-          <InteractiveFormulaCard
-            title={chemistryFormulaData.title}
-            subtitle={chemistryFormulaData.subtitle}
-            tokens={chemistryFormulaData.tokens}
-            activeParamKey={hoveredParamKey}
-            accentColor="#10b981"
-          />
-        </div>
+                {/* Interactive Formula Card */}
+                <InteractiveFormulaCard
+                  title={chemistryFormulaData.title}
+                  subtitle={chemistryFormulaData.subtitle}
+                  tokens={chemistryFormulaData.tokens}
+                  activeParamKey={hoveredParamKey}
+                  onApplyParamValue={(paramKey, value) =>
+                    handleParamChange({ [paramKey]: value } as Partial<ChemistryParams>)
+                  }
+                  accentColor="#10b981"
+                />
+
+                {/* Accordion 1: Quick Chemistry Scenario Presets */}
+                <CollapsibleLabSection
+                  title="Preset Skenario Kimia Cepat"
+                  subtitle="Muat cepat larutan standar, titrasi asam-basa, atau sel Galvani"
+                  statusText="Skenario Siap"
+                  accentColor="#10b981"
+                >
+                  <div className="grid grid-cols-1 gap-1.5 pt-1">
+                    {GUIDED_LAB_SCENARIOS.filter((s) => s.domain === 'Kimia').map(
+                      (sc) => (
+                        <button
+                          key={sc.id}
+                          type="button"
+                          onClick={() => {
+                            labSound.playClick(740);
+                            if (sc.chemistryPatch) {
+                              handleParamChange(sc.chemistryPatch);
+                            }
+                          }}
+                          title={sc.objective}
+                          className="p-2 rounded-xl bg-slate-950 hover:bg-slate-800/90 border border-slate-800 hover:border-emerald-500/50 text-left transition-colors cursor-pointer flex items-center justify-between gap-2"
+                        >
+                          <span className="text-[11px] font-bold text-slate-100 truncate">
+                            {sc.title}
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-400 shrink-0">
+                            {sc.badgeText}
+                          </span>
+                        </button>
+                      )
+                    )}
+                  </div>
+                </CollapsibleLabSection>
+
+                {/* Accordion 2: Live Telemetry Oscilloscope & Microscopic Indicator */}
+                <CollapsibleLabSection
+                  title="Osiloskop Telemetri & Indikator Mikroskopis"
+                  subtitle="Pantau kurva pH/potensial sel real-time & dinamika tumbukan ion"
+                  statusText={
+                    params.mode === 'acid-base-titration'
+                      ? `pH ${metrics.currentPh.toFixed(2)}`
+                      : `${metrics.finalTempC.toFixed(1)} °C`
+                  }
+                  accentColor="#38bdf8"
+                >
+                  <LiveTelemetryOscilloscope
+                    domain="Kimia"
+                    primaryLabel={
+                      params.mode === 'acid-base-titration'
+                        ? 'pH Larutan'
+                        : params.mode === 'electrochemistry-cell'
+                        ? 'Potensial E_sel'
+                        : 'Suhu T'
+                    }
+                    primaryValue={
+                      params.mode === 'acid-base-titration'
+                        ? metrics.currentPh
+                        : params.mode === 'electrochemistry-cell'
+                        ? metrics.nernstCellPotentialE
+                        : metrics.finalTempC
+                    }
+                    primaryUnit={
+                      params.mode === 'acid-base-titration'
+                        ? 'pH'
+                        : params.mode === 'electrochemistry-cell'
+                        ? 'V'
+                        : '°C'
+                    }
+                    secondaryLabel="Laju / ΔG"
+                    secondaryValue={
+                      params.mode === 'acid-base-titration'
+                        ? params.titrantAddedMl
+                        : metrics.deltaG
+                    }
+                    secondaryUnit={
+                      params.mode === 'acid-base-titration' ? 'mL' : 'kJ'
+                    }
+                    microscopicStateLabel={
+                      params.mode === 'acid-base-titration'
+                        ? `Kesetimbangan Ion H⁺/OH⁻ (${metrics.titrationRegion})`
+                        : params.mode === 'electrochemistry-cell'
+                        ? `Transfer Elektron Redoks (Q = ${metrics.reactionQuotientQ})`
+                        : `Frekuensi Tumbukan Molekul (${metrics.thermalClassification})`
+                    }
+                    microscopicDetail={
+                      params.mode === 'acid-base-titration'
+                        ? `Indikator ${metrics.indicatorColorName} · Volume ekuivalen teoretis = ${metrics.equivalenceVolumeMl} mL.`
+                        : `Entalpi reaksi ΔH = ${metrics.deltaHReaction} kJ/mol dengan laju r = ${metrics.reactionRate} M/s.`
+                    }
+                    accentColor="#10b981"
+                  />
+                </CollapsibleLabSection>
+
+                {/* Accordion 3: Manual Instrument Calibration & Uncertainty Simulation */}
+                <CollapsibleLabSection
+                  title="Kalibrasi Alat Ukur & Ketidakpastian (NST)"
+                  subtitle="Kalibrasi elektroda pH / buret / termometer dan pilih tingkat presisi"
+                  statusText={calibrationConfig.isZeroCalibrated ? 'Terkalibrasi' : 'Standar'}
+                  accentColor="#f59e0b"
+                >
+                  <InstrumentCalibrationCard
+                    instrumentName={
+                      params.mode === 'acid-base-titration'
+                        ? DEFAULT_INSTRUMENTS.phMeter.name
+                        : params.mode === 'electrochemistry-cell'
+                        ? DEFAULT_INSTRUMENTS.voltmeter.name
+                        : DEFAULT_INSTRUMENTS.thermometer.name
+                    }
+                    unit={
+                      params.mode === 'acid-base-titration'
+                        ? 'pH'
+                        : params.mode === 'electrochemistry-cell'
+                        ? 'V'
+                        : '°C'
+                    }
+                    rawValue={
+                      params.mode === 'acid-base-titration'
+                        ? metrics.currentPh
+                        : params.mode === 'electrochemistry-cell'
+                        ? metrics.nernstCellPotentialE
+                        : metrics.finalTempC
+                    }
+                    baseUncertaintyDelta={
+                      params.mode === 'acid-base-titration'
+                        ? DEFAULT_INSTRUMENTS.phMeter.uncertaintyDelta
+                        : params.mode === 'electrochemistry-cell'
+                        ? DEFAULT_INSTRUMENTS.voltmeter.uncertaintyDelta
+                        : DEFAULT_INSTRUMENTS.thermometer.uncertaintyDelta
+                    }
+                    config={calibrationConfig}
+                    onChangeConfig={setCalibrationConfig}
+                  />
+                </CollapsibleLabSection>
+              </>
+            )}
+
+            {cockpitTab === 'data-diff' && (
+              <div className="space-y-3">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-200">
+                      Log Pengamatan Tercatat ({records.length})
+                    </span>
+                    {onProceedToAnalysis && (
+                      <button
+                        type="button"
+                        onClick={onProceedToAnalysis}
+                        className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                      >
+                        Analisis Grafik &amp; LKS →
+                      </button>
+                    )}
+                  </div>
+                  {records.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 py-2">
+                      Belum ada data. Klik <strong>+ Catat Data</strong> pada bilah bawah saat menjalankan reaksi.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {records.map((r, idx) => (
+                        <div
+                          key={r.id}
+                          className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] space-y-1"
+                        >
+                          <div className="flex items-center justify-between font-mono">
+                            <span className="font-bold text-emerald-400">
+                              #{records.length - idx} · {r.domain}
+                            </span>
+                            <span className="text-slate-500 tabular-nums">{r.timestamp}</span>
+                          </div>
+                          <div className="text-slate-300 font-mono truncate">{r.parametersSummary}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <ExperimentTrialComparePanel
+                  records={records}
+                  domainFilter="Kimia"
+                />
+              </div>
+            )}
+
+            {cockpitTab === 'hypothesis' && (
+              <HypothesisScratchpadCard
+                note={effectiveHypothesis}
+                onChange={handleUpdateHypothesis}
+                defaultIndependentVar="Volume Titran / Suhu Awal (T₀)"
+                defaultDependentVar="pH Larutan / Energi Bebas ΔG"
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

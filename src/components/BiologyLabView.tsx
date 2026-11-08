@@ -7,6 +7,8 @@ import {
   RotateCcw,
   Camera,
   Leaf,
+  NotebookPen,
+  GitCompareArrows,
 } from 'lucide-react';
 import {
   EducationTier,
@@ -16,7 +18,17 @@ import { BiologyScene3D } from './BiologyScene3D';
 import { SpatialCursorPayload, ParameterLockPayload } from '../utils/collabProtocol';
 import { labSound } from '../utils/soundEngine';
 import {
+  DEFAULT_CALIBRATION_CONFIG,
+  InstrumentCalibrationConfig,
+  applyInstrumentNoise,
+  formatMeasurementWithUncertainty,
+} from '../utils/uncertaintyEngine';
+import {
   TactileParameterControl,
+  LiveTelemetryOscilloscope,
+  InstrumentCalibrationCard,
+  CollapsibleLabSection,
+  CockpitStepGuideBanner,
 } from './ui/LabInstruments';
 import {
   InteractiveFormulaCard,
@@ -26,6 +38,12 @@ import {
   BiologyTelemetryContext,
   ExperimentRecord,
 } from '../utils/scienceEngine';
+import {
+  ContextualMicroGuideHUD,
+  HypothesisScratchpadCard,
+  ExperimentTrialComparePanel,
+  HypothesisNote,
+} from './ui/HypothesisAndCompareDock';
 
 interface BiologyLabViewProps {
   activeStudentName: string;
@@ -58,6 +76,9 @@ interface BiologyLabViewProps {
   onSelectModuleId?: (id: string) => void;
   onProceedToAnalysis?: () => void;
   onBackToCatalog?: () => void;
+  hypothesisNote?: HypothesisNote;
+  onChangeHypothesisNote?: (next: HypothesisNote) => void;
+  zenMode?: boolean;
 }
 
 export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
@@ -73,6 +94,10 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   records = [],
   selectedModuleId: externalModuleId,
   onSelectModuleId,
+  onProceedToAnalysis,
+  hypothesisNote,
+  onChangeHypothesisNote,
+  zenMode = false,
 }) => {
   const biologyModules = useMemo(() => getExperimentsByDomain('biologi'), []);
   const [internalModuleId, setInternalModuleId] = useState<string>(
@@ -87,6 +112,21 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [simProgress, setSimProgress] = useState<number>(0.45);
+  const [calibrationConfig, setCalibrationConfig] =
+    useState<InstrumentCalibrationConfig>(DEFAULT_CALIBRATION_CONFIG);
+  const [cockpitTab, setCockpitTab] = useState<'controls' | 'data-diff' | 'hypothesis'>('controls');
+  const [localHypothesis, setLocalHypothesis] = useState<HypothesisNote>({
+    independentVar: 'Intensitas Cahaya / Konsentrasi Substrat',
+    dependentVar: 'Laju Gelembung O₂ / Kecepatan Reaksi',
+    hypothesisText: '',
+    reflectionText: '',
+    updatedAt: '',
+  });
+  const effectiveHypothesis = hypothesisNote ?? localHypothesis;
+  const handleUpdateHypothesis = (next: HypothesisNote) => {
+    setLocalHypothesis(next);
+    if (onChangeHypothesisNote) onChangeHypothesisNote(next);
+  };
 
   const currentModule = useMemo(() => {
     return (
@@ -147,7 +187,27 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     const xKey = currentModule.defaultRegressionAxes.xKey;
     const yKey = currentModule.defaultRegressionAxes.yKey;
     const numX = paramsState[xKey] ?? 0;
-    const numY1 = currentOutputs[yKey] ?? 0;
+    const rawY1 = currentOutputs[yKey] ?? 0;
+    const calibratedMeasurement = applyInstrumentNoise(
+      rawY1,
+      {
+        name: 'Sensor Bioreaktor Optik',
+        smallestScaleDivision: 0.4,
+        unit: currentModule.outputs[0]?.unit || '',
+        uncertaintyDelta: 0.2,
+        precisionDecimals: 2,
+      },
+      !calibrationConfig.isZeroCalibrated || calibrationConfig.precisionTier === 'high-precision',
+      calibrationConfig
+    );
+
+    if (currentModule.outputs[0]) {
+      metricsDict[currentModule.outputs[0].label] = formatMeasurementWithUncertainty(
+        calibratedMeasurement.measuredValue,
+        calibratedMeasurement.uncertainty,
+        currentModule.outputs[0].unit
+      );
+    }
 
     onRecordExperiment(
       'Biologi',
@@ -155,7 +215,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
       paramsSummary,
       metricsDict,
       `Pengujian ${currentModule.title} jenjang ${activeTier} pada ${paramsSummary}.`,
-      { x: numX, y1: numY1, y2: 0 }
+      { x: numX, y1: calibratedMeasurement.measuredValue, y2: 0 }
     );
   };
 
@@ -294,12 +354,12 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   }, [currentMode, currentOutputs, paramsState]);
 
   return (
-    <div className="w-full h-full max-w-[1380px] mx-auto p-4 sm:p-6 overflow-y-auto bg-slate-950 text-slate-100 select-none pb-24">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* LEFT COLUMN: 3D Scene Canvas & Playback Bar */}
-        <div className="lg:col-span-8 space-y-4 flex flex-col">
+    <div className="w-full h-full max-w-[1600px] mx-auto px-4 py-3 lg:overflow-hidden overflow-y-auto bg-slate-950 text-slate-100 select-none flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 items-stretch">
+        {/* LEFT COLUMN: Fixed 3D Scene Canvas & Playback Bar */}
+        <div className={`${zenMode ? 'lg:col-span-12' : 'lg:col-span-8'} flex flex-col h-full min-h-0 gap-3 transition-all`}>
           {/* 3D Canvas Box */}
-          <div className="relative w-full h-[540px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-2xl">
+          <div className="relative w-full flex-1 min-h-[360px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-2xl">
             <BiologyScene3D
               mode={currentMode}
               params={paramsState}
@@ -320,10 +380,27 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
                 />
               )}
             </AnimatePresence>
+
+            {/* Bottom-Left Contextual Micro-Step Guide HUD */}
+            <div className="absolute bottom-3 left-3 z-20 pointer-events-none hidden sm:block">
+              <ContextualMicroGuideHUD
+                moduleTitle={currentModule.title}
+                IndependentVarLabel={currentModule.parameters[0]?.label || 'Parameter Bioreaktor'}
+                DependentVarLabel={currentModule.outputs[0]?.label || 'Laju Biologis'}
+                recordsCount={records.length}
+                targetRecords={3}
+                isPlaying={isPlaying}
+                hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
+                onOpenHypothesis={() => setCockpitTab('hypothesis')}
+                onOpenCompare={() => setCockpitTab('data-diff')}
+                onQuickRecord={handleRecordTrial}
+                onProceedToAnalysis={onProceedToAnalysis}
+              />
+            </div>
           </div>
 
           {/* Bottom Playback & Recording Bar */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+          <div className="shrink-0 bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* Play / Reset controls */}
               <div className="flex items-center gap-2">
@@ -333,7 +410,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
                     labSound.playClick();
                     setIsPlaying(!isPlaying);
                   }}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-md ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-md whitespace-nowrap ${
                     isPlaying
                       ? 'bg-amber-600 hover:bg-amber-500 text-white'
                       : 'bg-emerald-600 hover:bg-emerald-500 text-white'
@@ -361,7 +438,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
               </div>
 
               {/* Progress Slider */}
-              <div className="flex-1 min-w-[180px] flex items-center gap-2">
+              <div className="flex-1 min-w-[150px] flex items-center gap-2">
                 <span className="text-xs font-mono text-slate-400 shrink-0">Waktu:</span>
                 <input
                   type="range"
@@ -377,93 +454,292 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
                 </span>
               </div>
 
-              {/* Prominent + Catat Data Percobaan Button */}
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={handleRecordTrial}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-lime-500 hover:from-emerald-400 hover:to-lime-400 text-slate-950 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer shrink-0"
-              >
-                <Camera className="w-4 h-4 text-slate-950" />
-                <span>+ Catat Data Percobaan</span>
-                <span className="bg-slate-950/20 px-2 py-0.5 rounded-md font-mono text-[11px] text-slate-950">
-                  {records.length}/3 Data
-                </span>
-              </motion.button>
-            </div>
-          </div>
-        </div>
+              {/* Action Buttons: Catat Data & Analisis Grafik */}
+              <div className="flex items-center gap-2 shrink-0">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={handleRecordTrial}
+                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap"
+                >
+                  <Camera className="w-4 h-4 text-slate-950" />
+                  <span>+ Catat Data</span>
+                  <span className="bg-slate-950/20 px-1.5 py-0.5 rounded font-mono text-[11px] text-slate-950 tabular-nums">
+                    {records.length}/3
+                  </span>
+                </motion.button>
 
-        {/* RIGHT COLUMN: Parameter Sliders & Formula Card */}
-        <div className="lg:col-span-4 space-y-4 flex flex-col">
-          {/* Module Selector */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-              <Sliders className="w-4 h-4 text-emerald-400" />
-              <span>Modul Eksperimen Biologi</span>
-            </div>
-
-            <select
-              value={selectedModuleId}
-              onChange={(e) => {
-                labSound.playClick();
-                setSelectedModuleId(e.target.value);
-              }}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-            >
-              {biologyModules.map((mod) => (
-                <option key={mod.id} value={mod.id}>
-                  {mod.title}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Parameter Sliders Container */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
-            <div className="text-xs font-bold text-slate-200">Parameter Bioreaktor</div>
-
-            <div className="space-y-3">
-              {currentModule.parameters.map((param) => {
-                const val = paramsState[param.key] ?? param.defaultValue;
-                const lock = paramLocks[param.key];
-                const isLocked = !!lock && lock.lockedByName !== activeStudentName;
-
-                return (
-                  <div
-                    key={param.key}
-                    onPointerDown={() => onAcquireLock && onAcquireLock(param.key)}
-                    onPointerUp={() => onReleaseLock && onReleaseLock(param.key)}
+                {onProceedToAnalysis && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      onProceedToAnalysis();
+                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                      records.length >= 3
+                        ? 'bg-sky-600 hover:bg-sky-500 text-white shadow-md'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                    }`}
                   >
-                    <TactileParameterControl
-                      label={param.label}
-                      symbol={param.key.slice(0, 3)}
-                      value={val}
-                      min={param.min}
-                      max={param.max}
-                      step={param.step}
-                      unit={param.unit}
-                      accentColor="#10b981"
-                      lockedBy={isLocked ? lock.lockedByName : undefined}
-                      onHoverChange={(h) => setHoveredParamKey(h ? param.key : null)}
-                      onChange={(v) => handleParamChange(param.key, v)}
-                    />
-                  </div>
-                );
-              })}
+                    Grafik & LKS →
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-
-          {/* Interactive Formula Card */}
-          <InteractiveFormulaCard
-            title={biologyFormulaData.title}
-            subtitle={biologyFormulaData.subtitle}
-            tokens={biologyFormulaData.tokens}
-            activeParamKey={hoveredParamKey}
-            accentColor="#10b981"
-          />
         </div>
+
+        {/* RIGHT COLUMN: Tabbed Control Deck (Hidden in Zen Mode) */}
+        {!zenMode && (
+          <div className="lg:col-span-4 h-full lg:overflow-y-auto pr-1 space-y-3 pb-4 flex flex-col">
+            {/* Sticky Cockpit Tab Switcher */}
+            <div
+              role="tablist"
+              aria-label="Panel Kontrol Praktikum Biologi"
+              className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg shrink-0 sticky top-0 z-30"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitTab === 'controls'}
+                onClick={() => {
+                  labSound.playClick();
+                  setCockpitTab('controls');
+                }}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                  cockpitTab === 'controls'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Kontrol &amp; Rumus</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitTab === 'data-diff'}
+                onClick={() => {
+                  labSound.playClick();
+                  setCockpitTab('data-diff');
+                }}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                  cockpitTab === 'data-diff'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <GitCompareArrows className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Data &amp; Diff ({records.length})</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitTab === 'hypothesis'}
+                onClick={() => {
+                  labSound.playClick();
+                  setCockpitTab('hypothesis');
+                }}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                  cockpitTab === 'hypothesis'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <NotebookPen className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Hipotesis</span>
+              </button>
+            </div>
+
+            {/* Step-by-Step Guide & Next Step Action Banner */}
+            <CockpitStepGuideBanner
+              recordsCount={records.length}
+              onProceedToAnalysis={onProceedToAnalysis}
+              domainLabel="Biologi"
+            />
+
+            {cockpitTab === 'controls' && (
+              <>
+                {/* Module Selector */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+                    <Sliders className="w-4 h-4 text-emerald-400" />
+                    <span>Pilih Modul Eksperimen Biologi</span>
+                  </div>
+
+                  <select
+                    value={selectedModuleId}
+                    onChange={(e) => {
+                      labSound.playClick();
+                      setSelectedModuleId(e.target.value);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    {biologyModules.map((mod) => (
+                      <option key={mod.id} value={mod.id}>
+                        {mod.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Parameter Sliders Container */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+                  <div className="text-xs font-bold text-slate-200">Parameter Bioreaktor</div>
+
+                  <div className="space-y-3">
+                    {currentModule.parameters.map((param) => {
+                      const val = paramsState[param.key] ?? param.defaultValue;
+                      const lock = paramLocks[param.key];
+                      const isLocked = !!lock && lock.lockedByName !== activeStudentName;
+
+                      return (
+                        <div
+                          key={param.key}
+                          onPointerDown={() => onAcquireLock && onAcquireLock(param.key)}
+                          onPointerUp={() => onReleaseLock && onReleaseLock(param.key)}
+                        >
+                          <TactileParameterControl
+                            label={param.label}
+                            symbol={param.key.slice(0, 3)}
+                            value={val}
+                            min={param.min}
+                            max={param.max}
+                            step={param.step}
+                            unit={param.unit}
+                            accentColor="#10b981"
+                            lockedBy={isLocked ? lock.lockedByName : undefined}
+                            onHoverChange={(h) => setHoveredParamKey(h ? param.key : null)}
+                            onChange={(v) => handleParamChange(param.key, v)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Interactive Formula Card */}
+                <InteractiveFormulaCard
+                  title={biologyFormulaData.title}
+                  subtitle={biologyFormulaData.subtitle}
+                  tokens={biologyFormulaData.tokens}
+                  activeParamKey={hoveredParamKey}
+                  onApplyParamValue={(paramKey, value) => handleParamChange(paramKey, value)}
+                  accentColor="#10b981"
+                />
+
+                {/* Accordion 1: Live Telemetry Oscilloscope & Cellular Microscopic Indicator */}
+                <CollapsibleLabSection
+                  title="Osiloskop Telemetri & Indikator Seluler"
+                  subtitle="Pantau laju produksi O₂ / reaksi enzimatis & aktivitas mikroskopis sel"
+                  statusText={`${(currentOutputs[currentModule.outputs[0]?.key || 'o2BubbleRate'] ?? 0).toFixed(1)} ${currentModule.outputs[0]?.unit || ''}`}
+                  accentColor="#10b981"
+                >
+                  <LiveTelemetryOscilloscope
+                    domain="Biologi"
+                    primaryLabel={currentModule.outputs[0]?.label || 'Laju O₂'}
+                    primaryValue={currentOutputs[currentModule.outputs[0]?.key || 'o2BubbleRate'] ?? 0}
+                    primaryUnit={currentModule.outputs[0]?.unit || '/mnt'}
+                    secondaryLabel={currentModule.parameters[0]?.label || 'Input'}
+                    secondaryValue={paramsState[currentModule.parameters[0]?.key || 'lightIntensityLux'] ?? 0}
+                    secondaryUnit={currentModule.parameters[0]?.unit || ''}
+                    microscopicStateLabel={
+                      currentMode === 'photosynthesis-ingenhousz'
+                        ? 'Aktivitas Kloroplas & Fotolisis Air Tilakoid'
+                        : currentMode === 'enzyme-catalase'
+                        ? 'Kompleks Enzim-Substrat (Situs Aktif Hem Katalase)'
+                        : 'Status Turgor Membran Plasma & Vakuola Sel'
+                    }
+                    microscopicDetail={
+                      currentMode === 'photosynthesis-ingenhousz'
+                        ? 'Pelepasan mikro-gelembung O₂ berbanding lurus dengan fluks foton sebelum mencapai titik jenuh enzim Rubisco.'
+                        : currentMode === 'enzyme-catalase'
+                        ? 'Suhu dan pH ekstrem memicu denaturasi ikatan hidrogen konformasi 3D situs aktif enzim.'
+                        : 'Perbedaan potensial air (ΔΨ) mendorong fluks osmotik melintasi membran semipermeabel.'
+                    }
+                    accentColor="#10b981"
+                  />
+                </CollapsibleLabSection>
+
+                {/* Accordion 2: Manual Instrument Calibration */}
+                <CollapsibleLabSection
+                  title="Kalibrasi Sensor Optik & Respirometer"
+                  subtitle="Atur kalibrasi nol (Tare) dan tingkat presisi sensor biologi"
+                  statusText={calibrationConfig.isZeroCalibrated ? 'Terkalibrasi' : 'Standar'}
+                  accentColor="#f59e0b"
+                >
+                  <InstrumentCalibrationCard
+                    instrumentName="Sensor Optik & Respirometer Biologi"
+                    unit={currentModule.outputs[0]?.unit || 'satuan'}
+                    rawValue={currentOutputs[currentModule.outputs[0]?.key || 'o2BubbleRate'] ?? 0}
+                    baseUncertaintyDelta={0.2}
+                    config={calibrationConfig}
+                    onChangeConfig={setCalibrationConfig}
+                  />
+                </CollapsibleLabSection>
+              </>
+            )}
+
+            {cockpitTab === 'data-diff' && (
+              <div className="space-y-3">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-200">
+                      Log Pengamatan Tercatat ({records.length})
+                    </span>
+                    {onProceedToAnalysis && (
+                      <button
+                        type="button"
+                        onClick={onProceedToAnalysis}
+                        className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                      >
+                        Analisis Grafik &amp; LKS →
+                      </button>
+                    )}
+                  </div>
+                  {records.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 py-2">
+                      Belum ada data. Klik <strong>+ Catat Data</strong> pada bilah bawah saat menjalankan observasi.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {records.map((r, idx) => (
+                        <div
+                          key={r.id}
+                          className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] space-y-1"
+                        >
+                          <div className="flex items-center justify-between font-mono">
+                            <span className="font-bold text-emerald-400">
+                              #{records.length - idx} · {r.domain}
+                            </span>
+                            <span className="text-slate-500 tabular-nums">{r.timestamp}</span>
+                          </div>
+                          <div className="text-slate-300 font-mono truncate">{r.parametersSummary}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <ExperimentTrialComparePanel
+                  records={records}
+                  domainFilter="Biologi"
+                />
+              </div>
+            )}
+
+            {cockpitTab === 'hypothesis' && (
+              <HypothesisScratchpadCard
+                note={effectiveHypothesis}
+                onChange={handleUpdateHypothesis}
+                defaultIndependentVar={currentModule.parameters[0]?.label || 'Intensitas Cahaya'}
+                defaultDependentVar={currentModule.outputs[0]?.label || 'Laju Gelembung O₂'}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -158,6 +158,10 @@ class LabSoundEngine {
     }
   }
 
+  public playSuccessChime() {
+    this.playRecordSuccess();
+  }
+
   public playSnapshotPin() {
     const ctx = this.getContext();
     if (!ctx) return;

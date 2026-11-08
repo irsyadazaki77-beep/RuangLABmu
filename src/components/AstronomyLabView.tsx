@@ -8,6 +8,8 @@ import {
   HelpCircle,
   CheckCircle,
   Sliders,
+  NotebookPen,
+  GitCompareArrows,
 } from 'lucide-react';
 import {
   AstronomyParams,
@@ -15,6 +17,7 @@ import {
   SOLAR_PLANET_PRESETS,
   calculateAstronomyMetrics,
   generateAutomaticFeedback,
+  GUIDED_LAB_SCENARIOS,
   LabNotification,
   ExperimentRecord,
 } from '../utils/scienceEngine';
@@ -22,7 +25,16 @@ import { AstronomyScene3D } from './AstronomyScene3D';
 import { labSound } from '../utils/soundEngine';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import {
+  DEFAULT_CALIBRATION_CONFIG,
+  InstrumentCalibrationConfig,
+  applyInstrumentNoise,
+} from '../utils/uncertaintyEngine';
+import {
   TactileParameterControl,
+  LiveTelemetryOscilloscope,
+  InstrumentCalibrationCard,
+  CollapsibleLabSection,
+  CockpitStepGuideBanner,
 } from './ui/LabInstruments';
 import {
   InteractiveFormulaCard,
@@ -33,6 +45,12 @@ import {
   MysterySubmissionResult,
   evaluateMysterySubmission,
 } from '../utils/mysteryChallengeEngine';
+import {
+  ContextualMicroGuideHUD,
+  HypothesisScratchpadCard,
+  ExperimentTrialComparePanel,
+  HypothesisNote,
+} from './ui/HypothesisAndCompareDock';
 
 interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -67,6 +85,9 @@ interface AstronomyLabViewProps {
     result: MysterySubmissionResult,
     title: string
   ) => void;
+  hypothesisNote?: HypothesisNote;
+  onChangeHypothesisNote?: (next: HypothesisNote) => void;
+  zenMode?: boolean;
 }
 
 export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
@@ -78,13 +99,32 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   onEmitCursor,
   records = [],
   activeStudentName = 'Alya Pratama',
+  onProceedToAnalysis,
   activeMysteryChallenge,
   onSubmitMysteryExam,
+  hypothesisNote,
+  onChangeHypothesisNote,
+  zenMode = false,
 }) => {
   const [isRunning, setIsRunning] = useState<boolean>(true);
   const [simTime, setSimTime] = useState<number>(0);
   const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
+  const [calibrationConfig, setCalibrationConfig] =
+    useState<InstrumentCalibrationConfig>(DEFAULT_CALIBRATION_CONFIG);
+  const [cockpitTab, setCockpitTab] = useState<'controls' | 'data-diff' | 'hypothesis'>('controls');
+  const [localHypothesis, setLocalHypothesis] = useState<HypothesisNote>({
+    independentVar: 'Sumbu Semi-Mayor Orbit (a)',
+    dependentVar: 'Periode Orbit Kuadrat (T²)',
+    hypothesisText: '',
+    reflectionText: '',
+    updatedAt: '',
+  });
+  const effectiveHypothesis = hypothesisNote ?? localHypothesis;
+  const handleUpdateHypothesis = (next: HypothesisNote) => {
+    setLocalHypothesis(next);
+    if (onChangeHypothesisNote) onChangeHypothesisNote(next);
+  };
 
   // Mystery Sample Exam State
   const [mysteryGuessInput, setMysteryGuessInput] = useState<string>('');
@@ -411,12 +451,12 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   })();
 
   return (
-    <div className="w-full h-full max-w-[1380px] mx-auto p-4 sm:p-6 overflow-y-auto bg-slate-950 text-slate-100 select-none pb-24">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* LEFT COLUMN: 3D Scene Canvas & Playback Bar */}
-        <div className="lg:col-span-8 space-y-4 flex flex-col">
+    <div className="w-full h-full max-w-[1600px] mx-auto px-4 py-3 lg:overflow-hidden overflow-y-auto bg-slate-950 text-slate-100 select-none flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 items-stretch">
+        {/* LEFT COLUMN: Fixed 3D Scene Canvas & Playback Bar */}
+        <div className={`${zenMode ? 'lg:col-span-12' : 'lg:col-span-8'} flex flex-col h-full min-h-0 gap-3 transition-all`}>
           {/* 3D Canvas Box */}
-          <div className="relative w-full h-[540px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-2xl">
+          <div className="relative w-full flex-1 min-h-[360px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-2xl">
             <AstronomyScene3D
               params={params}
               metrics={metrics}
@@ -454,10 +494,57 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* Bottom-Left Contextual Micro-Step Guide HUD */}
+            <div className="absolute bottom-3 left-3 z-20 pointer-events-none hidden sm:block">
+              <ContextualMicroGuideHUD
+                moduleTitle={
+                  params.mode === 'solar-kepler'
+                    ? 'Hukum III Kepler & Tata Surya'
+                    : params.mode === 'milkyway-galaxy'
+                    ? 'Rotasi Galaksi & Materi Gelap'
+                    : params.mode === 'stellar-wien-spectrum'
+                    ? 'Spektroskopi Bintang Wien'
+                    : params.mode === 'hubble-expansion'
+                    ? 'Ekspansi Kosmos Hubble'
+                    : 'Fotometri Transit Eksoplanet'
+                }
+                IndependentVarLabel={
+                  params.mode === 'solar-kepler'
+                    ? 'Sumbu Semi-Mayor (a)'
+                    : params.mode === 'milkyway-galaxy'
+                    ? 'Radius Galaktosentris (R)'
+                    : params.mode === 'stellar-wien-spectrum'
+                    ? 'Suhu Efektif Bintang (Teff)'
+                    : params.mode === 'hubble-expansion'
+                    ? 'Jarak Galaksi (d)'
+                    : 'Radius Eksoplanet (Rp)'
+                }
+                DependentVarLabel={
+                  params.mode === 'solar-kepler'
+                    ? 'Periode Orbit (T)'
+                    : params.mode === 'milkyway-galaxy'
+                    ? 'Kecepatan Rotasi (v_obs)'
+                    : params.mode === 'stellar-wien-spectrum'
+                    ? 'Panjang Gelombang Puncak (λ_max)'
+                    : params.mode === 'hubble-expansion'
+                    ? 'Kecepatan Resesi (v)'
+                    : 'Kedalaman Transit (ΔF/F)'
+                }
+                recordsCount={records.length}
+                targetRecords={3}
+                isPlaying={isRunning}
+                hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
+                onOpenHypothesis={() => setCockpitTab('hypothesis')}
+                onOpenCompare={() => setCockpitTab('data-diff')}
+                onQuickRecord={handleRecordClick}
+                onProceedToAnalysis={onProceedToAnalysis}
+              />
+            </div>
           </div>
 
           {/* Bottom Playback Bar */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+          <div className="shrink-0 bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* Play / Reset controls */}
               <div className="flex items-center gap-2">
@@ -467,7 +554,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     labSound.playClick();
                     setIsRunning(!isRunning);
                   }}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-md ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-md whitespace-nowrap ${
                     isRunning
                       ? 'bg-amber-600 hover:bg-amber-500 text-white'
                       : 'bg-emerald-600 hover:bg-emerald-500 text-white'
@@ -491,7 +578,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               </div>
 
               {/* Time Speed Slider */}
-              <div className="flex-1 min-w-[180px] flex items-center gap-2">
+              <div className="flex-1 min-w-[150px] flex items-center gap-2">
                 <span className="text-xs font-mono text-slate-400 shrink-0">Kecepatan:</span>
                 <input
                   type="range"
@@ -512,32 +599,120 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                 </span>
               </div>
 
-              {/* Prominent + Catat Data Percobaan Button */}
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={handleRecordClick}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-sky-500 hover:from-indigo-400 hover:to-sky-400 text-slate-950 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer shrink-0"
-              >
-                <Camera className="w-4 h-4 text-slate-950" />
-                <span>+ Catat Data Percobaan</span>
-                <span className="bg-slate-950/20 px-2 py-0.5 rounded-md font-mono text-[11px] text-slate-950">
-                  {records.length}/3 Data
-                </span>
-              </motion.button>
+              {/* Action Buttons: Catat Data & Analisis Grafik */}
+              <div className="flex items-center gap-2 shrink-0">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={handleRecordClick}
+                  className="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>+ Catat Data</span>
+                  <span className="bg-slate-950/30 px-1.5 py-0.5 rounded font-mono text-[11px] tabular-nums">
+                    {records.length}/3
+                  </span>
+                </motion.button>
+
+                {onProceedToAnalysis && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      onProceedToAnalysis();
+                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                      records.length >= 3
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                    }`}
+                  >
+                    Grafik & LKS →
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Parameter Sliders & Formula Card */}
-        <div className="lg:col-span-4 space-y-4 flex flex-col">
-          {/* Mode Selector */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-              <Sliders className="w-4 h-4 text-indigo-400" />
-              <span>Modul Eksperimen Astronomi</span>
+        {/* RIGHT COLUMN: Tabbed Control Deck (Hidden in Zen Mode) */}
+        {!zenMode && (
+          <div className="lg:col-span-4 h-full lg:overflow-y-auto pr-1 space-y-3 pb-4 flex flex-col">
+            {/* Sticky Cockpit Tab Switcher */}
+            <div
+              role="tablist"
+              aria-label="Panel Kontrol Praktikum Astronomi"
+              className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg shrink-0 sticky top-0 z-30"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitTab === 'controls'}
+                onClick={() => {
+                  labSound.playClick();
+                  setCockpitTab('controls');
+                }}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                  cockpitTab === 'controls'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Kontrol &amp; Rumus</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitTab === 'data-diff'}
+                onClick={() => {
+                  labSound.playClick();
+                  setCockpitTab('data-diff');
+                }}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                  cockpitTab === 'data-diff'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <GitCompareArrows className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Data &amp; Diff ({records.length})</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitTab === 'hypothesis'}
+                onClick={() => {
+                  labSound.playClick();
+                  setCockpitTab('hypothesis');
+                }}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                  cockpitTab === 'hypothesis'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <NotebookPen className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Hipotesis</span>
+              </button>
             </div>
+
+            {/* Step-by-Step Guide & Next Step Action Banner */}
+            <CockpitStepGuideBanner
+              recordsCount={records.length}
+              onProceedToAnalysis={onProceedToAnalysis}
+              domainLabel="Astronomi"
+            />
+
+            {cockpitTab === 'controls' && (
+              <>
+                {/* Mode Selector */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+                    <Sliders className="w-4 h-4 text-indigo-400" />
+                    <span>Pilih Modul Eksperimen Astronomi</span>
+                  </div>
 
             <select
               value={params.mode}
@@ -813,15 +988,190 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
             </div>
           </div>
 
-          {/* Interactive Formula Card */}
-          <InteractiveFormulaCard
-            title={astronomyFormulaData.title}
-            subtitle={astronomyFormulaData.subtitle}
-            tokens={astronomyFormulaData.tokens}
-            activeParamKey={hoveredParamKey}
-            accentColor="#818cf8"
-          />
-        </div>
+                {/* Interactive Formula Card */}
+                <InteractiveFormulaCard
+                  title={astronomyFormulaData.title}
+                  subtitle={astronomyFormulaData.subtitle}
+                  tokens={astronomyFormulaData.tokens}
+                  activeParamKey={hoveredParamKey}
+                  onApplyParamValue={(paramKey, value) =>
+                    onChangeParams((p) => ({ ...p, [paramKey]: value }))
+                  }
+                  accentColor="#818cf8"
+                />
+
+                {/* Accordion 1: Quick Astronomy Scenario Presets */}
+                <CollapsibleLabSection
+                  title="Preset Skenario Astrofisika Cepat"
+                  subtitle="Muat cepat orbit planet, kurva rotasi materi gelap, atau transit eksoplanet"
+                  statusText="Skenario Siap"
+                  accentColor="#818cf8"
+                >
+                  <div className="grid grid-cols-1 gap-1.5 pt-1">
+                    {GUIDED_LAB_SCENARIOS.filter((s) => s.domain === 'Astronomi').map(
+                      (sc) => (
+                        <button
+                          key={sc.id}
+                          type="button"
+                          onClick={() => {
+                            labSound.playClick(740);
+                            if (sc.astronomyPatch) {
+                              onChangeParams((prev) => ({
+                                ...prev,
+                                ...sc.astronomyPatch,
+                              }));
+                            }
+                          }}
+                          title={sc.objective}
+                          className="p-2 rounded-xl bg-slate-950 hover:bg-slate-800/90 border border-slate-800 hover:border-indigo-500/50 text-left transition-colors cursor-pointer flex items-center justify-between gap-2"
+                        >
+                          <span className="text-[11px] font-bold text-slate-100 truncate">
+                            {sc.title}
+                          </span>
+                          <span className="text-[10px] font-mono text-indigo-400 shrink-0">
+                            {sc.badgeText}
+                          </span>
+                        </button>
+                      )
+                    )}
+                  </div>
+                </CollapsibleLabSection>
+
+                {/* Accordion 2: Live Telemetry Oscilloscope & Orbital Vector Indicator */}
+                <CollapsibleLabSection
+                  title="Osiloskop Telemetri & Indikator Orbit"
+                  subtitle="Grafik sinyal kecepatan orbit, kurva cahaya transit, dan momentum sudut"
+                  statusText={`${metrics.meanOrbitalVelocityKms} km/s`}
+                  accentColor="#38bdf8"
+                >
+                  <LiveTelemetryOscilloscope
+                    domain="Astronomi"
+                    primaryLabel={
+                      params.mode === 'solar-kepler'
+                        ? 'Kecepatan Orbit'
+                        : params.mode === 'milkyway-galaxy'
+                        ? 'v Rotasi DM'
+                        : 'Kedalaman Transit'
+                    }
+                    primaryValue={
+                      params.mode === 'solar-kepler'
+                        ? metrics.meanOrbitalVelocityKms
+                        : params.mode === 'milkyway-galaxy'
+                        ? metrics.observedDarkMatterVelocityKms
+                        : metrics.transitDepthPct
+                    }
+                    primaryUnit={
+                      params.mode === 'solar-kepler' || params.mode === 'milkyway-galaxy'
+                        ? 'km/s'
+                        : '%'
+                    }
+                    secondaryLabel="Periode / Luminositas"
+                    secondaryValue={
+                      params.mode === 'solar-kepler'
+                        ? metrics.orbitalPeriodYears
+                        : metrics.stellarLuminositySolar
+                    }
+                    secondaryUnit={params.mode === 'solar-kepler' ? 'thn' : 'L☉'}
+                    microscopicStateLabel={
+                      params.mode === 'solar-kepler'
+                        ? `Kekekalan Momentum Sudut Spesifik (T²/a³ = ${metrics.keplerRatioT2OverA3})`
+                        : params.mode === 'milkyway-galaxy'
+                        ? `Anomali Kecepatan Halo Materi Gelap (+${metrics.velocityAnomalyKms} km/s)`
+                        : `Fotometri Bintang Kelas ${metrics.spectralClass} (T_eff = ${params.starEffectiveTempK} K)`
+                    }
+                    microscopicDetail={
+                      params.mode === 'solar-kepler'
+                        ? `Kecepatan perihelion v_p = ${metrics.perihelionVelocityKms} km/s vs aphelion v_a = ${metrics.aphelionVelocityKms} km/s.`
+                        : `Massa terlingkupi M(<R) = ${metrics.enclosedMassBillionSolar}×10⁹ M☉.`
+                    }
+                    accentColor="#818cf8"
+                  />
+                </CollapsibleLabSection>
+
+                {/* Accordion 3: Manual Instrument Calibration */}
+                <CollapsibleLabSection
+                  title="Kalibrasi Fotometer & Spektrograf CCD"
+                  subtitle="Atur kalibrasi nol (Tare) dan tingkat presisi sensor observatorium"
+                  statusText={calibrationConfig.isZeroCalibrated ? 'Terkalibrasi' : 'Standar'}
+                  accentColor="#f59e0b"
+                >
+                  <InstrumentCalibrationCard
+                    instrumentName="Fotometer & Spektrograf CCD Observatorium"
+                    unit={params.mode === 'solar-kepler' ? 'thn' : 'km/s'}
+                    rawValue={
+                      params.mode === 'solar-kepler'
+                        ? metrics.orbitalPeriodYears
+                        : metrics.observedDarkMatterVelocityKms
+                    }
+                    baseUncertaintyDelta={params.mode === 'solar-kepler' ? 0.05 : 1.5}
+                    config={calibrationConfig}
+                    onChangeConfig={(next) => {
+                      setCalibrationConfig(next);
+                      applyInstrumentNoise(1, { name: 'CCD', smallestScaleDivision: 0.1, unit: '', uncertaintyDelta: 0.05, precisionDecimals: 2 }, true, next);
+                    }}
+                  />
+                </CollapsibleLabSection>
+              </>
+            )}
+
+            {cockpitTab === 'data-diff' && (
+              <div className="space-y-3">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-200">
+                      Log Pengamatan Tercatat ({records.length})
+                    </span>
+                    {onProceedToAnalysis && (
+                      <button
+                        type="button"
+                        onClick={onProceedToAnalysis}
+                        className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 cursor-pointer"
+                      >
+                        Analisis Grafik &amp; LKS →
+                      </button>
+                    )}
+                  </div>
+                  {records.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 py-2">
+                      Belum ada data. Klik <strong>+ Catat Data</strong> pada bilah bawah saat menjalankan orbit.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {records.map((r, idx) => (
+                        <div
+                          key={r.id}
+                          className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] space-y-1"
+                        >
+                          <div className="flex items-center justify-between font-mono">
+                            <span className="font-bold text-indigo-400">
+                              #{records.length - idx} · {r.domain}
+                            </span>
+                            <span className="text-slate-500 tabular-nums">{r.timestamp}</span>
+                          </div>
+                          <div className="text-slate-300 font-mono truncate">{r.parametersSummary}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <ExperimentTrialComparePanel
+                  records={records}
+                  domainFilter="Astronomi"
+                />
+              </div>
+            )}
+
+            {cockpitTab === 'hypothesis' && (
+              <HypothesisScratchpadCard
+                note={effectiveHypothesis}
+                onChange={handleUpdateHypothesis}
+                defaultIndependentVar="Sumbu Semi-Mayor Orbit (a)"
+                defaultDependentVar="Periode Orbit Kuadrat (T²)"
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

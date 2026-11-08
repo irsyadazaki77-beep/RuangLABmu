@@ -4,22 +4,14 @@ import {
   Bell,
   Download,
   Users,
-  X,
   Atom,
-  FlaskConical,
-  Orbit,
   GraduationCap,
-  Sun,
-  Moon,
   Volume2,
   VolumeX,
-  Leaf,
-  BarChart3,
-  BookOpen,
-  FileCheck2,
   CheckCircle2,
   RotateCcw,
   Loader2,
+  MessageCircle,
 } from 'lucide-react';
 import {
   PhysicsParams,
@@ -41,11 +33,15 @@ import {
 } from './components/CollaborationAndDataSection';
 import { AnalyticsAndWorksheetPanel } from './components/AnalyticsAndWorksheetPanel';
 import { StudentProgressItem } from './components/TeacherDashboardView';
-import { DrLabMuAssistantPanel } from './components/DrLabMuAssistantPanel';
+import { DrLabMuAssistantPanel, DrawerTabMode } from './components/DrLabMuAssistantPanel';
 import { LabLobbyHub } from './components/LabLobbyHub';
-import { GuidedWorkflowStepper, WorkflowStepNumber } from './components/GuidedWorkflowStepper';
 import { PreLabBriefingView } from './components/PreLabBriefingView';
-import { PreLabSafetyModal } from './components/PreLabSafetyModal';
+import {
+  VisualComfortToolbar,
+  VisualComfortPreferences,
+  EyeComfortTheme,
+} from './components/ui/VisualComfortToolbar';
+import { HypothesisNote } from './components/ui/HypothesisAndCompareDock';
 
 // Code Splitting via React.lazy for performance optimization
 const PhysicsLabView = lazy(() =>
@@ -80,8 +76,6 @@ function LabLoadingSkeleton() {
 import {
   ExperimentModule,
   EducationTier,
-  ScienceDomain as RegistryDomain,
-  getExperimentsByDomain,
   getExperimentById,
   EXPERIMENT_CATALOG,
 } from './registry/experimentRegistry';
@@ -113,15 +107,14 @@ export default function App() {
   const [selectedProfileIdx, setSelectedProfileIdx] = useState<number>(0);
   const [academicLevel, setAcademicLevel] = useState<AcademicLevel>('sma');
   const [wsConnected, setWsConnected] = useState<boolean>(false);
-  const [showNotifDrawer, setShowNotifDrawer] = useState<boolean>(false);
+  const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
+  const [drawerTab, setDrawerTab] = useState<DrawerTabMode>('dr-labmu');
 
   // Step Completion Tracking
   const [completedSafetyIds, setCompletedSafetyIds] = useState<string[]>([
     'newton-incline',
   ]);
   const [lksGraded, setLksGraded] = useState<boolean>(false);
-  const [catalogModalExp, setCatalogModalExp] =
-    useState<ExperimentModule | null>(null);
   const [selectedBioModuleId, setSelectedBioModuleId] = useState<string>(
     'photosynthesis-ingenhousz'
   );
@@ -133,31 +126,107 @@ export default function App() {
     MysterySubmissionResult[]
   >([]);
 
-  // Adaptive Theme & Lab Audio Engine State
-  const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => {
+  // Adaptive Eye-Comfort Preferences & Lab Audio Engine State
+  const [comfortPrefs, setComfortPrefs] = useState<VisualComfortPreferences>(() => {
     try {
-      const saved = window.localStorage.getItem('simulab-theme');
-      if (saved === 'dark' || saved === 'light') return saved;
+      const savedPrefs = window.localStorage.getItem('simulab-comfort-prefs');
+      if (savedPrefs) {
+        const parsed = JSON.parse(savedPrefs);
+        if (parsed && parsed.theme) return parsed;
+      }
+      const legacyTheme = window.localStorage.getItem('simulab-theme');
+      if (legacyTheme === 'light' || legacyTheme === 'dark') {
+        return {
+          theme: legacyTheme,
+          fontScale: 'normal',
+          lineSpacing: 'standard',
+          colorBlindSafe: false,
+          eyeRestTimerEnabled: true,
+        };
+      }
     } catch {
       // ignore storage error
     }
-    return 'dark';
+    return {
+      theme: 'dark',
+      fontScale: 'normal',
+      lineSpacing: 'standard',
+      colorBlindSafe: false,
+      eyeRestTimerEnabled: true,
+    };
   });
+
+  const [zenMode, setZenMode] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [utilityMenuOpen, setUtilityMenuOpen] = useState<boolean>(false);
+  const [externalDrLabMuPrompt, setExternalDrLabMuPrompt] = useState<{
+    id: number;
+    prompt: string;
+  } | null>(null);
+
+  // Per-Module Student Hypothesis & Quick Reflection Scratchpad State
+  const [hypothesisNotesByModule, setHypothesisNotesByModule] = useState<
+    Record<string, HypothesisNote>
+  >(() => {
+    try {
+      const saved = window.localStorage.getItem('simulab-hypothesis-notes');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore storage error
+    }
+    return {
+      'newton-incline': {
+        independentVar: 'Gaya Dorong (F) dan Sudut Kemiringan (θ)',
+        dependentVar: 'Percepatan Balok (a)',
+        hypothesisText:
+          'Semakin besar gaya dorong F pada massa tetap, maka percepatan balok a akan meningkat secara linier sesuai Hukum II Newton (a = ΣF/m).',
+        reflectionText:
+          'Data eksperimen menunjukkan hubungan linier kuat (R² > 0.98) antara ΣF dan percepatan.',
+        updatedAt: '08:45',
+      },
+    };
+  });
 
   useEffect(() => {
     const root = document.documentElement;
-    if (themeMode === 'dark') {
+    root.setAttribute('data-comfort-theme', comfortPrefs.theme);
+    root.setAttribute('data-font-scale', comfortPrefs.fontScale);
+    root.setAttribute('data-line-spacing', comfortPrefs.lineSpacing);
+    root.setAttribute(
+      'data-colorblind',
+      comfortPrefs.colorBlindSafe ? 'true' : 'false'
+    );
+
+    if (comfortPrefs.theme === 'dark') {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
+
     try {
-      window.localStorage.setItem('simulab-theme', themeMode);
+      window.localStorage.setItem(
+        'simulab-comfort-prefs',
+        JSON.stringify(comfortPrefs)
+      );
+      window.localStorage.setItem(
+        'simulab-theme',
+        comfortPrefs.theme === 'dark' ? 'dark' : 'light'
+      );
     } catch {
       // ignore storage error
     }
-  }, [themeMode]);
+  }, [comfortPrefs]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        'simulab-hypothesis-notes',
+        JSON.stringify(hypothesisNotesByModule)
+      );
+    } catch {
+      // ignore storage error
+    }
+  }, [hypothesisNotesByModule]);
 
   useEffect(() => {
     labSound.setEnabled(soundEnabled);
@@ -1109,6 +1178,31 @@ export default function App() {
     return getExperimentById(currentExperimentId) || EXPERIMENT_CATALOG[0];
   }, [currentExperimentId]);
 
+  const currentModuleHypothesis: HypothesisNote = useMemo(() => {
+    return (
+      hypothesisNotesByModule[currentExperimentId] || {
+        independentVar:
+          currentExperimentModule.parameters[0]?.label || 'Variabel Bebas (X)',
+        dependentVar:
+          currentExperimentModule.outputs[0]?.label || 'Variabel Terikat (Y)',
+        hypothesisText: '',
+        reflectionText: '',
+        updatedAt: '',
+      }
+    );
+  }, [hypothesisNotesByModule, currentExperimentId, currentExperimentModule]);
+
+  const handleUpdateCurrentHypothesis = (next: HypothesisNote) => {
+    setHypothesisNotesByModule((prev) => ({
+      ...prev,
+      [currentExperimentId]: next,
+    }));
+  };
+
+  const handleChangeComfortTheme = (theme: EyeComfortTheme) => {
+    setComfortPrefs((prev) => ({ ...prev, theme }));
+  };
+
   const handleOpenMysteryExamFromLobby = () => {
     labSound.playRecordSuccess();
     const preset = PRESET_MYSTERY_CHALLENGES[0];
@@ -1193,10 +1287,10 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-900 dark:text-slate-100 select-none">
-      {/* 3-Zone Clean Header Bar */}
-      <header className="h-14 shrink-0 flex items-center justify-between gap-4 px-4 sm:px-6 bg-slate-950 border-b border-slate-800 text-white z-50 select-none">
-        {/* Zone 1: Brand Identity & Ganti Modul / Beranda button */}
-        <div className="flex items-center gap-3 shrink-0">
+      {/* Unified Single-Row Top Navigation Bar (h-14) */}
+      <header className="h-14 shrink-0 flex items-center justify-between gap-3 px-4 sm:px-5 bg-slate-950 border-b border-slate-800 text-white z-50 select-none">
+        {/* Zone 1: Brand Identity, Back to Catalog & Active Module Title */}
+        <div className="flex items-center gap-2.5 shrink-0 min-w-0">
           <button
             type="button"
             onClick={() => {
@@ -1212,58 +1306,122 @@ export default function App() {
           </button>
 
           {!isLobbyMode && userRole === 'siswa' && (
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setIsLobbyMode(true);
-              }}
-              className="text-xs font-semibold text-slate-400 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
-            >
-              <span>← Kembali ke Katalog Lab</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setIsLobbyMode(true);
+                }}
+                className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0"
+              >
+                <span>← Katalog Lab</span>
+              </button>
+              <div className="hidden 2xl:flex items-center gap-1.5 text-xs text-slate-400 truncate max-w-[180px] pl-1 border-l border-slate-800">
+                <span className="font-mono text-[10px] font-bold uppercase text-sky-400 shrink-0">
+                  {currentExperimentModule.domain}
+                </span>
+                <span className="text-slate-600">·</span>
+                <span
+                  className="font-semibold text-slate-200 truncate"
+                  title={currentExperimentModule.title}
+                >
+                  {currentExperimentModule.title}
+                </span>
+              </div>
+            </>
           )}
         </div>
 
-        {/* Zone 2: Context Badge & Active Tier (Center) */}
-        <div className="flex items-center gap-2 shrink-0 truncate max-w-xs sm:max-w-md">
+        {/* Zone 2: Integrated 4-Step Workflow Stepper or Context Status (Center) */}
+        <div className="flex items-center justify-center shrink-0">
           {userRole === 'siswa' ? (
             !isLobbyMode ? (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-900 border border-slate-800 text-xs truncate">
-                <span className="font-semibold text-sky-400 uppercase tracking-wider text-[11px] shrink-0">
-                  {currentExperimentModule.domain}
-                </span>
-                <span aria-hidden="true" className="text-slate-600 shrink-0">·</span>
-                <span className="font-bold text-white truncate" title={currentExperimentModule.title}>
-                  {currentExperimentModule.title}
-                </span>
-                <span aria-hidden="true" className="text-slate-600 shrink-0">·</span>
-                <span className="font-mono text-amber-400 text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-sm shrink-0">
-                  {activeTierLabel}
-                </span>
-              </div>
+              <nav
+                aria-label="Tahapan Praktikum"
+                className="flex items-center gap-1 bg-slate-900/90 border border-slate-800 p-1 rounded-xl shrink-0"
+              >
+                {(
+                  [
+                    { step: 1 as WorkflowStep, label: '1. K3 & Hipotesis', done: workflowStep > 1 },
+                    {
+                      step: 2 as WorkflowStep,
+                      label: '2. Simulasi 3D',
+                      done: records.length >= 3 || workflowStep > 2,
+                      badge: `${records.length}/3`,
+                    },
+                    {
+                      step: 3 as WorkflowStep,
+                      label: '3. Grafik & LKS',
+                      done: lksGraded || workflowStep > 3,
+                    },
+                    {
+                      step: 4 as WorkflowStep,
+                      label: '4. Laporan',
+                      done: workflowStep === 4 && records.length >= 3 && lksGraded,
+                    },
+                  ] as const
+                ).map((item) => {
+                  const isActive = workflowStep === item.step;
+                  return (
+                    <button
+                      key={item.step}
+                      type="button"
+                      onClick={() => {
+                        labSound.playClick();
+                        setWorkflowStep(item.step);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                        isActive
+                          ? 'bg-sky-600 text-white shadow-xs'
+                          : item.done
+                          ? 'text-emerald-400 hover:bg-slate-800/80'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                      }`}
+                    >
+                      {item.done && !isActive && (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      )}
+                      <span>{item.label}</span>
+                      {'badge' in item && item.badge && (
+                        <span
+                          className={`font-mono text-[10px] px-1 rounded tabular-nums ${
+                            isActive
+                              ? 'bg-sky-800/90 text-sky-100'
+                              : records.length >= 3
+                              ? 'bg-emerald-500/15 text-emerald-300'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
             ) : (
-              <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 font-medium">
-                <span className="font-semibold text-slate-200">Pusat Praktikum Sains</span>
+              <div className="hidden md:flex items-center gap-2 text-xs text-slate-400 font-medium">
+                <span className="font-semibold text-slate-200">Pusat Praktikum Sains Virtual</span>
                 <span aria-hidden="true" className="text-slate-600">·</span>
-                <span className="font-mono text-amber-400 text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-sm">
+                <span className="font-mono text-amber-400 text-[11px] font-semibold">
                   Jenjang {activeTierLabel}
                 </span>
               </div>
             )
           ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200">
+            <div className="flex items-center gap-2 text-xs text-slate-200">
               <GraduationCap className="w-4 h-4 text-rose-400 shrink-0" />
               <span className="font-semibold whitespace-nowrap">
-                Ruang Evaluasi Pengajar ({students.length} Siswa Aktif)
+                Ruang Evaluasi Pengajar · {students.length} Siswa Aktif
               </span>
             </div>
           )}
         </div>
 
-        {/* Zone 3: Clean Utility Cluster (Right) */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Role Switcher Pill */}
+        {/* Zone 3: Role Switcher, Student Selector, Utilities & Slide-Over Drawer Triggers */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Role Switcher */}
           <div
             className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs"
             role="group"
@@ -1300,151 +1458,163 @@ export default function App() {
             </button>
           </div>
 
-          {/* Student Profile Selector */}
-          {userRole === 'siswa' && (
-            <div className="hidden xl:flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1">
-              <Users className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-              <select
-                aria-label="Pilih Profil Siswa Aktif"
-                value={selectedProfileIdx}
-                onChange={(e) => {
-                  labSound.playClick();
-                  setSelectedProfileIdx(Number(e.target.value));
-                }}
-                className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer"
-              >
-                {STUDENT_PROFILES.map((p, idx) => (
-                  <option
-                    key={p.name}
-                    value={idx}
-                    className="bg-slate-900 text-white"
-                  >
-                    {p.name} ({p.group.split('—')[0].trim()})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* Ergonomic Visual Comfort & Focus/Zen Toolbar */}
+          <VisualComfortToolbar
+            prefs={comfortPrefs}
+            onChangePrefs={setComfortPrefs}
+            zenMode={zenMode}
+            onToggleZenMode={() => setZenMode((prev) => !prev)}
+            showZenToggle={!isLobbyMode && userRole === 'siswa'}
+          />
 
-          {/* Sound Toggle */}
-          <button
-            type="button"
-            onClick={() => {
-              const next = !soundEnabled;
-              setSoundEnabled(next);
-              if (next) labSound.playClick();
-            }}
-            title={soundEnabled ? 'Matikan Efek Suara Lab' : 'Aktifkan Efek Suara Lab'}
-            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-              soundEnabled
-                ? 'bg-slate-900 border-slate-800 text-sky-400 hover:bg-slate-800'
-                : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:text-slate-300'
-            }`}
-          >
-            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-          </button>
-
-          {/* Theme Toggle */}
+          {/* Dr. LabMu Mentor Slide-Over Trigger */}
           <button
             type="button"
             onClick={() => {
               labSound.playClick();
-              setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
+              if (drawerOpen && drawerTab === 'dr-labmu') {
+                setDrawerOpen(false);
+              } else {
+                setDrawerTab('dr-labmu');
+                setDrawerOpen(true);
+              }
             }}
-            title="Ubah Tema Terang / Gelap"
-            className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Buka Laci Asisten Sokratik Dr. LabMu"
+            className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shrink-0 ${
+              drawerOpen && drawerTab === 'dr-labmu'
+                ? 'bg-sky-600 border-sky-500 text-white'
+                : 'bg-slate-900 border-slate-800 text-sky-400 hover:bg-slate-800 hover:text-white'
+            }`}
           >
-            {themeMode === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-slate-300" />}
+            <MessageCircle className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Dr. LabMu</span>
           </button>
 
-          {/* Quick CSV Export */}
-          <button
-            type="button"
-            onClick={handleExportAllCSV}
-            title="Unduh CSV Seluruh Data Eksperimen"
-            className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-
-          {/* Notification Bell */}
+          {/* Consolidated Profile, Sound, CSV & Notifications Popover Menu */}
           <div className="relative">
             <button
               type="button"
               onClick={() => {
                 labSound.playClick();
-                setShowNotifDrawer((prev) => !prev);
+                setUtilityMenuOpen((v) => !v);
               }}
-              className="relative p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              title={`Notifikasi & Sesi (${wsConnected ? 'WebSocket Terhubung' : 'Mode Lokal'})`}
+              className={`relative px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                utilityMenuOpen
+                  ? 'bg-slate-800 border-slate-600 text-white'
+                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+              title="Profil Siswa, Efek Suara, Unduh CSV & Notifikasi"
             >
-              <Bell className="w-4 h-4" />
+              <Users className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <span className="hidden xl:inline max-w-[110px] truncate">
+                {currentProfile.name.split(' ')[0]}
+              </span>
+              <Bell className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               {notifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-sky-500 text-slate-950 text-[9px] font-black flex items-center justify-center tabular-nums">
+                <span className="w-4 h-4 rounded-full bg-sky-500 text-slate-950 text-[9px] font-black flex items-center justify-center tabular-nums">
                   {notifications.length}
                 </span>
               )}
             </button>
 
-            <AnimatePresence>
-              {showNotifDrawer && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                  className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-3 z-50 text-white"
-                >
-                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-                    <span className="text-xs font-bold text-slate-200">
-                      Umpan Balik & Log Sesi ({notifications.length})
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowNotifDrawer(false)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-white cursor-pointer"
+            {utilityMenuOpen && (
+              <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-3.5 space-y-3 z-50 text-xs text-slate-200">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="font-bold text-white">Profil &amp; Utilitas Lab</span>
+                  <span className="text-[10px] font-mono text-emerald-400">
+                    {wsConnected ? '● Kolaborasi Aktif' : '● Sesi Lokal'}
+                  </span>
+                </div>
+
+                {userRole === 'siswa' && (
+                  <div className="space-y-1">
+                    <label className="block text-[11px] text-slate-400">
+                      Profil Siswa &amp; Kelompok Aktif
+                    </label>
+                    <select
+                      aria-label="Pilih Profil Siswa Aktif"
+                      value={selectedProfileIdx}
+                      onChange={(e) => {
+                        labSound.playClick();
+                        setSelectedProfileIdx(Number(e.target.value));
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-white focus:outline-none focus:border-sky-500 cursor-pointer"
                     >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                      {STUDENT_PROFILES.map((p, idx) => (
+                        <option key={p.name} value={idx}>
+                          {p.name} ({p.group.split('—')[0].trim()})
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="space-y-2">
-                    {notifications.slice(0, 8).map((n) => (
-                      <div
-                        key={n.id}
-                        className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs"
-                      >
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 mb-0.5">
-                          <span className="font-bold text-sky-400">
-                            {n.domain}
-                          </span>
-                          <span className="font-mono">{n.timestamp}</span>
-                        </div>
-                        <p className="font-semibold text-white">{n.title}</p>
-                        <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">
-                          {n.message}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                )}
+
+                <div className="grid grid-cols-1 gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !soundEnabled;
+                      setSoundEnabled(next);
+                      if (next) labSound.playClick();
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2 font-medium">
+                      {soundEnabled ? (
+                        <Volume2 className="w-4 h-4 text-sky-400" />
+                      ) : (
+                        <VolumeX className="w-4 h-4 text-slate-500" />
+                      )}
+                      <span>Efek Suara Instrumen</span>
+                    </span>
+                    <span
+                      className={`font-mono text-[10px] font-bold ${
+                        soundEnabled ? 'text-emerald-400' : 'text-slate-500'
+                      }`}
+                    >
+                      {soundEnabled ? 'AKTIF' : 'NONAKTIF'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUtilityMenuOpen(false);
+                      handleExportAllCSV();
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2 font-medium">
+                      <Download className="w-4 h-4 text-emerald-400" />
+                      <span>Unduh CSV Data ({records.length})</span>
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-400">.CSV</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      setUtilityMenuOpen(false);
+                      setDrawerTab('notifications');
+                      setDrawerOpen(true);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2 font-medium">
+                      <Bell className="w-4 h-4 text-amber-400" />
+                      <span>Buka Log Notifikasi &amp; Arahan</span>
+                    </span>
+                    <span className="font-mono text-[10px] font-bold text-sky-400 tabular-nums">
+                      {notifications.length} Pesan
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
-
-      {/* Guided 4-Step Stepper (Active in Student Experiment Mode) */}
-      {!isLobbyMode && userRole === 'siswa' && (
-        <GuidedWorkflowStepper
-          currentStep={workflowStep}
-          experimentTitle={currentExperimentModule.title}
-          recordsCount={records.length}
-          minRecordsRequired={3}
-          lksGraded={lksGraded}
-          onStepChange={(st) => setWorkflowStep(st as WorkflowStep)}
-          onBackToLobby={() => setIsLobbyMode(true)}
-          onPrintReport={() => window.print()}
-        />
-      )}
 
       {/* SESSION AUTO-SAVE RECOVERY PROMPT BANNER */}
       <AnimatePresence>
@@ -1453,17 +1623,17 @@ export default function App() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="max-w-[1380px] mx-auto my-3 px-4 py-3 bg-gradient-to-r from-sky-950 via-slate-900 to-emerald-950 border border-sky-500/40 rounded-2xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-white z-40"
+            className="max-w-[1380px] mx-auto my-2 px-4 py-2.5 bg-gradient-to-r from-sky-950 via-slate-900 to-emerald-950 border border-sky-500/40 rounded-2xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-white z-40 shrink-0"
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 shrink-0">
                 <RotateCcw className="w-4 h-4 animate-spin-slow" />
               </div>
               <div>
                 <div className="font-bold text-sky-300">
                   Sesi Praktikum Sebelumnya Terdeteksi ({formattedRecoveryTime})
                 </div>
-                <div className="text-slate-300 text-[11px] mt-0.5">
+                <div className="text-slate-300 text-[11px]">
                   Lanjutkan dari Tahap {recoverableSession.activeWorkflowStep} ({recoverableSession.recordedTrials.length} data tersimpan)?
                 </div>
               </div>
@@ -1491,12 +1661,10 @@ export default function App() {
 
       {/* Main Workspace Container */}
       <main
-        className={`relative w-full ${
+        className={`relative w-full flex-1 ${
           is3DStageActive
-            ? 'h-[calc(100vh-7.5rem)] overflow-hidden bg-slate-950'
-            : !isLobbyMode && userRole === 'siswa'
-            ? 'h-[calc(100vh-7.5rem)] overflow-y-auto bg-slate-50 dark:bg-slate-950 p-6 select-text'
-            : 'h-[calc(100vh-3.5rem)] overflow-y-auto bg-slate-50 dark:bg-slate-950 p-6 select-text'
+            ? 'h-[calc(100vh-3.5rem)] overflow-hidden bg-slate-950'
+            : 'h-[calc(100vh-3.5rem)] overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4 sm:p-6 select-text'
         }`}
       >
         <Suspense fallback={<LabLoadingSkeleton />}>
@@ -1564,6 +1732,8 @@ export default function App() {
               handleSelectCatalogExperiment(exp, 1);
             }}
             onOpenMysteryExam={handleOpenMysteryExamFromLobby}
+            comfortTheme={comfortPrefs.theme}
+            onChangeComfortTheme={handleChangeComfortTheme}
           />
         )}
 
@@ -1574,6 +1744,8 @@ export default function App() {
             activeTier={activeTierLabel}
             onProceedToSimulation={() => setWorkflowStep(2)}
             onBackToLobby={() => setIsLobbyMode(true)}
+            hypothesisNote={currentModuleHypothesis}
+            onChangeHypothesisNote={handleUpdateCurrentHypothesis}
           />
         )}
 
@@ -1620,6 +1792,9 @@ export default function App() {
                 onReleaseLock={releaseParamLock}
                 activeMysteryChallenge={activeMysteryChallenge}
                 onSubmitMysteryExam={handleSubmitMysteryExam}
+                hypothesisNote={currentModuleHypothesis}
+                onChangeHypothesisNote={handleUpdateCurrentHypothesis}
+                zenMode={zenMode}
               />
             )}
 
@@ -1660,6 +1835,9 @@ export default function App() {
                 onEmitCursor={emitCursor3D}
                 activeMysteryChallenge={activeMysteryChallenge}
                 onSubmitMysteryExam={handleSubmitMysteryExam}
+                hypothesisNote={currentModuleHypothesis}
+                onChangeHypothesisNote={handleUpdateCurrentHypothesis}
+                zenMode={zenMode}
               />
             )}
 
@@ -1702,6 +1880,9 @@ export default function App() {
                 onTierChange={(newTier) => {
                   setAcademicLevel(newTier.toLowerCase() as AcademicLevel);
                 }}
+                hypothesisNote={currentModuleHypothesis}
+                onChangeHypothesisNote={handleUpdateCurrentHypothesis}
+                zenMode={zenMode}
               />
             )}
 
@@ -1742,6 +1923,9 @@ export default function App() {
                 onEmitCursor={emitCursor3D}
                 activeMysteryChallenge={activeMysteryChallenge}
                 onSubmitMysteryExam={handleSubmitMysteryExam}
+                hypothesisNote={currentModuleHypothesis}
+                onChangeHypothesisNote={handleUpdateCurrentHypothesis}
+                zenMode={zenMode}
               />
             )}
           </>
@@ -1749,7 +1933,7 @@ export default function App() {
 
         {/* MODE SISWA — TAHAP 3: Analisis Grafik Regresi & Lembar Kerja Siswa (LKS) */}
         {userRole === 'siswa' && !isLobbyMode && workflowStep === 3 && (
-          <div className="max-w-[1380px] mx-auto pb-24">
+          <div className="max-w-[1380px] mx-auto pb-10">
             <AnalyticsAndWorksheetPanel
               records={records}
               activeStudentName={currentProfile.name}
@@ -1757,6 +1941,16 @@ export default function App() {
               onSubmitQuizScore={handleSubmitQuizScore}
               onBackToLab={() => setWorkflowStep(2)}
               onProceedToReport={() => setWorkflowStep(4)}
+              hypothesisNote={currentModuleHypothesis}
+              onChangeHypothesisNote={handleUpdateCurrentHypothesis}
+              onAskDrLabMu={(promptText) => {
+                setDrawerTab('dr-labmu');
+                setDrawerOpen(true);
+                setExternalDrLabMuPrompt({
+                  id: Date.now(),
+                  prompt: promptText,
+                });
+              }}
               onExportChartNotification={(fmt) =>
                 handlePushNotification({
                   id: `notif-chart-${Date.now()}`,
@@ -1777,7 +1971,7 @@ export default function App() {
 
         {/* MODE SISWA — TAHAP 4: Laporan Praktikum & Kolaborasi Kelompok */}
         {userRole === 'siswa' && !isLobbyMode && workflowStep === 4 && (
-          <div className="max-w-[1380px] mx-auto pb-24">
+          <div className="max-w-[1380px] mx-auto pb-10">
             <CollaborationAndDataSection
               records={records}
               tasks={tasks}
@@ -1790,6 +1984,8 @@ export default function App() {
               onCreateNote={handleCreateNote}
               onBackToAnalysis={() => setWorkflowStep(3)}
               onBackToCatalog={() => setIsLobbyMode(true)}
+              hypothesisNote={currentModuleHypothesis}
+              onChangeHypothesisNote={handleUpdateCurrentHypothesis}
               onCSVExported={(count) =>
                 handlePushNotification({
                   id: `notif-csv-${Date.now()}`,
@@ -1809,7 +2005,7 @@ export default function App() {
         )}
         </Suspense>
 
-        {/* Streamlined Floating AI Mentor Pill & Chat Popover */}
+        {/* Slide-Over Right Drawer: Dr. LabMu Mentor & Session Notifications */}
         <DrLabMuAssistantPanel
           domain={activeScienceDomain}
           academicLevel={academicLevel}
@@ -1818,7 +2014,13 @@ export default function App() {
           astronomyParams={astronomyParams}
           biologyContext={biologyContext}
           records={records}
+          notifications={notifications}
+          isOpen={drawerOpen}
+          activeTab={drawerTab}
+          onOpenChange={setDrawerOpen}
+          onTabChange={setDrawerTab}
           onInjectOutlierDemo={() => handleInjectOutlierDemo(activeScienceDomain)}
+          externalPromptRequest={externalDrLabMuPrompt}
         />
       </main>
     </div>

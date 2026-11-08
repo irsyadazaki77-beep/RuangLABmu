@@ -358,6 +358,7 @@ export interface WorksheetQuestion {
   correctValue: number;
   tolerance: number;
   explanation: string;
+  scaffoldedHints?: [string, string, string];
 }
 
 export interface RubricScoreBreakdown {
@@ -627,6 +628,11 @@ export const WORKSHEET_QUESTIONS: WorksheetQuestion[] = [
     tolerance: 0.15,
     explanation:
       'Gaya normal N = m·g = 50 N, gaya gesek kinetis fk = 0.10 × 50 = 5 N. Resultan gaya ΣF = 50 - 5 = 45 N, sehingga a = 45 / 5 = 9.0 m/s².',
+    scaffoldedHints: [
+      'Konsep Fisis: Gaya gesek kinetis (fk) selalu berlawanan arah dengan gaya tarik F dan mengurangi gaya resultan yang mempercepat balok.',
+      'Identifikasi Variabel: Hitung dulu gaya normal N = m · g = 5 × 10 = 50 N, lalu cari gaya gesek fk = μk · N.',
+      'Langkah Substitusi: fk = 0.10 × 50 = 5 N. Kurangkan dari F (50 - 5 = 45 N), lalu bagi dengan massa m = 5 kg.',
+    ],
   },
   {
     id: 'q-collision-2',
@@ -640,6 +646,11 @@ export const WORKSHEET_QUESTIONS: WorksheetQuestion[] = [
     tolerance: 0.1,
     explanation:
       "Momentum awal p = 4×6 + 2×0 = 24 kg·m/s. Setelah tumbukan inelastis sempurna (e=0), v' = 24 / (4 + 2) = 4.0 m/s.",
+    scaffoldedHints: [
+      'Konsep Fisis: Pada tumbukan tidak lenting sama sekali (e = 0), kedua benda menyatu setelah tumbukan dan bergerak bersama dengan satu kecepatan akhir v\'.',
+      'Identifikasi Variabel: Momentum total awal p_awal = m₁·v₁ + m₂·v₂ = (4 × 6) + (2 × 0) = 24 kg·m/s.',
+      'Langkah Substitusi: Bagi momentum total awal (24 kg·m/s) dengan jumlah massa gabungan (m₁ + m₂ = 4 + 2 = 6 kg).',
+    ],
   },
   {
     id: 'q-thermo-3',
@@ -653,6 +664,11 @@ export const WORKSHEET_QUESTIONS: WorksheetQuestion[] = [
     tolerance: 0.5,
     explanation:
       'ΔG = -60 kJ/mol - (300 K × 0.100 kJ/(mol·K)) = -60 - 30 = -90.0 kJ/mol (Reaksi berlangsung spontan).',
+    scaffoldedHints: [
+      'Konsep Fisis: Hati-hati terhadap perbedaan satuan! ΔH dalam kJ/mol sedangkan ΔS diberikan dalam J/(mol·K).',
+      'Identifikasi Variabel: Ubah ΔS ke kJ/(mol·K) terlebih dahulu: 100 J/(mol·K) ÷ 1000 = 0.10 kJ/(mol·K).',
+      'Langkah Substitusi: Hitung suku T·ΔS = 300 × 0.10 = 30 kJ/mol, lalu masukkan ke ΔG = -60 - 30.',
+    ],
   },
   {
     id: 'q-titration-4',
@@ -666,6 +682,11 @@ export const WORKSHEET_QUESTIONS: WorksheetQuestion[] = [
     tolerance: 0.2,
     explanation:
       'Pada titik ekuivalen mol H⁺ = mol OH⁻: 0.20 M × 25 mL = 0.25 M × V_b ⇒ V_b = 5.0 / 0.25 = 20.0 mL.',
+    scaffoldedHints: [
+      'Konsep Fisis: Titik ekuivalen asam kuat HCl (valensi 1) dan basa kuat NaOH (valensi 1) tercapai saat milimol H⁺ tepat sama dengan milimol OH⁻.',
+      'Identifikasi Variabel: Hitung milimol asam HCl = M_a × V_a = 0.20 M × 25 mL = 5.0 mmol.',
+      'Langkah Substitusi: Karena mmol NaOH = 5.0 mmol dan M_b = 0.25 M, maka V_b = 5.0 ÷ 0.25 mL.',
+    ],
   },
   {
     id: 'q-kepler-5',
@@ -679,6 +700,11 @@ export const WORKSHEET_QUESTIONS: WorksheetQuestion[] = [
     tolerance: 0.15,
     explanation:
       'Berdasarkan Hukum III Kepler untuk M_* = 1 M☉: T² = a³ = 4³ = 64 ⇒ T = √64 = 8.0 tahun Bumi.',
+    scaffoldedHints: [
+      'Konsep Fisis: Hukum III Kepler menyatakan kuadrat periode orbit (T²) berbanding lurus dengan pangkat tiga jarak rata-rata (a³).',
+      'Identifikasi Variabel: Untuk M_* = 1.0 M☉, berlaku T² = a³. Hitung nilai pangkat tiga dari a = 4.0 AU (4 × 4 × 4).',
+      'Langkah Substitusi: Karena a³ = 64, maka T² = 64. Tarik akar kuadrat dari 64 untuk memperoleh periode T.',
+    ],
   },
   {
     id: 'q-exoplanet-6',
@@ -692,6 +718,11 @@ export const WORKSHEET_QUESTIONS: WorksheetQuestion[] = [
     tolerance: 0.05,
     explanation:
       'Kedalaman transit sebanding dengan rasio luas penampang planet terhadap bintang: (0.10)² × 100% = 0.01 × 100% = 1.0%.',
+    scaffoldedHints: [
+      'Konsep Fisis: Penurunan kecerahan bintang saat transit sebanding dengan luas lingkaran planet dibagi luas lingkaran bintang.',
+      'Identifikasi Variabel: Rasio jari-jari Rp / R* sudah diketahui sebesar 0.10. Kuadratkan rasio tersebut: (0.10)².',
+      'Langkah Substitusi: (0.10)² = 0.01. Kalikan dengan 100% untuk mendapatkan persentase peredupan cahaya.',
+    ],
   },
 ];
 
@@ -1486,30 +1517,408 @@ export function calculateLinearRegression(
   };
 }
 
+export type CurveModelType = 'linear' | 'quadratic' | 'exponential';
+
+export interface CurveFitResult {
+  modelType: CurveModelType;
+  modelLabel: string;
+  equationString: string;
+  rSquared: number;
+  slopeM: number;
+  interceptC: number;
+  quadA?: number;
+  quadB?: number;
+  quadC?: number;
+  expA?: number;
+  expB?: number;
+  meanX: number;
+  meanY: number;
+  stdDevY: number;
+  predictedPoints: { x: number; yPred: number }[];
+  evaluateAt: (x: number) => number;
+}
+
+export function calculateCurveFitting(
+  points: { x: number; y: number }[],
+  modelType: CurveModelType = 'linear'
+): CurveFitResult {
+  const lin = calculateLinearRegression(points);
+  if (points.length < 3 || modelType === 'linear') {
+    return {
+      modelType: 'linear',
+      modelLabel: 'Regresi Linier (OLS)',
+      equationString: lin.equationString,
+      rSquared: lin.rSquared,
+      slopeM: lin.slopeM,
+      interceptC: lin.interceptC,
+      meanX: lin.meanX,
+      meanY: lin.meanY,
+      stdDevY: lin.stdDevY,
+      predictedPoints: lin.predictedPoints,
+      evaluateAt: (x: number) => lin.slopeM * x + lin.interceptC,
+    };
+  }
+
+  const n = points.length;
+  const meanY = lin.meanY;
+  const ssTot = points.reduce((acc, p) => acc + Math.pow(p.y - meanY, 2), 0);
+
+  if (modelType === 'exponential') {
+    // Fit y = A * exp(B * x) via ln(|y|) = ln(A) + B*x for positive y; fallback to shifted positive if needed
+    const minY = Math.min(...points.map((p) => p.y));
+    const shift = minY <= 0.01 ? Math.abs(minY) + 1.0 : 0;
+    const logPoints = points.map((p) => ({
+      x: p.x,
+      y: Math.log(Math.max(1e-4, p.y + shift)),
+    }));
+    const logFit = calculateLinearRegression(logPoints);
+    const expB = logFit.slopeM;
+    const expA = Math.exp(logFit.interceptC);
+    const evaluateAt = (x: number) => expA * Math.exp(expB * x) - shift;
+
+    const ssRes = points.reduce((acc, p) => acc + Math.pow(p.y - evaluateAt(p.x), 2), 0);
+    const rSquared = ssTot > 1e-9 ? Math.max(0, Math.min(1, 1 - ssRes / ssTot)) : 1;
+    const sortedByX = [...points].sort((a, b) => a.x - b.x);
+    const predictedPoints = sortedByX.map((p) => ({
+      x: p.x,
+      yPred: Number(evaluateAt(p.x).toFixed(3)),
+    }));
+    const shiftStr = shift > 0 ? ` - ${shift.toFixed(2)}` : '';
+    return {
+      modelType: 'exponential',
+      modelLabel: 'Model Eksponensial',
+      equationString: `y = ${expA.toFixed(3)}·e^(${expB.toFixed(3)}x)${shiftStr}`,
+      rSquared: Number(rSquared.toFixed(4)),
+      slopeM: Number(expB.toFixed(4)),
+      interceptC: Number((expA - shift).toFixed(4)),
+      expA: Number(expA.toFixed(4)),
+      expB: Number(expB.toFixed(4)),
+      meanX: lin.meanX,
+      meanY: lin.meanY,
+      stdDevY: lin.stdDevY,
+      predictedPoints,
+      evaluateAt,
+    };
+  }
+
+  // Quadratic polynomial fit: y = a*x^2 + b*x + c using normal equations (3x3 Cramer/Gaussian)
+  let s1 = 0,
+    s2 = 0,
+    s3 = 0,
+    s4 = 0,
+    sy = 0,
+    sxy = 0,
+    sx2y = 0;
+  for (const p of points) {
+    const x = p.x;
+    const x2 = x * x;
+    s1 += x;
+    s2 += x2;
+    s3 += x2 * x;
+    s4 += x2 * x2;
+    sy += p.y;
+    sxy += x * p.y;
+    sx2y += x2 * p.y;
+  }
+
+  const det3 = (m: number[][]) =>
+    m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+    m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+    m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+
+  const A = [
+    [s4, s3, s2],
+    [s3, s2, s1],
+    [s2, s1, n],
+  ];
+  const D = det3(A);
+  if (Math.abs(D) < 1e-9) {
+    return {
+      modelType: 'quadratic',
+      modelLabel: 'Polinomial Kuadratik (Orde-2)',
+      equationString: lin.equationString,
+      rSquared: lin.rSquared,
+      slopeM: lin.slopeM,
+      interceptC: lin.interceptC,
+      quadA: 0,
+      quadB: lin.slopeM,
+      quadC: lin.interceptC,
+      meanX: lin.meanX,
+      meanY: lin.meanY,
+      stdDevY: lin.stdDevY,
+      predictedPoints: lin.predictedPoints,
+      evaluateAt: (x: number) => lin.slopeM * x + lin.interceptC,
+    };
+  }
+
+  const quadA =
+    det3([
+      [sx2y, s3, s2],
+      [sxy, s2, s1],
+      [sy, s1, n],
+    ]) / D;
+  const quadB =
+    det3([
+      [s4, sx2y, s2],
+      [s3, sxy, s1],
+      [s2, sy, n],
+    ]) / D;
+  const quadC =
+    det3([
+      [s4, s3, sx2y],
+      [s3, s2, sxy],
+      [s2, s1, sy],
+    ]) / D;
+
+  const evaluateAt = (x: number) => quadA * x * x + quadB * x + quadC;
+  const ssRes = points.reduce((acc, p) => acc + Math.pow(p.y - evaluateAt(p.x), 2), 0);
+  const rSquared = ssTot > 1e-9 ? Math.max(0, Math.min(1, 1 - ssRes / ssTot)) : 1;
+
+  const sortedByX = [...points].sort((a, b) => a.x - b.x);
+  const predictedPoints = sortedByX.map((p) => ({
+    x: p.x,
+    yPred: Number(evaluateAt(p.x).toFixed(3)),
+  }));
+
+  const bSign = quadB >= 0 ? '+' : '-';
+  const cSign = quadC >= 0 ? '+' : '-';
+  const equationString = `y = ${quadA.toFixed(3)}x² ${bSign} ${Math.abs(quadB).toFixed(3)}x ${cSign} ${Math.abs(quadC).toFixed(3)}`;
+
+  return {
+    modelType: 'quadratic',
+    modelLabel: 'Polinomial Kuadratik (Orde-2)',
+    equationString,
+    rSquared: Number(rSquared.toFixed(4)),
+    slopeM: Number(quadB.toFixed(4)),
+    interceptC: Number(quadC.toFixed(4)),
+    quadA: Number(quadA.toFixed(4)),
+    quadB: Number(quadB.toFixed(4)),
+    quadC: Number(quadC.toFixed(4)),
+    meanX: lin.meanX,
+    meanY: lin.meanY,
+    stdDevY: lin.stdDevY,
+    predictedPoints,
+    evaluateAt,
+  };
+}
+
+export interface OutlierPointInfo {
+  index: number;
+  id?: string;
+  label?: string;
+  x: number;
+  y: number;
+  yPred: number;
+  residual: number;
+  zScore: number;
+  isOutlier: boolean;
+}
+
+export interface OutlierDetectionResult {
+  pointsWithResiduals: OutlierPointInfo[];
+  outliers: OutlierPointInfo[];
+  rSquaredRaw: number;
+  rSquaredClean: number;
+  rmseResiduals: number;
+}
+
+export function detectRegressionOutliers(
+  points: { x: number; y: number; id?: string; label?: string }[]
+): OutlierDetectionResult {
+  const rawFit = calculateLinearRegression(points);
+  if (points.length < 3) {
+    return {
+      pointsWithResiduals: points.map((p, idx) => ({
+        index: idx,
+        id: p.id,
+        label: p.label,
+        x: p.x,
+        y: p.y,
+        yPred: p.y,
+        residual: 0,
+        zScore: 0,
+        isOutlier: false,
+      })),
+      outliers: [],
+      rSquaredRaw: rawFit.rSquared,
+      rSquaredClean: rawFit.rSquared,
+      rmseResiduals: 0,
+    };
+  }
+
+  // Compute leave-one-out predicted value so a single extreme point cannot mask itself
+  const rawResiduals = points.map((p, idx) => {
+    const others = points.filter((_, j) => j !== idx);
+    const looFit = calculateLinearRegression(others);
+    const yPredLoo = looFit.slopeM * p.x + looFit.interceptC;
+    const residual = p.y - yPredLoo;
+    return {
+      index: idx,
+      id: p.id,
+      label: p.label,
+      x: p.x,
+      y: p.y,
+      yPred: Number((rawFit.slopeM * p.x + rawFit.interceptC).toFixed(3)),
+      residual: Number(residual.toFixed(3)),
+      absLooResidual: Math.abs(residual),
+    };
+  });
+
+  const sortedAbs = [...rawResiduals].map((r) => r.absLooResidual).sort((a, b) => a - b);
+  const medianAbs = sortedAbs[Math.floor(sortedAbs.length / 2)] || 0.05;
+  const scaleSigma = Math.max(0.15, medianAbs * 1.4826);
+
+  const pointsWithResiduals: OutlierPointInfo[] = rawResiduals.map((r) => {
+    const zScore = Number((r.absLooResidual / scaleSigma).toFixed(2));
+    const isOutlier = zScore >= 2.2 && r.absLooResidual >= 0.45;
+    return {
+      index: r.index,
+      id: r.id,
+      label: r.label,
+      x: r.x,
+      y: r.y,
+      yPred: r.yPred,
+      residual: r.residual,
+      zScore,
+      isOutlier,
+    };
+  });
+
+  const outliers = pointsWithResiduals.filter((p) => p.isOutlier);
+  const cleanPoints = pointsWithResiduals
+    .filter((p) => !p.isOutlier)
+    .map((p) => ({ x: p.x, y: p.y }));
+  const cleanFit =
+    cleanPoints.length >= 2 ? calculateLinearRegression(cleanPoints) : rawFit;
+  const rmseResiduals = Math.sqrt(
+    pointsWithResiduals.reduce((acc, p) => acc + p.residual * p.residual, 0) /
+      pointsWithResiduals.length
+  );
+
+  return {
+    pointsWithResiduals,
+    outliers,
+    rSquaredRaw: rawFit.rSquared,
+    rSquaredClean: cleanFit.rSquared,
+    rmseResiduals: Number(rmseResiduals.toFixed(3)),
+  };
+}
+
+export type WorksheetDiagnosticStatus =
+  | 'exact'
+  | 'close-rounding'
+  | 'sign-error'
+  | 'unit-conversion-error'
+  | 'conceptual-error'
+  | 'unanswered';
+
+export interface WorksheetQuestionGradeDetail {
+  isCorrect: boolean;
+  expected: number;
+  explanation: string;
+  userNumericValue?: number;
+  errorPct?: number;
+  diagnosticStatus: WorksheetDiagnosticStatus;
+  diagnosticBadge: string;
+  diagnosticFeedback: string;
+}
+
 export function gradeWorksheetAnswers(
   userAnswers: Record<string, number | string>
 ): {
   totalScore: number;
   correctCount: number;
   totalQuestions: number;
-  results: Record<string, { isCorrect: boolean; expected: number; explanation: string }>;
+  results: Record<string, WorksheetQuestionGradeDetail>;
 } {
   let correctCount = 0;
-  const results: Record<
-    string,
-    { isCorrect: boolean; expected: number; explanation: string }
-  > = {};
+  const results: Record<string, WorksheetQuestionGradeDetail> = {};
 
   for (const q of WORKSHEET_QUESTIONS) {
     const raw = userAnswers[q.id];
     const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw ?? ''));
-    const isCorrect =
-      !Number.isNaN(parsed) && Math.abs(parsed - q.correctValue) <= q.tolerance;
-    if (isCorrect) correctCount += 1;
+
+    if (Number.isNaN(parsed)) {
+      results[q.id] = {
+        isCorrect: false,
+        expected: q.correctValue,
+        explanation: q.explanation,
+        diagnosticStatus: 'unanswered',
+        diagnosticBadge: 'Belum Diisi',
+        diagnosticFeedback:
+          'Masukkan hasil perhitungan numerik Anda terlebih dahulu untuk mendapatkan analisis diagnostik.',
+      };
+      continue;
+    }
+
+    const absDiff = Math.abs(parsed - q.correctValue);
+    const errorPct =
+      Math.abs(q.correctValue) > 1e-6
+        ? Number(((absDiff / Math.abs(q.correctValue)) * 100).toFixed(2))
+        : Number((absDiff * 100).toFixed(2));
+    const isCorrect = absDiff <= q.tolerance;
+
+    let diagnosticStatus: WorksheetDiagnosticStatus = 'conceptual-error';
+    let diagnosticBadge = 'Periksa Konsep & Rumus';
+    let diagnosticFeedback =
+      'Periksa kembali substitusi variabel ke dalam persamaan dasar serta urutan operasi aljabarnya.';
+
+    if (isCorrect) {
+      correctCount += 1;
+      if (absDiff <= q.tolerance * 0.25) {
+        diagnosticStatus = 'exact';
+        diagnosticBadge = 'Presisi Eksak';
+        diagnosticFeedback =
+          'Sangat presisi! Nilai perhitungan Anda tepat berada pada pusat acuan teoretis.';
+      } else {
+        diagnosticStatus = 'close-rounding';
+        diagnosticBadge = 'Tepat (Toleransi Pembulatan)';
+        diagnosticFeedback = `Benar (selisih pembulatan kecil ${errorPct}% masih dalam batas toleransi ±${q.tolerance} ${q.unit}).`;
+      }
+    } else if (
+      Math.abs(parsed + q.correctValue) <= Math.max(q.tolerance * 2, 1.5) &&
+      Math.abs(q.correctValue) > 0.1
+    ) {
+      diagnosticStatus = 'sign-error';
+      diagnosticBadge = 'Kekeliruan Tanda (+/-)';
+      diagnosticFeedback = `Nilai besaran Anda (${parsed} ${q.unit}) sudah tepat secara magnitudo, tetapi tandanya terbalik dari ${q.correctValue} ${q.unit}. Perhatikan konvensi tanda eksotermik/endotermik atau arah vektor.`;
+    } else if (
+      Math.abs(parsed / q.correctValue - 1000) < 50 ||
+      Math.abs(q.correctValue / (parsed || 1e-9) - 1000) < 50 ||
+      Math.abs(parsed / q.correctValue - 100) < 5 ||
+      Math.abs(q.correctValue / (parsed || 1e-9) - 100) < 5
+    ) {
+      diagnosticStatus = 'unit-conversion-error';
+      diagnosticBadge = 'Kekeliruan Konversi Satuan';
+      diagnosticFeedback = `Terdeteksi faktor skala sekitar 100× atau 1000× terhadap nilai acuan (${q.correctValue} ${q.unit}). Pastikan konversi satuan (misal J ke kJ, mL ke L, atau cm ke m) sudah seragam.`;
+    } else if (absDiff <= q.tolerance * 2.5) {
+      diagnosticStatus = 'close-rounding';
+      diagnosticBadge = 'Hampir Tepat (Galat Pembulatan)';
+      diagnosticFeedback = `Jawaban Anda (${parsed} ${q.unit}) mendekati nilai acuan (${q.correctValue} ${q.unit}, galat ${errorPct}%). Hindari pembulatan terlalu dini pada langkah antara.`;
+    } else {
+      // Specific per-question hints
+      if (q.id === 'q1-newton') {
+        diagnosticFeedback = `Ingat untuk mengurangkan komponen berat sejajar bidang miring (m·g·sin 30° = 19.62 N) dan gaya gesek kinetis (f_k = 6.79 N) dari gaya dorong F = 40 N sebelum dibagi massa m = 4 kg.`;
+      } else if (q.id === 'q2-projectile') {
+        diagnosticFeedback = `Gunakan v₀² = 20² = 400 m²/s² dan sin(2 × 45°) = sin(90°) = 1, lalu bagi dengan gravitasi g = 9.81 m/s².`;
+      } else if (q.id === 'q3-gibbs') {
+        diagnosticFeedback = `Konversikan ΔS = 160 J/(mol·K) menjadi 0.160 kJ/(mol·K) terlebih dahulu sebelum dikalikan T = 300 K pada rumus ΔG = ΔH - T·ΔS.`;
+      } else if (q.id === 'q4-titration') {
+        diagnosticFeedback = `Gunakan syarat titik ekuivalen monoprotik: M_asam × V_asam = M_basa × V_basa → 0.20 × 25 = 0.25 × V_basa.`;
+      } else if (q.id === 'q5-kepler') {
+        diagnosticFeedback = `Hitung a³ = 4.0³ = 64 terlebih dahulu, lalu tarik akar kuadratnya: T = √64 = 8.0 tahun Bumi.`;
+      }
+    }
+
     results[q.id] = {
       isCorrect,
       expected: q.correctValue,
       explanation: q.explanation,
+      userNumericValue: parsed,
+      errorPct,
+      diagnosticStatus,
+      diagnosticBadge,
+      diagnosticFeedback,
     };
   }
 
