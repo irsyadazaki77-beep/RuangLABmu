@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Camera,
   Sliders,
@@ -118,7 +118,13 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     return currentModule.computeStep(paramsState, 1.0);
   }, [currentModule, paramsState]);
 
+  const prevBioSig = useRef('');
+  const bioSig = `${currentModule.id}:${JSON.stringify(paramsState)}`;
+
   useEffect(() => {
+    if (prevBioSig.current === bioSig) return;
+    prevBioSig.current = bioSig;
+
     if (onBiologyContextChange) {
       onBiologyContextChange({
         moduleId: currentModule.id,
@@ -126,11 +132,11 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
         liveMetrics: currentOutputs,
       });
     }
-  }, [currentModule, paramsState, currentOutputs, onBiologyContextChange]);
+  }, [bioSig, currentModule.id, paramsState, currentOutputs, onBiologyContextChange]);
 
   useEffect(() => {
     const unsubToggle = subscribeLabEvent(LAB_EVENTS.TOGGLE_SIMULATION, (data: any) => {
-      setIsPlaying(data?.isSimulating ?? !isPlaying);
+      setIsPlaying((prev) => (data?.isSimulating !== undefined ? data.isSimulating : !prev));
     });
     const unsubCapture = subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, () => {
       setShutterFlash(true);
@@ -140,7 +146,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
       unsubToggle();
       unsubCapture();
     };
-  }, [isPlaying]);
+  }, []);
 
   const handleParamChange = (key: string, val: number) => {
     setParamsState((prev) => ({ ...prev, [key]: val }));

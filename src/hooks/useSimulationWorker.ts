@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { SimulationFrame } from '../utils/simulationBuffer';
 import {
   SimulationMode,
@@ -134,17 +134,32 @@ export function useSimulationWorker(
     }
   }, []);
 
-  return {
-    currentFrame,
-    bounds,
-    isPlaying,
-    play,
-    pause,
-    reset,
-    stepForward,
-    stepBackward,
-    seekFrame,
-    updateParams,
-    lastEvent,
-  };
+  return useMemo(
+    () => ({
+      currentFrame,
+      bounds,
+      isPlaying,
+      play,
+      pause,
+      reset,
+      stepForward,
+      stepBackward,
+      seekFrame,
+      updateParams,
+      lastEvent,
+    }),
+    [
+      currentFrame,
+      bounds,
+      isPlaying,
+      play,
+      pause,
+      reset,
+      stepForward,
+      stepBackward,
+      seekFrame,
+      updateParams,
+      lastEvent,
+    ]
+  );
 }

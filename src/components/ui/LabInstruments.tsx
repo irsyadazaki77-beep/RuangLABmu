@@ -294,15 +294,16 @@ export const AnimatedNumberReadout: React.FC<AnimatedNumberReadoutProps> = ({
   const numericValue = typeof value === 'number' ? value : NaN;
   const [displayVal, setDisplayVal] = useState<number>(Number.isFinite(numericValue) ? numericValue : 0);
   const [flash, setFlash] = useState<boolean>(false);
+  const currentValRef = useRef<number>(Number.isFinite(numericValue) ? numericValue : 0);
 
   useEffect(() => {
     if (typeof value !== 'number' || !Number.isFinite(value)) return;
-    if (Math.abs(value - displayVal) > 1e-4) {
+    const startVal = currentValRef.current;
+    if (Math.abs(value - startVal) > 1e-4) {
       setFlash(true);
       const timer = setTimeout(() => setFlash(false), 260);
 
       let frameId: number;
-      const startVal = displayVal;
       const diff = value - startVal;
       const startTime = performance.now();
       const duration = 180;
@@ -310,11 +311,11 @@ export const AnimatedNumberReadout: React.FC<AnimatedNumberReadoutProps> = ({
       const step = (now: number) => {
         const t = Math.min(1, (now - startTime) / duration);
         const eased = 1 - Math.pow(1 - t, 3);
-        setDisplayVal(startVal + diff * eased);
+        const nextVal = t < 1 ? startVal + diff * eased : value;
+        currentValRef.current = nextVal;
+        setDisplayVal(nextVal);
         if (t < 1) {
           frameId = requestAnimationFrame(step);
-        } else {
-          setDisplayVal(value);
         }
       };
 
@@ -324,7 +325,7 @@ export const AnimatedNumberReadout: React.FC<AnimatedNumberReadoutProps> = ({
         cancelAnimationFrame(frameId);
       };
     }
-  }, [value, displayVal]);
+  }, [value]);
 
   const formatted = typeof value === 'string'
     ? value

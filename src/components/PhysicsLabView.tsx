@@ -148,15 +148,18 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     return () => cancelAnimationFrame(animId);
   }, [isPlaying, playbackSpeed]);
 
+  const simWorkerRef = useRef(simWorker);
+  simWorkerRef.current = simWorker;
+
   // Subscribe to Global Lab Events
   useEffect(() => {
     const unsubToggle = subscribeLabEvent(LAB_EVENTS.TOGGLE_SIMULATION, (data: any) => {
-      setIsPlaying(data?.isSimulating ?? !isPlaying);
+      setIsPlaying((prev) => (data?.isSimulating !== undefined ? data.isSimulating : !prev));
     });
     const unsubReset = subscribeLabEvent(LAB_EVENTS.RESET_TRIAL, () => {
       setSimTime(0);
       simTimeRef.current = 0;
-      simWorker.reset();
+      simWorkerRef.current.reset();
     });
     const unsubCapture = subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, () => {
       setShutterFlash(true);
@@ -168,7 +171,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       unsubReset();
       unsubCapture();
     };
-  }, [isPlaying, simWorker]);
+  }, []);
 
   const handleParamUpdate = (patch: Partial<PhysicsParams>) => {
     onChangeParams({ ...params, ...patch });

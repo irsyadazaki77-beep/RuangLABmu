@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Activity,
@@ -214,8 +214,14 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
   >(null);
   const [historyMap, setHistoryMap] = useState<Record<string, number[]>>({});
 
+  const metricsValuesSig = metrics.map((m) => `${m.id}:${Number.isFinite(m.value) ? m.value.toFixed(2) : '0'}`).join('|');
+  const prevSigRef = useRef<string>('');
+
   // Record 18-point rolling sparkline history for each metric
   useEffect(() => {
+    if (metricsValuesSig === prevSigRef.current) return;
+    prevSigRef.current = metricsValuesSig;
+
     setHistoryMap((prev) => {
       const next: Record<string, number[]> = { ...prev };
       for (const m of metrics) {
@@ -226,7 +232,7 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
       }
       return next;
     });
-  }, [metrics]);
+  }, [metricsValuesSig, metrics]);
 
   const buildSparklinePoints = (metric: TelemetryRibbonMetric): string => {
     const samples = historyMap[metric.id] ?? [metric.value];

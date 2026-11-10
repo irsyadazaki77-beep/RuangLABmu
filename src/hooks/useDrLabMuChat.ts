@@ -436,9 +436,16 @@ export function useDrLabMuChat({
     }));
   };
 
+  const lastHandledPromptIdRef = useRef<number | null>(null);
+
   // External trigger (e.g. from telemetry anomaly or command palette)
   useEffect(() => {
-    if (externalPromptRequest && externalPromptRequest.prompt) {
+    if (
+      externalPromptRequest &&
+      externalPromptRequest.prompt &&
+      externalPromptRequest.id !== lastHandledPromptIdRef.current
+    ) {
+      lastHandledPromptIdRef.current = externalPromptRequest.id;
       handleAskDrLabMu(externalPromptRequest.prompt);
     }
   }, [externalPromptRequest]);
