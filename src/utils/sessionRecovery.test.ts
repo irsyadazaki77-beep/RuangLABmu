@@ -67,3 +67,34 @@ test('SessionRecovery: formats user-friendly timestamp in Indonesian', () => {
   const formatted = formatSessionTimestamp(now);
   assert.ok(formatted.includes('Hari ini pk') || formatted.includes('pk'));
 });
+
+test('AutoSaveVersionCoordinator (Tahap 3): monotonic versionCounter and AbortController race condition guard', async () => {
+  const { AutoSaveVersionCoordinator } = await import('../hooks/useLabSessionAutoSave');
+  const coordinator = new AutoSaveVersionCoordinator();
+
+  assert.equal(coordinator.getCurrentVersion(), 0);
+  assert.equal(coordinator.getCommittedVersion(), 0);
+
+  // State change #1 starts an async auto-save request
+  const ticket1 = coordinator.nextVersion();
+  assert.equal(ticket1.version, 1);
+  assert.equal(ticket1.signal.aborted, false);
+  assert.equal(coordinator.canCommit(ticket1.version, ticket1.signal), true);
+
+  // Before request #1 finishes, State change #2 arrives -> must abort ticket #1 immediately!
+  const ticket2 = coordinator.nextVersion();
+  assert.equal(ticket2.version, 2);
+  assert.equal(ticket1.signal.aborted, true);
+  assert.equal(ticket2.signal.aborted, false);
+
+  // Out-of-order completion of ticket #1 must be rejected
+  assert.equal(coordinator.canCommit(ticket1.version, ticket1.signal), false);
+  assert.equal(coordinator.markCommitted(ticket1.version, ticket1.signal), false);
+  assert.equal(coordinator.getCommittedVersion(), 0);
+
+  // Completion of latest ticket #2 succeeds
+  assert.equal(coordinator.canCommit(ticket2.version, ticket2.signal), true);
+  assert.equal(coordinator.markCommitted(ticket2.version, ticket2.signal), true);
+  assert.equal(coordinator.getCommittedVersion(), 2);
+});
+

@@ -241,8 +241,10 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   const currentMode =
     currentModule.id === 'photosynthesis-ingenhousz'
       ? 'photosynthesis-ingenhousz'
-      : currentModule.id === 'enzyme-catalase'
+      : currentModule.id === 'enzyme-catalase' || currentModule.id === 'enzyme-kinetics'
       ? 'enzyme-catalase'
+      : currentModule.id === 'predator-prey-dynamics'
+      ? 'predator-prey-dynamics'
       : 'osmosis-plasmolysis';
 
   const biologyFormulaData: {
@@ -299,48 +301,96 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
       };
     }
     if (currentMode === 'enzyme-catalase') {
-      const v0 = currentOutputs['reactionVelocity'] ?? 15;
-      const s = paramsState['substrateH2O2ConcM'] ?? 0.5;
-      const ph = paramsState['solutionPh'] ?? 7.0;
+      const v0 = currentOutputs['reactionRate'] ?? currentOutputs['reactionVelocity'] ?? 15;
+      const s = paramsState['substrateConcMm'] ?? paramsState['substrateH2O2ConcM'] ?? 10;
+      const ph = paramsState['solutionPH'] ?? paramsState['solutionPh'] ?? 7.0;
       return {
         title: 'Kinetika Enzim Katalase Michaelis-Menten',
-        subtitle: '2H₂O₂ → 2H₂O + O₂↑',
+        subtitle: 'v = (Vmax·[S]) / (Km + [S]) · f(T) · f(pH)',
         tokens: [
           {
             symbol: 'v₀',
             value: Number(v0.toFixed(2)),
-            unit: 'mM/s',
+            unit: 'μM/s',
             color: '#10b981',
           },
           { symbol: '=' },
           {
             symbol: 'V_max·[S]',
-            paramKey: 'substrateH2O2ConcM',
+            paramKey: 'substrateConcMm',
             value: s,
-            min: 0.1,
-            max: 2.0,
-            unit: 'M',
+            min: 1,
+            max: 25,
+            unit: 'mM',
             color: '#38bdf8',
           },
           { symbol: '/ (K_m + [S]) ·' },
           {
             symbol: 'pH',
-            paramKey: 'solutionPh',
+            paramKey: 'solutionPH',
             value: ph,
-            min: 3.0,
-            max: 11.0,
+            min: 2.0,
+            max: 12.0,
             unit: 'pH',
             color: '#a855f7',
           },
         ],
       };
     }
+    if (currentMode === 'predator-prey-dynamics') {
+      const dxdt = currentOutputs['dxdt'] ?? 0;
+      const alpha = paramsState['alpha'] ?? 1.1;
+      const beta = paramsState['beta'] ?? 0.4;
+      const prey = paramsState['preyCount'] ?? 40;
+      return {
+        title: 'Dinamika Ekosistem Lotka-Volterra',
+        subtitle: 'dx/dt = αx − βxy,  dy/dt = δxy − γy',
+        tokens: [
+          {
+            symbol: 'dx/dt',
+            value: Number(dxdt.toFixed(1)),
+            unit: '/t',
+            color: '#10b981',
+          },
+          { symbol: '=' },
+          {
+            symbol: 'α',
+            paramKey: 'alpha',
+            value: alpha,
+            min: 0.2,
+            max: 2.5,
+            unit: '/t',
+            color: '#38bdf8',
+          },
+          { symbol: '·' },
+          {
+            symbol: 'x',
+            paramKey: 'preyCount',
+            value: prey,
+            min: 5,
+            max: 120,
+            unit: 'ind',
+            color: '#f59e0b',
+          },
+          { symbol: '−' },
+          {
+            symbol: 'β·x·y',
+            paramKey: 'beta',
+            value: beta,
+            min: 0.05,
+            max: 1.0,
+            unit: '',
+            color: '#ec4899',
+          },
+        ],
+      };
+    }
     const pi = currentOutputs['osmoticPressureAtm'] ?? 4.5;
-    const m = paramsState['sucroseMolarityM'] ?? 0.3;
+    const m = paramsState['sucroseConcMolar'] ?? paramsState['sucroseMolarityM'] ?? 0.3;
     const t = paramsState['temperatureC'] ?? 25;
     return {
       title: 'Tekanan Osmotik van ’t Hoff',
-      subtitle: 'Plasmolisis Sel pada Larutan Hipertonik',
+      subtitle: 'Π = i · M · R · T  |  Fluks Osmotik & Turgor Sel',
       tokens: [
         {
           symbol: 'Π',
@@ -351,7 +401,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
         { symbol: '=' },
         {
           symbol: 'M',
-          paramKey: 'sucroseMolarityM',
+          paramKey: 'sucroseConcMolar',
           value: m,
           min: 0.0,
           max: 1.0,

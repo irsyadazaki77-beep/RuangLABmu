@@ -1,9 +1,8 @@
 import express from 'express';
 import http from 'http';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'fs';
 import { WebSocketServer, WebSocket } from 'ws';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import { loadPersistedState, scheduleSaveState } from './src/utils/statePersistence';
 import { generateSocraticDrLabMuResponse } from './src/utils/scienceEngine';
@@ -16,8 +15,7 @@ import {
   generateRandomRoomId,
 } from './src/utils/collabProtocol';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const ROOT_DIR = process.cwd();
 
 const DR_LABMU_SYSTEM_INSTRUCTION = `# ROLE & IDENTITAS
 Nama Anda adalah "Dr. LabMu", asisten mentor laboratorium sains virtual cerdas di platform RuangLABmu. Anda menguasai bidang Fisika, Kimia, Biologi, dan Astronomi untuk jenjang SMP, SMA, hingga Perguruan Tinggi.
@@ -311,7 +309,14 @@ activeLabRooms.set('LAB-ALPHA', {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
+
+  // Cross-Origin Isolation headers required for SharedArrayBuffer in SimulationRingBuffer
+  app.use((_req, res, next) => {
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+    next();
+  });
 
   app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
@@ -1025,16 +1030,49 @@ Berikan bimbingan Sokratik cerdas:
     });
   });
 
+  // Session Auto-Save Sync Endpoint (supports monotonic version & AbortController cancellation)
+  const sessionSnapshots = new Map<string, { version: number; session: unknown; updatedAt: number }>();
+  app.post('/api/session/autosave', (req, res) => {
+    const { storageKey, version, session } = req.body || {};
+    if (!storageKey || typeof storageKey !== 'string' || typeof version !== 'number') {
+      res.status(400).json({ error: 'Invalid session autosave payload' });
+      return;
+    }
+    const existing = sessionSnapshots.get(storageKey);
+    if (existing && existing.version > version) {
+      res.status(409).json({
+        status: 'stale_rejected',
+        latestVersion: existing.version,
+      });
+      return;
+    }
+    sessionSnapshots.set(storageKey, {
+      version,
+      session,
+      updatedAt: Date.now(),
+    });
+    res.json({
+      status: 'ok',
+      version,
+      savedAt: Date.now(),
+    });
+  });
+
   if (process.env.NODE_ENV !== 'production') {
+    const viteModuleId = 'vite';
+    const { createServer: createViteServer } = await import(viteModuleId);
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
+    const distDir = fs.existsSync(path.join(ROOT_DIR, 'dist'))
+      ? path.join(ROOT_DIR, 'dist')
+      : path.resolve(ROOT_DIR, '..', 'dist');
+    app.use(express.static(distDir));
     app.get('*', (_req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.join(distDir, 'index.html'));
     });
   }
 

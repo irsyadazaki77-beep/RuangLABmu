@@ -1,4 +1,9 @@
 import { ExperimentModule } from '../experimentRegistry';
+import {
+  calculateEnzymeKinetics,
+  calculateLotkaVolterraMetrics,
+  calculateCellOsmosisTonicity,
+} from '../../utils/scienceEngine';
 
 export const BIOLOGY_MODULES: ExperimentModule[] = [
   {
@@ -121,16 +126,16 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
       ],
       Mahasiswa: [
         'Menentukan parameter kinetika Michaelis-Menten (Km dan Vmax) menggunakan plot Lineweaver-Burk.',
-        'Menganalisis profil stabilitas termal dan energi bebas denaturasi protein enzim.',
+        'Menganalisis profil stabilitas termal Arrhenius dan denaturasi protein eksponensial saat T > T_opt.',
       ],
     },
     theorySummary:
-      'Katalase merupakan enzim antioksidan tetramerik yang mengkatalisis dekomposisi cepat hidrogen peroksida (2 H₂O₂ → 2 H₂O + O₂) dengan laju perputaran kcat yang sangat tinggi (~10⁷ s⁻¹). Laju reaksi mengikuti model kinetika Michaelis-Menten v = (Vmax · [S]) / (Km + [S]). Aktivitas katalase memiliki optimum pada pH ~7.0 dan suhu ~37°C; kondisi ekstrem memicu denaturasi konformasi tiga dimensi sisi aktif.',
+      'Katalase merupakan enzim antioksidan tetramerik yang mengkatalisis dekomposisi cepat hidrogen peroksida (2 H₂O₂ → 2 H₂O + O₂) dengan laju perputaran kcat yang sangat tinggi (~10⁷ s⁻¹). Laju reaksi mengikuti model kinetika Michaelis-Menten v = (Vmax · [S]) / (Km + [S]) · f(T) · f(pH). Aktivitas katalase memiliki optimum pada pH ~7.0 dan suhu ~37°C; suhu di atas 45°C memicu denaturasi eksponensial struktur tersier protein.',
     keyEquations: [
       '2 \\text{H}_2\\text{O}_2 \\xrightarrow{\\text{Katalase}} 2 \\text{H}_2\\text{O} + \\text{O}_2 \\uparrow',
-      'v = \\frac{V_{\\max} [S]}{K_m + [S]} \\cdot f(\\text{pH}) \\cdot f(T)',
+      'v = \\frac{V_{\\max} [S]}{K_m + [S]} \\cdot f(T) \\cdot f(\\text{pH})',
       '\\frac{1}{v} = \\frac{K_m}{V_{\\max}} \\cdot \\frac{1}{[S]} + \\frac{1}{V_{\\max}} \\quad (\\text{Lineweaver-Burk})',
-      'f(\\text{pH}) = \\frac{1}{1 + 10^{\\text{pH} - pK_2} + 10^{pK_1 - \\text{pH}}}',
+      'f(\\text{pH}) = \\exp\\left(-\\left(\\frac{\\text{pH} - \\text{pH}_{\\text{opt}}}{\\sigma_{\\text{pH}}}\\right)^2\\right)',
     ],
     apparatusList: [
       'Rak tabung reaksi kaca dan tabung reaksi berskala milimeter',
@@ -168,29 +173,113 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
     computeStep: (params) => {
       const { substrateConcMm = 10, solutionPH = 7.0, temperatureC = 37, enzymeVolumeMl = 1.0 } = params;
       const VmaxBase = 120.0 * enzymeVolumeMl;
-      const Km = 4.5; // mM
+      const kin = calculateEnzymeKinetics({
+        substrateConcMm,
+        vMaxBase: VmaxBase,
+        kmConstantMm: 4.5,
+        temperatureC,
+        solutionPh: solutionPH,
+      });
 
-      // Bell-shaped pH dependency curve with optimum at pH 7.0
-      const pHOptimum = 7.0;
-      const phFactor = Math.exp(-Math.pow((solutionPH - pHOptimum) / 2.2, 2));
-
-      // Temperature bell-shaped curve with optimum at 37°C and sharp thermal denaturation above 50°C
-      let tempFactor = 1.0;
-      let denaturationPct = 0;
-      if (temperatureC <= 37) {
-        tempFactor = Math.pow(2.0, (temperatureC - 37) / 10);
-      } else {
-        const excess = temperatureC - 37;
-        tempFactor = Math.max(0, 1.0 - Math.pow(excess / 28, 2));
-        denaturationPct = Math.min(100, Math.pow(excess / 28, 2) * 100);
-      }
-
-      const activeFraction = phFactor * tempFactor;
-      const reactionRateV = ((VmaxBase * substrateConcMm) / (Km + substrateConcMm)) * activeFraction;
+      const reactionRateV = kin.reactionVelocityV;
       const foamHeightCm = Math.min(15.0, (reactionRateV / 10.0) * 1.8);
       const relativeActivityPct = Math.min(100, (reactionRateV / VmaxBase) * 100);
 
-      return { reactionRateV, foamHeightCm, relativeActivityPct, denaturationDegreePct: denaturationPct };
+      return {
+        reactionRateV,
+        foamHeightCm,
+        relativeActivityPct,
+        denaturationDegreePct: kin.denaturationDegreePct,
+      };
+    },
+  },
+
+  {
+    id: 'predator-prey-dynamics',
+    title: 'Dinamika Populasi Ekosistem Lotka-Volterra',
+    domain: 'biologi',
+    subCategory: 'Ekologi Kuantitatif & Dinamika Populasi',
+    supportedTiers: ['SMA', 'Mahasiswa'],
+    difficulty: 3,
+    estimatedMinutes: 40,
+    objectives: {
+      SMP: [
+        'Mengamati hubungan rantai makanan antara populasi mangsa (kelinci) dan predator (serigala).',
+        'Memahami bagaimana keseimbangan ekosistem terjaga di alam.',
+      ],
+      SMA: [
+        'Menganalisis siklus osilasi populasi mangsa dan predator terhadap waktu.',
+        'Mempelajari pengaruh laju reproduksi mangsa (α) dan laju pemangsaan (β) terhadap keseimbangan ekosistem.',
+      ],
+      Mahasiswa: [
+        'Menyelesaikan sistem persamaan diferensial non-linier Lotka-Volterra menggunakan integrasi numerik RK4.',
+        'Menentukan titik ekuilibrium koeksistensi (x* = γ/δ, y* = α/β) dan invarian orbit fase H(x,y).',
+      ],
+    },
+    theorySummary:
+      'Model persamaan diferensial Lotka-Volterra mendeskripsikan dinamika interaksi biologis dua spesies dalam ekosistem: mangsa (x) dan predator (y). Populasi mangsa tumbuh secara eksponensial dengan laju α bila tidak ada predator, namun berkurang sebanding dengan frekuensi pertemuan x·y (koefisien predasi β). Sebaliknya, populasi predator tumbuh dari konversi biomassa mangsa δ·x·y dan mengalami kematian alami dengan laju γ.',
+    keyEquations: [
+      '\\frac{dx}{dt} = \\alpha x - \\beta x y',
+      '\\frac{dy}{dt} = \\delta x y - \\gamma y',
+      'x^* = \\frac{\\gamma}{\\delta}, \\quad y^* = \\frac{\\alpha}{\\beta} \\quad (\\text{Titik Ekuilibrium})',
+      'H(x,y) = \\delta x - \\gamma \\ln(x) + \\beta y - \\alpha \\ln(y) = \\text{konstan}',
+    ],
+    apparatusList: [
+      'Simulator Bioreaktor Ekologi & Pencacah Populasi Telemetri GPS',
+      'Grafik Ruang Fase (Phase-Portrait) Predator vs Mangsa',
+      'Sensor Kepadatan Biomassa & Laju Pertumbuhan Spesies',
+    ],
+    safetyNotes: [
+      'Jaga parameter laju predasi β agar tidak melampaui ambang kepunahan mendadak (ecological collapse).',
+      'Catat minimal 3 kombinasi kepadatan populasi untuk memetakan potret ruang fase.',
+    ],
+    parameters: [
+      { key: 'preyPopulationX', label: 'Populasi Awal Mangsa (x)', unit: 'individu', min: 5, max: 120, step: 5, defaultValue: 40, variableRole: 'bebas' },
+      { key: 'predatorPopulationY', label: 'Populasi Awal Predator (y)', unit: 'individu', min: 2, max: 50, step: 1, defaultValue: 9, variableRole: 'bebas' },
+      { key: 'preyGrowthRateAlpha', label: 'Laju Tumbuh Mangsa (α)', unit: '/tahun', min: 0.2, max: 2.5, step: 0.1, defaultValue: 1.1, variableRole: 'kontrol' },
+      { key: 'predationRateBeta', label: 'Koefisien Predasi (β)', unit: '', min: 0.01, max: 0.12, step: 0.01, defaultValue: 0.04, variableRole: 'kontrol' },
+    ],
+    outputs: [
+      { key: 'dPreyDt', label: 'Laju Perubahan Mangsa (dx/dt)', unit: 'ind/thn', formulaLatex: '\\alpha x - \\beta xy', precision: 2 },
+      { key: 'dPredatorDt', label: 'Laju Perubahan Predator (dy/dt)', unit: 'ind/thn', formulaLatex: '\\delta xy - \\gamma y', precision: 2 },
+      { key: 'equilibriumPreyX', label: 'Ekuilibrium Mangsa (x*)', unit: 'individu', formulaLatex: '\\gamma / \\delta', precision: 1 },
+      { key: 'equilibriumPredatorY', label: 'Ekuilibrium Predator (y*)', unit: 'individu', formulaLatex: '\\alpha / \\beta', precision: 1 },
+    ],
+    defaultRegressionAxes: { xKey: 'preyPopulationX', yKey: 'dPreyDt', expectedSlopeMeaning: 'Gradien Pertumbuhan Bersih Mangsa' },
+    preLabQuiz: [
+      {
+        id: 'lv-q1',
+        question: 'Dalam sistem Lotka-Volterra, apa yang terjadi pada laju perubahan populasi mangsa (dx/dt) tepat ketika jumlah predator y sama dengan α / β?',
+        options: ['Populasi mangsa meledak tak terbatas', 'Laju perubahan populasi mangsa dx/dt = 0 (titik stasioner/ekuilibrium)', 'Populasi predator langsung punah', 'Laju kelahiran mangsa α menjadi nol'],
+        correctIndex: 1,
+        explanation: 'Substitusi y = α/β ke dalam dx/dt = x(α - βy) menghasilkan dx/dt = x(α - α) = 0, yaitu kondisi kesetimbangan populasi mangsa.',
+      },
+    ],
+    computeStep: (params) => {
+      const {
+        preyPopulationX = 40,
+        predatorPopulationY = 9,
+        preyGrowthRateAlpha = 1.1,
+        predationRateBeta = 0.04,
+        predatorReproductionDelta = 0.01,
+        predatorMortalityGamma = 0.4,
+      } = params;
+
+      const lv = calculateLotkaVolterraMetrics({
+        preyPopulationX,
+        predatorPopulationY,
+        preyGrowthRateAlpha,
+        predationRateBeta,
+        predatorReproductionDelta,
+        predatorMortalityGamma,
+      });
+
+      return {
+        dPreyDt: lv.dPreyDt,
+        dPredatorDt: lv.dPredatorDt,
+        equilibriumPreyX: lv.equilibriumPreyX,
+        equilibriumPredatorY: lv.equilibriumPredatorY,
+      };
     },
   },
 
@@ -212,15 +301,15 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
         'Mengamati peristiwa plasmolisis sel daun Rhoeo discolor di bawah mikroskop.',
       ],
       Mahasiswa: [
-        'Menghitung potensial osmotik solut (Ψs) menggunakan persamaan van \'t Hoff (Ψs = -i·C·R·T).',
-        'Menganalisis kurva tekanan turgor sel (Ψp) dan potensial air jaringan (Ψw = Ψs + Ψp).',
+        'Menghitung potensial osmotik solut (Ψs) menggunakan persamaan van \'t Hoff (Π = i·M·R·T).',
+        'Menganalisis kurva tekanan turgor sel (Ψp) dan fluks air bersih melintasi membran semipermeabel.',
       ],
     },
     theorySummary:
       'Osmosis adalah difusi neto molekul pelarut (air) melintasi membran semipermeabel dari daerah berpotensial air tinggi ke daerah berpotensial air rendah. Pada lingkungan hipertonik, air keluar dari vakuola sel menyebabkan sitoplasma menyusut dan membran plasma terlepas dari dinding sel (plasmolisis). Pada larutan isotonik, potensial air di dalam dan di luar sel seimbang sehingga tidak terjadi perubahan massa netto.',
     keyEquations: [
       '\\Psi_w = \\Psi_s + \\Psi_p',
-      '\\Psi_s = -i \\cdot C \\cdot R \\cdot T \\quad (\\text{Persamaan van \'t Hoff})',
+      '\\Pi = i \\cdot M \\cdot R \\cdot T \\quad (\\text{Persamaan van \'t Hoff})',
       '\\% \\Delta m = \\frac{m_{\\text{akhir}} - m_{\\text{awal}}}{m_{\\text{awal}}} \\times 100\\%',
       '\\text{Turgor } \\Psi_p = \\max(0, \\Psi_w - \\Psi_s)',
     ],
@@ -257,17 +346,17 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
     ],
     computeStep: (params) => {
       const { sucroseConcMolar = 0.3, solutionTempC = 25 } = params;
-      const R = 0.008314; // L·MPa/(mol·K)
-      const T = solutionTempC + 273.15;
-      const i = 1.0; // non-electrolyte sucrose ionization factor
+      const osm = calculateCellOsmosisTonicity({
+        intracellularMolarityM: 0.28,
+        extracellularMolarityM: sucroseConcMolar,
+        temperatureC: solutionTempC,
+        hasCellWall: true,
+      });
 
-      // Solute potential in MPa: Ψs = -iCRT
-      const solutePotentialMpa = -i * sucroseConcMolar * R * T;
-
-      // Assume cellular isotonic concentration of potato cells is ~0.28 M
+      const solutePotentialMpa = -osm.osmoticPressureExtMpa;
       const isotonicConc = 0.28;
       const deltaC = isotonicConc - sucroseConcMolar;
-      const massChangePct = deltaC * 22.0; // gain mass if deltaC > 0 (hypotonic), lose if deltaC < 0 (hypertonic)
+      const massChangePct = deltaC * 22.0;
 
       let plasmolyzedCellsPct = 0;
       if (sucroseConcMolar > isotonicConc) {

@@ -10,7 +10,10 @@ export type SimulationMode =
   | 'stokes-viscosity'
   | 'ohm-wheatstone'
   | 'optics-young-slit'
-  | 'photoelectric-planck';
+  | 'photoelectric-planck'
+  | 'enzyme-kinetics'
+  | 'predator-prey-dynamics'
+  | 'cell-osmosis-tonicity';
 
 export type WorkerInboundMessage =
   | { type: 'INIT'; mode: SimulationMode; params: Record<string, number> }
@@ -21,7 +24,13 @@ export type WorkerInboundMessage =
   | { type: 'STEP_FRAMES'; deltaFrames: number }
   | { type: 'SEEK_FRAME'; frameIndex: number };
 
-export type SimulationEventType = 'ground-hit' | 'collision' | 'orbit-complete';
+export type SimulationEventType =
+  | 'ground-hit'
+  | 'collision'
+  | 'orbit-complete'
+  | 'substrate-depleted'
+  | 'cell-lysis'
+  | 'cell-plasmolysis';
 
 export type WorkerOutboundMessage =
   | {

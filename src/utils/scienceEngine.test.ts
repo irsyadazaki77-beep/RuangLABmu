@@ -5,6 +5,10 @@ import {
   evaluateKinematicsAtTime,
   calculateChemistryMetrics,
   calculateAstronomyMetrics,
+  calculateEnzymeKinetics,
+  calculateLotkaVolterraMetrics,
+  calculateCellOsmosisTonicity,
+  calculateBiologyMetrics,
   calculateLinearRegression,
   gradeWorksheetAnswers,
   calculateStudentRubric,
@@ -451,6 +455,11 @@ import {
 import {
   stepSpringHookeRK4,
   stepOrbitalVerlet,
+  stepEnzymeKineticsRK4,
+  stepLotkaVolterraRK4,
+  stepCellOsmosisRK4,
+  WorkerSimulationContext,
+  FIXED_DT,
 } from '../workers/simulationWorker';
 
 test('SimulationRingBuffer: circular FIFO buffer, wrap-around, and O(1) frame lookup', () => {
@@ -586,6 +595,181 @@ test('Deterministic Physics: RK4 and Velocity Verlet energy conservation', () =>
   const orbitalDriftPct = (Math.abs(finalOrbitalEnergy - initialOrbitalEnergy) / Math.abs(initialOrbitalEnergy)) * 100;
   // Velocity Verlet is symplectic so orbital energy remains bounded without unphysical decay
   assert.ok(orbitalDriftPct < 0.1, `Orbital Verlet energy drift was ${orbitalDriftPct}%`);
+});
+
+test('Biologi Kuantitatif (Tahap 2): Michaelis-Menten, Lotka-Volterra, Osmosis Van t Hoff & RK4 60Hz Worker', () => {
+  // 1. Kinetika Enzim Michaelis-Menten (enzyme-kinetics)
+  // Saat [S] = K_m pada suhu optimum (37°C) dan pH optimum (7.0), v harus tepat = 0.5 * V_max
+  const optEnzyme = calculateEnzymeKinetics({
+    substrateConcMm: 4.5,
+    vMaxBase: 120,
+    kmConstantMm: 4.5,
+    temperatureC: 37,
+    solutionPh: 7.0,
+  });
+  assert.equal(optEnzyme.saturationFraction, 0.5);
+  assert.equal(optEnzyme.thermalFactor, 1);
+  assert.equal(optEnzyme.phFactor, 1);
+  assert.equal(optEnzyme.reactionVelocityV, 60);
+  assert.equal(optEnzyme.denaturationDegreePct, 0);
+
+  // Aktivasi termal Arrhenius (suhu dingin 15°C < 37°C menurunkan laju)
+  const coldEnzyme = calculateEnzymeKinetics({
+    substrateConcMm: 4.5,
+    vMaxBase: 120,
+    kmConstantMm: 4.5,
+    temperatureC: 15,
+    solutionPh: 7.0,
+  });
+  assert.ok(coldEnzyme.reactionVelocityV < optEnzyme.reactionVelocityV);
+  assert.equal(coldEnzyme.denaturationDegreePct, 0);
+
+  // Denaturasi protein eksponensial saat T > 45°C (misal T = 65°C)
+  const denaturedEnzyme = calculateEnzymeKinetics({
+    substrateConcMm: 4.5,
+    vMaxBase: 120,
+    kmConstantMm: 4.5,
+    temperatureC: 65,
+    solutionPh: 7.0,
+  });
+  assert.ok(denaturedEnzyme.denaturationDegreePct > 90, `Expected >90% denaturation at 65°C, got ${denaturedEnzyme.denaturationDegreePct}%`);
+  assert.ok(denaturedEnzyme.reactionVelocityV < 5, `Expected severe drop in velocity at 65°C, got ${denaturedEnzyme.reactionVelocityV}`);
+
+  // Kurva lonceng pH simetris (pH 4.8 vs pH 9.2 sekitar pH_opt = 7.0)
+  const acidPh = calculateEnzymeKinetics({
+    substrateConcMm: 9.0,
+    vMaxBase: 120,
+    kmConstantMm: 4.5,
+    temperatureC: 37,
+    solutionPh: 4.8,
+  });
+  const basePh = calculateEnzymeKinetics({
+    substrateConcMm: 9.0,
+    vMaxBase: 120,
+    kmConstantMm: 4.5,
+    temperatureC: 37,
+    solutionPh: 9.2,
+  });
+  assert.equal(acidPh.phFactor, basePh.phFactor);
+  assert.ok(acidPh.phFactor < 0.5);
+
+  // 2. Dinamika Populasi Lotka-Volterra (predator-prey-dynamics)
+  // Pada titik ekuilibrium x* = gamma/delta = 0.4/0.01 = 40, y* = alpha/beta = 1.1/0.04 = 27.5 -> dx/dt = 0, dy/dt = 0
+  const lvEq = calculateLotkaVolterraMetrics({
+    preyPopulationX: 40,
+    predatorPopulationY: 27.5,
+    preyGrowthRateAlpha: 1.1,
+    predationRateBeta: 0.04,
+    predatorReproductionDelta: 0.01,
+    predatorMortalityGamma: 0.4,
+  });
+  assert.equal(lvEq.equilibriumPreyX, 40);
+  assert.equal(lvEq.equilibriumPredatorY, 27.5);
+  assert.equal(lvEq.dPreyDt, 0);
+  assert.equal(lvEq.dPredatorDt, 0);
+
+  // Saat predator sedikit (y = 10 < 27.5), populasi mangsa tumbuh positif (dx/dt > 0)
+  const lvGrow = calculateLotkaVolterraMetrics({
+    preyPopulationX: 50,
+    predatorPopulationY: 10,
+    preyGrowthRateAlpha: 1.1,
+    predationRateBeta: 0.04,
+    predatorReproductionDelta: 0.01,
+    predatorMortalityGamma: 0.4,
+  });
+  assert.ok(lvGrow.dPreyDt > 0);
+  assert.ok(lvGrow.dPredatorDt > 0);
+
+  // Integrasi RK4 Lotka-Volterra melestarikan invarian fase H(x,y)
+  let px = 45;
+  let py = 12;
+  const hInit =
+    0.01 * px - 0.4 * Math.log(px) + 0.04 * py - 1.1 * Math.log(py);
+  for (let i = 0; i < 180; i++) {
+    const step = stepLotkaVolterraRK4(px, py, 1.1, 0.04, 0.01, 0.4, FIXED_DT);
+    px = step.preyNext;
+    py = step.predatorNext;
+  }
+  const hFinal =
+    0.01 * px - 0.4 * Math.log(px) + 0.04 * py - 1.1 * Math.log(py);
+  const hDriftPct = (Math.abs(hFinal - hInit) / Math.abs(hInit)) * 100;
+  assert.ok(hDriftPct < 0.02, `Lotka-Volterra RK4 Hamiltonian drift was ${hDriftPct}%`);
+
+  // 3. Osmosis & Tekanan Turgor Sel Van 't Hoff (cell-osmosis-tonicity)
+  // Isotonik (M_int = 0.28 M, M_ext = 0.28 M) -> fluks air bersih = 0
+  const isoCell = calculateCellOsmosisTonicity({
+    intracellularMolarityM: 0.28,
+    extracellularMolarityM: 0.28,
+    temperatureC: 25,
+    hasCellWall: true,
+  });
+  assert.equal(isoCell.tonicityState, 'Isotonik (Setimbang)');
+  assert.equal(isoCell.netWaterFluxUm3PerSec, 0);
+  assert.equal(isoCell.isPlasmolyzed, false);
+
+  // Hipotonik pada sel tumbuhan (M_ext = 0.05 M) -> air masuk (fluks > 0), kondisi Hipotonik (Turgid)
+  const hypoPlant = calculateCellOsmosisTonicity({
+    intracellularMolarityM: 0.28,
+    extracellularMolarityM: 0.05,
+    temperatureC: 25,
+    hasCellWall: true,
+  });
+  assert.equal(hypoPlant.tonicityState, 'Hipotonik (Turgid)');
+  assert.ok(hypoPlant.netWaterFluxUm3PerSec > 0);
+
+  // Hipotonik ekstrem pada sel hewan tanpa dinding sel (hasCellWall: false, M_ext = 0.0 M) -> Hipotonik (Lisis)
+  const hypoAnimal = calculateCellOsmosisTonicity({
+    intracellularMolarityM: 0.28,
+    extracellularMolarityM: 0.0,
+    temperatureC: 25,
+    hasCellWall: false,
+  });
+  assert.equal(hypoAnimal.tonicityState, 'Hipotonik (Lisis)');
+  assert.equal(hypoAnimal.isLysed, true);
+
+  // Hipertonik (M_ext = 0.80 M > 0.28 M) -> air keluar (fluks < 0), Hipertonik (Plasmolisis)
+  const hyperCell = calculateCellOsmosisTonicity({
+    intracellularMolarityM: 0.28,
+    extracellularMolarityM: 0.80,
+    temperatureC: 25,
+    hasCellWall: true,
+  });
+  assert.equal(hyperCell.tonicityState, 'Hipertonik (Plasmolisis)');
+  assert.ok(hyperCell.netWaterFluxUm3PerSec < 0);
+  assert.equal(hyperCell.isPlasmolyzed, true);
+
+  // Wrapper calculateBiologyMetrics
+  const combinedBio = calculateBiologyMetrics({
+    mode: 'enzyme-kinetics',
+    substrateConcMm: 10,
+    temperatureC: 37,
+    solutionPh: 7,
+  });
+  assert.ok(combinedBio.enzymeKinetics.reactionVelocityV > 0);
+  assert.ok(combinedBio.predatorPrey.equilibriumPreyX > 0);
+  assert.ok(combinedBio.cellOsmosis.osmoticPressureIntAtm > 0);
+
+  // 4. Verifikasi WorkerSimulationContext 60 Hz RK4 untuk ketiga modul Biologi
+  const workerCtx = new WorkerSimulationContext();
+
+  workerCtx.init('enzyme-kinetics', { substrateConcMm: 12, temperatureC: 37, solutionPh: 7 });
+  for (let i = 0; i < 60; i++) workerCtx.step();
+  const enzFrame = workerCtx.ringBuffer.getLatest()!;
+  assert.ok(enzFrame.scalars!.substrateConcMm < 12);
+  assert.ok(enzFrame.scalars!.productConcMm > 0);
+  assert.ok(Math.abs(enzFrame.scalars!.substrateConcMm + enzFrame.scalars!.productConcMm - 12) < 1e-3);
+
+  workerCtx.init('predator-prey-dynamics', { preyPopulationX: 40, predatorPopulationY: 10 });
+  for (let i = 0; i < 60; i++) workerCtx.step();
+  const lvFrame = workerCtx.ringBuffer.getLatest()!;
+  assert.ok(lvFrame.scalars!.preyPopulation > 40);
+  assert.ok(Number.isFinite(lvFrame.scalars!.phaseInvariantH));
+
+  workerCtx.init('cell-osmosis-tonicity', { intracellularMolarityM: 0.28, extracellularMolarityM: 0.05, hasCellWall: 1 });
+  for (let i = 0; i < 60; i++) workerCtx.step();
+  const osmFrame = workerCtx.ringBuffer.getLatest()!;
+  assert.ok(osmFrame.scalars!.cellVolumeUm3 > 1000);
+  assert.ok(osmFrame.scalars!.turgorPressureAtm > 0);
 });
 
 test('Universal Experiment Registry: Module Catalog Integrity & Numerical Output Validation', async () => {

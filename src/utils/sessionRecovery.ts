@@ -13,6 +13,7 @@ import {
 
 export interface SavedLabSession {
   version: number;
+  sequenceVersion?: number; // Monotonic sequence number for race-condition prevention
   savedAt: number; // Unix timestamp ms
   studentId: string;
   moduleId: string;

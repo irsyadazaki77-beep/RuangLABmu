@@ -11,9 +11,14 @@ import {
 } from '../utils/simulationBuffer';
 import {
   SimulationMode,
+  SimulationEventType,
   WorkerInboundMessage,
   WorkerOutboundMessage,
 } from '../types/simulationWorkerTypes';
+import {
+  calculateEnzymeKinetics,
+  calculateCellOsmosisTonicity,
+} from '../utils/scienceEngine';
 
 export const FIXED_DT = 1.0 / 60.0; // 60 Hz fixed timestep
 
@@ -144,6 +149,201 @@ export function stepOrbitalVerlet(
   return { rxNext, ryNext, vxNext, vyNext, axNext, ayNext };
 }
 
+/**
+ * Pure 4th-Order Runge-Kutta (RK4) step for Michaelis-Menten Enzyme Kinetics
+ * d[S]/dt = -v([S]), d[P]/dt = +v([S])
+ */
+export function stepEnzymeKineticsRK4(
+  substrateMm: number,
+  productMm: number,
+  vMaxBase: number,
+  kmConstantMm: number,
+  temperatureC: number,
+  solutionPh: number,
+  dt: number
+): {
+  substrateNext: number;
+  productNext: number;
+  reactionVelocityV: number;
+  thermalFactor: number;
+  phFactor: number;
+  denaturationDegreePct: number;
+} {
+  const sCurr = Math.max(0, substrateMm);
+  const pCurr = Math.max(0, productMm);
+
+  const evalVelocity = (sVal: number): EnzymeKineticsRateEval => {
+    const clampedS = Math.max(0, sVal);
+    const kin = calculateEnzymeKinetics({
+      substrateConcMm: clampedS,
+      vMaxBase,
+      kmConstantMm,
+      temperatureC,
+      solutionPh,
+    });
+    // Convert umol/(L*s) to mM/s (1 mM = 1000 umol/L, scaled by 0.025 for observable bioreactor time course)
+    const rateMmPerSec = kin.reactionVelocityV * 0.025;
+    return {
+      rateMmPerSec,
+      rawVelocity: kin.reactionVelocityV,
+      thermalFactor: kin.thermalFactor,
+      phFactor: kin.phFactor,
+      denaturationDegreePct: kin.denaturationDegreePct,
+    };
+  };
+
+  interface EnzymeKineticsRateEval {
+    rateMmPerSec: number;
+    rawVelocity: number;
+    thermalFactor: number;
+    phFactor: number;
+    denaturationDegreePct: number;
+  }
+
+  const k1 = evalVelocity(sCurr);
+  const k2 = evalVelocity(sCurr - 0.5 * dt * k1.rateMmPerSec);
+  const k3 = evalVelocity(sCurr - 0.5 * dt * k2.rateMmPerSec);
+  const k4 = evalVelocity(sCurr - dt * k3.rateMmPerSec);
+
+  const deltaS = (dt / 6.0) * (k1.rateMmPerSec + 2.0 * k2.rateMmPerSec + 2.0 * k3.rateMmPerSec + k4.rateMmPerSec);
+  const actualConsumed = Math.min(sCurr, Math.max(0, deltaS));
+
+  const substrateNext = sCurr - actualConsumed;
+  const productNext = pCurr + actualConsumed;
+  const finalEval = evalVelocity(substrateNext);
+
+  return {
+    substrateNext,
+    productNext,
+    reactionVelocityV: finalEval.rawVelocity,
+    thermalFactor: finalEval.thermalFactor,
+    phFactor: finalEval.phFactor,
+    denaturationDegreePct: finalEval.denaturationDegreePct,
+  };
+}
+
+/**
+ * Pure 4th-Order Runge-Kutta (RK4) step for Lotka-Volterra Predator-Prey Dynamics
+ * dx/dt = alpha*x - beta*x*y
+ * dy/dt = delta*x*y - gamma*y
+ */
+export function stepLotkaVolterraRK4(
+  preyX: number,
+  predatorY: number,
+  alpha: number,
+  beta: number,
+  delta: number,
+  gamma: number,
+  dt: number
+): {
+  preyNext: number;
+  predatorNext: number;
+  dPreyDt: number;
+  dPredatorDt: number;
+  phaseInvariantH: number;
+} {
+  const a = Math.max(0.001, alpha);
+  const b = Math.max(0.0001, beta);
+  const d = Math.max(0.0001, delta);
+  const g = Math.max(0.001, gamma);
+
+  const derivatives = (x: number, y: number) => {
+    const sx = Math.max(0, x);
+    const sy = Math.max(0, y);
+    return {
+      dx: a * sx - b * sx * sy,
+      dy: d * sx * sy - g * sy,
+    };
+  };
+
+  const k1 = derivatives(preyX, predatorY);
+  const k2 = derivatives(preyX + 0.5 * dt * k1.dx, predatorY + 0.5 * dt * k1.dy);
+  const k3 = derivatives(preyX + 0.5 * dt * k2.dx, predatorY + 0.5 * dt * k2.dy);
+  const k4 = derivatives(preyX + dt * k3.dx, predatorY + dt * k3.dy);
+
+  const preyNext = Math.max(
+    1e-4,
+    preyX + (dt / 6.0) * (k1.dx + 2.0 * k2.dx + 2.0 * k3.dx + k4.dx)
+  );
+  const predatorNext = Math.max(
+    1e-4,
+    predatorY + (dt / 6.0) * (k1.dy + 2.0 * k2.dy + 2.0 * k3.dy + k4.dy)
+  );
+
+  const nextDeriv = derivatives(preyNext, predatorNext);
+  const phaseInvariantH =
+    d * preyNext - g * Math.log(preyNext) + b * predatorNext - a * Math.log(predatorNext);
+
+  return {
+    preyNext,
+    predatorNext,
+    dPreyDt: nextDeriv.dx,
+    dPredatorDt: nextDeriv.dy,
+    phaseInvariantH,
+  };
+}
+
+/**
+ * Pure 4th-Order Runge-Kutta (RK4) step for Cell Osmosis & Turgor Pressure Dynamics
+ * dV/dt = L_p * A * (Pi_int(V) - Pi_ext - P_turgor(V))
+ */
+export function stepCellOsmosisRK4(
+  currentVolumeUm3: number,
+  initialVolumeUm3: number,
+  intracellularMolarityM: number,
+  extracellularMolarityM: number,
+  vantHoffFactorInt: number,
+  vantHoffFactorExt: number,
+  temperatureC: number,
+  hasCellWall: boolean,
+  dt: number
+): {
+  volumeNextUm3: number;
+  netWaterFluxUm3PerSec: number;
+  turgorPressureAtm: number;
+  osmoticPressureIntAtm: number;
+  osmoticPressureExtAtm: number;
+  isPlasmolyzed: boolean;
+  isLysed: boolean;
+} {
+  const v0 = Math.max(10, initialVolumeUm3);
+  const minVolume = 0.35 * v0;
+  const maxVolume = hasCellWall ? 1.55 * v0 : 1.65 * v0;
+
+  const evalOsmosis = (vol: number) => {
+    const clampedVol = Math.min(maxVolume, Math.max(minVolume, vol));
+    return calculateCellOsmosisTonicity({
+      intracellularMolarityM,
+      extracellularMolarityM,
+      vantHoffFactorInt,
+      vantHoffFactorExt,
+      temperatureC,
+      initialCellVolumeUm3: v0,
+      currentCellVolumeUm3: clampedVol,
+      hasCellWall,
+    });
+  };
+
+  const k1 = evalOsmosis(currentVolumeUm3).netWaterFluxUm3PerSec;
+  const k2 = evalOsmosis(currentVolumeUm3 + 0.5 * dt * k1).netWaterFluxUm3PerSec;
+  const k3 = evalOsmosis(currentVolumeUm3 + 0.5 * dt * k2).netWaterFluxUm3PerSec;
+  const k4 = evalOsmosis(currentVolumeUm3 + dt * k3).netWaterFluxUm3PerSec;
+
+  const rawNextVol = currentVolumeUm3 + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
+  const volumeNextUm3 = Math.min(maxVolume, Math.max(minVolume, rawNextVol));
+  const finalState = evalOsmosis(volumeNextUm3);
+
+  return {
+    volumeNextUm3,
+    netWaterFluxUm3PerSec: finalState.netWaterFluxUm3PerSec,
+    turgorPressureAtm: finalState.turgorPressureAtm,
+    osmoticPressureIntAtm: finalState.osmoticPressureIntAtm,
+    osmoticPressureExtAtm: finalState.osmoticPressureExtAtm,
+    isPlasmolyzed: finalState.isPlasmolyzed,
+    isLysed: finalState.isLysed,
+  };
+}
+
 // Internal worker state class
 export class WorkerSimulationContext {
   public mode: SimulationMode = 'newton-incline';
@@ -160,6 +360,7 @@ export class WorkerSimulationContext {
   public angleAccum = 0;
   public collisionOccurred = false;
   public groundHitOccurred = false;
+  public bioEventTriggered = false;
 
   constructor() {
     this.initDefault();
@@ -174,6 +375,7 @@ export class WorkerSimulationContext {
     this.ringBuffer.clear();
     this.collisionOccurred = false;
     this.groundHitOccurred = false;
+    this.bioEventTriggered = false;
     this.angleAccum = 0;
     this.previousAngle = 0;
 
@@ -268,6 +470,75 @@ export class WorkerSimulationContext {
       const v1 = this.state.v1;
       const v2 = this.state.v2;
       this.initialMechanicalEnergy = 0.5 * m1 * v1 * v1 + 0.5 * m2 * v2 * v2;
+    } else if (this.mode === 'enzyme-kinetics') {
+      const s0 = this.params.substrateConcMm ?? 10.0;
+      const vMax = this.params.vMaxBase ?? 120.0 * (this.params.enzymeVolumeMl ?? 1.0);
+      const km = this.params.kmConstantMm ?? 4.5;
+      const tempC = this.params.temperatureC ?? 37.0;
+      const ph = this.params.solutionPh ?? this.params.solutionPH ?? 7.0;
+      const initKin = calculateEnzymeKinetics({
+        substrateConcMm: s0,
+        vMaxBase: vMax,
+        kmConstantMm: km,
+        temperatureC: tempC,
+        solutionPh: ph,
+      });
+      this.state = {
+        substrateMm: s0,
+        productMm: 0,
+        reactionVelocityV: initKin.reactionVelocityV,
+        thermalFactor: initKin.thermalFactor,
+        phFactor: initKin.phFactor,
+        denaturationDegreePct: initKin.denaturationDegreePct,
+      };
+      this.initialMechanicalEnergy = s0;
+    } else if (this.mode === 'predator-prey-dynamics') {
+      const x0 = this.params.preyPopulationX ?? 40.0;
+      const y0 = this.params.predatorPopulationY ?? 9.0;
+      const alpha = this.params.preyGrowthRateAlpha ?? 1.1;
+      const beta = this.params.predationRateBeta ?? 0.04;
+      const delta = this.params.predatorReproductionDelta ?? 0.01;
+      const gamma = this.params.predatorMortalityGamma ?? 0.4;
+      const dx0 = alpha * x0 - beta * x0 * y0;
+      const dy0 = delta * x0 * y0 - gamma * y0;
+      const h0 =
+        delta * Math.max(1e-4, x0) -
+        gamma * Math.log(Math.max(1e-4, x0)) +
+        beta * Math.max(1e-4, y0) -
+        alpha * Math.log(Math.max(1e-4, y0));
+      this.state = {
+        preyX: x0,
+        predatorY: y0,
+        dPreyDt: dx0,
+        dPredatorDt: dy0,
+        phaseInvariantH: h0,
+      };
+      this.initialMechanicalEnergy = h0;
+    } else if (this.mode === 'cell-osmosis-tonicity') {
+      const v0 = this.params.initialCellVolumeUm3 ?? 1000.0;
+      const mInt = this.params.intracellularMolarityM ?? 0.28;
+      const mExt = this.params.extracellularMolarityM ?? this.params.sucroseConcMolar ?? 0.30;
+      const tempC = this.params.temperatureC ?? this.params.solutionTempC ?? 25.0;
+      const hasWall = (this.params.hasCellWall ?? 1) >= 0.5;
+      const initOsm = calculateCellOsmosisTonicity({
+        intracellularMolarityM: mInt,
+        extracellularMolarityM: mExt,
+        temperatureC: tempC,
+        initialCellVolumeUm3: v0,
+        currentCellVolumeUm3: v0,
+        hasCellWall: hasWall,
+      });
+      this.state = {
+        volumeUm3: v0,
+        initialVolumeUm3: v0,
+        netWaterFluxUm3PerSec: initOsm.netWaterFluxUm3PerSec,
+        turgorPressureAtm: initOsm.turgorPressureAtm,
+        osmoticPressureIntAtm: initOsm.osmoticPressureIntAtm,
+        osmoticPressureExtAtm: initOsm.osmoticPressureExtAtm,
+        isPlasmolyzed: initOsm.isPlasmolyzed ? 1 : 0,
+        isLysed: initOsm.isLysed ? 1 : 0,
+      };
+      this.initialMechanicalEnergy = initOsm.osmoticPressureIntAtm;
     } else {
       // newton-incline
       this.state = {
@@ -279,10 +550,10 @@ export class WorkerSimulationContext {
     }
   }
 
-  public step(): { frame: SimulationFrame; event?: { type: 'ground-hit' | 'collision' | 'orbit-complete'; payload: Record<string, number> } } {
+  public step(): { frame: SimulationFrame; event?: { type: SimulationEventType; payload: Record<string, number> } } {
     this.frameIndex++;
     this.time += FIXED_DT;
-    let event: { type: 'ground-hit' | 'collision' | 'orbit-complete'; payload: Record<string, number> } | undefined;
+    let event: { type: SimulationEventType; payload: Record<string, number> } | undefined;
 
     if (this.mode === 'spring-hooke') {
       const m = this.params.mass ?? 4.0;
@@ -412,6 +683,105 @@ export class WorkerSimulationContext {
       this.state.v1 = v1;
       this.state.x2 = x2;
       this.state.v2 = v2;
+    } else if (this.mode === 'enzyme-kinetics') {
+      const vMax = this.params.vMaxBase ?? 120.0 * (this.params.enzymeVolumeMl ?? 1.0);
+      const km = this.params.kmConstantMm ?? 4.5;
+      const tempC = this.params.temperatureC ?? 37.0;
+      const ph = this.params.solutionPh ?? this.params.solutionPH ?? 7.0;
+
+      const next = stepEnzymeKineticsRK4(
+        this.state.substrateMm,
+        this.state.productMm,
+        vMax,
+        km,
+        tempC,
+        ph,
+        FIXED_DT
+      );
+      this.state.substrateMm = next.substrateNext;
+      this.state.productMm = next.productNext;
+      this.state.reactionVelocityV = next.reactionVelocityV;
+      this.state.thermalFactor = next.thermalFactor;
+      this.state.phFactor = next.phFactor;
+      this.state.denaturationDegreePct = next.denaturationDegreePct;
+
+      if (next.substrateNext <= 0.05 && !this.bioEventTriggered) {
+        this.bioEventTriggered = true;
+        event = {
+          type: 'substrate-depleted',
+          payload: {
+            time: Number(this.time.toFixed(2)),
+            productMm: Number(next.productNext.toFixed(3)),
+          },
+        };
+      }
+    } else if (this.mode === 'predator-prey-dynamics') {
+      const alpha = this.params.preyGrowthRateAlpha ?? 1.1;
+      const beta = this.params.predationRateBeta ?? 0.04;
+      const delta = this.params.predatorReproductionDelta ?? 0.01;
+      const gamma = this.params.predatorMortalityGamma ?? 0.4;
+
+      const next = stepLotkaVolterraRK4(
+        this.state.preyX,
+        this.state.predatorY,
+        alpha,
+        beta,
+        delta,
+        gamma,
+        FIXED_DT
+      );
+      this.state.preyX = next.preyNext;
+      this.state.predatorY = next.predatorNext;
+      this.state.dPreyDt = next.dPreyDt;
+      this.state.dPredatorDt = next.dPredatorDt;
+      this.state.phaseInvariantH = next.phaseInvariantH;
+    } else if (this.mode === 'cell-osmosis-tonicity') {
+      const v0 = this.state.initialVolumeUm3 ?? 1000.0;
+      const mInt = this.params.intracellularMolarityM ?? 0.28;
+      const mExt = this.params.extracellularMolarityM ?? this.params.sucroseConcMolar ?? 0.30;
+      const iInt = this.params.vantHoffFactorInt ?? 1.0;
+      const iExt = this.params.vantHoffFactorExt ?? 1.0;
+      const tempC = this.params.temperatureC ?? this.params.solutionTempC ?? 25.0;
+      const hasWall = (this.params.hasCellWall ?? 1) >= 0.5;
+
+      const next = stepCellOsmosisRK4(
+        this.state.volumeUm3,
+        v0,
+        mInt,
+        mExt,
+        iInt,
+        iExt,
+        tempC,
+        hasWall,
+        FIXED_DT
+      );
+      this.state.volumeUm3 = next.volumeNextUm3;
+      this.state.netWaterFluxUm3PerSec = next.netWaterFluxUm3PerSec;
+      this.state.turgorPressureAtm = next.turgorPressureAtm;
+      this.state.osmoticPressureIntAtm = next.osmoticPressureIntAtm;
+      this.state.osmoticPressureExtAtm = next.osmoticPressureExtAtm;
+      this.state.isPlasmolyzed = next.isPlasmolyzed ? 1 : 0;
+      this.state.isLysed = next.isLysed ? 1 : 0;
+
+      if (next.isLysed && !this.bioEventTriggered) {
+        this.bioEventTriggered = true;
+        event = {
+          type: 'cell-lysis',
+          payload: {
+            time: Number(this.time.toFixed(2)),
+            volumeUm3: Number(next.volumeNextUm3.toFixed(1)),
+          },
+        };
+      } else if (next.isPlasmolyzed && !this.bioEventTriggered && next.volumeNextUm3 <= 0.85 * v0) {
+        this.bioEventTriggered = true;
+        event = {
+          type: 'cell-plasmolysis',
+          payload: {
+            time: Number(this.time.toFixed(2)),
+            volumeUm3: Number(next.volumeNextUm3.toFixed(1)),
+          },
+        };
+      }
     } else {
       // newton-incline
       const m = this.params.mass ?? 4.0;
@@ -539,6 +909,66 @@ export class WorkerSimulationContext {
       thermal = Number(Math.max(0, this.initialMechanicalEnergy - kinetic).toFixed(3));
       total = Number((kinetic + thermal).toFixed(3));
       scalars.totalMomentum = Number((m1 * v1 + m2 * v2).toFixed(3));
+    } else if (this.mode === 'enzyme-kinetics') {
+      const s = this.state.substrateMm ?? 0;
+      const p = this.state.productMm ?? 0;
+      const v = this.state.reactionVelocityV ?? 0;
+      const denat = this.state.denaturationDegreePct ?? 0;
+
+      positions.substrate = { x: s, y: p, z: 0 };
+      velocities.substrate = { x: -v * 0.025, y: v * 0.025, z: 0 };
+      accelerations.substrate = { x: 0, y: 0, z: 0 };
+
+      kinetic = Number(p.toFixed(4));
+      potential = Number(s.toFixed(4));
+      thermal = Number(denat.toFixed(2));
+      total = Number((s + p).toFixed(4));
+      scalars.substrateConcMm = Number(s.toFixed(4));
+      scalars.productConcMm = Number(p.toFixed(4));
+      scalars.reactionVelocityV = Number(v.toFixed(4));
+      scalars.denaturationDegreePct = Number(denat.toFixed(2));
+    } else if (this.mode === 'predator-prey-dynamics') {
+      const x = this.state.preyX ?? 40;
+      const y = this.state.predatorY ?? 9;
+      const dx = this.state.dPreyDt ?? 0;
+      const dy = this.state.dPredatorDt ?? 0;
+      const h = this.state.phaseInvariantH ?? 0;
+
+      positions.ecosystem = { x, y, z: 0 };
+      velocities.ecosystem = { x: dx, y: dy, z: 0 };
+      accelerations.ecosystem = { x: 0, y: 0, z: 0 };
+
+      kinetic = Number(x.toFixed(3));
+      potential = Number(y.toFixed(3));
+      thermal = 0;
+      total = Number(h.toFixed(4));
+      scalars.preyPopulation = Number(x.toFixed(3));
+      scalars.predatorPopulation = Number(y.toFixed(3));
+      scalars.dPreyDt = Number(dx.toFixed(4));
+      scalars.dPredatorDt = Number(dy.toFixed(4));
+      scalars.phaseInvariantH = Number(h.toFixed(4));
+    } else if (this.mode === 'cell-osmosis-tonicity') {
+      const vol = this.state.volumeUm3 ?? 1000;
+      const v0 = this.state.initialVolumeUm3 ?? 1000;
+      const flux = this.state.netWaterFluxUm3PerSec ?? 0;
+      const turgor = this.state.turgorPressureAtm ?? 0;
+      const piInt = this.state.osmoticPressureIntAtm ?? 0;
+      const piExt = this.state.osmoticPressureExtAtm ?? 0;
+
+      positions.cell = { x: vol / v0, y: turgor, z: 0 };
+      velocities.cell = { x: flux / v0, y: 0, z: 0 };
+      accelerations.cell = { x: 0, y: 0, z: 0 };
+
+      kinetic = Number(Math.abs(flux).toFixed(3));
+      potential = Number(turgor.toFixed(4));
+      thermal = Number(piExt.toFixed(4));
+      total = Number(piInt.toFixed(4));
+      scalars.cellVolumeUm3 = Number(vol.toFixed(2));
+      scalars.volumeRatio = Number((vol / v0).toFixed(4));
+      scalars.netWaterFluxUm3PerSec = Number(flux.toFixed(3));
+      scalars.turgorPressureAtm = Number(turgor.toFixed(4));
+      scalars.osmoticPressureIntAtm = Number(piInt.toFixed(4));
+      scalars.osmoticPressureExtAtm = Number(piExt.toFixed(4));
     } else {
       // newton-incline
       const m = this.params.mass ?? 4.0;

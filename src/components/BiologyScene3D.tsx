@@ -9,7 +9,13 @@ import { labSound } from '../utils/soundEngine';
 import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
 
 interface BiologyScene3DProps {
-  mode: 'photosynthesis-ingenhousz' | 'enzyme-catalase' | 'osmosis-plasmolysis';
+  mode:
+    | 'photosynthesis-ingenhousz'
+    | 'enzyme-catalase'
+    | 'enzyme-kinetics'
+    | 'osmosis-plasmolysis'
+    | 'cell-osmosis-tonicity'
+    | 'predator-prey-dynamics';
   params: Record<string, number>;
   remoteCursors?: Record<string, SpatialCursorPayload>;
   onEmitCursor?: (
@@ -461,7 +467,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
 
       if (targetPos && onEmitCursorRef.current) {
         const now = performance.now();
-        if (now - lastEmitTime > 40) {
+        if (now - lastEmitTime >= 50) {
           onEmitCursorRef.current(targetPos, targetNormal, hoveredName);
           lastEmitTime = now;
         }

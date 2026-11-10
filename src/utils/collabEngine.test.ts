@@ -133,3 +133,102 @@ test('Spatial 3D Cursor: validation of coordinate tuple and surface normal', () 
   assert.equal(cursor.normal?.[1], 1);
   assert.equal(cursor.hoveredObject, 'Beban M1 (Balok Geser)');
 });
+
+test('SpatialCollab (Tahap 3): 20Hz (50ms) cursor throttling and LERP (factor 0.25)', async () => {
+  const {
+    THROTTLE_MS,
+    CURSOR_LERP_FACTOR,
+    lerpCoordinate,
+    lerpCursor3DPosition,
+    shouldEmitThrottledCursor,
+  } = await import('../hooks/useSpatialCollab');
+
+  // Verify 20 Hz = 50ms constant
+  assert.equal(THROTTLE_MS, 50);
+  assert.equal(CURSOR_LERP_FACTOR, 0.25);
+
+  // Verify throttling blocks emissions < 50ms apart (e.g. 144Hz = ~6.9ms frames)
+  assert.equal(shouldEmitThrottledCursor(1007, 1000), false);
+  assert.equal(shouldEmitThrottledCursor(1049, 1000), false);
+  assert.equal(shouldEmitThrottledCursor(1050, 1000), true);
+  assert.equal(shouldEmitThrottledCursor(1080, 1000), true);
+
+  // Verify scalar and 3D vector LERP: currentPos + (targetPos - currentPos) * 0.25
+  assert.equal(lerpCoordinate(0, 10, 0.25), 2.5);
+  const lerpedVec = lerpCursor3DPosition([0, 4, -8], [4, 8, 0], 0.25);
+  assert.deepEqual(lerpedVec, [1, 5, -6]);
+});
+
+test('BackendSync (Tahap 4): Exponential Backoff, Offline Outbox Queue, and Runtime Payload Guard', async () => {
+  const {
+    calculateReconnectDelay,
+    OfflineOutboxQueue,
+    isValidBackendWsMessage,
+    parseAndValidateWsMessage,
+  } = await import('../hooks/useBackendSync');
+
+  // 1. Exponential Backoff: min(1000 * 2^attempt, 15000) + jitter
+  const zeroJitter = () => 0;
+  assert.equal(calculateReconnectDelay(0, zeroJitter), 1000);
+  assert.equal(calculateReconnectDelay(1, zeroJitter), 2000);
+  assert.equal(calculateReconnectDelay(2, zeroJitter), 4000);
+  assert.equal(calculateReconnectDelay(3, zeroJitter), 8000);
+  assert.equal(calculateReconnectDelay(4, zeroJitter), 15000);
+  assert.equal(calculateReconnectDelay(10, zeroJitter), 15000);
+
+  const halfJitter = () => 0.5;
+  const delayWithJitter = calculateReconnectDelay(2, halfJitter);
+  assert.ok(delayWithJitter > 4000 && delayWithJitter <= 4400);
+
+  // 2. Offline Outbox Queue: FIFO buffering and sequential flushing on reconnect
+  const outbox = new OfflineOutboxQueue();
+  outbox.enqueue('PARAM_VALUE_SYNC', { groupId: 'G1', paramKey: 'mass', value: 2.0 }, 100);
+  outbox.enqueue('PARAM_VALUE_SYNC', { groupId: 'G1', paramKey: 'mass', value: 3.5 }, 110); // coalesces same key
+  outbox.enqueue('PARAM_VALUE_SYNC', { groupId: 'G1', paramKey: 'angle', value: 30 }, 120);
+  outbox.enqueue('task:toggle', { id: 'task-1', studentName: 'Alya' }, 130);
+
+  assert.equal(outbox.size(), 3);
+
+  const flushedMessages: Array<{ type: string; payload: Record<string, unknown> }> = [];
+  const count = outbox.flush((raw) => {
+    flushedMessages.push(JSON.parse(raw));
+  });
+
+  assert.equal(count, 3);
+  assert.equal(outbox.size(), 0);
+  assert.equal(flushedMessages[0].type, 'PARAM_VALUE_SYNC');
+  assert.equal(flushedMessages[0].payload.paramKey, 'mass');
+  assert.equal(flushedMessages[0].payload.value, 3.5);
+  assert.equal(flushedMessages[1].payload.paramKey, 'angle');
+  assert.equal(flushedMessages[2].type, 'task:toggle');
+
+  // 3. Runtime Payload Guard: rejects corrupted JSON and malformed payloads without throwing
+  assert.equal(parseAndValidateWsMessage('{{{corrupted-json'), null);
+  assert.equal(parseAndValidateWsMessage('null'), null);
+  assert.equal(parseAndValidateWsMessage(JSON.stringify({ type: 'UNKNOWN_HACK', payload: {} })), null);
+  assert.equal(
+    parseAndValidateWsMessage(
+      JSON.stringify({ type: 'PARAM_VALUE_SYNC', payload: { paramKey: 'mass', value: 'not-a-number', groupId: 'G1' } })
+    ),
+    null
+  );
+  assert.equal(
+    isValidBackendWsMessage({
+      type: 'CURSOR_3D_MOVE',
+      payload: { userId: 'u1', position: [1, Number.NaN, 3] },
+    }),
+    false
+  );
+
+  // Valid payloads pass
+  const validParamMsg = parseAndValidateWsMessage(
+    JSON.stringify({
+      type: 'PARAM_VALUE_SYNC',
+      payload: { groupId: 'G1', paramKey: 'mass', value: 4.5 },
+    })
+  );
+  assert.ok(validParamMsg !== null);
+  assert.equal(validParamMsg?.type, 'PARAM_VALUE_SYNC');
+  assert.equal(validParamMsg?.payload.value, 4.5);
+});
+

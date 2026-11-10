@@ -157,8 +157,15 @@ export class SpatialCursorManager {
         instance.sprite.scale.set(1.8, 1.8 * aspect, 1);
       }
 
-      // Update positions
-      const [tx, ty, tz] = cursor.position;
+      // Smoothly interpolate (LERP = 0.25) from current mesh position toward incoming target position
+      const [targetX, targetY, targetZ] = cursor.position;
+      const curPos = instance.sphere.position;
+      const isInitialPlacement =
+        curPos.x === 0 && curPos.y === 0 && curPos.z === 0 && instance.lastTextKey === textKey;
+      const tx = isInitialPlacement ? targetX : curPos.x + (targetX - curPos.x) * 0.25;
+      const ty = isInitialPlacement ? targetY : curPos.y + (targetY - curPos.y) * 0.25;
+      const tz = isInitialPlacement ? targetZ : curPos.z + (targetZ - curPos.z) * 0.25;
+
       instance.sphere.position.set(tx, ty, tz);
       instance.halo.position.set(tx, Math.max(0.02, ty - 0.05), tz);
       instance.sprite.position.set(tx, ty + (cursor.hoveredObject ? 0.6 : 0.45), tz);

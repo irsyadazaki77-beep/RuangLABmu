@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-server
+data
+.git
+.github
+.playwright-cli
+.aistudio
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+coverage
+.DS_Store
