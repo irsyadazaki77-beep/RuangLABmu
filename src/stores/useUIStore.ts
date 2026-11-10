@@ -6,7 +6,7 @@ export type ActiveModal = null | 'safety' | 'quiz' | 'report' | 'mystery';
 export type MobileTab = 'canvas' | 'variables' | 'worksheet' | 'ai';
 
 const DEFAULT_COMFORT_PREFS: VisualComfortPreferences = {
-  theme: 'dark',
+  theme: 'light',
   fontScale: 'normal',
   lineSpacing: 'standard',
   colorBlindSafe: false,

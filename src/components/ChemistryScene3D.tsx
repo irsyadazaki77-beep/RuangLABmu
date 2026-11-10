@@ -13,6 +13,8 @@ import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
 import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
+import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
+import { useUIStore } from '../stores/useUIStore';
 
 interface ChemistryScene3DProps {
   params: ChemistryParams;
@@ -30,6 +32,7 @@ interface ChemistryScene3DProps {
   onUpdateParam?: (paramKey: string, value: number) => void;
   onCaptureSnapshot?: (dataUrl: string) => void;
   snapshotCount?: number;
+  comfortTheme?: ComfortThemeMode;
 }
 
 type CameraPreset = 'isometric' | 'front' | 'top' | 'closeup';
@@ -46,7 +49,12 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   onUpdateParam,
   onCaptureSnapshot,
   snapshotCount = 0,
+  comfortTheme,
 }) => {
+  const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
+  const activeComfortTheme = comfortTheme ?? storeComfortTheme;
+  const themeColors = getSceneThemeColors(activeComfortTheme, 'Kimia');
+
   const mountRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -64,6 +72,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
+    onCaptureSnapshot,
   });
   latestRef.current = {
     params,
@@ -75,13 +84,30 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
+    onCaptureSnapshot,
   };
 
   const cameraCtrlRef = useRef<{
     setPreset: (preset: CameraPreset) => void;
     setOrbit: (orbit: boolean) => void;
     captureCanvas: () => string | null;
+    applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
   } | null>(null);
+
+  useEffect(() => {
+    cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Kimia'));
+  }, [activeComfortTheme]);
+
+  useEffect(() => {
+    const handleGlobalSnapshot = () => {
+      if (latestRef.current.onCaptureSnapshot && cameraCtrlRef.current) {
+        const url = cameraCtrlRef.current.captureCanvas();
+        if (url) latestRef.current.onCaptureSnapshot(url);
+      }
+    };
+    window.addEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+    return () => window.removeEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+  }, []);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -104,9 +130,10 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
+    const initialColors = getSceneThemeColors(activeComfortTheme, 'Kimia');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b1120);
-    scene.fog = new THREE.FogExp2(0x0b1120, 0.018);
+    scene.background = new THREE.Color(initialColors.backgroundHex);
+    scene.fog = new THREE.FogExp2(initialColors.fogHex, 0.018);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -149,19 +176,14 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       }
       camTransitionActive = true;
     };
-    cameraCtrlRef.current = {
-      setPreset: applyCameraPreset,
-      setOrbit: (orbit: boolean) => {
-        controls.autoRotate = orbit;
-      },
-      captureCanvas: () => {
-        renderer.render(scene, camera);
-        return renderer.domElement.toDataURL('image/png');
-      },
-    };
 
     // Lighting
-    scene.add(new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.65));
+    const hemiLight = new THREE.HemisphereLight(
+      initialColors.ambientSkyHex,
+      initialColors.ambientGroundHex,
+      initialColors.ambientIntensity
+    );
+    scene.add(hemiLight);
     const keyLight = new THREE.DirectionalLight(0xfff7ed, 2.0);
     keyLight.position.set(6, 12, 8);
     keyLight.castShadow = true;
@@ -171,20 +193,46 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     scene.add(fillLight);
 
     // Floor & Lab Bench Table
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(50, 50),
-      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.85 })
-    );
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: initialColors.floorHex,
+      roughness: 0.85,
+    });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), floorMat);
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
+    const tableMat = new THREE.MeshStandardMaterial({
+      color: initialColors.tableHex,
+      roughness: 0.7,
+      metalness: 0.1,
+    });
     const tableTop = new THREE.Mesh(
       new THREE.BoxGeometry(10.5, 0.28, 6.0),
-      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7, metalness: 0.1 })
+      tableMat
     );
     tableTop.position.set(0, 0.14, 0);
     tableTop.receiveShadow = true;
     scene.add(tableTop);
+
+    cameraCtrlRef.current = {
+      setPreset: applyCameraPreset,
+      setOrbit: (orbit: boolean) => {
+        controls.autoRotate = orbit;
+      },
+      captureCanvas: () => {
+        renderer.render(scene, camera);
+        return renderer.domElement.toDataURL('image/png');
+      },
+      applyTheme: (colors) => {
+        scene.background = new THREE.Color(colors.backgroundHex);
+        scene.fog = new THREE.FogExp2(colors.fogHex, 0.018);
+        floorMat.color.setHex(colors.floorHex);
+        tableMat.color.setHex(colors.tableHex);
+        hemiLight.color.setHex(colors.ambientSkyHex);
+        hemiLight.groundColor.setHex(colors.ambientGroundHex);
+        hemiLight.intensity = colors.ambientIntensity;
+      },
+    };
 
     // Shared Materials
     const darkFrameMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.5, roughness: 0.4 });
@@ -711,7 +759,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden bg-[#0B1120] touch-none select-none ${
+      className={`relative w-full h-full overflow-hidden ${themeColors.containerBgClass} touch-none select-none transition-colors duration-300 ${
         isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : ''
       }`}
     >

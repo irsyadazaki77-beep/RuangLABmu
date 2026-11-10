@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { labSound } from '../../utils/soundEngine';
 import { InstrumentCalibrationConfig } from '../../utils/uncertaintyEngine';
+import { SciFormula } from './ScientificNotation';
 
 export interface CircularGaugeMeterProps {
   label: string;
@@ -131,15 +132,17 @@ export const CircularGaugeMeter: React.FC<CircularGaugeMeterProps> = ({
           >
             {formattedValue}
           </span>
-          <span className="font-mono text-[10px] uppercase text-slate-400 leading-none mt-0.5">
-            {unit}
+          <span className="font-mono text-[10px] text-slate-400 leading-none mt-0.5">
+            <SciFormula text={unit} />
           </span>
         </div>
       </div>
 
       <div className="flex items-center gap-1 text-[11px] font-medium text-slate-300 text-center leading-tight line-clamp-1">
         {isWarning && <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />}
-        <span className="truncate max-w-[110px]">{label}</span>
+        <span className="truncate max-w-[110px]">
+          <SciFormula text={label} />
+        </span>
       </div>
 
       {badgeText && (
@@ -242,7 +245,7 @@ export const LiquidColumnMeter: React.FC<LiquidColumnMeterProps> = ({
       {/* Digital Readout & Scale Metadata */}
       <div className="flex flex-col justify-between min-w-[76px]">
         <span className="text-[11px] font-medium text-slate-300 leading-tight">
-          {label}
+          <SciFormula text={label} />
         </span>
         <div className="my-1 flex items-baseline gap-1">
           <span
@@ -251,7 +254,9 @@ export const LiquidColumnMeter: React.FC<LiquidColumnMeterProps> = ({
           >
             {safeVal.toFixed(variant === 'ph' ? 2 : 1)}
           </span>
-          <span className="text-[10px] font-mono text-slate-400">{unit}</span>
+          <span className="text-[10px] font-mono text-slate-400">
+            <SciFormula text={unit} />
+          </span>
         </div>
         <div className="text-[10px] font-mono text-slate-400">
           {variant === 'ph'
@@ -460,18 +465,18 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
               }}
               className="inline-flex items-center justify-center px-2 py-0.5 rounded-md font-mono font-bold text-xs bg-sky-500/15 dark:bg-sky-400/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 shrink-0"
             >
-              {symbol}
+              <SciFormula text={symbol} serifVars />
             </motion.span>
           )}
           <label
             htmlFor={id}
             className="font-semibold text-slate-800 dark:text-slate-100 truncate cursor-pointer"
           >
-            {label}
+            <SciFormula text={label} />
           </label>
           {badgeText && (
             <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-              · {badgeText}
+              · <SciFormula text={badgeText} />
             </span>
           )}
         </div>
@@ -505,7 +510,7 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
               </motion.button>
 
               <span className="font-mono font-bold text-xs text-slate-900 dark:text-white tabular-nums min-w-[68px] text-center px-1">
-                {safeVal.toFixed(decimals)} {unit}
+                {safeVal.toFixed(decimals)} <SciFormula text={unit} />
               </span>
 
               <motion.button

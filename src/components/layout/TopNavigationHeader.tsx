@@ -1,27 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Atom,
   CheckCircle2,
-  Volume2,
-  VolumeX,
-  Maximize2,
-  Minimize2,
   MessageCircle,
-  Wifi,
-  WifiOff,
-  User,
   GraduationCap,
+  Sun,
+  BookOpen,
+  Moon,
 } from 'lucide-react';
 import { ExperimentModule } from '../../registry/experimentRegistry';
-import { AcademicLevel } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
 import { useLabStore, WorkflowStep } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCollabStore } from '../../stores/useCollabStore';
-import {
-  VisualComfortToolbar,
-  VisualComfortPreferences,
-} from '../ui/VisualComfortToolbar';
+import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
 
 export interface TopNavigationHeaderProps {
   experimentModule: ExperimentModule;
@@ -40,9 +32,6 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
   lksGraded,
   notificationsCount,
   hasLowR2Alert,
-  studentProfiles,
-  selectedProfileIdx,
-  onSelectProfileIdx,
 }) => {
   const {
     isLobbyMode,
@@ -51,15 +40,9 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     setWorkflowStep,
     userRole,
     setUserRole,
-    academicLevel,
-    setAcademicLevel,
-    soundEnabled,
-    toggleSound,
   } = useLabStore();
 
   const {
-    zenMode,
-    toggleZenMode,
     drawerOpen,
     toggleDrawer,
     comfortPrefs,
@@ -68,12 +51,35 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
 
   const { wsConnected } = useCollabStore();
 
-  const currentProfile = studentProfiles[selectedProfileIdx] ?? studentProfiles[0];
+  // Keep root HTML attributes synchronized with active comfort preferences at all times
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.setAttribute('data-comfort-theme', comfortPrefs.theme);
+    root.setAttribute('data-font-scale', comfortPrefs.fontScale);
+    root.setAttribute('data-line-spacing', comfortPrefs.lineSpacing);
+    root.setAttribute('data-colorblind', comfortPrefs.colorBlindSafe ? 'true' : 'false');
+    if (comfortPrefs.theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [
+    comfortPrefs.theme,
+    comfortPrefs.fontScale,
+    comfortPrefs.lineSpacing,
+    comfortPrefs.colorBlindSafe,
+  ]);
+
+  const handleThemeSwitch = (theme: ComfortThemeMode) => {
+    labSound.playClick();
+    setComfortPrefs({ theme });
+  };
 
   return (
-    <header className="h-14 shrink-0 flex items-center justify-between gap-2.5 px-3 sm:px-5 bg-slate-950 border-b border-slate-800 text-white z-40 select-none">
-      {/* Zone 1: Brand & Back to Catalog Button */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+    <header className="sticky top-0 h-15 shrink-0 flex items-center justify-between gap-3 px-4 sm:px-6 bg-white/85 dark:bg-slate-950/85 backdrop-blur-md border-b border-stone-200/80 dark:border-slate-800 text-slate-900 dark:text-slate-100 z-40 select-none transition-colors duration-200">
+      {/* Zone 1: Brand Identity ("RuangLABmu" + "Virtual Science Lab") & Back to Catalog */}
+      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 min-w-0">
         <button
           type="button"
           onClick={() => {
@@ -81,12 +87,17 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             setIsLobbyMode(true);
           }}
           aria-label="Kembali ke RuangLABmu Lobby"
-          className="text-base font-extrabold tracking-tight text-white whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-2 hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2.5 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
         >
-          <span className="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center shadow-xs">
+          <span className="w-8 h-8 rounded-xl bg-sky-600 flex items-center justify-center shadow-xs shrink-0">
             <Atom className="w-4 h-4 text-white" />
           </span>
-          <span className="hidden xs:inline">RuangLABmu</span>
+          <span className="font-bold text-lg tracking-tight text-slate-900 dark:text-white whitespace-nowrap">
+            RuangLABmu
+          </span>
+          <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 whitespace-nowrap">
+            Virtual Science Lab
+          </span>
         </button>
 
         {!isLobbyMode && userRole === 'siswa' && (
@@ -98,16 +109,19 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                 setIsLobbyMode(true);
               }}
               aria-label="Kembali ke Katalog Laboratorium"
-              className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0"
+              className="text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-sky-600 dark:hover:text-white bg-stone-100 dark:bg-slate-900 border border-stone-200 dark:border-slate-800 hover:border-stone-300 dark:hover:border-slate-700 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0"
             >
               <span>← Katalog</span>
             </button>
-            <div className="hidden xl:flex items-center gap-1.5 text-xs text-slate-400 truncate max-w-[200px] pl-1 border-l border-slate-800">
-              <span className="font-mono text-[10px] font-bold uppercase text-sky-400 shrink-0">
+            <div className="hidden xl:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[220px] pl-2 border-l border-stone-200 dark:border-slate-800">
+              <span className="font-mono text-[10px] font-bold uppercase text-sky-600 dark:text-sky-400 shrink-0">
                 {experimentModule.domain}
               </span>
-              <span className="text-slate-600">·</span>
-              <span className="font-semibold text-slate-200 truncate" title={experimentModule.title}>
+              <span className="text-slate-400 dark:text-slate-600">·</span>
+              <span
+                className="font-semibold text-slate-800 dark:text-slate-200 truncate"
+                title={experimentModule.title}
+              >
                 {experimentModule.title}
               </span>
             </div>
@@ -115,12 +129,12 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         )}
       </div>
 
-      {/* Zone 2: 4-Step Workflow Stepper (Center for Students) */}
+      {/* Zone 2: 4-Step Workflow Stepper (Center when inside Lab Workspace) */}
       <div className="hidden md:flex items-center justify-center shrink-0">
         {userRole === 'siswa' && !isLobbyMode && (
           <nav
             aria-label="Tahapan Alur Praktikum"
-            className="flex items-center gap-1 bg-slate-900/90 border border-slate-800 p-1 rounded-xl shrink-0"
+            className="flex items-center gap-1 bg-stone-100/90 dark:bg-slate-900/90 border border-stone-200/80 dark:border-slate-800 p-1 rounded-xl shrink-0"
           >
             {(
               [
@@ -157,20 +171,22 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                     isActive
                       ? 'bg-sky-600 text-white shadow-xs'
                       : item.done
-                      ? 'text-emerald-400 hover:bg-slate-800/80'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                      ? 'text-emerald-700 dark:text-emerald-400 hover:bg-stone-200/60 dark:hover:bg-slate-800/80'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-stone-200/50 dark:hover:bg-slate-800/60'
                   }`}
                 >
                   {item.done && !isActive && (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   )}
                   <span>{item.label}</span>
                   {'badge' in item && item.badge && (
                     <span
                       className={`font-mono text-[10px] px-1 rounded tabular-nums ${
                         recordsCount >= 3
-                          ? 'bg-emerald-950 text-emerald-300'
-                          : 'bg-slate-800 text-slate-400'
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                          : isActive
+                          ? 'bg-sky-700 text-sky-100'
+                          : 'bg-stone-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                       }`}
                     >
                       {item.badge}
@@ -183,120 +199,98 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         )}
       </div>
 
-      {/* Zone 3: Controls, Utilities, Sync Status, and Drawer Toggle */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* Academic Level Selector */}
-        <div className="hidden sm:flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs font-semibold">
-          {(['smp', 'sma', 'mahasiswa'] as const).map((lvl) => (
-            <button
-              key={lvl}
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setAcademicLevel(lvl);
-              }}
-              aria-label={`Pilih Jenjang Akademik ${lvl.toUpperCase()}`}
-              className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase transition-colors cursor-pointer ${
-                academicLevel === lvl
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {lvl}
-            </button>
-          ))}
-        </div>
-
-        {/* Role Switcher */}
-        <button
-          type="button"
-          onClick={() => {
-            labSound.playClick();
-            setUserRole(userRole === 'siswa' ? 'pengajar' : 'siswa');
-          }}
-          aria-label={`Ganti peran ke ${userRole === 'siswa' ? 'Pengajar' : 'Siswa'}`}
-          className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
-            userRole === 'pengajar'
-              ? 'bg-purple-900/40 text-purple-300 border-purple-700/60'
-              : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
-          }`}
-          title="Beralih peran antara Siswa dan Pengajar"
-        >
-          <GraduationCap className="w-3.5 h-3.5" />
-          <span>{userRole === 'pengajar' ? 'Guru' : 'Siswa'}</span>
-        </button>
-
-        {/* WebSocket Real-time Sync Status Badge */}
+      {/* Zone 3: Streamlined Right Utilities (Sync Dot, Role Switcher, Theme Switcher, Dr. LabMu) */}
+      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        {/* 1. Status Sync (Thin Green Dot) */}
         <div
           role="status"
-          aria-label={wsConnected ? 'Tersambung ke Lab Sync Server' : 'Terputus dari Lab Sync (Mode Lokal)'}
-          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-mono border transition-colors ${
-            wsConnected
-              ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-400'
-              : 'bg-amber-950/40 border-amber-800/60 text-amber-400'
-          }`}
-          title={wsConnected ? 'WebSocket Kolaborasi Aktif' : 'WebSocket Terputus (Mode Offline)'}
+          aria-label={wsConnected ? 'Tersambung ke Lab Sync Server' : 'Mode Sinkronisasi Lokal'}
+          title={wsConnected ? 'Real-Time Sync Aktif' : 'Sinkronisasi Lokal'}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-stone-100/80 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800"
         >
-          {wsConnected ? (
-            <>
-              <Wifi className="w-3 h-3 text-emerald-400 shrink-0" />
-              <span className="hidden xl:inline">Sync</span>
-            </>
-          ) : (
-            <>
-              <WifiOff className="w-3 h-3 text-amber-400 shrink-0 animate-pulse" />
-              <span className="hidden xl:inline">Offline</span>
-            </>
-          )}
-        </div>
-
-        {/* Audio Engine Mute Toggle */}
-        <button
-          type="button"
-          onClick={() => {
-            toggleSound();
-            labSound.setEnabled(!soundEnabled);
-          }}
-          aria-label={soundEnabled ? 'Bisukan suara laboratorium' : 'Nyalakan efek suara laboratorium'}
-          className={`min-h-[38px] min-w-[38px] flex items-center justify-center rounded-lg border transition-colors cursor-pointer ${
-            soundEnabled
-              ? 'bg-slate-900 text-sky-400 border-slate-800 hover:border-slate-700'
-              : 'bg-slate-900 text-slate-500 border-slate-800'
-          }`}
-          title={soundEnabled ? 'Efek Suara Lab Aktif' : 'Efek Suara Dibisukan'}
-        >
-          {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-        </button>
-
-        {/* Zen Mode Toggle */}
-        <button
-          type="button"
-          onClick={() => {
-            labSound.playClick();
-            toggleZenMode();
-          }}
-          aria-label={zenMode ? 'Keluar dari Mode Zen' : 'Aktifkan Mode Zen Kanvas 3D'}
-          className={`min-h-[38px] min-w-[38px] flex items-center justify-center rounded-lg border transition-colors cursor-pointer ${
-            zenMode
-              ? 'bg-sky-500/20 text-sky-300 border-sky-400/40'
-              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
-          }`}
-          title={zenMode ? 'Keluar dari Mode Zen (Kembalikan Panel)' : 'Mode Zen (Layar Penuh Kanvas 3D)'}
-        >
-          {zenMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-        </button>
-
-        {/* Visual Comfort Preferences */}
-        <div className="hidden sm:block">
-          <VisualComfortToolbar
-            preferences={comfortPrefs}
-            onChangePreferences={setComfortPrefs}
-            zenMode={zenMode}
-            onToggleZenMode={toggleZenMode}
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              wsConnected
+                ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]'
+                : 'bg-amber-500 animate-pulse'
+            }`}
           />
+          <span className="hidden lg:inline text-[11px] font-mono">
+            {wsConnected ? 'Sync' : 'Lokal'}
+          </span>
         </div>
 
-        {/* Dr. LabMu Assistant & Notifications Toggle */}
+        {/* 2. Role Switcher (Siswa / Guru) */}
+        <div
+          role="group"
+          aria-label="Pilih Peran Pengguna"
+          className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 text-xs font-semibold"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              labSound.playClick();
+              setUserRole('siswa');
+            }}
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+              userRole === 'siswa'
+                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <span>Siswa</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              labSound.playClick();
+              setUserRole('pengajar');
+            }}
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+              userRole === 'pengajar'
+                ? 'bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-300 shadow-xs'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <GraduationCap className="w-3.5 h-3.5 hidden sm:inline" />
+            <span>Guru</span>
+          </button>
+        </div>
+
+        {/* 3. Theme Switcher (Terang / Sepia / Gelap) */}
+        <div
+          role="group"
+          aria-label="Pilih Tema Tampilan"
+          className="hidden sm:flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 text-xs font-semibold"
+        >
+          {(
+            [
+              { id: 'light' as ComfortThemeMode, label: 'Terang', Icon: Sun },
+              { id: 'sepia' as ComfortThemeMode, label: 'Sepia', Icon: BookOpen },
+              { id: 'dark' as ComfortThemeMode, label: 'Gelap', Icon: Moon },
+            ] as const
+          ).map(({ id, label, Icon }) => {
+            const active = comfortPrefs.theme === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => handleThemeSwitch(id)}
+                title={`Tema ${label}`}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                  active
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0 text-amber-500 dark:text-sky-400" />
+                <span className="hidden md:inline">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 4. Dr. LabMu Assistant Button */}
         <button
           type="button"
           onClick={() => {
@@ -304,22 +298,24 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             toggleDrawer();
           }}
           aria-label={drawerOpen ? 'Tutup Asisten Dr. LabMu' : 'Buka Asisten Dr. LabMu'}
-          className={`relative min-h-[38px] px-2.5 sm:px-3 flex items-center gap-1.5 rounded-lg border font-semibold text-xs transition-colors cursor-pointer ${
+          className={`relative px-3 py-1.5 flex items-center gap-1.5 rounded-lg border font-semibold text-xs transition-colors cursor-pointer ${
             drawerOpen
-              ? 'bg-sky-600 text-white border-sky-500 shadow-xs'
-              : 'bg-slate-900 text-slate-200 border-slate-800 hover:border-slate-700'
+              ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+              : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-stone-200 dark:border-slate-800 hover:border-sky-500/50 dark:hover:border-slate-700'
           }`}
         >
-          <MessageCircle className="w-4 h-4 text-sky-400" />
-          <span className="hidden sm:inline">Dr. LabMu</span>
+          <MessageCircle
+            className={`w-4 h-4 ${drawerOpen ? 'text-white' : 'text-sky-600 dark:text-sky-400'}`}
+          />
+          <span>Dr. LabMu</span>
           {hasLowR2Alert && (
             <span
-              className="w-2 h-2 rounded-full bg-amber-400 animate-ping absolute -top-1 -right-1"
+              className="w-2 h-2 rounded-full bg-amber-400 animate-ping absolute -top-0.5 -right-0.5"
               title="Deviasi Data Terdeteksi!"
             />
           )}
           {notificationsCount > 0 && !hasLowR2Alert && (
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-400">
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-stone-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
               {notificationsCount}
             </span>
           )}

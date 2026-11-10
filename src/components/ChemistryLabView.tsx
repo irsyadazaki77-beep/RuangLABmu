@@ -66,6 +66,11 @@ import {
   ABMetricItem,
   TargetChallengeMission,
 } from './ui/ScientificEnhancementSuite';
+import {
+  CompactTelemetryRibbon,
+  LabWorkflowStagePill,
+  LabWorkflowStage,
+} from './ui/CompactTelemetryRibbon';
 
 interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -140,6 +145,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [calibrationConfig, setCalibrationConfig] =
     useState<InstrumentCalibrationConfig>(DEFAULT_CALIBRATION_CONFIG);
+  const [workflowStage, setWorkflowStage] = useState<LabWorkflowStage>(2);
   const [cockpitTab, setCockpitTab] = useState<'controls' | 'data-diff' | 'hypothesis'>('controls');
   const [hazardModalDismissed, setHazardModalDismissed] = useState<boolean>(false);
   const [localHypothesis, setLocalHypothesis] = useState<HypothesisNote>({
@@ -153,6 +159,13 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   const handleUpdateHypothesis = (next: HypothesisNote) => {
     setLocalHypothesis(next);
     if (onChangeHypothesisNote) onChangeHypothesisNote(next);
+  };
+
+  const handleStageChange = (stage: LabWorkflowStage) => {
+    setWorkflowStage(stage);
+    if (stage === 1) setCockpitTab('hypothesis');
+    else if (stage === 2) setCockpitTab('controls');
+    else setCockpitTab('data-diff');
   };
 
   // Mystery Sample Exam State
@@ -238,6 +251,14 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
       handleParamChange({ titrantAddedMl: 0 });
     }
   };
+
+  useEffect(() => {
+    const onGlobalPlayToggle = () => {
+      setIsReacting((prev) => !prev);
+    };
+    window.addEventListener('ruanglab:toggle-simulation', onGlobalPlayToggle);
+    return () => window.removeEventListener('ruanglab:toggle-simulation', onGlobalPlayToggle);
+  }, []);
 
   const handleRecordChemistry = () => {
     labSound.playRecordSuccess();
@@ -656,9 +677,259 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 items-stretch">
-        {/* LEFT COLUMN: Fixed 3D Scene Canvas & Playback Bar */}
-        <div className={`${zenMode ? 'lg:col-span-12' : 'lg:col-span-8'} flex flex-col h-full min-h-0 gap-3 transition-all`}>
+      {/* Top Workflow-Stage Progressive Disclosure Stepper Pill */}
+      {!zenMode && (
+        <div className="mb-3 shrink-0">
+          <LabWorkflowStagePill
+            activeStage={workflowStage}
+            onChangeStage={handleStageChange}
+            domainColor="#14b8a6"
+            recordsCount={records.length}
+            hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
+          />
+        </div>
+      )}
+
+      {/* MODE 3: SPLIT-SCREEN ANALYSIS & LIVE A/B COMPARISON */}
+      {!zenMode && workflowStage === 3 && (
+        <div
+          data-testid="chemistry-stage-3-split"
+          className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 overflow-y-auto pb-4"
+        >
+          <div className="lg:col-span-6 space-y-3">
+            <ABLiveComparisonWidget
+              domainLabel="Kimia"
+              currentSummary={
+                params.mode === 'acid-base-titration'
+                  ? `Ma=${params.analyteAcidConc}M, Mb=${params.titrantBaseConc}M, Vb=${params.titrantAddedMl}mL`
+                  : `T₀=${params.initialTempC}°C, [M]=${params.reactantConcentration}M`
+              }
+              currentParams={{
+                initialTempC: params.initialTempC,
+                reactantConcentration: params.reactantConcentration,
+                analyteAcidConc: params.analyteAcidConc,
+                titrantBaseConc: params.titrantBaseConc,
+                titrantAddedMl: params.titrantAddedMl,
+                anodeConcM: params.anodeConcM,
+                cathodeConcM: params.cathodeConcM,
+                gasVolumeL: params.gasVolumeL ?? 10,
+                gasTemperatureK: params.gasTemperatureK ?? 300,
+                spectroConcMm: params.spectroConcMm ?? 0.5,
+              }}
+              liveMetrics={
+                (params.mode === 'acid-base-titration'
+                  ? [
+                      { key: 'ph', label: 'pH Larutan', value: metrics.currentPh, unit: 'pH' },
+                      { key: 'veq', label: 'Vol Ekuivalen', value: metrics.equivalenceVolumeMl, unit: 'mL' },
+                      { key: 'vb', label: 'Vol Titran (Vb)', value: params.titrantAddedMl, unit: 'mL' },
+                      { key: 'ma', label: 'Molaritas Asam', value: params.analyteAcidConc, unit: 'M' },
+                    ]
+                  : params.mode === 'electrochemistry-cell'
+                  ? [
+                      { key: 'esel', label: 'Potensial Nernst', value: metrics.nernstCellPotentialE, unit: 'V' },
+                      { key: 'dg', label: 'ΔG Redoks', value: metrics.electroFreeEnergyDeltaG, unit: 'kJ/mol' },
+                      { key: 'q', label: 'Kuosien Q', value: metrics.reactionQuotientQ, unit: '' },
+                      { key: 'e0', label: 'Potensial E°', value: metrics.standardCellPotentialE0, unit: 'V' },
+                    ]
+                  : [
+                      { key: 'dg', label: 'Energi Bebas (ΔG)', value: metrics.deltaG, unit: 'kJ/mol' },
+                      { key: 'tf', label: 'Suhu Akhir', value: metrics.finalTempC, unit: '°C' },
+                      { key: 'rate', label: 'Laju Reaksi (r)', value: metrics.reactionRate, unit: 'M/s' },
+                      { key: 'dh', label: 'Entalpi (ΔH)', value: metrics.deltaHReaction, unit: 'kJ/mol' },
+                    ]) as ABMetricItem[]
+              }
+              onRestoreBaselineParams={(baseParams) =>
+                handleParamChange(baseParams as Partial<ChemistryParams>)
+              }
+            />
+          </div>
+
+          <div className="lg:col-span-6 space-y-3">
+            <div className="lab-glass-panel rounded-2xl p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
+                    Panel Analisis Regresi &amp; LKS Kimia ({records.length} Data)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Evaluasi kurva titrasi, potensial Nernst, atau kalorimetri secara berdampingan.
+                  </p>
+                </div>
+                {onProceedToAnalysis && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      onProceedToAnalysis();
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs cursor-pointer shadow-md"
+                  >
+                    Buka LKS &amp; Kurva Regresi Penuh →
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <ExperimentTrialComparePanel
+              records={records}
+              domainFilter="Kimia"
+            />
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 items-stretch ${
+          !zenMode && workflowStage === 3 ? 'hidden' : ''
+        }`}
+      >
+        {/* LEFT COLUMN: Fixed 3D Scene Canvas, CompactTelemetryRibbon & Playback Bar */}
+        <div
+          className={`${
+            zenMode
+              ? 'lg:col-span-12'
+              : workflowStage === 2
+              ? 'lg:col-span-9'
+              : 'lg:col-span-7'
+          } flex flex-col h-full min-h-0 gap-2.5 transition-all`}
+        >
+          {/* Slim 48px Compact Telemetry Ribbon with Click-to-Expand Gauge & Oscilloscope */}
+          {workflowStage !== 1 && (
+            <CompactTelemetryRibbon
+              domain="Kimia"
+              metrics={
+                params.mode === 'acid-base-titration'
+                  ? [
+                      {
+                        id: 'ph',
+                        label: 'pH Larutan',
+                        value: metrics.currentPh,
+                        min: 0,
+                        max: 14,
+                        unit: 'pH',
+                        color: '#14b8a6',
+                      },
+                      {
+                        id: 'vb',
+                        label: 'Vol Titran V_b',
+                        value: params.titrantAddedMl,
+                        min: 0,
+                        max: 50,
+                        unit: 'mL',
+                        color: '#0ea5e9',
+                      },
+                      {
+                        id: 'veq',
+                        label: 'Titik Ekuivalen',
+                        value: metrics.equivalenceVolumeMl,
+                        min: 0,
+                        max: 50,
+                        unit: 'mL',
+                        color: '#10b981',
+                      },
+                    ]
+                  : params.mode === 'electrochemistry-cell'
+                  ? [
+                      {
+                        id: 'esel',
+                        label: 'Potensial E_sel',
+                        value: metrics.nernstCellPotentialE,
+                        min: 0,
+                        max: 3.5,
+                        unit: 'V',
+                        precision: 3,
+                        color: '#14b8a6',
+                      },
+                      {
+                        id: 'dg',
+                        label: 'Energi ΔG',
+                        value: metrics.electroFreeEnergyDeltaG,
+                        min: -500,
+                        max: 100,
+                        unit: 'kJ/mol',
+                        color: '#0ea5e9',
+                      },
+                      {
+                        id: 'q',
+                        label: 'Kuosien Q',
+                        value: metrics.reactionQuotientQ,
+                        min: 0,
+                        max: 10,
+                        unit: '',
+                        color: '#f59e0b',
+                      },
+                    ]
+                  : [
+                      {
+                        id: 'temp',
+                        label: 'Suhu Larutan (T)',
+                        value: currentLiveTemp,
+                        min: 0,
+                        max: 110,
+                        unit: '°C',
+                        color: '#f43f5e',
+                        warningThreshold: 80,
+                      },
+                      {
+                        id: 'dg',
+                        label: 'Energi Bebas ΔG',
+                        value: metrics.deltaG,
+                        min: -400,
+                        max: 200,
+                        unit: 'kJ/mol',
+                        color: '#14b8a6',
+                      },
+                      {
+                        id: 'rate',
+                        label: 'Laju Reaksi (r)',
+                        value: metrics.reactionRate,
+                        min: 0,
+                        max: 5,
+                        unit: 'M/s',
+                        color: '#0ea5e9',
+                      },
+                    ]
+              }
+              oscilloscope={{
+                primaryLabel:
+                  params.mode === 'acid-base-titration'
+                    ? 'pH Larutan'
+                    : params.mode === 'electrochemistry-cell'
+                    ? 'Potensial E_sel'
+                    : 'Suhu T',
+                primaryValue:
+                  params.mode === 'acid-base-titration'
+                    ? metrics.currentPh
+                    : params.mode === 'electrochemistry-cell'
+                    ? metrics.nernstCellPotentialE
+                    : metrics.finalTempC,
+                primaryUnit:
+                  params.mode === 'acid-base-titration'
+                    ? 'pH'
+                    : params.mode === 'electrochemistry-cell'
+                    ? 'V'
+                    : '°C',
+                secondaryLabel: 'Laju / ΔG',
+                secondaryValue:
+                  params.mode === 'acid-base-titration'
+                    ? params.titrantAddedMl
+                    : metrics.deltaG,
+                secondaryUnit: params.mode === 'acid-base-titration' ? 'mL' : 'kJ',
+                microscopicStateLabel:
+                  params.mode === 'acid-base-titration'
+                    ? `Kesetimbangan Ion H⁺/OH⁻ (${metrics.titrationRegion})`
+                    : params.mode === 'electrochemistry-cell'
+                    ? `Transfer Elektron Redoks (Q = ${metrics.reactionQuotientQ})`
+                    : `Frekuensi Tumbukan Molekul (${metrics.thermalClassification})`,
+                microscopicDetail:
+                  params.mode === 'acid-base-titration'
+                    ? `Indikator ${metrics.indicatorColorName} · Volume ekuivalen teoretis = ${metrics.equivalenceVolumeMl} mL.`
+                    : `Entalpi reaksi ΔH = ${metrics.deltaHReaction} kJ/mol dengan laju r = ${metrics.reactionRate} M/s.`,
+                accentColor: '#14b8a6',
+              }}
+            />
+          )}
+
           {/* 3D Canvas Box */}
           <div
             className={`relative w-full flex-1 min-h-[380px] rounded-2xl overflow-hidden border bg-slate-900/60 shadow-2xl transition-all ${
@@ -725,85 +996,56 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               )}
             </AnimatePresence>
 
-            {/* Top Overlay Gauges */}
-            <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
-              <div className="pointer-events-auto flex items-center gap-2 bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-1.5 text-xs">
-                {params.mode === 'acid-base-titration' ? (
-                  <>
-                    <span className="text-slate-400 font-mono">pH:</span>
-                    <span className="font-bold font-mono text-emerald-400 tabular-nums">
-                      {metrics.currentPh.toFixed(2)}
-                    </span>
-                    <span className="text-slate-600">|</span>
-                    <span className="text-slate-400 font-mono">V_basa:</span>
-                    <span className="font-bold font-mono text-sky-400 tabular-nums">
-                      {params.titrantAddedMl} mL
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-slate-400 font-mono">T:</span>
-                    <span className="font-bold font-mono text-rose-400 tabular-nums">
-                      {currentLiveTemp} °C
-                    </span>
-                    <span className="text-slate-600">|</span>
-                    <span className="text-slate-400 font-mono">Progres:</span>
-                    <span className="font-bold font-mono text-emerald-400 tabular-nums">
-                      {Math.round(reactionProgress * 100)}%
-                    </span>
-                  </>
-                )}
+            {/* Bottom-Left Contextual Micro-Step Guide HUD (Shown in Stage 1) */}
+            {workflowStage === 1 && (
+              <div className="absolute bottom-3 left-3 z-20 pointer-events-none hidden sm:block">
+                <ContextualMicroGuideHUD
+                  moduleTitle={
+                    params.mode === 'acid-base-titration'
+                      ? 'Titrasi Asam-Basa & Kurva pH'
+                      : params.mode === 'electrochemistry-cell'
+                      ? 'Sel Elektrokimia Galvani'
+                      : params.mode === 'ideal-gas-boyle'
+                      ? 'Hukum Gas Ideal (PV = nRT)'
+                      : params.mode === 'reaction-kinetics-arrhenius'
+                      ? 'Kinetika Reaksi Arrhenius'
+                      : params.mode === 'spectrophotometry-beer'
+                      ? 'Spektrofotometri Beer-Lambert'
+                      : 'Kalorimetri & Termokimia'
+                  }
+                  IndependentVarLabel={
+                    params.mode === 'acid-base-titration'
+                      ? 'Volume Titran NaOH (Vb)'
+                      : params.mode === 'ideal-gas-boyle'
+                      ? 'Volume Gas (V) / Suhu (T)'
+                      : params.mode === 'spectrophotometry-beer'
+                      ? 'Konsentrasi Analit (c)'
+                      : 'Suhu Awal (T₀) / Konsentrasi [M]'
+                  }
+                  DependentVarLabel={
+                    params.mode === 'acid-base-titration'
+                      ? 'pH Larutan'
+                      : params.mode === 'ideal-gas-boyle'
+                      ? 'Tekanan Gas (P)'
+                      : params.mode === 'spectrophotometry-beer'
+                      ? 'Absorbansi (A)'
+                      : 'Energi Bebas ΔG & Suhu Akhir'
+                  }
+                  recordsCount={records.length}
+                  targetRecords={3}
+                  isPlaying={isReacting}
+                  hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
+                  onOpenHypothesis={() => handleStageChange(1)}
+                  onOpenCompare={() => handleStageChange(3)}
+                  onQuickRecord={handleRecordChemistry}
+                  onProceedToAnalysis={onProceedToAnalysis}
+                />
               </div>
-            </div>
-
-            {/* Bottom-Left Contextual Micro-Step Guide HUD */}
-            <div className="absolute bottom-3 left-3 z-20 pointer-events-none hidden sm:block">
-              <ContextualMicroGuideHUD
-                moduleTitle={
-                  params.mode === 'acid-base-titration'
-                    ? 'Titrasi Asam-Basa & Kurva pH'
-                    : params.mode === 'electrochemistry-cell'
-                    ? 'Sel Elektrokimia Galvani'
-                    : params.mode === 'ideal-gas-boyle'
-                    ? 'Hukum Gas Ideal (PV = nRT)'
-                    : params.mode === 'reaction-kinetics-arrhenius'
-                    ? 'Kinetika Reaksi Arrhenius'
-                    : params.mode === 'spectrophotometry-beer'
-                    ? 'Spektrofotometri Beer-Lambert'
-                    : 'Kalorimetri & Termokimia'
-                }
-                IndependentVarLabel={
-                  params.mode === 'acid-base-titration'
-                    ? 'Volume Titran NaOH (Vb)'
-                    : params.mode === 'ideal-gas-boyle'
-                    ? 'Volume Gas (V) / Suhu (T)'
-                    : params.mode === 'spectrophotometry-beer'
-                    ? 'Konsentrasi Analit (c)'
-                    : 'Suhu Awal (T₀) / Konsentrasi [M]'
-                }
-                DependentVarLabel={
-                  params.mode === 'acid-base-titration'
-                    ? 'pH Larutan'
-                    : params.mode === 'ideal-gas-boyle'
-                    ? 'Tekanan Gas (P)'
-                    : params.mode === 'spectrophotometry-beer'
-                    ? 'Absorbansi (A)'
-                    : 'Energi Bebas ΔG & Suhu Akhir'
-                }
-                recordsCount={records.length}
-                targetRecords={3}
-                isPlaying={isReacting}
-                hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
-                onOpenHypothesis={() => setCockpitTab('hypothesis')}
-                onOpenCompare={() => setCockpitTab('data-diff')}
-                onQuickRecord={handleRecordChemistry}
-                onProceedToAnalysis={onProceedToAnalysis}
-              />
-            </div>
+            )}
           </div>
 
           {/* Bottom Playback Bar */}
-          <div className="shrink-0 bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-xl">
+          <div className="shrink-0 lab-glass-panel rounded-2xl p-3 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* Play / Reset controls */}
               <div className="flex items-center gap-2">
@@ -884,76 +1126,30 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Tabbed Control Deck (Hidden in Zen Mode) */}
+        {/* RIGHT COLUMN: Progressive Disclosure Control Deck (80/20 split in Stage 2) */}
         {!zenMode && (
-          <div className="lg:col-span-4 h-full lg:overflow-y-auto pr-1 space-y-3 pb-4 flex flex-col">
-            {/* Sticky Cockpit Tab Switcher */}
-            <div
-              role="tablist"
-              aria-label="Panel Kontrol Praktikum Kimia"
-              className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg shrink-0 sticky top-0 z-30"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={cockpitTab === 'controls'}
-                onClick={() => {
-                  labSound.playClick();
-                  setCockpitTab('controls');
-                }}
-                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-                  cockpitTab === 'controls'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <Sliders className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Kontrol &amp; Rumus</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={cockpitTab === 'data-diff'}
-                onClick={() => {
-                  labSound.playClick();
-                  setCockpitTab('data-diff');
-                }}
-                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-                  cockpitTab === 'data-diff'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <GitCompareArrows className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Data &amp; Diff ({records.length})</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={cockpitTab === 'hypothesis'}
-                onClick={() => {
-                  labSound.playClick();
-                  setCockpitTab('hypothesis');
-                }}
-                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-                  cockpitTab === 'hypothesis'
-                    ? 'bg-amber-500 text-slate-950 shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <NotebookPen className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Hipotesis</span>
-              </button>
-            </div>
+          <div
+            className={`${
+              workflowStage === 2 ? 'lg:col-span-3' : 'lg:col-span-5'
+            } h-full lg:overflow-y-auto pr-1 space-y-3 pb-4 flex flex-col`}
+          >
+            {workflowStage === 1 && (
+              <div className="space-y-3">
+                <HypothesisScratchpadCard
+                  note={effectiveHypothesis}
+                  onChange={handleUpdateHypothesis}
+                  defaultIndependentVar="Volume Titran / Suhu Awal (T₀)"
+                  defaultDependentVar="pH Larutan / Energi Bebas ΔG"
+                />
+                <CockpitStepGuideBanner
+                  recordsCount={records.length}
+                  onProceedToAnalysis={() => handleStageChange(2)}
+                  domainLabel="Kimia"
+                />
+              </div>
+            )}
 
-            {/* Step-by-Step Guide & Next Step Action Banner */}
-            <CockpitStepGuideBanner
-              recordsCount={records.length}
-              onProceedToAnalysis={onProceedToAnalysis}
-              domainLabel="Kimia"
-            />
-
-            {cockpitTab === 'controls' && (
+            {workflowStage === 2 && cockpitTab === 'controls' && (
               <>
                 {/* Automatic Target Challenge Mission Generator */}
                 <QuickChallengeMissionBanner

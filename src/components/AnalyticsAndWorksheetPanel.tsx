@@ -37,6 +37,7 @@ import {
   ExperimentTrialComparePanel,
 } from './ui/HypothesisAndCompareDock';
 import type { Lab3DSnapshot } from './ui/ScientificEnhancementSuite';
+import { SciFormula, ChemFormula } from './ui/ScientificNotation';
 
 interface AnalyticsAndWorksheetPanelProps {
   records: ExperimentRecord[];
@@ -944,37 +945,37 @@ export const AnalyticsAndWorksheetPanel: React.FC<
             <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                  Persamaan Regresi Linier
+                  Persamaan Regresi (<SciFormula text="y(x)" />)
                 </div>
                 <div className="mt-1 font-mono font-bold text-sm text-emerald-700 dark:text-emerald-400 tabular-nums">
-                  {regression.equationString}
+                  <SciFormula text={regression.equationString} />
                 </div>
                 {regression.rSquared >= 0.95 && (
                   <span className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                    <Sparkles className="w-3 h-3" /> Sangat Presisi! (R² ≥ 0.95)
+                    <Sparkles className="w-3 h-3" /> Sangat Presisi! (<SciFormula text="R^2 >= 0.95" />)
                   </span>
                 )}
               </div>
               <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                  Rata-Rata (Mean X / Y1)
+                  Rata-Rata (<SciFormula text="X / Y_1" />)
                 </div>
                 <div className="mt-1 font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
                   {regression.meanX} / {regression.meanY}
                 </div>
                 <span className="mt-1.5 text-[11px] font-mono text-slate-400">
-                  Gradien m = {regression.slopeM}
+                  Gradien <SciFormula text={`m = ${regression.slopeM}`} />
                 </span>
               </div>
               <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between">
                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                  Simpangan Baku (σ_Y1)
+                  Simpangan Baku (<SciFormula text="σ_Y1" />)
                 </div>
                 <div className="mt-1 font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
                   ±{regression.stdDevY}
                 </div>
                 <span className="mt-1.5 text-[11px] font-mono text-slate-400">
-                  Intersep c = {regression.interceptC}
+                  Intersep <SciFormula text={`c = ${regression.interceptC}`} />
                 </span>
               </div>
             </div>
@@ -1254,7 +1255,9 @@ export const AnalyticsAndWorksheetPanel: React.FC<
                     <tr className="bg-slate-50 dark:bg-slate-800/90 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
                       <th className="py-1.5 px-2.5">ID &amp; Waktu</th>
                       <th className="py-1.5 px-2.5">Eksperimen</th>
-                      <th className="py-1.5 px-2.5">Koordinat (X, Y1, Y2)</th>
+                      <th className="py-1.5 px-2.5">
+                        Koordinat (<SciFormula text="X, Y_1, Y_2" />)
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono tabular-nums">
@@ -1423,7 +1426,12 @@ export const AnalyticsAndWorksheetPanel: React.FC<
                       <div className="flex items-center gap-1.5">
                         {showFormulaHints && (
                           <span className="text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded border border-sky-200 dark:border-sky-800 whitespace-nowrap">
-                            Rumus: {q.formulaHint}
+                            Rumus:{' '}
+                            {q.domain === 'Kimia' ? (
+                              <ChemFormula formula={q.formulaHint} />
+                            ) : (
+                              <SciFormula text={q.formulaHint} />
+                            )}
                           </span>
                         )}
                         {q.scaffoldedHints && (
@@ -1506,7 +1514,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<
                         className="w-36 font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2.5 py-1.5 text-slate-900 dark:text-white tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-600"
                       />
                       <span className="font-mono text-slate-500 dark:text-slate-400">
-                        {q.unit}
+                        <SciFormula text={q.unit} />
                       </span>
                       {itemResult && (
                         <span

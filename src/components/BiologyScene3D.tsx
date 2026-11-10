@@ -7,6 +7,8 @@ import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { labSound } from '../utils/soundEngine';
 import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
+import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
+import { useUIStore } from '../stores/useUIStore';
 
 interface BiologyScene3DProps {
   mode:
@@ -26,6 +28,7 @@ interface BiologyScene3DProps {
   isPlaying?: boolean;
   onCaptureSnapshot?: (dataUrl: string) => void;
   snapshotCount?: number;
+  comfortTheme?: ComfortThemeMode;
 }
 
 type BioCameraPreset = 'isometric' | 'front' | 'top' | 'focus';
@@ -46,11 +49,18 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   onEmitCursor,
   onCaptureSnapshot,
   snapshotCount = 0,
+  comfortTheme,
 }) => {
+  const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
+  const activeComfortTheme = comfortTheme ?? storeComfortTheme;
+  const themeColors = getSceneThemeColors(activeComfortTheme, 'Biologi');
+
   const mountRef = useRef<HTMLDivElement>(null);
   const cursorManagerRef = useRef<SpatialCursorManager | null>(null);
   const onEmitCursorRef = useRef(onEmitCursor);
   onEmitCursorRef.current = onEmitCursor;
+  const onCaptureSnapshotRef = useRef(onCaptureSnapshot);
+  onCaptureSnapshotRef.current = onCaptureSnapshot;
   const [activePreset, setActivePreset] = useState<BioCameraPreset>('isometric');
   const [isOrbiting, setIsOrbiting] = useState<boolean>(false);
 
@@ -58,7 +68,23 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     setPreset: (preset: BioCameraPreset) => void;
     setOrbit: (orbit: boolean) => void;
     captureCanvas: () => string | null;
+    applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
   } | null>(null);
+
+  useEffect(() => {
+    cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Biologi'));
+  }, [activeComfortTheme]);
+
+  useEffect(() => {
+    const handleGlobalSnapshot = () => {
+      if (onCaptureSnapshotRef.current && cameraCtrlRef.current) {
+        const url = cameraCtrlRef.current.captureCanvas();
+        if (url) onCaptureSnapshotRef.current(url);
+      }
+    };
+    window.addEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+    return () => window.removeEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+  }, []);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -69,9 +95,10 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const height = container.clientHeight || 450;
 
     // Three.js Scene, Camera, Renderer
+    const initialColors = getSceneThemeColors(activeComfortTheme, 'Biologi');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b1120);
-    scene.fog = new THREE.FogExp2(0x0b1120, 0.02);
+    scene.background = new THREE.Color(initialColors.backgroundHex);
+    scene.fog = new THREE.FogExp2(initialColors.fogHex, 0.02);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
     camera.position.set(2.8, 3.8, 7.2);
@@ -132,23 +159,16 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       camTransitionActive = true;
     };
 
-    cameraCtrlRef.current = {
-      setPreset: applyCameraPreset,
-      setOrbit: (orbit: boolean) => {
-        controls.autoRotate = orbit;
-      },
-      captureCanvas: () => {
-        renderer.render(scene, camera);
-        return renderer.domElement.toDataURL('image/png');
-      },
-    };
-
     // Collaboration Cursor Group
     const cursorManager = new SpatialCursorManager(scene);
     cursorManagerRef.current = cursorManager;
 
     // Studio Lights
-    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.7);
+    const hemiLight = new THREE.HemisphereLight(
+      initialColors.ambientSkyHex,
+      initialColors.ambientGroundHex,
+      initialColors.ambientIntensity
+    );
     scene.add(hemiLight);
 
     const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.6);
@@ -159,7 +179,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     // Laboratory Table Surface
     const tableGeo = new THREE.CylinderGeometry(4.5, 4.5, 0.2, 32);
     const tableMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
+      color: initialColors.tableHex,
       roughness: 0.4,
       metalness: 0.1,
     });
@@ -168,6 +188,25 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     tableMesh.receiveShadow = true;
     tableMesh.name = 'Meja Laboratorium Biologi';
     scene.add(tableMesh);
+
+    cameraCtrlRef.current = {
+      setPreset: applyCameraPreset,
+      setOrbit: (orbit: boolean) => {
+        controls.autoRotate = orbit;
+      },
+      captureCanvas: () => {
+        renderer.render(scene, camera);
+        return renderer.domElement.toDataURL('image/png');
+      },
+      applyTheme: (colors) => {
+        scene.background = new THREE.Color(colors.backgroundHex);
+        scene.fog = new THREE.FogExp2(colors.fogHex, 0.02);
+        tableMat.color.setHex(colors.tableHex);
+        hemiLight.color.setHex(colors.ambientSkyHex);
+        hemiLight.groundColor.setHex(colors.ambientGroundHex);
+        hemiLight.intensity = colors.ambientIntensity;
+      },
+    };
 
     // Grid Floor
     const grid = new THREE.GridHelper(9, 18, 0x38bdf8, 0x334155);
@@ -624,7 +663,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden bg-[#0B1120] touch-none select-none ${
+      className={`relative w-full h-full overflow-hidden ${themeColors.containerBgClass} touch-none select-none transition-colors duration-300 ${
         isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : ''
       }`}
     >

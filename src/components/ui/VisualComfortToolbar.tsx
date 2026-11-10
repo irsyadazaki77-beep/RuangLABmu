@@ -21,6 +21,121 @@ export type EyeComfortTheme = ComfortThemeMode;
 export type FontScaleMode = 'normal' | 'comfortable' | 'large';
 export type LineSpacingMode = 'standard' | 'relaxed';
 
+export interface SceneThemeColors {
+  theme: ComfortThemeMode;
+  backgroundHex: number;
+  fogHex: number;
+  floorHex: number;
+  tableHex: number;
+  gridPrimaryHex: number;
+  gridSecondaryHex: number;
+  ambientSkyHex: number;
+  ambientGroundHex: number;
+  ambientIntensity: number;
+  containerBgClass: string;
+}
+
+/**
+ * Synchronizes 3D WebGL canvas background, fog, floor/bench surfaces, and lighting
+ * with the user's selected Visual Comfort theme (Warm Paper, Sepia, Observatory Dark).
+ */
+export function getSceneThemeColors(
+  comfortTheme: ComfortThemeMode = 'dark',
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' = 'Fisika'
+): SceneThemeColors {
+  if (domain === 'Astronomi') {
+    if (comfortTheme === 'light') {
+      return {
+        theme: 'light',
+        backgroundHex: 0x0f172a,
+        fogHex: 0x0f172a,
+        floorHex: 0x1e293b,
+        tableHex: 0x1e293b,
+        gridPrimaryHex: 0x475569,
+        gridSecondaryHex: 0x1e293b,
+        ambientSkyHex: 0xe2e8f0,
+        ambientGroundHex: 0x1e293b,
+        ambientIntensity: 0.6,
+        containerBgClass: 'bg-[#0F172A]',
+      };
+    }
+    if (comfortTheme === 'sepia') {
+      return {
+        theme: 'sepia',
+        backgroundHex: 0x14110f,
+        fogHex: 0x14110f,
+        floorHex: 0x26201a,
+        tableHex: 0x26201a,
+        gridPrimaryHex: 0x5c5346,
+        gridSecondaryHex: 0x2a241e,
+        ambientSkyHex: 0xfef3c7,
+        ambientGroundHex: 0x26201a,
+        ambientIntensity: 0.55,
+        containerBgClass: 'bg-[#14110F]',
+      };
+    }
+    return {
+      theme: 'dark',
+      backgroundHex: 0x050811,
+      fogHex: 0x050811,
+      floorHex: 0x0f172a,
+      tableHex: 0x1e293b,
+      gridPrimaryHex: 0x334155,
+      gridSecondaryHex: 0x0f172a,
+      ambientSkyHex: 0x94a3b8,
+      ambientGroundHex: 0x090d16,
+      ambientIntensity: 0.45,
+      containerBgClass: 'bg-[#050811]',
+    };
+  }
+
+  if (comfortTheme === 'light') {
+    return {
+      theme: 'light',
+      backgroundHex: 0xeef2f6,
+      fogHex: 0xeef2f6,
+      floorHex: 0xdbe3ec,
+      tableHex: 0xcbd5e1,
+      gridPrimaryHex: 0x94a3b8,
+      gridSecondaryHex: 0xcbd5e1,
+      ambientSkyHex: 0xffffff,
+      ambientGroundHex: 0x64748b,
+      ambientIntensity: 0.9,
+      containerBgClass: 'bg-[#EEF2F6]',
+    };
+  }
+
+  if (comfortTheme === 'sepia') {
+    return {
+      theme: 'sepia',
+      backgroundHex: 0xe9e1d2,
+      fogHex: 0xe9e1d2,
+      floorHex: 0xd8cebc,
+      tableHex: 0xc7bba6,
+      gridPrimaryHex: 0x8c7f6b,
+      gridSecondaryHex: 0xbdb099,
+      ambientSkyHex: 0xfff8eb,
+      ambientGroundHex: 0x5c5346,
+      ambientIntensity: 0.85,
+      containerBgClass: 'bg-[#E9E1D2]',
+    };
+  }
+
+  return {
+    theme: 'dark',
+    backgroundHex: 0x0b1120,
+    fogHex: 0x0b1120,
+    floorHex: 0x0f172a,
+    tableHex: 0x1e293b,
+    gridPrimaryHex: 0x334155,
+    gridSecondaryHex: 0x1e293b,
+    ambientSkyHex: 0xe0f2fe,
+    ambientGroundHex: 0x1e293b,
+    ambientIntensity: 0.65,
+    containerBgClass: 'bg-[#0B1120]',
+  };
+}
+
 export interface VisualComfortPreferences {
   theme: ComfortThemeMode;
   fontScale: FontScaleMode;
@@ -38,6 +153,8 @@ interface VisualComfortToolbarProps {
   zenMode: boolean;
   onToggleZenMode: () => void;
   showZenToggle?: boolean;
+  compactTrigger?: boolean;
+  popoverPlacement?: 'bottom' | 'top';
 }
 
 export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
@@ -48,6 +165,8 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
   zenMode,
   onToggleZenMode,
   showZenToggle = true,
+  compactTrigger = false,
+  popoverPlacement = 'bottom',
 }) => {
   const preferences: VisualComfortPreferences = propPreferences ||
     prefs || {
@@ -63,6 +182,26 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
     if (onChangePreferences) onChangePreferences(next);
     if (onChangePrefs) onChangePrefs(next);
   };
+
+  // Sync HTML root attributes for CSS variables, font scale, line spacing & colorblind mode
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.setAttribute('data-comfort-theme', preferences.theme);
+    root.setAttribute('data-font-scale', preferences.fontScale);
+    root.setAttribute('data-line-spacing', preferences.lineSpacing);
+    root.setAttribute('data-colorblind', preferences.colorBlindSafe ? 'true' : 'false');
+    if (preferences.theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [
+    preferences.theme,
+    preferences.fontScale,
+    preferences.lineSpacing,
+    preferences.colorBlindSafe,
+  ]);
 
   const [popoverOpen, setPopoverOpen] = useState<boolean>(false);
   const [secondsUntilRest, setSecondsUntilRest] = useState<number>(20 * 60);
@@ -172,8 +311,10 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
         }`}
       >
         {themeIcon}
-        <span className="hidden xl:inline">{themeLabel}</span>
-        {eyeRestEnabled && (
+        <span className={compactTrigger ? 'hidden sm:inline' : 'hidden xl:inline'}>
+          {themeLabel}
+        </span>
+        {eyeRestEnabled && !compactTrigger && (
           <span className="hidden 2xl:inline font-mono text-[10px] text-slate-400 pl-1 border-l border-slate-700 tabular-nums">
             {formatMinutes(secondsUntilRest)}
           </span>
@@ -189,11 +330,15 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
               onClick={() => setPopoverOpen(false)}
             />
             <motion.div
-              initial={{ opacity: 0, y: 6, scale: 0.97 }}
+              initial={{ opacity: 0, y: popoverPlacement === 'top' ? -6 : 6, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 6, scale: 0.97 }}
+              exit={{ opacity: 0, y: popoverPlacement === 'top' ? -6 : 6, scale: 0.97 }}
               transition={{ duration: 0.16 }}
-              className="absolute right-0 top-11 z-50 w-80 sm:w-96 rounded-2xl bg-slate-900 border border-slate-700/90 shadow-2xl p-4 text-xs text-slate-100 space-y-4 select-none"
+              className={`absolute z-50 w-80 sm:w-96 rounded-2xl bg-slate-900 border border-slate-700/90 shadow-2xl p-4 text-xs text-slate-100 space-y-4 select-none ${
+                popoverPlacement === 'top'
+                  ? 'bottom-12 left-1/2 -translate-x-1/2'
+                  : 'right-0 top-11'
+              }`}
             >
               <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                 <div className="flex items-center gap-2">

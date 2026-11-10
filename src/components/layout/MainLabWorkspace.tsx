@@ -51,6 +51,7 @@ import { useLabStore } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCollabStore } from '../../stores/useCollabStore';
 import { BottomNavigationBar } from './BottomNavigationBar';
+import { LabControlDock } from '../ui/LabControlDock';
 import { labSound } from '../../utils/soundEngine';
 
 const PhysicsLabView = lazy(() =>
@@ -313,7 +314,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
   );
 
   return (
-    <main className="flex-1 min-h-0 flex flex-col relative overflow-hidden bg-slate-950">
+    <main className="flex-1 min-h-0 flex flex-col relative overflow-hidden bg-[var(--comfort-bg)] text-[var(--comfort-text)] transition-colors duration-200">
       {/* FLOATING TEACHER CONTROL BAR & ROOM MONITOR (FITUR 1) */}
       {userRole === 'pengajar' && (
         <div className="shrink-0 bg-slate-900/95 border-b border-amber-500/30 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 z-30">
@@ -455,7 +456,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
 
         {/* VIEW 2: Experiment Lobby Hub */}
         {isLobbyMode && (
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <LabLobbyHub
               activeTier={activeTierLabel}
               studentName={currentProfile.name}
@@ -780,6 +781,13 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
           </div>
         )}
       </Suspense>
+
+      {/* Unified Floating Action Dock (Bottom-Center) */}
+      <LabControlDock
+        notificationsCount={notifications.length}
+        hasLowR2Alert={hasLowR2Alert}
+        snapshotCount={capturedSnapshots.length}
+      />
 
       {/* Socratic Dr. LabMu Slide-Over Drawer & Notification Center */}
       <DrLabMuAssistantPanel

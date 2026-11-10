@@ -13,6 +13,8 @@ import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
 import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
+import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
+import { useUIStore } from '../stores/useUIStore';
 
 interface AstronomyScene3DProps {
   params: AstronomyParams;
@@ -28,6 +30,7 @@ interface AstronomyScene3DProps {
   onUpdateParam?: (paramKey: string, value: number) => void;
   onCaptureSnapshot?: (dataUrl: string) => void;
   snapshotCount?: number;
+  comfortTheme?: ComfortThemeMode;
 }
 
 type CameraPreset = 'isometric' | 'ecliptic' | 'top' | 'focus';
@@ -94,7 +97,12 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   onUpdateParam,
   onCaptureSnapshot,
   snapshotCount = 0,
+  comfortTheme,
 }) => {
+  const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
+  const activeComfortTheme = comfortTheme ?? storeComfortTheme;
+  const themeColors = getSceneThemeColors(activeComfortTheme, 'Astronomi');
+
   const mountRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -110,6 +118,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
+    onCaptureSnapshot,
   });
   latestRef.current = {
     params,
@@ -119,13 +128,30 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
+    onCaptureSnapshot,
   };
 
   const cameraCtrlRef = useRef<{
     setPreset: (preset: CameraPreset) => void;
     setOrbit: (orbit: boolean) => void;
     captureCanvas: () => string | null;
+    applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
   } | null>(null);
+
+  useEffect(() => {
+    cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Astronomi'));
+  }, [activeComfortTheme]);
+
+  useEffect(() => {
+    const handleGlobalSnapshot = () => {
+      if (latestRef.current.onCaptureSnapshot && cameraCtrlRef.current) {
+        const url = cameraCtrlRef.current.captureCanvas();
+        if (url) latestRef.current.onCaptureSnapshot(url);
+      }
+    };
+    window.addEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+    return () => window.removeEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+  }, []);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -147,9 +173,10 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
+    const initialColors = getSceneThemeColors(activeComfortTheme, 'Astronomi');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050811);
-    scene.fog = new THREE.FogExp2(0x050811, 0.012);
+    scene.background = new THREE.Color(initialColors.backgroundHex);
+    scene.fog = new THREE.FogExp2(initialColors.fogHex, 0.012);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -190,6 +217,16 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       }
       camTransitionActive = true;
     };
+
+    // Deep space lighting
+    const ambientLight = new THREE.AmbientLight(
+      initialColors.ambientSkyHex,
+      initialColors.ambientIntensity
+    );
+    scene.add(ambientLight);
+    const centralStarLight = new THREE.PointLight(0xfffbeb, 3.5, 90, 0.5);
+    scene.add(centralStarLight);
+
     cameraCtrlRef.current = {
       setPreset: applyCameraPreset,
       setOrbit: (orbit: boolean) => {
@@ -199,12 +236,13 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         renderer.render(scene, camera);
         return renderer.domElement.toDataURL('image/png');
       },
+      applyTheme: (colors) => {
+        scene.background = new THREE.Color(colors.backgroundHex);
+        scene.fog = new THREE.FogExp2(colors.fogHex, 0.012);
+        ambientLight.color.setHex(colors.ambientSkyHex);
+        ambientLight.intensity = colors.ambientIntensity;
+      },
     };
-
-    // Deep space lighting
-    scene.add(new THREE.AmbientLight(0x94a3b8, 0.45));
-    const centralStarLight = new THREE.PointLight(0xfffbeb, 3.5, 90, 0.5);
-    scene.add(centralStarLight);
 
     // Background 3D Starfield (800 stars)
     const starCount = 800;
@@ -693,7 +731,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden bg-[#050811] touch-none select-none ${
+      className={`relative w-full h-full overflow-hidden ${themeColors.containerBgClass} touch-none select-none transition-colors duration-300 ${
         isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : ''
       }`}
     >

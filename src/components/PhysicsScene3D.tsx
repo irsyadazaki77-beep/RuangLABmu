@@ -14,6 +14,8 @@ import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
 import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
+import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
+import { useUIStore } from '../stores/useUIStore';
 
 interface PhysicsScene3DProps {
   params: PhysicsParams;
@@ -32,6 +34,7 @@ interface PhysicsScene3DProps {
   onUpdateParam?: (paramKey: string, value: number) => void;
   onCaptureSnapshot?: (dataUrl: string) => void;
   snapshotCount?: number;
+  comfortTheme?: ComfortThemeMode;
 }
 
 type CameraPreset = 'isometric' | 'front' | 'top' | 'focus';
@@ -130,11 +133,16 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   onUpdateParam,
   onCaptureSnapshot,
   snapshotCount = 0,
+  comfortTheme,
 }) => {
+  const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
+  const activeComfortTheme = comfortTheme ?? storeComfortTheme;
+  const themeColors = getSceneThemeColors(activeComfortTheme, 'Fisika');
+
   const mountRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [hudCollapsed, setHudCollapsed] = useState(false);
+  const [hudCollapsed] = useState(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
   const [isOrbiting, setIsOrbiting] = useState<boolean>(false);
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
@@ -149,6 +157,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
+    onCaptureSnapshot,
   });
   latestRef.current = {
     params,
@@ -160,13 +169,30 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
+    onCaptureSnapshot,
   };
 
   const cameraCtrlRef = useRef<{
     setPreset: (preset: CameraPreset) => void;
     setOrbit: (orbit: boolean) => void;
     captureCanvas: () => string | null;
+    applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
   } | null>(null);
+
+  useEffect(() => {
+    cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Fisika'));
+  }, [activeComfortTheme]);
+
+  useEffect(() => {
+    const handleGlobalSnapshot = () => {
+      if (latestRef.current.onCaptureSnapshot && cameraCtrlRef.current) {
+        const url = cameraCtrlRef.current.captureCanvas();
+        if (url) latestRef.current.onCaptureSnapshot(url);
+      }
+    };
+    window.addEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+    return () => window.removeEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+  }, []);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -195,9 +221,10 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const glRenderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : '';
     const isSoftwareGl = /swiftshader|llvmpipe|software/i.test(glRenderer);
 
+    const initialThemeColors = getSceneThemeColors(activeComfortTheme, 'Fisika');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b1120);
-    scene.fog = new THREE.FogExp2(0x0b1120, 0.018);
+    scene.background = new THREE.Color(initialThemeColors.backgroundHex);
+    scene.fog = new THREE.FogExp2(initialThemeColors.fogHex, 0.018);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -241,19 +268,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       camTransitionActive = true;
     };
 
-    cameraCtrlRef.current = {
-      setPreset: applyCameraPreset,
-      setOrbit: (orbit: boolean) => {
-        controls.autoRotate = orbit;
-      },
-      captureCanvas: () => {
-        renderer.render(scene, camera);
-        return renderer.domElement.toDataURL('image/png');
-      },
-    };
-
     // Studio 3-Point Lighting
-    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.65);
+    const hemiLight = new THREE.HemisphereLight(
+      initialThemeColors.ambientSkyHex,
+      initialThemeColors.ambientGroundHex,
+      initialThemeColors.ambientIntensity
+    );
     scene.add(hemiLight);
 
     const keyLight = new THREE.DirectionalLight(0xfff7ed, 2.2);
@@ -277,7 +297,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     // Floor & Calibration Grid
     const floorGeo = new THREE.PlaneGeometry(60, 60);
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
+      color: initialThemeColors.floorHex,
       roughness: 0.85,
       metalness: 0.1,
     });
@@ -287,9 +307,33 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     floor.receiveShadow = true;
     scene.add(floor);
 
-    const gridHelper = new THREE.GridHelper(32, 32, 0x334155, 0x1e293b);
+    const gridHelper = new THREE.GridHelper(
+      32,
+      32,
+      initialThemeColors.gridPrimaryHex,
+      initialThemeColors.gridSecondaryHex
+    );
     gridHelper.position.y = 0.01;
     scene.add(gridHelper);
+
+    cameraCtrlRef.current = {
+      setPreset: applyCameraPreset,
+      setOrbit: (orbit: boolean) => {
+        controls.autoRotate = orbit;
+      },
+      captureCanvas: () => {
+        renderer.render(scene, camera);
+        return renderer.domElement.toDataURL('image/png');
+      },
+      applyTheme: (colors) => {
+        scene.background = new THREE.Color(colors.backgroundHex);
+        scene.fog = new THREE.FogExp2(colors.fogHex, 0.018);
+        floorMat.color.setHex(colors.floorHex);
+        hemiLight.color.setHex(colors.ambientSkyHex);
+        hemiLight.groundColor.setHex(colors.ambientGroundHex);
+        hemiLight.intensity = colors.ambientIntensity;
+      },
+    };
 
     // Collaborative 3D Laser Pointer Manager
     const cursorManager = new SpatialCursorManager(scene);
@@ -1248,7 +1292,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden bg-[#0B1120] touch-none select-none ${
+      className={`relative w-full h-full overflow-hidden ${themeColors.containerBgClass} touch-none select-none transition-colors duration-300 ${
         isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : ''
       }`}
     >

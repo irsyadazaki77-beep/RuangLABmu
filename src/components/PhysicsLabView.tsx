@@ -69,6 +69,11 @@ import {
   ABMetricItem,
   TargetChallengeMission,
 } from './ui/ScientificEnhancementSuite';
+import {
+  CompactTelemetryRibbon,
+  LabWorkflowStagePill,
+  LabWorkflowStage,
+} from './ui/CompactTelemetryRibbon';
 
 interface PhysicsLabViewProps {
   params: PhysicsParams;
@@ -159,6 +164,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     useState<InstrumentCalibrationConfig>(DEFAULT_CALIBRATION_CONFIG);
   const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
+  const [workflowStage, setWorkflowStage] = useState<LabWorkflowStage>(2);
   const [cockpitTab, setCockpitTab] = useState<'controls' | 'data-diff' | 'hypothesis'>('controls');
   const [hazardModalDismissed, setHazardModalDismissed] = useState<boolean>(false);
   const [localHypothesis, setLocalHypothesis] = useState<HypothesisNote>({
@@ -172,6 +178,13 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   const handleUpdateHypothesis = (next: HypothesisNote) => {
     setLocalHypothesis(next);
     if (onChangeHypothesisNote) onChangeHypothesisNote(next);
+  };
+
+  const handleStageChange = (stage: LabWorkflowStage) => {
+    setWorkflowStage(stage);
+    if (stage === 1) setCockpitTab('hypothesis');
+    else if (stage === 2) setCockpitTab('controls');
+    else setCockpitTab('data-diff');
   };
 
   // Mystery Sample Exam State
@@ -323,6 +336,14 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     simTimeRef.current = 0;
     setSimTime(0);
   };
+
+  useEffect(() => {
+    const onGlobalPlayToggle = () => {
+      setIsPlaying((prev) => !prev);
+    };
+    window.addEventListener('ruanglab:toggle-simulation', onGlobalPlayToggle);
+    return () => window.removeEventListener('ruanglab:toggle-simulation', onGlobalPlayToggle);
+  }, []);
 
   const handleRecordClick = () => {
     labSound.playRecordSuccess();
@@ -736,9 +757,251 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 items-stretch">
-        {/* LEFT COLUMN: Fixed 3D Scene Canvas & Playback Bar */}
-        <div className={`${zenMode ? 'lg:col-span-12' : 'lg:col-span-8'} flex flex-col h-full min-h-0 gap-3 transition-all`}>
+      {/* Top Workflow-Stage Progressive Disclosure Stepper Pill */}
+      {!zenMode && (
+        <div className="mb-3 shrink-0">
+          <LabWorkflowStagePill
+            activeStage={workflowStage}
+            onChangeStage={handleStageChange}
+            domainColor="#0ea5e9"
+            recordsCount={records.length}
+            hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
+          />
+        </div>
+      )}
+
+      {/* MODE 3: SPLIT-SCREEN ANALYSIS & LIVE A/B COMPARISON */}
+      {!zenMode && workflowStage === 3 && (
+        <div
+          data-testid="physics-stage-3-split"
+          className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 overflow-y-auto pb-4"
+        >
+          <div className="lg:col-span-6 space-y-3">
+            <ABLiveComparisonWidget
+              domainLabel="Fisika"
+              currentSummary={`m=${params.mass}kg, F=${params.appliedForce}N, θ=${params.inclineAngle}°, g=${params.gravity}m/s²`}
+              currentParams={{
+                mass: params.mass,
+                appliedForce: params.appliedForce,
+                inclineAngle: params.inclineAngle,
+                frictionCoeffKinetic: params.frictionCoeffKinetic,
+                gravity: params.gravity,
+                initialVelocity: params.initialVelocity,
+                launchAngle: params.launchAngle,
+                springConstantK: params.springConstantK,
+                springDisplacement: params.springDisplacement,
+                restitutionCoeff: params.restitutionCoeff,
+              }}
+              liveMetrics={
+                (params.mode === 'projectile-gravity'
+                  ? [
+                      { key: 'range', label: 'Jangkauan (R)', value: metrics.projectileRange, unit: 'm' },
+                      { key: 'height', label: 'Tinggi Puncak (H)', value: metrics.maxProjectileHeight, unit: 'm' },
+                      { key: 'tof', label: 'Waktu Tempuh (t)', value: metrics.timeOfFlight, unit: 's' },
+                      { key: 'ek', label: 'Energi Kinetik', value: instant.kineticEnergy, unit: 'J' },
+                    ]
+                  : params.mode === 'spring-hooke'
+                  ? [
+                      { key: 'fp', label: 'Gaya Pemulih (Fp)', value: metrics.springRestoringForce, unit: 'N' },
+                      { key: 'period', label: 'Periode (T)', value: metrics.oscillationPeriod, unit: 's' },
+                      { key: 'ep', label: 'Energi Potensial', value: metrics.springPotentialEnergy, unit: 'J' },
+                      { key: 'speed', label: 'Kecepatan v(t)', value: instant.speed, unit: 'm/s' },
+                    ]
+                  : [
+                      { key: 'acc', label: 'Percepatan (a)', value: metrics.acceleration, unit: 'm/s²' },
+                      { key: 'netF', label: 'Gaya Netto (ΣF)', value: metrics.netForce, unit: 'N' },
+                      { key: 'speed', label: 'Kecepatan v(t)', value: instant.speed, unit: 'm/s' },
+                      { key: 'ek', label: 'Energi Kinetik', value: instant.kineticEnergy, unit: 'J' },
+                    ]) as ABMetricItem[]
+              }
+              onRestoreBaselineParams={(baseParams) =>
+                handleParamUpdate(baseParams as Partial<PhysicsParams>)
+              }
+            />
+          </div>
+
+          <div className="lg:col-span-6 space-y-3">
+            <div className="lab-glass-panel rounded-2xl p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
+                    Panel Analisis Regresi &amp; LKS Fisika ({records.length} Data)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Bandingkan hasil eksperimen terhadap hipotesis awal dan buka lembar kerja penuh.
+                  </p>
+                </div>
+                {onProceedToAnalysis && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      onProceedToAnalysis();
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs cursor-pointer shadow-md"
+                  >
+                    Buka LKS &amp; Kurva Regresi Penuh →
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <ExperimentTrialComparePanel
+              records={records}
+              domainFilter="Fisika"
+            />
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 items-stretch ${
+          !zenMode && workflowStage === 3 ? 'hidden' : ''
+        }`}
+      >
+        {/* LEFT COLUMN: Fixed 3D Scene Canvas, CompactTelemetryRibbon & Playback Bar */}
+        <div
+          className={`${
+            zenMode
+              ? 'lg:col-span-12'
+              : workflowStage === 2
+              ? 'lg:col-span-9'
+              : 'lg:col-span-7'
+          } flex flex-col h-full min-h-0 gap-2.5 transition-all`}
+        >
+          {/* Slim 48px Compact Telemetry Ribbon with Click-to-Expand Gauge & Oscilloscope */}
+          {workflowStage !== 1 && (
+            <CompactTelemetryRibbon
+              domain="Fisika"
+              metrics={
+                params.mode === 'projectile-gravity'
+                  ? [
+                      {
+                        id: 'range',
+                        label: 'Jangkauan (R)',
+                        value: metrics.projectileRange,
+                        min: 0,
+                        max: 160,
+                        unit: 'm',
+                        color: '#0ea5e9',
+                      },
+                      {
+                        id: 'height',
+                        label: 'Tinggi Puncak (H)',
+                        value: metrics.maxProjectileHeight,
+                        min: 0,
+                        max: 80,
+                        unit: 'm',
+                        color: '#10b981',
+                      },
+                      {
+                        id: 'speed',
+                        label: 'Kecepatan v(t)',
+                        value: instant.speed,
+                        min: 0,
+                        max: 60,
+                        unit: 'm/s',
+                        color: '#f59e0b',
+                      },
+                    ]
+                  : params.mode === 'spring-hooke'
+                  ? [
+                      {
+                        id: 'fp',
+                        label: 'Gaya Pegas F_p',
+                        value: metrics.springRestoringForce,
+                        min: -350,
+                        max: 350,
+                        unit: 'N',
+                        color: '#f43f5e',
+                      },
+                      {
+                        id: 'period',
+                        label: 'Periode (T)',
+                        value: metrics.oscillationPeriod,
+                        min: 0,
+                        max: 10,
+                        unit: 's',
+                        color: '#0ea5e9',
+                      },
+                      {
+                        id: 'ep',
+                        label: 'Energi E_p',
+                        value: metrics.springPotentialEnergy,
+                        min: 0,
+                        max: 300,
+                        unit: 'J',
+                        color: '#10b981',
+                      },
+                    ]
+                  : [
+                      {
+                        id: 'acc',
+                        label: 'Percepatan (a)',
+                        value: metrics.acceleration,
+                        min: -20,
+                        max: 35,
+                        unit: 'm/s^2',
+                        color: '#0ea5e9',
+                        warningThreshold: 22,
+                      },
+                      {
+                        id: 'netf',
+                        label: 'Resultan ΣF',
+                        value: metrics.netForce,
+                        min: -150,
+                        max: 250,
+                        unit: 'N',
+                        color: '#10b981',
+                      },
+                      {
+                        id: 'speed',
+                        label: 'Kecepatan v(t)',
+                        value: instant.speed,
+                        min: 0,
+                        max: 50,
+                        unit: 'm/s',
+                        color: '#f59e0b',
+                      },
+                    ]
+              }
+              oscilloscope={{
+                primaryLabel:
+                  params.mode === 'spring-hooke'
+                    ? 'Gaya Pegas F_p'
+                    : params.mode === 'projectile-gravity'
+                    ? 'Jangkauan R'
+                    : 'Percepatan a',
+                primaryValue:
+                  params.mode === 'spring-hooke'
+                    ? metrics.springRestoringForce
+                    : params.mode === 'projectile-gravity'
+                    ? metrics.projectileRange
+                    : metrics.acceleration,
+                primaryUnit:
+                  params.mode === 'spring-hooke'
+                    ? 'N'
+                    : params.mode === 'projectile-gravity'
+                    ? 'm'
+                    : 'm/s²',
+                secondaryLabel: 'Kecepatan v(t)',
+                secondaryValue: instant.speed,
+                secondaryUnit: 'm/s',
+                microscopicStateLabel:
+                  params.mode === 'spring-hooke'
+                    ? `Regangan Kisi Elastis Pegas (Ep = ${metrics.springPotentialEnergy} J)`
+                    : params.mode === 'collision-momentum'
+                    ? `Impuls & Disipasi Tumbukan (Hilang EK = ${metrics.energyLossPct}%)`
+                    : `Keseimbangan Vektor Gaya (ΣF = ${metrics.netForce} N, fk = ${Math.abs(metrics.frictionForce)} N)`,
+                microscopicDetail:
+                  params.mode === 'spring-hooke'
+                    ? `Frekuensi sudut ω = ${((2 * Math.PI) / Math.max(0.1, metrics.oscillationPeriod)).toFixed(2)} rad/s dengan periode T = ${metrics.oscillationPeriod} s.`
+                    : `Komponen berat sejajar bidang W∥ = ${metrics.gravityParallel} N dan gaya normal N = ${metrics.normalForce} N.`,
+                accentColor: '#0ea5e9',
+              }}
+            />
+          )}
+
           {/* 3D Canvas Box */}
           <div
             className={`relative w-full flex-1 min-h-[380px] rounded-2xl overflow-hidden border bg-slate-900/60 shadow-2xl transition-all ${
@@ -816,69 +1079,58 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               </div>
             </div>
 
-            {/* Bottom-Right Live Velocity & Acceleration Readout */}
-            <div className="absolute bottom-3 right-3 z-20 pointer-events-none hidden sm:flex items-center gap-2 bg-slate-950/85 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-1.5 text-xs shadow-lg">
-              <span className="text-slate-400 font-mono">v:</span>
-              <span className="font-bold font-mono text-sky-400 tabular-nums">
-                {instant.speed.toFixed(2)} m/s
-              </span>
-              <span className="text-slate-600">|</span>
-              <span className="text-slate-400 font-mono">a:</span>
-              <span className="font-bold font-mono text-emerald-400 tabular-nums">
-                {metrics.acceleration.toFixed(2)} m/s²
-              </span>
-            </div>
-
-            {/* Bottom-Left Contextual Micro-Step Guide HUD (Anti Split-Attention) */}
-            <div className="absolute bottom-3 left-3 z-20 pointer-events-none hidden sm:block">
-              <ContextualMicroGuideHUD
-                moduleTitle={
-                  params.mode === 'newton-incline'
-                    ? 'Hukum II Newton & Bidang Miring'
-                    : params.mode === 'projectile-gravity'
-                    ? 'Gerak Parabola (Projektil)'
-                    : params.mode === 'spring-hooke'
-                    ? 'Osilasi Pegas Hooke'
-                    : params.mode === 'collision-momentum'
-                    ? 'Tumbukan & Momentum'
-                    : 'Gravitasi Universal Dua Massa'
-                }
-                IndependentVarLabel={
-                  params.mode === 'newton-incline'
-                    ? 'Gaya Dorong (F) / Sudut (θ)'
-                    : params.mode === 'projectile-gravity'
-                    ? 'Kecepatan Awal (v₀) / Sudut (θ)'
-                    : params.mode === 'spring-hooke'
-                    ? 'Simpangan Pegas (Δx)'
-                    : params.mode === 'collision-momentum'
-                    ? 'Massa (m₁) / Restitusi (e)'
-                    : 'Jarak Pemisah (r)'
-                }
-                DependentVarLabel={
-                  params.mode === 'newton-incline'
-                    ? 'Percepatan (a)'
-                    : params.mode === 'projectile-gravity'
-                    ? 'Jarak Jangkauan (R)'
-                    : params.mode === 'spring-hooke'
-                    ? 'Gaya Pemulih (Fp)'
-                    : params.mode === 'collision-momentum'
-                    ? 'Kecepatan Akhir (v₁’)'
-                    : 'Gaya Gravitasi (Fg)'
-                }
-                recordsCount={records.length}
-                targetRecords={3}
-                isPlaying={isPlaying}
-                hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
-                onOpenHypothesis={() => setCockpitTab('hypothesis')}
-                onOpenCompare={() => setCockpitTab('data-diff')}
-                onQuickRecord={handleRecordClick}
-                onProceedToAnalysis={onProceedToAnalysis}
-              />
-            </div>
+            {/* Bottom-Left Contextual Micro-Step Guide HUD (Shown in Stage 1 or on demand) */}
+            {workflowStage === 1 && (
+              <div className="absolute bottom-3 left-3 z-20 pointer-events-none hidden sm:block">
+                <ContextualMicroGuideHUD
+                  moduleTitle={
+                    params.mode === 'newton-incline'
+                      ? 'Hukum II Newton & Bidang Miring'
+                      : params.mode === 'projectile-gravity'
+                      ? 'Gerak Parabola (Projektil)'
+                      : params.mode === 'spring-hooke'
+                      ? 'Osilasi Pegas Hooke'
+                      : params.mode === 'collision-momentum'
+                      ? 'Tumbukan & Momentum'
+                      : 'Gravitasi Universal Dua Massa'
+                  }
+                  IndependentVarLabel={
+                    params.mode === 'newton-incline'
+                      ? 'Gaya Dorong (F) / Sudut (θ)'
+                      : params.mode === 'projectile-gravity'
+                      ? 'Kecepatan Awal (v₀) / Sudut (θ)'
+                      : params.mode === 'spring-hooke'
+                      ? 'Simpangan Pegas (Δx)'
+                      : params.mode === 'collision-momentum'
+                      ? 'Massa (m₁) / Restitusi (e)'
+                      : 'Jarak Pemisah (r)'
+                  }
+                  DependentVarLabel={
+                    params.mode === 'newton-incline'
+                      ? 'Percepatan (a)'
+                      : params.mode === 'projectile-gravity'
+                      ? 'Jarak Jangkauan (R)'
+                      : params.mode === 'spring-hooke'
+                      ? 'Gaya Pemulih (Fp)'
+                      : params.mode === 'collision-momentum'
+                      ? 'Kecepatan Akhir (v₁’)'
+                      : 'Gaya Gravitasi (Fg)'
+                  }
+                  recordsCount={records.length}
+                  targetRecords={3}
+                  isPlaying={isPlaying}
+                  hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
+                  onOpenHypothesis={() => handleStageChange(1)}
+                  onOpenCompare={() => handleStageChange(3)}
+                  onQuickRecord={handleRecordClick}
+                  onProceedToAnalysis={onProceedToAnalysis}
+                />
+              </div>
+            )}
           </div>
 
           {/* Bottom Playback & Recording Bar */}
-          <div className="shrink-0 bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-xl">
+          <div className="shrink-0 lab-glass-panel rounded-2xl p-3 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* Play / Reset controls */}
               <div className="flex items-center gap-2">
@@ -963,76 +1215,30 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Tabbed Control Deck (Hidden in Zen Mode) */}
+        {/* RIGHT COLUMN: Progressive Disclosure Deck (80/20 split in Stage 2) */}
         {!zenMode && (
-          <div className="lg:col-span-4 h-full lg:overflow-y-auto pr-1 space-y-3 pb-4 flex flex-col">
-            {/* Sticky Cockpit Tab Switcher */}
-            <div
-              role="tablist"
-              aria-label="Panel Kontrol Praktikum Fisika"
-              className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg shrink-0 sticky top-0 z-30"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={cockpitTab === 'controls'}
-                onClick={() => {
-                  labSound.playClick();
-                  setCockpitTab('controls');
-                }}
-                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-                  cockpitTab === 'controls'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <Sliders className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Kontrol &amp; Rumus</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={cockpitTab === 'data-diff'}
-                onClick={() => {
-                  labSound.playClick();
-                  setCockpitTab('data-diff');
-                }}
-                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-                  cockpitTab === 'data-diff'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <GitCompareArrows className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Data &amp; Diff ({records.length})</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={cockpitTab === 'hypothesis'}
-                onClick={() => {
-                  labSound.playClick();
-                  setCockpitTab('hypothesis');
-                }}
-                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-                  cockpitTab === 'hypothesis'
-                    ? 'bg-amber-500 text-slate-950 shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <NotebookPen className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Hipotesis</span>
-              </button>
-            </div>
+          <div
+            className={`${
+              workflowStage === 2 ? 'lg:col-span-3' : 'lg:col-span-5'
+            } h-full lg:overflow-y-auto pr-1 space-y-3 pb-4 flex flex-col`}
+          >
+            {workflowStage === 1 && (
+              <div className="space-y-3">
+                <HypothesisScratchpadCard
+                  note={effectiveHypothesis}
+                  onChange={handleUpdateHypothesis}
+                  defaultIndependentVar="Gaya Dorong (F) / Sudut (θ)"
+                  defaultDependentVar="Percepatan Benda (a)"
+                />
+                <CockpitStepGuideBanner
+                  recordsCount={records.length}
+                  onProceedToAnalysis={() => handleStageChange(2)}
+                  domainLabel="Fisika"
+                />
+              </div>
+            )}
 
-            {/* Step-by-Step Guide & Next Step Action Banner */}
-            <CockpitStepGuideBanner
-              recordsCount={records.length}
-              onProceedToAnalysis={onProceedToAnalysis}
-              domainLabel="Fisika"
-            />
-
-            {cockpitTab === 'controls' && (
+            {workflowStage === 2 && cockpitTab === 'controls' && (
               <>
                 {/* Automatic Target Challenge Mission Generator */}
                 <QuickChallengeMissionBanner
