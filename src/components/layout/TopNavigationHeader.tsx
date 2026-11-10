@@ -259,6 +259,24 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           </button>
         </div>
 
+        {/* Command Palette Trigger Button */}
+        <button
+          type="button"
+          onClick={() => {
+            labSound.playClick();
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+          }}
+          title="Buka Menu Pencarian & Aksi Cepat (Ctrl+K / ⌘K)"
+          aria-label="Buka Pencarian & Perintah Cepat"
+          className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-600 dark:text-slate-300 text-xs font-semibold cursor-pointer transition-colors"
+        >
+          <span>🔍</span>
+          <span className="hidden xl:inline">Cari</span>
+          <kbd className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-stone-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+            Ctrl+K
+          </kbd>
+        </button>
+
         {/* 3. Theme Switcher (Terang / Sepia / Gelap) */}
         <div
           role="group"

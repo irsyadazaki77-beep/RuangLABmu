@@ -550,7 +550,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     );
     pendBob.position.set(0, -1.0, 0);
     pendBob.castShadow = true;
-    pendBob.userData = { draggableParam: 'pendulumLength', min: 0.3, max: 2.5, step: 0.1, label: 'Panjang Tali L' };
+    pendBob.userData = { draggableParam: 'pendulumAngle', min: 5, max: 75, step: 1, label: 'Sudut Awal θ₀' };
     pendPivotGroup.add(pendBob);
 
     // Semicircular protractor degree scale
@@ -862,6 +862,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     let dragConfig = { min: 0, max: 100, step: 1, label: '' };
     const dragRaycaster = new THREE.Raycaster();
     const dragMouse = new THREE.Vector2();
+    let hoveredMesh: THREE.Mesh | null = null;
+    const origEmissive = new THREE.Color();
 
     const getInteractiveMeshes = (): THREE.Object3D[] => {
       const list: THREE.Object3D[] = [];
@@ -1192,15 +1194,30 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         return;
       }
 
-      // Hover check for pointer cursor
+      // Hover check for pointer cursor & emissive glow
       dragMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       dragRaycaster.setFromCamera(dragMouse, camera);
       const hits = dragRaycaster.intersectObjects(getInteractiveMeshes(), false);
       if (hits.length > 0) {
+        const hitMesh = hits[0].object as THREE.Mesh;
         renderer.domElement.style.cursor = 'grab';
+        if (hitMesh !== hoveredMesh) {
+          if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
+            (hoveredMesh.material as any).emissive.copy(origEmissive);
+          }
+          hoveredMesh = hitMesh;
+          if ((hitMesh.material as any)?.emissive) {
+            origEmissive.copy((hitMesh.material as any).emissive);
+            (hitMesh.material as any).emissive.setHex(0x38bdf8);
+          }
+        }
       } else {
         renderer.domElement.style.cursor = 'default';
+        if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
+          (hoveredMesh.material as any).emissive.copy(origEmissive);
+          hoveredMesh = null;
+        }
       }
 
       if (latestRef.current.onEmitCursor) {

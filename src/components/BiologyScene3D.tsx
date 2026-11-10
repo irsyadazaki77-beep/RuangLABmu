@@ -63,6 +63,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   onCaptureSnapshotRef.current = onCaptureSnapshot;
   const [activePreset, setActivePreset] = useState<BioCameraPreset>('isometric');
   const [isOrbiting, setIsOrbiting] = useState<boolean>(false);
+  const [clickedBadge, setClickedBadge] = useState<string | null>(null);
 
   const cameraCtrlRef = useRef<{
     setPreset: (preset: BioCameraPreset) => void;
@@ -474,6 +475,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    let hoveredMesh: THREE.Mesh | null = null;
+    const origEmissive = new THREE.Color();
 
     const handlePointerMove = (event: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -494,7 +497,26 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           targetNormal = [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z];
         }
         hoveredName = hit.object.name || 'Peralatan Biologi 3D';
+        renderer.domElement.style.cursor = 'pointer';
+
+        const hitMesh = hit.object as THREE.Mesh;
+        if (hitMesh !== hoveredMesh) {
+          if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
+            (hoveredMesh.material as any).emissive.copy(origEmissive);
+          }
+          hoveredMesh = hitMesh;
+          if ((hitMesh.material as any)?.emissive) {
+            origEmissive.copy((hitMesh.material as any).emissive);
+            (hitMesh.material as any).emissive.setHex(0x10b981);
+          }
+        }
       } else {
+        renderer.domElement.style.cursor = 'default';
+        if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
+          (hoveredMesh.material as any).emissive.copy(origEmissive);
+          hoveredMesh = null;
+        }
+
         const hitPlane = new THREE.Vector3();
         if (raycaster.ray.intersectPlane(groundPlane, hitPlane)) {
           targetPos = [hitPlane.x, hitPlane.y, hitPlane.z];
@@ -512,8 +534,24 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       }
     };
 
+    const handlePointerDown = (event: MouseEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(apparatusGroup.children, true);
+      if (intersects.length > 0) {
+        const hit = intersects[0];
+        const name = hit.object.name || 'Organel Sel Tumbuhan';
+        setClickedBadge(name);
+        labSound.playClick(680);
+        setTimeout(() => setClickedBadge(null), 3500);
+      }
+    };
+
     let lastEmitTime = 0;
     renderer.domElement.addEventListener('mousemove', handlePointerMove);
+    renderer.domElement.addEventListener('pointerdown', handlePointerDown);
 
     // Animation Loop
     let clock = new THREE.Clock();
@@ -703,6 +741,14 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           </button>
         ))}
       </div>
+
+      {/* Floating Organelle Focus Badge */}
+      {clickedBadge && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-xl bg-emerald-950/90 border border-emerald-500/50 text-emerald-200 text-xs font-mono font-bold shadow-xl flex items-center gap-2 pointer-events-none">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <span>Fokus Organel: {clickedBadge}</span>
+        </div>
+      )}
 
       {/* Top-Right Fullscreen Toggle Button */}
       <div className="pointer-events-auto absolute top-4 right-4 z-30">

@@ -19,8 +19,8 @@ import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 interface AstronomyScene3DProps {
   params: AstronomyParams;
   metrics: AstronomyMetrics;
-  activePlanet: SolarPlanetPreset;
-  simTime: number;
+  activePlanet?: SolarPlanetPreset;
+  simTime?: number;
   remoteCursors?: Record<string, SpatialCursorPayload>;
   onEmitCursor?: (
     pos: [number, number, number],
@@ -28,6 +28,7 @@ interface AstronomyScene3DProps {
     hoveredObject?: string
   ) => void;
   onUpdateParam?: (paramKey: string, value: number) => void;
+  onPlanetClick?: (planetName: string) => void;
   onCaptureSnapshot?: (dataUrl: string) => void;
   snapshotCount?: number;
   comfortTheme?: ComfortThemeMode;
@@ -95,6 +96,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   remoteCursors,
   onEmitCursor,
   onUpdateParam,
+  onPlanetClick,
   onCaptureSnapshot,
   snapshotCount = 0,
   comfortTheme,
@@ -118,6 +120,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
+    onPlanetClick,
     onCaptureSnapshot,
   });
   latestRef.current = {
@@ -128,6 +131,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
+    onPlanetClick,
     onCaptureSnapshot,
   };
 
@@ -440,6 +444,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     let dragConfig = { min: 0, max: 100, step: 1, label: '' };
     const dragRaycaster = new THREE.Raycaster();
     const dragMouse = new THREE.Vector2();
+    let hoveredMesh: THREE.Mesh | null = null;
+    const origEmissive = new THREE.Color();
 
     const getInteractiveMeshes = (): THREE.Object3D[] => {
       const list: THREE.Object3D[] = [];
@@ -477,6 +483,10 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
           renderer.domElement.style.cursor = 'grabbing';
           labSound.playClick(600);
           setDragToast({ label: dragConfig.label, value: `${curVal}` });
+
+          if (latestRef.current.onPlanetClick) {
+            latestRef.current.onPlanetClick(latestRef.current.params.selectedPlanetId || 'Bumi');
+          }
         }
       }
     };
@@ -497,7 +507,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     const tick = () => {
       if (disposed) return;
 
-      const { params: p, metrics: m, simTime: t } = latestRef.current;
+      const { params: p, metrics: m } = latestRef.current;
+      const t = latestRef.current.simTime ?? 0;
 
       solarGroup.visible = p.mode === 'solar-kepler';
       milkyWayGroup.visible = p.mode === 'milkyway-galaxy' || (p.mode as string) === 'milky-way-rotation';
@@ -640,7 +651,26 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       dragRaycaster.setFromCamera(dragMouse, camera);
       const hits = dragRaycaster.intersectObjects(getInteractiveMeshes(), false);
-      renderer.domElement.style.cursor = hits.length > 0 ? 'grab' : 'default';
+      if (hits.length > 0) {
+        const hitMesh = hits[0].object as THREE.Mesh;
+        renderer.domElement.style.cursor = 'grab';
+        if (hitMesh !== hoveredMesh) {
+          if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
+            (hoveredMesh.material as any).emissive.copy(origEmissive);
+          }
+          hoveredMesh = hitMesh;
+          if ((hitMesh.material as any)?.emissive) {
+            origEmissive.copy((hitMesh.material as any).emissive);
+            (hitMesh.material as any).emissive.setHex(0x38bdf8);
+          }
+        }
+      } else {
+        renderer.domElement.style.cursor = 'default';
+        if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
+          (hoveredMesh.material as any).emissive.copy(origEmissive);
+          hoveredMesh = null;
+        }
+      }
 
       if (latestRef.current.onEmitCursor) {
         const now = performance.now();

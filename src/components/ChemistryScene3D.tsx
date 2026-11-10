@@ -418,20 +418,22 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const kineticsGroup = new THREE.Group();
     scene.add(kineticsGroup);
 
-    // Magnetic hotplate stirrer
+    // Magnetic hotplate stirrer & Bunsen heater
     const hotplateBase = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.8, 3.6), darkFrameMat);
     hotplateBase.position.set(0, 0.68, 0);
+    hotplateBase.userData = { draggableParam: 'kineticsTempC', min: 10, max: 90, step: 5, label: 'Suhu Pemanas T (°C)' };
     kineticsGroup.add(hotplateBase);
 
     const hotplateCeramicTop = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.1, 32), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 }));
     hotplateCeramicTop.position.set(0, 1.12, 0);
+    hotplateCeramicTop.userData = { draggableParam: 'kineticsTempC', min: 10, max: 90, step: 5, label: 'Suhu Pemanas T (°C)' };
     kineticsGroup.add(hotplateCeramicTop);
 
     // Temp control knob on hotplate
     const tempKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.2, 16), brassMat);
     tempKnob.rotation.x = Math.PI / 2;
     tempKnob.position.set(0, 0.68, 1.85);
-    tempKnob.userData = { draggableParam: 'kineticsTempC', min: 10, max: 70, step: 5, label: 'Suhu Pemanas T (°C)' };
+    tempKnob.userData = { draggableParam: 'kineticsTempC', min: 10, max: 90, step: 5, label: 'Suhu Pemanas T (°C)' };
     kineticsGroup.add(tempKnob);
 
     // Reaction flask on hotplate
@@ -503,6 +505,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     let dragConfig = { min: 0, max: 100, step: 1, label: '' };
     const dragRaycaster = new THREE.Raycaster();
     const dragMouse = new THREE.Vector2();
+    let hoveredMesh: THREE.Mesh | null = null;
+    const origEmissive = new THREE.Color();
 
     const getInteractiveMeshes = (): THREE.Object3D[] => {
       const list: THREE.Object3D[] = [];
@@ -539,7 +543,18 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           controls.enabled = false;
           renderer.domElement.style.cursor = 'grabbing';
           labSound.playClick(600);
-          setDragToast({ label: dragConfig.label, value: `${curVal}` });
+
+          if (paramKey === 'titrantAddedMl') {
+            const nextVal = Math.min(50, Number((curVal + 1.0).toFixed(1)));
+            latestRef.current.onUpdateParam(paramKey, nextVal);
+            setDragToast({ label: 'Kran Buret Diteteskan (+1 mL)', value: `${nextVal} mL` });
+          } else if (paramKey === 'kineticsTempC') {
+            const nextVal = Math.min(90, Number((curVal + 5).toFixed(1)));
+            latestRef.current.onUpdateParam(paramKey, nextVal);
+            setDragToast({ label: 'Pemanas Bunsen (+5 °C)', value: `${nextVal} °C` });
+          } else {
+            setDragToast({ label: dragConfig.label, value: `${curVal}` });
+          }
         }
       }
     };
@@ -668,7 +683,26 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       dragRaycaster.setFromCamera(dragMouse, camera);
       const hits = dragRaycaster.intersectObjects(getInteractiveMeshes(), false);
-      renderer.domElement.style.cursor = hits.length > 0 ? 'grab' : 'default';
+      if (hits.length > 0) {
+        const hitMesh = hits[0].object as THREE.Mesh;
+        renderer.domElement.style.cursor = 'grab';
+        if (hitMesh !== hoveredMesh) {
+          if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
+            (hoveredMesh.material as any).emissive.copy(origEmissive);
+          }
+          hoveredMesh = hitMesh;
+          if ((hitMesh.material as any)?.emissive) {
+            origEmissive.copy((hitMesh.material as any).emissive);
+            (hitMesh.material as any).emissive.setHex(0x14b8a6);
+          }
+        }
+      } else {
+        renderer.domElement.style.cursor = 'default';
+        if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
+          (hoveredMesh.material as any).emissive.copy(origEmissive);
+          hoveredMesh = null;
+        }
+      }
 
       if (latestRef.current.onEmitCursor) {
         const now = performance.now();
