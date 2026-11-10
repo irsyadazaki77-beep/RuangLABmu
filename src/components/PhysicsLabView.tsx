@@ -23,6 +23,7 @@ import {
   calculatePhysicsMetrics,
   evaluateKinematicsAtTime,
   generateAutomaticFeedback,
+  evaluateSafetyHazard,
   GUIDED_LAB_SCENARIOS,
   LabNotification,
   ExperimentRecord,
@@ -147,8 +148,10 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   completedChallengeIds = [],
   onCompleteChallenge,
 }) => {
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [simTime, setSimTime] = useState<number>(1.2);
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [simTime, setSimTime] = useState<number>(0);
+  const simTimeRef = useRef<number>(0);
+  const lastReactRenderRef = useRef<number>(0);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [showVectorOverlay, setShowVectorOverlay] = useState<boolean>(true);
   const [noiseEnabled, setNoiseEnabled] = useState<boolean>(false);
@@ -157,6 +160,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [cockpitTab, setCockpitTab] = useState<'controls' | 'data-diff' | 'hypothesis'>('controls');
+  const [hazardModalDismissed, setHazardModalDismissed] = useState<boolean>(false);
   const [localHypothesis, setLocalHypothesis] = useState<HypothesisNote>({
     independentVar: 'Gaya Dorong (F) / Sudut (θ)',
     dependentVar: 'Percepatan Benda (a)',
@@ -198,16 +202,6 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   const simWorker = useSimulationWorker(params.mode, workerParams);
 
   useEffect(() => {
-    if (simWorker.currentFrame) {
-      setSimTime(simWorker.currentFrame.timestamp);
-    }
-  }, [simWorker.currentFrame]);
-
-  useEffect(() => {
-    setIsPlaying(simWorker.isPlaying);
-  }, [simWorker.isPlaying]);
-
-  useEffect(() => {
     if (simWorker.lastEvent) {
       if (simWorker.lastEvent.event === 'collision') {
         labSound.playCollisionThud(params.restitutionCoeff);
@@ -223,6 +217,13 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
   const metrics: PhysicsMetrics = calculatePhysicsMetrics(params);
   const instant: KinematicsInstant = evaluateKinematicsAtTime(params, simTime);
+  const safetyHazard = evaluateSafetyHazard('Fisika', params);
+
+  useEffect(() => {
+    if (!safetyHazard.isHazardous) {
+      setHazardModalDismissed(false);
+    }
+  }, [safetyHazard.isHazardous, safetyHazard.hazardCode]);
 
   const maxSimDuration =
     params.mode === 'projectile-gravity'
@@ -240,27 +241,34 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       if (lastTickRef.current === null) {
         lastTickRef.current = timestamp;
       }
-      const dt = ((timestamp - lastTickRef.current) / 1000) * playbackSpeed;
+      const dt = Math.min(0.1, ((timestamp - lastTickRef.current) / 1000) * playbackSpeed);
       lastTickRef.current = timestamp;
 
-      setSimTime((prev) => {
-        const next = prev + dt;
-        if (
-          params.mode === 'collision-momentum' &&
-          prev < 1.5 &&
-          next >= 1.5 &&
-          !collisionSoundPlayedRef.current
-        ) {
-          collisionSoundPlayedRef.current = true;
-          labSound.playCollisionThud(params.restitutionCoeff);
-        }
+      const prev = simTimeRef.current;
+      let next = prev + dt;
 
-        if (next >= maxSimDuration) {
-          setIsPlaying(false);
-          return Number(maxSimDuration.toFixed(2));
-        }
-        return next;
-      });
+      if (
+        params.mode === 'collision-momentum' &&
+        prev < 1.5 &&
+        next >= 1.5 &&
+        !collisionSoundPlayedRef.current
+      ) {
+        collisionSoundPlayedRef.current = true;
+        labSound.playCollisionThud(params.restitutionCoeff);
+      }
+
+      if (next >= maxSimDuration) {
+        next = 0;
+        collisionSoundPlayedRef.current = false;
+      }
+
+      simTimeRef.current = next;
+
+      // Throttle React reconciliation to ~10 FPS for UI readouts, while Three.js reads simTimeRef at 60 FPS
+      if (timestamp - lastReactRenderRef.current > 100) {
+        lastReactRenderRef.current = timestamp;
+        setSimTime(next);
+      }
 
       animRef.current = requestAnimationFrame(step);
     };
@@ -293,7 +301,10 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   const handleStartSimulation = () => {
     labSound.playClick(700);
     collisionSoundPlayedRef.current = false;
-    if (simTime >= maxSimDuration - 0.1) setSimTime(0);
+    if (simTime >= maxSimDuration - 0.1) {
+      simTimeRef.current = 0;
+      setSimTime(0);
+    }
     const nextPlay = !isPlaying;
     setIsPlaying(nextPlay);
     if (nextPlay) {
@@ -309,6 +320,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     labSound.playClick(460);
     collisionSoundPlayedRef.current = false;
     setIsPlaying(false);
+    simTimeRef.current = 0;
     setSimTime(0);
   };
 
@@ -671,17 +683,76 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   })();
 
   return (
-    <div className="w-full h-full max-w-[1600px] mx-auto px-4 py-3 lg:overflow-hidden overflow-y-auto bg-slate-950 text-slate-100 select-none flex flex-col">
+    <div className="w-full h-full max-w-[1600px] mx-auto px-4 py-3 overflow-y-auto bg-slate-950 text-slate-100 select-none flex flex-col">
+      {/* Safety Hazard Auto-Modal (Fitur 5) */}
+      {safetyHazard.isHazardous && !hazardModalDismissed && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="max-w-lg w-full rounded-2xl bg-slate-900 border-2 border-rose-500/80 shadow-2xl p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <span className="inline-block px-2.5 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/40 text-[11px] font-mono font-bold text-rose-300 uppercase">
+                  SIMULASI BAHAYA KESELAMATAN K3 — FISIKA
+                </span>
+                <h3 className="text-base font-extrabold text-white">{safetyHazard.title}</h3>
+              </div>
+            </div>
+            <div className="p-3.5 rounded-xl bg-rose-950/50 border border-rose-500/40 text-xs font-semibold text-rose-200 leading-relaxed">
+              {safetyHazard.headlineAlert}
+            </div>
+            <div className="space-y-2 text-xs text-slate-300 leading-relaxed">
+              <p>{safetyHazard.scientificExplanation}</p>
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-amber-300">
+                Parameter Pemicu: {safetyHazard.triggerParamSummary}
+              </div>
+              <p className="text-emerald-300 font-medium">
+                Prosedur Mitigasi: {safetyHazard.mitigationInstruction}
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setHazardModalDismissed(true)}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 cursor-pointer"
+              >
+                Saya Paham, Amati Efek 3D
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleParamUpdate({
+                    mass: Math.min(params.mass, 10),
+                    appliedForce: Math.min(Math.max(params.appliedForce, -80), 80),
+                    pendulumAngle: Math.min(params.pendulumAngle ?? 25, 35),
+                    springDisplacement: Math.min(Math.max(params.springDisplacement, -1.0), 1.0),
+                  });
+                  setHazardModalDismissed(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs cursor-pointer shadow-lg"
+              >
+                Pulihkan ke Parameter Aman
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 items-stretch">
         {/* LEFT COLUMN: Fixed 3D Scene Canvas & Playback Bar */}
         <div className={`${zenMode ? 'lg:col-span-12' : 'lg:col-span-8'} flex flex-col h-full min-h-0 gap-3 transition-all`}>
           {/* 3D Canvas Box */}
-          <div className="relative w-full flex-1 min-h-[360px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-2xl">
+          <div
+            className={`relative w-full flex-1 min-h-[380px] rounded-2xl overflow-hidden border bg-slate-900/60 shadow-2xl transition-all ${
+              safetyHazard.isHazardous
+                ? 'border-rose-500 ring-2 ring-rose-500/50 animate-pulse'
+                : 'border-slate-800'
+            }`}
+          >
             <PhysicsScene3D
               params={params}
               metrics={metrics}
               instant={instant}
               simTime={simTime}
+              simTimeRef={simTimeRef}
               showVectorOverlay={showVectorOverlay}
               simFrame={simWorker.currentFrame}
               remoteCursors={remoteCursors}
@@ -843,7 +914,11 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                   max={maxSimDuration}
                   step={0.05}
                   value={simTime}
-                  onChange={(e) => setSimTime(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    simTimeRef.current = val;
+                    setSimTime(val);
+                  }}
                   className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
                 />
                 <span className="text-xs font-mono font-bold text-sky-400 shrink-0 w-12 tabular-nums">

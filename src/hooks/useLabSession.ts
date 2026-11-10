@@ -1,0 +1,421 @@
+import { useState, useMemo, useEffect } from 'react';
+import {
+  ScienceDomain,
+  exportRecordsToCSV,
+} from '../utils/scienceEngine';
+import { labSound } from '../utils/soundEngine';
+import { HypothesisNote } from '../components/ui/HypothesisAndCompareDock';
+import { Lab3DSnapshot } from '../components/ui/ScientificEnhancementSuite';
+import {
+  ExperimentModule,
+  EducationTier,
+  getExperimentById,
+  EXPERIMENT_CATALOG,
+} from '../registry/experimentRegistry';
+import { useLabStore } from '../stores/useLabStore';
+import { useUIStore } from '../stores/useUIStore';
+import { useCollabStore } from '../stores/useCollabStore';
+import { useBackendSync } from './useBackendSync';
+import { useSpatialCollab } from './useSpatialCollab';
+import {
+  STUDENT_PROFILES,
+  INITIAL_PHYSICS_PARAMS,
+  INITIAL_CHEMISTRY_PARAMS,
+  INITIAL_BIOLOGY_CONTEXT,
+  INITIAL_ASTRONOMY_PARAMS,
+} from '../stores/initialLabParams';
+
+export function useLabSession() {
+  const {
+    activeDomain,
+    setActiveDomain,
+    activeModuleId,
+    setActiveModule,
+    soundEnabled,
+    workflowStep,
+    setWorkflowStep,
+    userRole,
+    isLobbyMode,
+    setIsLobbyMode,
+    academicLevel,
+    setAcademicLevel,
+  } = useLabStore();
+
+  const { comfortPrefs } = useUIStore();
+  const { setWsConnected } = useCollabStore();
+
+  const [selectedProfileIdx, setSelectedProfileIdx] = useState<number>(0);
+  const currentProfile = STUDENT_PROFILES[selectedProfileIdx] ?? STUDENT_PROFILES[0];
+  const [selectedBioModuleId, setSelectedBioModuleId] = useState<string>('photosynthesis-ingenhousz');
+  const [lksGraded, setLksGraded] = useState<boolean>(false);
+  const [completedChallengeIds, setCompletedChallengeIds] = useState<string[]>([]);
+  const [capturedSnapshots, setCapturedSnapshots] = useState<Lab3DSnapshot[]>([]);
+  const [externalDrLabMuPrompt, setExternalDrLabMuPrompt] = useState<{ id: number; prompt: string } | null>(null);
+
+  // Sync Comfort Preferences with DOM root attributes
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-comfort-theme', comfortPrefs.theme);
+    root.setAttribute('data-font-scale', comfortPrefs.fontScale);
+    root.setAttribute('data-line-spacing', comfortPrefs.lineSpacing);
+    root.setAttribute('data-colorblind', comfortPrefs.colorBlindSafe ? 'true' : 'false');
+    if (comfortPrefs.theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [comfortPrefs]);
+
+  useEffect(() => {
+    labSound.setEnabled(soundEnabled);
+  }, [soundEnabled]);
+
+  // Simulation parameters for all 4 science domains
+  const [physicsParams, setPhysicsParams] = useState(INITIAL_PHYSICS_PARAMS);
+  const [chemistryParams, setChemistryParams] = useState(INITIAL_CHEMISTRY_PARAMS);
+  const [biologyContext, setBiologyContext] = useState(INITIAL_BIOLOGY_CONTEXT);
+  const [astronomyParams, setAstronomyParams] = useState(INITIAL_ASTRONOMY_PARAMS);
+
+  const [hypothesisNotesByModule, setHypothesisNotesByModule] = useState<Record<string, HypothesisNote>>(() => {
+    try {
+      const saved = window.localStorage.getItem('simulab-hypothesis-notes');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return {
+      'newton-incline': {
+        independentVar: 'Gaya Dorong (F) dan Sudut Kemiringan (θ)',
+        dependentVar: 'Percepatan Balok (a)',
+        hypothesisText:
+          'Semakin besar gaya dorong F pada massa tetap, maka percepatan balok a akan meningkat secara linier sesuai Hukum II Newton (a = ΣF/m).',
+        reflectionText:
+          'Data eksperimen menunjukkan hubungan linier kuat (R² > 0.98) antara ΣF dan percepatan.',
+        updatedAt: '08:45',
+      },
+    };
+  });
+
+  // Real-time backend synchronization hook
+  const {
+    records,
+    tasks,
+    notes,
+    students,
+    notifications,
+    activeMysteryChallenge,
+    wsConnected: syncWsConnected,
+    ws,
+    addRecord,
+    deleteRecord,
+    toggleTask,
+    createTask,
+    createNote,
+    submitQuizScore,
+    pushNotification,
+    submitMysteryExam,
+    createRoom,
+    joinRoom,
+    leaveRoom,
+    toggleTeacherFreeze,
+    syncStudentTelemetry,
+  } = useBackendSync(
+    currentProfile.name,
+    currentProfile.group,
+    userRole === 'pengajar' ? 'Pengajar' : 'Siswa',
+    activeDomain === 'physics'
+      ? 'fisika'
+      : activeDomain === 'chemistry'
+      ? 'kimia'
+      : activeDomain === 'biology'
+      ? 'biologi'
+      : 'astronomi'
+  );
+
+  useEffect(() => {
+    setWsConnected(syncWsConnected);
+  }, [syncWsConnected, setWsConnected]);
+
+  // Spatial 3D Multi-User Collaboration Hook
+  const currentUserId = currentProfile.name.toLowerCase().replace(/\s+/g, '-');
+  const {
+    remoteCursors,
+    paramLocks,
+    emitCursor3D,
+    acquireParamLock,
+    releaseParamLock,
+  } = useSpatialCollab({
+    ws,
+    userId: currentUserId,
+    userName: currentProfile.name,
+    role: userRole === 'pengajar' ? 'Pengajar' : 'Siswa',
+    groupId: currentProfile.group,
+    domain:
+      activeDomain === 'physics'
+        ? 'fisika'
+        : activeDomain === 'chemistry'
+        ? 'kimia'
+        : activeDomain === 'biology'
+        ? 'biologi'
+        : 'astronomi',
+    onRemoteParamSync: (paramKey, value) => {
+      if (activeDomain === 'physics') {
+        setPhysicsParams((prev) => ({ ...prev, [paramKey]: value }));
+      } else if (activeDomain === 'chemistry') {
+        setChemistryParams((prev) => ({ ...prev, [paramKey]: value }));
+      } else if (activeDomain === 'astronomy') {
+        setAstronomyParams((prev) => ({ ...prev, [paramKey]: value }));
+      }
+    },
+  });
+
+  // Current Experiment Module Resolver
+  const currentExperimentModule = useMemo(() => {
+    const domainDefaultMap: Record<string, string> = {
+      physics: 'newton-incline',
+      chemistry: 'thermo-calorimetry',
+      biology: selectedBioModuleId,
+      astronomy: 'solar-kepler',
+    };
+    const modId = activeModuleId || domainDefaultMap[activeDomain] || 'newton-incline';
+    return getExperimentById(modId) ?? EXPERIMENT_CATALOG[0];
+  }, [activeDomain, activeModuleId, selectedBioModuleId]);
+
+  const activeScienceDomain: ScienceDomain =
+    activeDomain === 'chemistry'
+      ? 'Kimia'
+      : activeDomain === 'biology'
+      ? 'Biologi'
+      : activeDomain === 'astronomy'
+      ? 'Astronomi'
+      : 'Fisika';
+
+  // Sync live student telemetry to room when parameters or records change (Fitur 1)
+  useEffect(() => {
+    const activeRoomId = useCollabStore.getState().activeRoomId;
+    if (!activeRoomId || userRole !== 'siswa') return;
+
+    const currentParams: Record<string, number | string | boolean> =
+      activeDomain === 'physics'
+        ? {
+            mode: physicsParams.mode,
+            mass: physicsParams.mass,
+            appliedForce: physicsParams.appliedForce,
+            inclineAngle: physicsParams.inclineAngle,
+            gravity: physicsParams.gravity,
+          }
+        : activeDomain === 'chemistry'
+        ? {
+            mode: chemistryParams.mode,
+            initialTempC: chemistryParams.initialTempC,
+            reactantConcentration: chemistryParams.reactantConcentration,
+            titrantAddedMl: chemistryParams.titrantAddedMl,
+          }
+        : activeDomain === 'biology'
+        ? {
+            moduleId: selectedBioModuleId,
+            ...biologyContext.params,
+          }
+        : {
+            mode: astronomyParams.mode,
+            semiMajorAxis: astronomyParams.customSemiMajorAxisAu,
+            starMass: astronomyParams.centralStarMassSolar,
+          };
+
+    syncStudentTelemetry({
+      domain: activeDomain,
+      topic: currentExperimentModule.title,
+      moduleId: currentExperimentModule.id,
+      moduleTitle: currentExperimentModule.title,
+      trialsCount: records.length,
+      recordsCount: records.length,
+      currentParameters: currentParams,
+      rSquared: records.length >= 2 ? 0.985 : 0,
+      currentActivity: records.length >= 3 ? 'Selesai' : 'Aktif',
+      status: records.length >= 3 ? 'Selesai' : 'Aktif',
+    });
+  }, [
+    activeDomain,
+    currentExperimentModule,
+    physicsParams.mode,
+    physicsParams.mass,
+    physicsParams.appliedForce,
+    physicsParams.inclineAngle,
+    physicsParams.gravity,
+    chemistryParams.mode,
+    chemistryParams.initialTempC,
+    chemistryParams.reactantConcentration,
+    chemistryParams.titrantAddedMl,
+    selectedBioModuleId,
+    biologyContext.params,
+    astronomyParams.mode,
+    astronomyParams.customSemiMajorAxisAu,
+    astronomyParams.centralStarMassSolar,
+    records.length,
+    userRole,
+    syncStudentTelemetry,
+  ]);
+
+  const currentModuleHypothesis = hypothesisNotesByModule[currentExperimentModule.id] ?? {
+    independentVar: 'Variabel Bebas',
+    dependentVar: 'Variabel Terikat',
+    hypothesisText: '',
+    reflectionText: '',
+    updatedAt: '',
+  };
+
+  const handleUpdateCurrentHypothesis = (next: HypothesisNote) => {
+    setHypothesisNotesByModule((prev) => {
+      const updated = { ...prev, [currentExperimentModule.id]: next };
+      try {
+        window.localStorage.setItem('simulab-hypothesis-notes', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  };
+
+  const handleRecordExperiment = (
+    domain: ScienceDomain,
+    title: string,
+    paramsSummary: string,
+    keyMetrics: Record<string, number | string>,
+    noteText: string,
+    numericCoords?: { x: number; y1: number; y2: number }
+  ) => {
+    addRecord({
+      id: `EXP-${Date.now().toString().slice(-4)}`,
+      timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      studentName: currentProfile.name,
+      groupId: currentProfile.group,
+      domain,
+      experimentTitle: title,
+      parametersSummary: paramsSummary,
+      keyMetrics,
+      numericX: numericCoords?.x,
+      numericY1: numericCoords?.y1,
+      numericY2: numericCoords?.y2,
+      notes: noteText,
+    });
+    labSound.playRecordSuccess();
+  };
+
+  const handleCapture3DSnapshot = (
+    domain: ScienceDomain,
+    dataUrl: string,
+    modTitle: string,
+    pSum: string,
+    pMetric: string
+  ) => {
+    const newSnap: Lab3DSnapshot = {
+      id: `snap-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      dataUrl,
+      moduleTitle: modTitle,
+      domain,
+      paramsSummary: pSum,
+      primaryMetric: pMetric,
+    };
+    setCapturedSnapshots((prev) => [newSnap, ...prev]);
+    pushNotification({
+      id: `notif-snap-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      severity: 'nominal',
+      domain: 'Fisika',
+      title: 'Tangkapan Layar 3D WebGL Tersimpan',
+      message: `Snapshot visual untuk ${modTitle} berhasil ditambahkan ke galeri laporan.`,
+    });
+  };
+
+  const handleSelectCatalogModule = (mod: ExperimentModule) => {
+    labSound.playClick();
+    setActiveModule(mod.id);
+    setActiveDomain(mod.domain.toLowerCase() as any);
+    if ((mod.domain as string).toLowerCase() === 'biologi') {
+      setSelectedBioModuleId(mod.id);
+    }
+    setIsLobbyMode(false);
+    setWorkflowStep(1);
+  };
+
+  const activeTierLabel: EducationTier =
+    academicLevel === 'smp' ? 'SMP' : academicLevel === 'mahasiswa' ? 'Mahasiswa' : 'SMA';
+
+  const reportData = useMemo(() => {
+    return {
+      studentName: currentProfile.name,
+      studentId: currentProfile.name.toLowerCase().replace(/\s+/g, '-'),
+      groupId: currentProfile.group,
+      tier: activeTierLabel,
+      dateStr: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      timeStr: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      dateString: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      academicLevel: activeTierLabel,
+      experimentTitle: currentExperimentModule.title,
+      domain: currentExperimentModule.domain,
+      hypothesisText: currentModuleHypothesis.hypothesisText,
+      reflectionText: currentModuleHypothesis.reflectionText,
+      records,
+      lksScore: 100,
+      snapshotDataUrl: capturedSnapshots[0]?.dataUrl,
+    };
+  }, [currentProfile, activeTierLabel, currentExperimentModule, currentModuleHypothesis, records, capturedSnapshots]);
+
+  return {
+    currentExperimentModule,
+    activeScienceDomain,
+    activeTierLabel,
+    currentProfile,
+    selectedProfileIdx,
+    setSelectedProfileIdx,
+    records,
+    tasks,
+    notes,
+    students,
+    notifications,
+    lksGraded,
+    setLksGraded,
+    capturedSnapshots,
+    setCapturedSnapshots,
+    completedChallengeIds,
+    setCompletedChallengeIds,
+    currentModuleHypothesis,
+    physicsParams,
+    setPhysicsParams,
+    chemistryParams,
+    setChemistryParams,
+    biologyContext,
+    setBiologyContext,
+    astronomyParams,
+    setAstronomyParams,
+    selectedBioModuleId,
+    setSelectedBioModuleId,
+    activeMysteryChallenge,
+    remoteCursors,
+    paramLocks,
+    emitCursor3D,
+    acquireParamLock,
+    releaseParamLock,
+    externalDrLabMuPrompt,
+    setExternalDrLabMuPrompt,
+    reportData,
+    deleteRecord,
+    exportRecordsToCSV,
+    submitQuizScore,
+    handleRecordExperiment,
+    pushNotification,
+    createNote,
+    createTask,
+    toggleTask,
+    handleCapture3DSnapshot,
+    submitMysteryExam,
+    handleUpdateCurrentHypothesis,
+    handleSelectCatalogModule,
+    createRoom,
+    joinRoom,
+    leaveRoom,
+    toggleTeacherFreeze,
+    syncStudentTelemetry,
+  };
+}

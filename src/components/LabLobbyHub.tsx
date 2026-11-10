@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Atom,
@@ -9,6 +9,13 @@ import {
   CheckCircle2,
   Eye,
   BrainCircuit,
+  Users,
+  KeyRound,
+  PlusCircle,
+  Lock,
+  Unlock,
+  LogOut,
+  X,
 } from 'lucide-react';
 import {
   ExperimentModule,
@@ -22,6 +29,9 @@ import {
   ScientificBadge,
   AchievementBadgesStrip,
 } from './ui/ScientificEnhancementSuite';
+import { useCollabStore } from '../stores/useCollabStore';
+import { useLabStore } from '../stores/useLabStore';
+import { generateRandomRoomId } from '../utils/collabProtocol';
 
 interface LabLobbyHubProps {
   activeTier: EducationTier;
@@ -35,6 +45,15 @@ interface LabLobbyHubProps {
   comfortTheme?: ComfortThemeMode;
   onChangeComfortTheme?: (theme: ComfortThemeMode) => void;
   badges?: ScientificBadge[];
+  onCreateRoom?: (
+    pin: string,
+    domain: 'physics' | 'chemistry' | 'biology' | 'astronomy',
+    moduleId: string,
+    customRoomId?: string
+  ) => void;
+  onJoinRoom?: (roomId: string, pin: string, joinAsRole?: 'teacher' | 'student') => void;
+  onLeaveRoom?: () => void;
+  onToggleTeacherFreeze?: (isFrozen: boolean) => void;
 }
 
 const DOMAIN_ICONS: Record<
@@ -96,13 +115,51 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
   onTierChange,
   onSelectExperiment,
   onOpenMysteryExam,
-  comfortTheme = 'dark',
-  onChangeComfortTheme,
   badges = [],
+  onCreateRoom,
+  onJoinRoom,
+  onLeaveRoom,
+  onToggleTeacherFreeze,
 }) => {
   const [selectedDomain, setSelectedDomain] = useState<ScienceDomain | 'all'>('all');
   const [cognitiveFilter, setCognitiveFilter] = useState<CognitiveLoadTier>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const { userRole, setUserRole } = useLabStore();
+  const {
+    activeRoomId,
+    roomPin,
+    roomMembers,
+    isFrozenByTeacher,
+    isRoomModalOpen,
+    roomModalMode,
+    roomError,
+    openRoomModal,
+    closeRoomModal,
+    setRoomError,
+  } = useCollabStore();
+
+  const [formRoomId, setFormRoomId] = useState<string>('LAB-ALPHA');
+  const [formPin, setFormPin] = useState<string>('1234');
+  const [formDomain, setFormDomain] = useState<'physics' | 'chemistry' | 'biology' | 'astronomy'>('physics');
+  const [formRole, setFormRole] = useState<'teacher' | 'student'>(
+    userRole === 'pengajar' ? 'teacher' : 'student'
+  );
+  const [availableRooms, setAvailableRooms] = useState<
+    Array<{ roomId: string; domain: string; teacherName?: string; clientCount: number }>
+  >([]);
+
+  useEffect(() => {
+    if (!isRoomModalOpen) return;
+    fetch('/api/rooms')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data?.rooms)) {
+          setAvailableRooms(data.rooms);
+        }
+      })
+      .catch(() => {});
+  }, [isRoomModalOpen]);
 
   const filteredModules = useMemo(() => {
     return EXPERIMENT_CATALOG.filter((mod) => {
@@ -126,10 +183,308 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
     });
   }, [activeTier, selectedDomain, cognitiveFilter, searchQuery]);
 
+  const handleRoomSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    labSound.playClick(680);
+    setRoomError(null);
+    if (roomModalMode === 'create') {
+      const code = (formRoomId || generateRandomRoomId()).toUpperCase().trim();
+      const pinCode = (formPin || '1234').trim();
+      setUserRole('pengajar');
+      if (onCreateRoom) {
+        onCreateRoom(pinCode, formDomain, 'newton-incline', code);
+      }
+    } else {
+      const code = formRoomId.toUpperCase().trim();
+      const pinCode = formPin.trim();
+      if (!code || !pinCode) {
+        setRoomError('Masukkan Kode Ruangan (Room ID) dan Kode PIN terlebih dahulu.');
+        return;
+      }
+      setUserRole(formRole === 'teacher' ? 'pengajar' : 'siswa');
+      if (onJoinRoom) {
+        onJoinRoom(code, pinCode, formRole);
+      }
+    }
+  };
+
   return (
     <div className="max-w-[1440px] mx-auto pb-12 space-y-5 select-text">
+      {/* ROOM PIN COLLABORATION MODAL (FITUR 1) */}
+      {isRoomModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="max-w-md w-full rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-6 space-y-4 text-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-sky-400" />
+                <h3 className="text-base font-extrabold text-white">
+                  {roomModalMode === 'create'
+                    ? 'Buat Meja Praktikum Baru (Guru/Ketua)'
+                    : 'Masuk Meja Praktikum dengan Kode PIN'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeRoomModal}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Mode Switcher */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  openRoomModal('join');
+                  setFormRoomId('LAB-ALPHA');
+                  setFormPin('1234');
+                }}
+                className={`py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                  roomModalMode === 'join'
+                    ? 'bg-sky-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Masuk dengan PIN
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  openRoomModal('create');
+                  setFormRoomId(generateRandomRoomId());
+                  setFormPin('1234');
+                }}
+                className={`py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                  roomModalMode === 'create'
+                    ? 'bg-emerald-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Buat Meja Baru
+              </button>
+            </div>
+
+            {roomError && (
+              <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/50 text-xs font-semibold text-rose-200">
+                {roomError}
+              </div>
+            )}
+
+            <form onSubmit={handleRoomSubmit} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Kode Meja Praktikum (4–6 Karakter Unik)
+                </label>
+                <input
+                  type="text"
+                  value={formRoomId}
+                  onChange={(e) => setFormRoomId(e.target.value.toUpperCase())}
+                  placeholder="Contoh: LAB-ALPHA"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 font-mono text-sm font-bold text-sky-300 uppercase focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Kode PIN Keamanan Meja
+                </label>
+                <input
+                  type="text"
+                  value={formPin}
+                  onChange={(e) => setFormPin(e.target.value)}
+                  placeholder="Contoh: 1234"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 font-mono text-sm font-bold text-emerald-300 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {roomModalMode === 'create' ? (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Domain Sains Praktikum
+                  </label>
+                  <select
+                    value={formDomain}
+                    onChange={(e) => setFormDomain(e.target.value as any)}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs font-semibold text-white"
+                  >
+                    <option value="physics">Fisika (Mekanika, Gelombang, Optik)</option>
+                    <option value="chemistry">Kimia (Termokimia, Titrasi, Elektrokimia)</option>
+                    <option value="biology">Biologi (Fotosintesis, Enzim, Osmosis)</option>
+                    <option value="astronomy">Astronomi (Hukum Kepler & Astrofisika)</option>
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Peran Peserta di Meja Praktikum
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormRole('student')}
+                      className={`py-2 rounded-xl text-xs font-bold border cursor-pointer ${
+                        formRole === 'student'
+                          ? 'bg-sky-500/20 border-sky-400 text-sky-300'
+                          : 'bg-slate-950 border-slate-800 text-slate-400'
+                      }`}
+                    >
+                      👨‍🎓 Siswa Praktikan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormRole('teacher')}
+                      className={`py-2 rounded-xl text-xs font-bold border cursor-pointer ${
+                        formRole === 'teacher'
+                          ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                          : 'bg-slate-950 border-slate-800 text-slate-400'
+                      }`}
+                    >
+                      👩‍🏫 Guru Pengampu
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {roomModalMode === 'join' && availableRooms.length > 0 && (
+                <div className="pt-1 space-y-1.5">
+                  <div className="text-[11px] font-mono text-slate-400">
+                    Meja Aktif Tersedia (Klik untuk isi otomatis — PIN Default: 1234):
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableRooms.map((r) => (
+                      <button
+                        key={r.roomId}
+                        type="button"
+                        onClick={() => {
+                          setFormRoomId(r.roomId);
+                          setFormPin('1234');
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-mono text-sky-300 cursor-pointer"
+                      >
+                        {r.roomId} ({r.clientCount} peserta)
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeRoomModal}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs shadow-lg cursor-pointer"
+                >
+                  {roomModalMode === 'create' ? 'Buka Meja Praktikum' : 'Gabung Sekarang'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* 1. UNIFIED HERO & ERGONOMIC CONTROL DECK */}
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 space-y-5">
+        {/* MULTIPLAYER ROOM COLLABORATION BAR (FITUR 1) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-100/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                  Kolaborasi Meja Praktikum Ber-PIN (Real-Time Room Isolation)
+                </span>
+                {activeRoomId ? (
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 font-mono text-[11px] font-bold text-emerald-400">
+                    TERHUBUNG: {activeRoomId} {roomPin ? `(PIN: ${roomPin})` : ''} · {Object.keys(roomMembers).length} Peserta
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-md bg-slate-800 font-mono text-[11px] text-slate-400">
+                    Mode Mandiri (Belum Masuk Room)
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Sinkronkan kursor 3D, parameter eksperimen, dan pantauan telemetri guru dalam satu ruangan kelas ber-PIN.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setFormRoomId(generateRandomRoomId());
+                setFormPin('1234');
+                openRoomModal('create');
+              }}
+              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>Buat Meja Praktikum Baru</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setFormRoomId('LAB-ALPHA');
+                setFormPin('1234');
+                openRoomModal('join');
+              }}
+              className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Masuk dengan Kode PIN</span>
+            </button>
+
+            {activeRoomId && userRole === 'pengajar' && onToggleTeacherFreeze && (
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick(540);
+                  onToggleTeacherFreeze(!isFrozenByTeacher);
+                }}
+                className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                  isFrozenByTeacher
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                }`}
+              >
+                {isFrozenByTeacher ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                <span>
+                  {isFrozenByTeacher ? 'Buka Kunci Layar Murid' : 'Kunci Layar Murid (Freeze Inputs)'}
+                </span>
+              </button>
+            )}
+
+            {activeRoomId && onLeaveRoom && (
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  onLeaveRoom();
+                }}
+                className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-rose-900/60 text-slate-300 hover:text-rose-200 border border-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                title="Keluar dari Meja Praktikum"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Keluar</span>
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pb-5 border-b border-slate-100 dark:border-slate-800">
           <div className="space-y-1.5 max-w-2xl">
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">

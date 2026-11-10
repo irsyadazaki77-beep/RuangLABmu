@@ -70,7 +70,7 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
       {/* Top Row: Playback Buttons + Timeline Scrubber + Time Display */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Playback Button Group */}
-        <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700 p-1 rounded-lg">
+        <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700 p-1 rounded-xl">
           <button
             type="button"
             onClick={() => {
@@ -82,19 +82,21 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
               }
             }}
             aria-label={isPlaying ? 'Jeda Simulasi' : 'Jalankan Simulasi'}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+            className={`min-h-[44px] min-w-[44px] px-3.5 flex items-center justify-center gap-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               isPlaying
-                ? 'bg-amber-600 text-white shadow-xs'
+                ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-xs'
                 : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs'
             }`}
           >
             {isPlaying ? (
               <>
-                <Pause className="w-3.5 h-3.5" /> Jeda
+                <Pause className="w-4 h-4 shrink-0" />
+                <span>Jeda</span>
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5" /> Putar
+                <Play className="w-4 h-4 shrink-0" />
+                <span>Putar</span>
               </>
             )}
           </button>
@@ -105,11 +107,11 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
               labSound.playClick();
               onStepBackward();
             }}
-            aria-label="Langkah Mundur 1 Frame"
+            aria-label="Langkah Mundur 1 Frame (-1/60s)"
             title="Langkah Mundur 1 Frame (-1/60s)"
-            className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-5 h-5" />
           </button>
 
           <button
@@ -118,11 +120,11 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
               labSound.playClick();
               onStepForward();
             }}
-            aria-label="Langkah Maju 1 Frame"
+            aria-label="Langkah Maju 1 Frame (+1/60s)"
             title="Langkah Maju 1 Frame (+1/60s)"
-            className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-5 h-5" />
           </button>
 
           <button
@@ -131,9 +133,9 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
               labSound.playClick();
               onReset();
             }}
-            aria-label="Reset Simulasi ke Awal"
+            aria-label="Reset Simulasi ke Frame Awal"
             title="Reset ke Frame Awal"
-            className="p-1.5 text-slate-300 hover:text-rose-400 hover:bg-slate-700 rounded transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-300 hover:text-rose-400 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
           >
             <RotateCcw className="w-4 h-4" />
           </button>

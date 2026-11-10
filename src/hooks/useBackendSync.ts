@@ -3,6 +3,8 @@ import { ExperimentRecord, LabNotification } from '../utils/scienceEngine';
 import { GroupTaskItem, CollabNoteItem } from '../components/CollaborationAndDataSection';
 import { StudentProgressItem } from '../components/TeacherDashboardView';
 import { MysterySampleChallenge, MysterySubmissionResult } from '../utils/mysteryChallengeEngine';
+import { useCollabStore } from '../stores/useCollabStore';
+import { StudentLiveTelemetry } from '../utils/collabProtocol';
 
 export interface BackendSyncState {
   records: ExperimentRecord[];
@@ -29,6 +31,11 @@ export interface UseBackendSyncReturn extends BackendSyncState {
   broadcastMysteryChallenge: (challenge: MysterySampleChallenge, author: string) => void;
   submitMysteryExam: (studentName: string, result: MysterySubmissionResult, challengeTitle: string) => void;
   dismissMysteryChallenge: () => void;
+  createRoom: (pin: string, domain: 'physics' | 'chemistry' | 'biology' | 'astronomy', moduleId: string, customRoomId?: string) => void;
+  joinRoom: (roomId: string, pin: string, joinAsRole?: 'teacher' | 'student') => void;
+  leaveRoom: () => void;
+  toggleTeacherFreeze: (isFrozen: boolean) => void;
+  syncStudentTelemetry: (telemetry: Omit<StudentLiveTelemetry, 'studentName' | 'lastUpdated'>) => void;
 }
 
 const STORAGE_KEY = 'ruanglab_client_cache_v2';
@@ -121,7 +128,9 @@ export function useBackendSync(
       socket.onopen = () => {
         if (unmounted) return;
         setWsConnected(true);
+        useCollabStore.getState().setWsConnected(true);
         retryCount = 0;
+        const activeRoomId = useCollabStore.getState().activeRoomId;
         // Identify
         socket.send(
           JSON.stringify({
@@ -132,6 +141,7 @@ export function useBackendSync(
               role,
               groupId,
               domain,
+              roomId: activeRoomId,
             },
           })
         );
@@ -147,6 +157,47 @@ export function useBackendSync(
             if (Array.isArray(msg.payload.notes)) setNotes(msg.payload.notes);
             if (Array.isArray(msg.payload.students)) setStudents(msg.payload.students);
             if (Array.isArray(msg.payload.notifications)) setNotifications(msg.payload.notifications);
+          } else if (msg.type === 'ROOM_CREATED' && msg.payload?.room) {
+            const store = useCollabStore.getState();
+            store.setActiveRoom(msg.payload.room);
+            store.closeRoomModal();
+            setNotifications((prev) => [
+              {
+                id: `notif-room-${Date.now()}`,
+                timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                severity: 'nominal',
+                domain: 'Kolaborasi',
+                title: `Meja Praktikum [${msg.payload.room.roomId}] Dibuat`,
+                message: `PIN Ruangan: ${msg.payload.room.pin}. Bagikan kode ini kepada siswa untuk bergabung ke meja praktikum.`,
+              },
+              ...prev.slice(0, 24),
+            ]);
+          } else if (msg.type === 'ROOM_JOINED' && msg.payload?.room) {
+            const store = useCollabStore.getState();
+            store.setActiveRoom(msg.payload.room);
+            store.closeRoomModal();
+            setNotifications((prev) => [
+              {
+                id: `notif-join-${Date.now()}`,
+                timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                severity: 'nominal',
+                domain: 'Kolaborasi',
+                title: `Bergabung ke Meja [${msg.payload.room.roomId}]`,
+                message: `Anda telah terhubung ke meja praktikum bersama ${Object.keys(msg.payload.room.clients || {}).length} peserta.`,
+              },
+              ...prev.slice(0, 24),
+            ]);
+          } else if (msg.type === 'ROOM_STATE_SYNC' && msg.payload?.room) {
+            useCollabStore.getState().setActiveRoom(msg.payload.room);
+          } else if (msg.type === 'ROOM_ERROR' && msg.payload?.message) {
+            useCollabStore.getState().setRoomError(msg.payload.message);
+          } else if (msg.type === 'TEACHER_FREEZE_TOGGLE' && msg.payload) {
+            useCollabStore.getState().setTeacherFreeze(Boolean(msg.payload.isFrozen), msg.payload.teacherName);
+          } else if (msg.type === 'STUDENT_TELEMETRY_SYNC' && msg.payload?.telemetry) {
+            const t = msg.payload.telemetry as StudentLiveTelemetry;
+            if (t.studentName) {
+              useCollabStore.getState().updateStudentTelemetry(t.studentName, t);
+            }
           } else if (msg.type === 'record:created' && msg.payload?.record) {
             setRecords((prev) => {
               if (prev.some((r) => r.id === msg.payload.record.id)) return prev;
@@ -199,9 +250,9 @@ export function useBackendSync(
       socket.onclose = () => {
         if (unmounted) return;
         setWsConnected(false);
+        useCollabStore.getState().setWsConnected(false);
         wsRef.current = null;
         retryCount++;
-        // Exponential backoff with jitter to prevent reconnect storms
         const baseDelay = Math.min(1000 * Math.pow(1.5, Math.min(retryCount, 6)), 12000);
         const jitter = Math.random() * 500;
         const reconnectDelay = Math.round(baseDelay + jitter);
@@ -331,6 +382,85 @@ export function useBackendSync(
     setActiveMysteryChallenge(null);
   }, []);
 
+  const createRoom = useCallback(
+    (
+      pin: string,
+      roomDomain: 'physics' | 'chemistry' | 'biology' | 'astronomy',
+      moduleId: string,
+      customRoomId?: string
+    ) => {
+      useCollabStore.getState().setRoomError(null);
+      sendWs('ROOM_CREATE', {
+        roomId: customRoomId,
+        pin,
+        domain: roomDomain,
+        moduleId,
+        teacherName: studentName,
+        teacherUserId: `user-${studentName.replace(/\s+/g, '-').toLowerCase()}`,
+      });
+    },
+    [sendWs, studentName]
+  );
+
+  const joinRoom = useCallback(
+    (roomId: string, pin: string, joinAsRole?: 'teacher' | 'student') => {
+      useCollabStore.getState().setRoomError(null);
+      sendWs('ROOM_JOIN', {
+        roomId,
+        pin,
+        name: studentName,
+        role: joinAsRole || (role === 'Pengajar' ? 'teacher' : 'student'),
+        userId: `user-${studentName.replace(/\s+/g, '-').toLowerCase()}`,
+        groupId,
+      });
+    },
+    [sendWs, studentName, role, groupId]
+  );
+
+  const leaveRoom = useCallback(() => {
+    sendWs('ROOM_LEAVE', {});
+    useCollabStore.getState().leaveRoom();
+  }, [sendWs]);
+
+  const toggleTeacherFreeze = useCallback(
+    (isFrozen: boolean) => {
+      const roomId = useCollabStore.getState().activeRoomId;
+      useCollabStore.getState().setTeacherFreeze(isFrozen, studentName);
+      if (roomId) {
+        sendWs('TEACHER_FREEZE_TOGGLE', {
+          roomId,
+          isFrozen,
+          teacherName: studentName,
+        });
+      }
+    },
+    [sendWs, studentName]
+  );
+
+  const syncStudentTelemetry = useCallback(
+    (telemetry: Omit<StudentLiveTelemetry, 'studentName' | 'lastUpdated'>) => {
+      const roomId = useCollabStore.getState().activeRoomId;
+      const fullTelemetry: StudentLiveTelemetry = {
+        ...telemetry,
+        studentName,
+        lastUpdated: new Date().toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }),
+      };
+      useCollabStore.getState().updateStudentTelemetry(studentName, fullTelemetry);
+      if (roomId) {
+        sendWs('STUDENT_TELEMETRY_SYNC', {
+          roomId,
+          studentName,
+          telemetry: fullTelemetry,
+        });
+      }
+    },
+    [sendWs, studentName]
+  );
+
   return {
     records,
     tasks,
@@ -353,5 +483,11 @@ export function useBackendSync(
     broadcastMysteryChallenge,
     submitMysteryExam,
     dismissMysteryChallenge,
+    createRoom,
+    joinRoom,
+    leaveRoom,
+    toggleTeacherFreeze,
+    syncStudentTelemetry,
   };
 }
+

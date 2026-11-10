@@ -1,6 +1,6 @@
 /**
  * RuangLABmu Real-Time Collaboration Protocol
- * Phase 3: 3D Spatial Laser Cursors, Parameter Locking Mutex, and Live Value Synchronization
+ * Phase 3 & 4: 3D Spatial Cursors, Parameter Locking Mutex, Room Isolation & Teacher Controls
  */
 
 export interface SpatialCursorPayload {
@@ -25,13 +25,60 @@ export interface ParameterLockPayload {
   expiresAt: number;     // Auto-expire after 5000ms to prevent deadlocks on disconnect
 }
 
+export interface StudentLiveTelemetry {
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | string;
+  topic?: string;
+  moduleId: string;
+  moduleTitle?: string;
+  trialsCount?: number;
+  recordsCount?: number;
+  currentParameters?: Record<string, number | string | boolean | undefined>;
+  rSquared: number;
+  currentActivity?: string;
+  status?: string;
+  lastUpdated: string;
+  parametersSummary?: string;
+  studentName?: string;
+}
+
+export interface LabRoomClient {
+  socketId: string;
+  userId: string;
+  name: string;
+  role: 'teacher' | 'student';
+  groupId?: string;
+  joinedAt: number;
+  telemetry?: StudentLiveTelemetry;
+}
+
+export interface LabRoom {
+  roomId: string;
+  pin: string;
+  domain: 'physics' | 'chemistry' | 'biology' | 'astronomy';
+  moduleId: string;
+  teacherSocketId?: string;
+  teacherName?: string;
+  isFrozenByTeacher: boolean;
+  createdAt: number;
+  clients: Record<string, LabRoomClient>;
+}
+
 export type CollabWSMessage =
   | { type: 'CURSOR_3D_MOVE'; payload: SpatialCursorPayload }
   | { type: 'CURSOR_3D_LEAVE'; payload: { userId: string; groupId: string } }
   | { type: 'PARAM_LOCK_ACQUIRE'; payload: ParameterLockPayload }
   | { type: 'PARAM_LOCK_RELEASE'; payload: { groupId: string; domain: string; paramKey: string; userId: string } }
   | { type: 'PARAM_VALUE_SYNC'; payload: { groupId: string; domain: string; paramKey: string; value: number; updatedBy: string } }
-  | { type: 'PARAM_LOCKS_SYNC'; payload: { locks: ParameterLockPayload[] } };
+  | { type: 'PARAM_LOCKS_SYNC'; payload: { locks: ParameterLockPayload[] } }
+  | { type: 'ROOM_CREATE'; payload: { roomId?: string; pin: string; domain: 'physics' | 'chemistry' | 'biology' | 'astronomy'; moduleId: string; teacherName: string; teacherUserId: string } }
+  | { type: 'ROOM_CREATED'; payload: { room: LabRoom } }
+  | { type: 'ROOM_JOIN'; payload: { roomId: string; pin: string; name: string; role: 'teacher' | 'student'; userId: string; groupId?: string } }
+  | { type: 'ROOM_JOINED'; payload: { room: LabRoom; client: LabRoomClient } }
+  | { type: 'ROOM_ERROR'; payload: { message: string; code: string } }
+  | { type: 'ROOM_LEAVE'; payload: { roomId: string; userId: string } }
+  | { type: 'TEACHER_FREEZE_TOGGLE'; payload: { roomId: string; isFrozen: boolean; teacherName: string } }
+  | { type: 'STUDENT_TELEMETRY_SYNC'; payload: { roomId: string; studentName: string; userId: string; telemetry: StudentLiveTelemetry } }
+  | { type: 'ROOM_STATE_SYNC'; payload: { room: LabRoom } };
 
 /**
  * Deterministic color palette for student avatars, laser pointers, and cursor badges
@@ -46,8 +93,18 @@ export const USER_COLOR_PALETTE: Record<string, string> = {
 };
 
 export function getUserColor(userName: string, role?: string): string {
-  if (role === 'Pengajar' || userName.toLowerCase().includes('pengajar') || userName.toLowerCase().includes('dr.')) {
+  if (role === 'Pengajar' || role === 'teacher' || userName.toLowerCase().includes('pengajar') || userName.toLowerCase().includes('dr.')) {
     return '#f87171';
   }
   return USER_COLOR_PALETTE[userName] || '#60a5fa';
+}
+
+/**
+ * Helper to generate random 5-character uppercase Room ID (e.g., LAB-42)
+ */
+export function generateRandomRoomId(): string {
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const num = Math.floor(10 + Math.random() * 89);
+  const code = letters[Math.floor(Math.random() * letters.length)] + letters[Math.floor(Math.random() * letters.length)];
+  return `LAB-${code}${num}`;
 }

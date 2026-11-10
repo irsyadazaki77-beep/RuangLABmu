@@ -143,6 +143,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
+    renderer.domElement.style.touchAction = 'none';
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 

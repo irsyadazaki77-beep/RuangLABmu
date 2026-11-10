@@ -100,6 +100,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.1;
     renderer.shadowMap.enabled = true;
+    renderer.domElement.style.touchAction = 'none';
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 

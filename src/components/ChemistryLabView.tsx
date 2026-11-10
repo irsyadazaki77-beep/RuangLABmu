@@ -20,6 +20,7 @@ import {
   AcademicLevel,
   calculateChemistryMetrics,
   generateAutomaticFeedback,
+  evaluateSafetyHazard,
   GUIDED_LAB_SCENARIOS,
   LabNotification,
   ExperimentRecord,
@@ -133,13 +134,14 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   completedChallengeIds = [],
   onCompleteChallenge,
 }) => {
-  const [isReacting, setIsReacting] = useState<boolean>(false);
-  const [reactionProgress, setReactionProgress] = useState<number>(0);
+  const [isReacting, setIsReacting] = useState<boolean>(true);
+  const [reactionProgress, setReactionProgress] = useState<number>(0.25);
   const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [calibrationConfig, setCalibrationConfig] =
     useState<InstrumentCalibrationConfig>(DEFAULT_CALIBRATION_CONFIG);
   const [cockpitTab, setCockpitTab] = useState<'controls' | 'data-diff' | 'hypothesis'>('controls');
+  const [hazardModalDismissed, setHazardModalDismissed] = useState<boolean>(false);
   const [localHypothesis, setLocalHypothesis] = useState<HypothesisNote>({
     independentVar: 'Volume Titran / Suhu Awal (T₀)',
     dependentVar: 'pH Larutan / Perubahan Entalpi (ΔH)',
@@ -165,6 +167,13 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   const redoxPreset =
     REDOX_PRESETS.find((r) => r.id === params.redoxPairId) || REDOX_PRESETS[0];
   const metrics: ChemistryMetrics = calculateChemistryMetrics(params);
+  const safetyHazard = evaluateSafetyHazard('Kimia', undefined, params);
+
+  useEffect(() => {
+    if (!safetyHazard.isHazardous) {
+      setHazardModalDismissed(false);
+    }
+  }, [safetyHazard.isHazardous, safetyHazard.hazardCode]);
 
   useEffect(() => {
     if (!isReacting) {
@@ -174,29 +183,25 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
 
     let last = performance.now();
     const loop = (now: number) => {
-      const dt = (now - last) / 1000;
+      const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
 
       if (params.mode === 'acid-base-titration') {
         const nextMl = Math.min(
           50,
-          Number((params.titrantAddedMl + dt * 4).toFixed(1))
+          Number((params.titrantAddedMl + dt * 3.5).toFixed(1))
         );
         labSound.playTitrationDrop(metrics.currentPh);
         onChangeParams({
           ...params,
-          titrantAddedMl: nextMl,
+          titrantAddedMl: nextMl >= 49.5 ? 0 : nextMl,
         });
-        if (nextMl >= 49.5) {
-          setIsReacting(false);
-        }
       } else {
         setReactionProgress((prev) => {
           const speedFactor = params.useCatalyst ? 0.28 : 0.16;
           const next = prev + dt * speedFactor;
           if (next >= 1) {
-            setIsReacting(false);
-            return 1;
+            return 0;
           }
           return next;
         });
@@ -596,12 +601,79 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   );
 
   return (
-    <div className="w-full h-full max-w-[1600px] mx-auto px-4 py-3 lg:overflow-hidden overflow-y-auto bg-slate-950 text-slate-100 select-none flex flex-col">
+    <div className="w-full h-full max-w-[1600px] mx-auto px-4 py-3 overflow-y-auto bg-slate-950 text-slate-100 select-none flex flex-col">
+      {/* Safety Hazard Auto-Modal (Fitur 5) */}
+      {safetyHazard.isHazardous && !hazardModalDismissed && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="max-w-lg w-full rounded-2xl bg-slate-900 border-2 border-rose-500/80 shadow-2xl p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <span className="inline-block px-2.5 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/40 text-[11px] font-mono font-bold text-rose-300 uppercase">
+                  SIMULASI BAHAYA KESELAMATAN K3 — KIMIA
+                </span>
+                <h3 className="text-base font-extrabold text-white">{safetyHazard.title}</h3>
+              </div>
+            </div>
+            <div className="p-3.5 rounded-xl bg-rose-950/50 border border-rose-500/40 text-xs font-semibold text-rose-200 leading-relaxed">
+              {safetyHazard.headlineAlert}
+            </div>
+            <div className="space-y-2 text-xs text-slate-300 leading-relaxed">
+              <p>{safetyHazard.scientificExplanation}</p>
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-amber-300">
+                Parameter Pemicu: {safetyHazard.triggerParamSummary}
+              </div>
+              <p className="text-emerald-300 font-medium">
+                Prosedur Mitigasi: {safetyHazard.mitigationInstruction}
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setHazardModalDismissed(true)}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 cursor-pointer"
+              >
+                Saya Paham, Amati Efek 3D
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleParamChange({
+                    initialTempC: 25,
+                    kineticsTempC: 25,
+                    reactantConcentration: 1.0,
+                    useCatalyst: true,
+                    gasTemperatureK: 300,
+                    gasVolumeL: 10,
+                  });
+                  setHazardModalDismissed(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs cursor-pointer shadow-lg"
+              >
+                Pulihkan ke Parameter Aman
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 items-stretch">
         {/* LEFT COLUMN: Fixed 3D Scene Canvas & Playback Bar */}
         <div className={`${zenMode ? 'lg:col-span-12' : 'lg:col-span-8'} flex flex-col h-full min-h-0 gap-3 transition-all`}>
           {/* 3D Canvas Box */}
-          <div className="relative w-full flex-1 min-h-[360px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-2xl">
+          <div
+            className={`relative w-full flex-1 min-h-[380px] rounded-2xl overflow-hidden border bg-slate-900/60 shadow-2xl transition-all ${
+              safetyHazard.isHazardous
+                ? 'border-rose-500 ring-2 ring-rose-500/50 animate-pulse'
+                : 'border-slate-800'
+            }`}
+          >
+            {safetyHazard.isHazardous && (
+              <div className="pointer-events-none absolute inset-0 z-30 bg-gradient-to-t from-rose-900/40 via-rose-500/15 to-transparent flex items-start justify-center pt-14">
+                <div className="px-3.5 py-1.5 rounded-full bg-rose-950/90 border border-rose-500/60 text-[11px] font-mono font-bold text-rose-200 shadow-2xl">
+                  ⚠️ PERINGATAN K3: Reaksi Eksotermik di Luar Kendali! (Uap Asam Berbahaya)
+                </div>
+              </div>
+            )}
             <ChemistryScene3D
               params={params}
               metrics={metrics}

@@ -337,7 +337,44 @@ test('Dr. LabMu Socratic Engine: Telemetry JSON, Outlier R² < 0.85, Direct Answ
   );
   const refusalResponse = generateSocraticDrLabMuResponse(directQueryTelemetry);
   assert.equal(refusalResponse.detectedTrigger, 'direct-answer-refusal');
+  assert.ok(refusalResponse.dataHighlight.includes('Ilmuwan hebat tidak menyalin jawaban, tapi membaca polanya! Mari kita periksa slope grafik yang baru saja kamu dapatkan'));
   assert.ok(refusalResponse.dataHighlight.includes('ilmuwan sejati menemukan rahasianya dari grafik sendiri'));
+
+  // 2b. Test Off-Topic Refusal
+  const offTopicTelemetry = buildDrLabMuTelemetry(
+    'Fisika',
+    'sma',
+    defaultPhysics,
+    defaultChemistry,
+    defaultAstronomy,
+    recordsWithOutlier,
+    'Bisa kasih resep masakan nasi goreng enak?'
+  );
+  const offTopicResponse = generateSocraticDrLabMuResponse(offTopicTelemetry);
+  assert.equal(offTopicResponse.detectedTrigger, 'off-topic-refusal');
+  assert.ok(offTopicResponse.observation.includes('fokus'));
+
+  // 2c. Test Biologi Outlier (Enzim pada suhu 80°C)
+  const bioRecordsWithOutlier: ExperimentRecord[] = [
+    { id: 'BIO-1', timestamp: '10:00', studentName: 'Siswa', groupId: 'G1', domain: 'Biologi', experimentTitle: 'Enzim T=20C', parametersSummary: 'T=20°C', keyMetrics: { v: 40 }, numericX: 20, numericY1: 40, notes: '' },
+    { id: 'BIO-2', timestamp: '10:02', studentName: 'Siswa', groupId: 'G1', domain: 'Biologi', experimentTitle: 'Enzim T=37C', parametersSummary: 'T=37°C', keyMetrics: { v: 95 }, numericX: 37, numericY1: 95, notes: '' },
+    { id: 'BIO-3', timestamp: '10:04', studentName: 'Siswa', groupId: 'G1', domain: 'Biologi', experimentTitle: 'Enzim T=50C', parametersSummary: 'T=50°C', keyMetrics: { v: 70 }, numericX: 50, numericY1: 70, notes: '' },
+    { id: 'BIO-4', timestamp: '10:06', studentName: 'Siswa', groupId: 'G1', domain: 'Biologi', experimentTitle: 'Enzim T=80C', parametersSummary: 'T=80°C', keyMetrics: { v: 5 }, numericX: 80, numericY1: 5, notes: '' },
+  ];
+  const bioTelemetry = buildDrLabMuTelemetry(
+    'Biologi',
+    'sma',
+    defaultPhysics,
+    defaultChemistry,
+    defaultAstronomy,
+    bioRecordsWithOutlier,
+    'Kenapa laju reaksi merosot di suhu tinggi?',
+    { moduleId: 'enzyme-catalase', params: { temperatureC: 80 } }
+  );
+  const bioResponse = generateSocraticDrLabMuResponse(bioTelemetry);
+  assert.equal(bioResponse.detectedTrigger, 'anomaly-outlier');
+  assert.ok(bioResponse.dataHighlight.includes('suhu dinaikkan ke 80°C'));
+  assert.ok(bioResponse.dataHighlight.includes('enzim yang kira-kira terpengaruh'));
 
   // 3. Test Confused Student Analogies across SMP, SMA, and Perguruan Tinggi
   const cleanRecords: ExperimentRecord[] = [

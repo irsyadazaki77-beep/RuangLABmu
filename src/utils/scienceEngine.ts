@@ -2789,6 +2789,8 @@ export interface DrLabMuStructuredResponse {
 export interface BiologyTelemetryContext {
   moduleId: string;
   params: Record<string, number>;
+  parameters?: Record<string, number>;
+  liveMetrics?: Record<string, number>;
 }
 
 const HUMAN_MODULE_LABELS: Record<string, string> = {
@@ -2797,15 +2799,29 @@ const HUMAN_MODULE_LABELS: Record<string, string> = {
   'collision-momentum': 'Tumbukan & Kekekalan Momentum',
   'spring-hooke': 'Osilasi Pegas Hukum Hooke',
   'orbital-gravity': 'Gravitasi Universal Dua Massa',
+  'pendulum-harmonic': 'Bandul Sederhana Harmonis',
+  'hukum-pendulum': 'Hukum Bandul Sederhana Harmonis',
+  'stokes-viscosity': 'Viskositas Fluida & Hukum Stokes',
+  'ohm-wheatstone': 'Hukum Ohm & Jembatan Wheatstone',
+  'optics-young-slit': 'Interferensi Celah Ganda Young',
+  'photoelectric-planck': 'Efek Fotolistrik & Konstanta Planck',
   'thermo-calorimetry': 'Termokimia & Kalorimetri',
   'acid-base-titration': 'Titrasi Asam-Basa',
+  'titrasi-asam-basa': 'Titrasi Asam-Basa',
   'electrochemistry-cell': 'Sel Elektrokimia Galvani',
+  'ideal-gas-boyle': 'Hukum Gas Ideal & Kompresi Boyle',
+  'reaction-kinetics-arrhenius': 'Kinetika Laju Reaksi & Arrhenius',
+  'spectrophotometry-beer': 'Spektrofotometri UV-Vis & Hukum Beer',
   'photosynthesis-ingenhousz': 'Fotosintesis Ingenhousz (Hydrilla)',
-  'enzyme-catalase': 'Kinetika Enzim Katalase',
-  'osmosis-plasmolysis': 'Osmosis & Plasmolisis Sel',
+  'enzyme-catalase': 'Kinetika Enzim Katalase Michaelis-Menten',
+  'osmosis-plasmolysis': 'Osmosis & Plasmolisis Sel Tumbuhan',
+  'mikroskop-sel': 'Mikroskop & Struktur Organel Sel',
   'solar-kepler': 'Dinamika Orbit Hukum Kepler',
+  'hukum-kepler': 'Hukum-Hukum Orbit Kepler',
   'milkyway-galaxy': 'Kurva Rotasi Galaksi Bima Sakti',
   'stellar-exoplanet': 'Spektrum Bintang & Transit Eksoplanet',
+  'stellar-wien-spectrum': 'Hukum Pergeseran Wien & Spektroskopi',
+  'hubble-expansion': 'Hukum Hubble & Ekspansi Kosmik',
 };
 
 export function buildDrLabMuTelemetry(
@@ -3013,115 +3029,143 @@ export function generateSocraticDrLabMuResponse(
     studentQuery,
   } = telemetry;
 
-  const qLower = studentQuery.toLowerCase();
+  const qLower = studentQuery.toLowerCase().trim();
   const readableTopic = HUMAN_MODULE_LABELS[topic] || topic;
 
+  // 1. PANTANGAN MUTLAK: Deteksi Permintaan Jawaban Mentah / Curang
   const isAskingDirectAnswer =
-    /berapa\s+(nilai|besar|angka|hasil|jawaban|rumus)|kasih\s+tahu\s+jawaban|jawabannya\s+apa|hitungin|nilai\s+g[- ]?nya|langsung\s+jawab/i.test(
+    /berapa\s+(nilai|besar|angka|hasil|jawaban|rumus|titik|konstanta)|kasih\s+tahu\s+jawaban|jawabannya\s+apa|hitungin|bocorin|kesimpulan\s+laporan|nilai\s+g[- ]?nya|langsung\s+jawab|minta\s+jawaban|angka\s+akhir/i.test(
       qLower
     );
 
+  // Deteksi Pertanyaan di Luar Topik / Sains
+  const isOffTopic =
+    /resep\s+masakan|game\s+online|sepak\s+bola|kripto|bitcoin|politik|presiden|pacar|lagu|film|gosip|harga\s+emas|siapa\s+kamu|di\s+luar\s+praktikum/i.test(
+      qLower
+    );
+
+  // 2. ATURAN PENANGANAN ANOMALI: R² < 0.85 atau Outlier Ekstrem
   const isAnomalyOrLowR2 =
     analytics.rSquared < 0.85 && recordedData.length >= 3
       ? true
       : analytics.hasExtremeOutlier ||
-        /outlier|melenceng|menyimpang|aneh|r2|r²|tidak\s+lurus|merosot/i.test(
+        /outlier|melenceng|menyimpang|aneh|r2|r²|tidak\s+lurus|merosot|turun\s+drastis/i.test(
           qLower
         );
 
-  const observation = `Eksplorasi yang bagus di laboratorium 3D ${domain} pada eksperimen ${readableTopic} untuk jenjang ${educationLevel}. Sejauh ini kamu telah mengumpulkan ${recordedData.length} titik data pengamatan.`;
+  const observation = `Eksplorasi yang sangat baik di laboratorium virtual ${domain} pada modul ${readableTopic} (${educationLevel}). Sejauh ini Anda telah mengumpulkan ${recordedData.length} baris data observasi riil di meja praktikum.`;
 
-  // RULE 3: JIKA Siswa Meminta Jawaban Langsung ("Berapa nilai g-nya bro?")
+  // Tangani Pertanyaan di Luar Topik
+  if (isOffTopic) {
+    const dataHighlight = `Ilmuwan hebat selalu memusatkan perhatian pada fenomena alam yang sedang diselidiki di hadapannya. Di laboratorium virtual RuangLABmu, kita sedang mengeksplorasi modul ${readableTopic} (${educationLevel}) dengan data observasi nyata.`;
+    const socraticQuestion = `Bagaimana kalau kita kembali berfokus pada instrumen lab 3D dan mengamati apa yang terjadi pada grafik saat salah satu variabel bebas Anda geser?`;
+    return {
+      observation: `Senang bisa menyapa Anda di RuangLABmu! Namun sebagai mentor laboratorium sains, mari kita tetap berfokus pada eksperimen aktif kita.`,
+      dataHighlight,
+      socraticQuestion,
+      detectedTrigger: 'off-topic-refusal' as any,
+      formattedText: `Senang bisa menyapa Anda di RuangLABmu! Namun sebagai mentor laboratorium sains, mari kita tetap berfokus pada eksperimen aktif kita.\n\n${dataHighlight}\n\n${socraticQuestion}`,
+    };
+  }
+
+  // Tangani Permintaan Jawaban Mentah / Menyontek
   if (isAskingDirectAnswer) {
-    const dataHighlight =
+    const slopeInfo =
       recordedData.length >= 2
-        ? `Saya punya catatannya, tapi ilmuwan sejati menemukan rahasianya dari grafik sendiri! Coba perhatikan gradien garis regresi (${analytics.equation} dengan R² = ${analytics.rSquared}) dari ${recordedData.length} titik data percobaanmu.`
-        : `Saya punya catatannya, tapi ilmuwan sejati menemukan rahasianya dari grafik sendiri! Saat ini kamu baru memiliki ${recordedData.length} titik data di tabel, jadi yuk tambahkan beberapa titik pengamatan lagi agar pola grafiknya terlihat jelas.`;
+        ? `(${analytics.equation} dengan nilai R² = ${analytics.rSquared.toFixed(3)})`
+        : `dari data observasi yang sedang kamu kumpulkan`;
+    const dataHighlight = `Ilmuwan hebat tidak menyalin jawaban, tapi membaca polanya! Mari kita periksa slope grafik yang baru saja kamu dapatkan ${slopeInfo}. Saya punya catatannya, tapi ilmuwan sejati menemukan rahasianya dari grafik sendiri! Memahami korelasi variabel bebas dan terikat jauh lebih bermakna daripada sekadar menghafal angka akhir.`;
 
     const socraticQuestion =
       domain === 'Fisika'
-        ? `Jika sumbu mendatar mewakili variabel bebas yang kamu atur di slider dan sumbu tegak adalah respons terukurnya, bagaimana kemiringan garis regresi pada grafikmu berkaitan dengan konstanta fisis yang sedang kamu cari?`
+        ? `Jika sumbu mendatar mewakili variabel bebas yang Anda atur di slider dan sumbu tegak adalah responsnya, bagaimana kemiringan garis regresi pada grafik Anda berhubungan dengan konstanta fisis atau hukum kekekalan yang sedang diuji?`
         : domain === 'Kimia'
-        ? `Coba amati laju perubahan pada kurva pengamatanmu: apa yang terjadi pada titik ekuivalen atau kesetimbangan reaksi jika kamu menggeser konsentrasi atau volume reaktan satu langkah lagi?`
+        ? `Coba perhatikan indikator visual perubahan warna larutan dan kurva pH: di sekitar volume berapakah perbandingan stoikiometri reaktan mencapai titik kesetimbangan atau titik ekuivalen?`
         : domain === 'Biologi'
-        ? `Perhatikan perubahan laju gelembung oksigen atau respons sel pada grafikmu: variabel lingkungan manakah yang saat ini menjadi faktor pembatas utama pada eksperimen biologi ini?`
-        : `Perhatikan gradien garis regresi orbitmu: bagaimana perbandingan antara kuadrat periode orbit dan pangkat tiga jarak rata-rata berubah jika kamu menggeser massa bintang induk atau jari-jari orbit?`;
+        ? `Perhatikan laju pembentukan gelembung oksigen atau perubahan massa sel pada tabel pengamatan: variabel lingkungan manakah yang kini menjadi faktor pembatas utama dalam proses biologis tersebut?`
+        : `Bagaimana perbandingan antara kuadrat periode orbit (T²) terhadap pangkat tiga jarak rata-rata (a³) saat Anda menggeser massa bintang induk atau jari-jari edar sesuai Hukum III Kepler?`;
 
     return {
       observation,
       dataHighlight,
       socraticQuestion,
       detectedTrigger: 'direct-answer-refusal',
-      formattedText: `${observation} ${dataHighlight} ${socraticQuestion}`,
+      formattedText: `${observation}\n\n${dataHighlight}\n\n${socraticQuestion}`,
     };
   }
 
-  // RULE 1: JIKA R² < 0.85 atau Terjadi Outlier Ekstrem
+  // Tangani Anomali & Deviasi Data (R² < 0.85 atau Outlier Ekstrem)
   if (isAnomalyOrLowR2) {
     const outlier = analytics.outlierTrial;
-    const dataHighlight = outlier
-      ? `Nilai kecocokan regresi grafikmu saat ini adalah R² = ${analytics.rSquared}. Coba perhatikan percobaan ke-${outlier.trialNumber} (${outlier.title}) di mana nilai terukur sebesar ${outlier.yObserved} menyimpang cukup jauh dari prediksi garis lurus (${outlier.yPredicted}).`
-      : `Nilai kecocokan regresi liniermu saat ini adalah R² = ${analytics.rSquared}, yang menandakan ada titik percobaan yang berbelok dari tren lurus akibat pengaruh non-linier atau perubahan lebih dari satu variabel sekaligus.`;
+    let dataHighlight = '';
+    let socraticQuestion = '';
 
-    const socraticQuestion = outlier
-      ? `Menurut hipotesismu, mengapa pada percobaan ke-${outlier.trialNumber} titik datanya melenceng dari garis lurus—apakah karena hubungan matematisnya memang melengkung pada nilai ekstrem tersebut, atau ada variabel kontrol yang ikut berubah?`
-      : `Jika kamu mengunci semua variabel kontrol tetap konstan dan hanya mengubah satu slider variabel bebas secara bertahap, apakah titik data berikutnya akan membuat nilai R² naik mendekati 1,00?`;
+    if (domain === 'Biologi' && (topic.includes('enzyme') || topic.includes('katalase') || qLower.includes('suhu') || (outlier && outlier.parametersSummary.includes('°C')))) {
+      dataHighlight = `Coba amati baris data ke-${outlier ? outlier.trialNumber : 4} saat suhu dinaikkan ke 80°C. Mengapa laju reaksi justru menurun drastis? Faktor apa pada enzim yang kira-kira terpengaruh?`;
+      socraticQuestion = `Apakah struktur tiga dimensi protein enzim mengalami denaturasi termal pada suhu ekstrem tersebut sehingga sisi aktifnya tidak lagi dapat mengikat molekul substrat?`;
+    } else if (outlier) {
+      dataHighlight = `Nilai korelasi grafik saat ini adalah R² = ${analytics.rSquared.toFixed(3)}. Coba amati baris data ke-${outlier.trialNumber} (${outlier.title}) di mana nilai respons terukur (${outlier.yObserved}) menyimpang dari tren garis prediksi (${outlier.yPredicted}). Dalam sains empiris, anomali bukanlah kesalahan, melainkan petunjuk adanya efek non-linier atau batas fisis baru.`;
+      socraticQuestion = `Menurut hipotesis Anda, faktor atau kondisi variabel manakah pada percobaan ke-${outlier.trialNumber} yang menyebabkan nilai respons tersebut berbelok dari garis tren umum?`;
+    } else {
+      dataHighlight = `Nilai korelasi grafik saat ini adalah R² = ${analytics.rSquared.toFixed(3)}, menandakan terdapat titik percobaan yang menjauh dari garis regresi akibat fluktuasi pengukuran atau perubahan lebih dari satu parameter sekaligus.`;
+      socraticQuestion = `Jika Anda menjaga semua variabel kontrol tetap konstan dan hanya menggeser satu variabel bebas secara bertahap, apakah titik pengamatan berikutnya akan menaikkan nilai R² mendekati 1,00?`;
+    }
 
     return {
       observation,
       dataHighlight,
       socraticQuestion,
       detectedTrigger: 'anomaly-outlier',
-      formattedText: `${observation} ${dataHighlight} ${socraticQuestion}`,
+      formattedText: `${observation}\n\n${dataHighlight}\n\n${socraticQuestion}`,
     };
   }
 
-  // RULE 2: JIKA Siswa Bingung/Stuck -> Analogi Dunia Nyata sesuai Jenjang (SMP / SMA / PT)
+  // 3. BIMBINGAN BERTAHAP: Domain-Specific Insights & Analogi Jenjang (SMP / SMA / Perguruan Tinggi)
   let analogyHighlight = '';
   let socraticQuestion = '';
 
   if (educationLevel === 'SMP') {
     if (domain === 'Fisika') {
-      analogyHighlight = `Bayangkan kamu sedang melempar bola basket ke arah ring atau mendorong kotak di lantai: dorongan awal dan sudut lemparan menentukan seberapa tinggi serta seberapa jauh bola melambung sebelum gravitasi menariknya kembali ke bawah.`;
-      socraticQuestion = `Jika kamu melempar bola basket terlalu mendatar dibanding terlalu tegak ke atas, coba geser slider sudut di panel kiri: pada sudut berapakah bolamu mendarat paling jauh?`;
+      analogyHighlight = `Bayangkan kamu sedang melempar bola basket ke arah ring atau mendorong kotak kardus di lantai: makin kuat dorongan awalmu dan makin pas sudut lemparanmu, makin jauh bola melambung sebelum ditarik gravitasi bumi ke bawah.`;
+      socraticQuestion = `Jika kamu melempar bola terlalu mendatar dibandingkan terlalu tegak ke atas, pada sudut berapa derajat menurut perkiraanmu jarak lemparannya mencapai paling jauh?`;
     } else if (domain === 'Kimia') {
-      analogyHighlight = `Bayangkan kamu sedang melarutkan gula di teh hangat atau menetesi perasan jeruk yang asam dengan air soda kue sedikit demi sedikit: sifat dan suhu larutan akan berubah secara bertahap mengikuti takaran yang kamu campurkan.`;
-      socraticQuestion = `Coba geser slider suhu atau volume tetesan sedikit demi sedikit di simulasi: pada titik manakah kamu melihat perubahan suhu atau perubahan warna paling mencolok di gelas kimia 3D?`;
+      analogyHighlight = `Bayangkan kamu sedang melarutkan sesendok gula ke dalam teh hangat atau menetesi air perasan jeruk yang asam dengan air soda kue: sifat dan suhu larutan akan berubah bertahap mengikuti takaran yang kamu campurkan sampai keduanya seimbang netral.`;
+      socraticQuestion = `Coba geser slider penambahan tetesan di simulasi: pada saat warna cairan di gelas kimia 3D berubah, apa yang terjadi pada angka derajat keasaman (pH) larutan?`;
     } else if (domain === 'Biologi') {
-      analogyHighlight = `Bayangkan tanaman air Hydrilla yang sedang berjemur di bawah sinar matahari pagi: makin terang cahayanya dan makin cukup kadar karbon dioksidanya, makin semangat tanaman mengeluarkan gelembung oksigen.`;
-      socraticQuestion = `Coba geser slider intensitas cahaya atau suhu air di panel kiri: pada kondisi manakah gelembung oksigen di tabung reaksi muncul paling cepat?`;
+      analogyHighlight = `Bayangkan tanaman air Hydrilla yang berjemur di bawah sinar matahari hangat: klorofil di daun hijau bertindak seperti panel surya kecil yang menangkap cahaya untuk memproduksi energi dan melepaskan gelembung oksigen segar.`;
+      socraticQuestion = `Coba geser slider intensitas cahaya atau kadar karbon dioksida di panel kiri: pada kondisi lingkungan seperti apa gelembung udara oksigen muncul paling melimpah?`;
     } else {
-      analogyHighlight = `Bayangkan saat kamu mengamati Bulan mengelilingi Bumi atau pelari di lintasan stadion: pelari di lintasan paling dalam dekat pusat harus bergerak jauh lebih cepat dibandingkan pelari di jalur luar.`;
-      socraticQuestion = `Coba geser slider jarak planet dari bintang induk di simulasi 3D: apa yang terjadi pada kecepatan gerak planet saat jaraknya kamu dekatkan?`;
+      analogyHighlight = `Bayangkan pelari di lintasan lari stadion: pelari di lajur paling dalam dekat pusat harus berlari lebih cepat menyelesaikan putaran dibandingkan pelari di lajur paling luar. Planet di dekat Matahari pun berperilaku sama!`;
+      socraticQuestion = `Coba pilih planet Merkurius lalu bandingkan dengan Jupiter di simulasi: mengapa planet yang lebih dekat dengan Matahari membutuhkan waktu orbit yang jauh lebih singkat?`;
     }
   } else if (educationLevel === 'SMA') {
     if (domain === 'Fisika') {
-      analogyHighlight = `Mari kita amati hubungan sebab-akibat antar variabel pada eksperimen ${readableTopic} ini: perubahan kecepatan awal atau gaya dorong secara langsung memengaruhi jangkauan maksimum maupun percepatan benda melalui komponen vektornya.`;
-      socraticQuestion = `Jika kamu menggandakan kecepatan awal atau gaya dorong sambil menjaga sudut dan massa tetap konstan, apakah jarak tempuh atau percepatannya meningkat dua kali lipat atau empat kali lipat? Yuk buktikan dengan mencatat datanya!`;
+      analogyHighlight = `Mari kita teliti korelasi antara variabel bebas dan variabel terikat pada modul ${readableTopic}. Menurut hukum kekekalan energi dan momentum, perubahan gaya atau kecepatan awal akan langsung tercermin pada gradien garis regresi grafikmu.`;
+      socraticQuestion = `Jika Anda menggandakan kecepatan awal sambil menjaga sudut elevasi dan massa tetap konstan, apakah jarak jangkauan horizontal meningkat dua kali lipat atau empat kali lipat? Yuk buktikan di tabel!`;
     } else if (domain === 'Kimia') {
-      analogyHighlight = `Perhatikan hubungan stoikiometri pada eksperimen ${readableTopic}: rasio mol asam terhadap basa serta perubahan suhu terhadap entropi menjadi penentu utama lonjakan kurva pH dan spontanitas reaksi.`;
-      socraticQuestion = `Jika konsentrasi reaktan asam kamu naikkan dua kali lipat pada slider, berapa mL volume basa titran yang kini dibutuhkan agar larutan tepat mencapai titik ekuivalen?`;
+      analogyHighlight = `Perhatikan indikator visual stoikiometri pada modul ${readableTopic}: perubahan warna indikator dan lonjakan kurva pH menandakan titik ekuivalen saat mol ion asam tepat dinetralkan oleh ion basa. Pada sel elektrokimia, aliran elektron mencerminkan selisih potensial reduksi standar.`;
+      socraticQuestion = `Jika konsentrasi reaktan asam Anda naikkan dua kali lipat pada slider, berapa mL volume titran basa yang kini dibutuhkan agar larutan tepat mencapai titik infleksi pH?`;
     } else if (domain === 'Biologi') {
-      analogyHighlight = `Pada eksperimen ${readableTopic}, laju proses biologis dipengaruhi oleh faktor pembatas seperti intensitas cahaya, konsentrasi substrat, serta suhu optimum kerja enzim sebelum mengalami denaturasi.`;
-      socraticQuestion = `Jika suhu kamu naikkan melewati batas optimum 40°C pada slider, mengapa laju pembentukan gelembung oksigen justru menurun drastis meskipun cahayanya sangat terang?`;
+      analogyHighlight = `Pada sistem biologis ${readableTopic}, struktur organel dan membran selulosa sangat menentukan permeabilitas osmosis, sementara aktivitas enzimatik sangat bergantung pada suhu dan pH optimum sebelum laju reaksi jenuh.`;
+      socraticQuestion = `Jika suhu dinaikkan melampaui batas optimum 40°C pada slider, mengapa laju pembentukan gelembung oksigen atau aktivitas enzim justru merosot tajam meskipun konsentrasi substrat melimpah?`;
     } else {
-      analogyHighlight = `Lihat hubungan sebab-akibat antara jarak sumbu semi-mayor dan periode orbit pada eksperimen ${readableTopic}: gaya gravitasi sentripetal yang melemah sebanding kuadrat jarak menyebabkan periode orbit memanjang.`;
-      socraticQuestion = `Coba geser slider jarak orbit atau fraksi materi gelap di kanvas 3D: bagaimana perubahan variabel tersebut mengubah nilai rasio Hukum III Kepler atau kecepatan rotasi tepi galaksi?`;
+      analogyHighlight = `Perhatikan pergerakan benda langit pada modul ${readableTopic}: gaya gravitasi universal Newton yang berbanding terbalik dengan kuadrat jarak menjadi penentu lintasan elips dan rasio konstan kuadrat periode terhadap pangkat tiga jarak rata-rata sesuai Hukum Kepler.`;
+      socraticQuestion = `Bagaimana perubahan massa bintang induk atau penambahan fraksi materi gelap pada galaksi memengaruhi kecepatan rotasi bintang-bintang di tepi luar lintasan?`;
     }
   } else {
-    // Perguruan Tinggi (PT)
+    // Perguruan Tinggi
     if (domain === 'Fisika') {
-      analogyHighlight = `Dari tinjauan mekanika analitik tingkat Perguruan Tinggi (regresi ${analytics.equation}, R² = ${analytics.rSquared}), kita dapat mengamati bagaimana disipasi redaman viskos dan dekomposisi gaya non-konservatif memengaruhi gradien kurva empiris.`;
-      socraticQuestion = `Jika kamu memasukkan koefisien redaman atau memvariasikan sudut di dekat batas kritis gesek statis, bagaimana deviasi non-linier tersebut menggeser kemiringan garis regresi pada grafikmu?`;
+      analogyHighlight = `Dalam tinjauan mekanika analitik tingkat Perguruan Tinggi (regresi ${analytics.equation}, R² = ${analytics.rSquared.toFixed(3)}), dekomposisi gaya non-konservatif, disipasi viskositas fluida, dan persamaan diferensial gerak memisahkan respon transien dari kondisi tunak sistem.`;
+      socraticQuestion = `Bagaimana pengaruh koefisien gesek atau redaman viskos terhadap pergeseran kemiringan garis regresi saat Anda mendekati batas kestabilan sistem pada slider?`;
     } else if (domain === 'Kimia') {
-      analogyHighlight = `Secara termodinamika dan kesetimbangan ionik (regresi ${analytics.equation}, R² = ${analytics.rSquared}), dinamika sistem ini dikendalikan oleh persamaan Henderson-Hasselbalch, kapasitas bufer larutan, serta koreksi kuosien reaksi logaritmik pada persamaan Nernst dan Gibbs.`;
-      socraticQuestion = `Bagaimana pergeseran nilai pKa atau rasio aktivitas ionik [Anoda]/[Katoda] sejauh satu dekade mengubah kemiringan kurva potensial sel dan titik infleksi saat kamu menguji ulang slidernya?`;
+      analogyHighlight = `Secara termodinamika kesetimbangan kimia dan elektrokimia (regresi ${analytics.equation}, R² = ${analytics.rSquared.toFixed(3)}), profil potensial sel dikendalikan oleh persamaan Nernst logaritmik, sementara kapasitas penyangga larutan mengikuti persamaan Henderson-Hasselbalch di sekitar titik infleksi.`;
+      socraticQuestion = `Bagaimana perubahan rasio aktivitas ionik atau penambahan katalisator menggeser penghalang energi aktivasi (Ea) tanpa mengubah nilai perubahan energi bebas Gibbs (ΔG)?`;
     } else if (domain === 'Biologi') {
-      analogyHighlight = `Dalam tinjauan biofisika dan kinetika enzim Michaelis-Menten (regresi ${analytics.equation}, R² = ${analytics.rSquared}), laju reaksi jenuh pada V_max ketika seluruh sisi aktif enzim terikat substrat, sementara gradien potensial air mengendalikan plasmolisis sel.`;
-      socraticQuestion = `Bagaimana perubahan konsentrasi substrat terhadap konstanta afinitas K_m atau peningkatan molaritas sukrosa hipertonik mengubah kemiringan kurva respons biologis pada tabel pengamatanmu?`;
+      analogyHighlight = `Dalam perspektif biofisika sel dan kinetika Michaelis-Menten (regresi ${analytics.equation}, R² = ${analytics.rSquared.toFixed(3)}), potensial kimia air (Ψw = Ψs + Ψp) mengendalikan fluks osmosis melintasi membran semipermeabel, sedangkan saturasi sisi aktif enzim menentukan laju reaksi maksimum V_max.`;
+      socraticQuestion = `Bagaimana variasi konsentrasi solut hipertonik terhadap tekanan turgor sel atau penentuan nilai Km pada plot Lineweaver-Burk membuktikan afinitas enzim terhadap substratnya?`;
     } else {
-      analogyHighlight = `Dalam tinjauan astrofisika sistemik (regresi ${analytics.equation}, R² = ${analytics.rSquared}), penyimpangan dari dinamika dua-benda Keplerian murni mencerminkan distribusi potensial gravitasi halo materi gelap serta kedalaman fotometrik transit eksoplanet.`;
-      socraticQuestion = `Jika kamu memvariasikan profil massa bintang induk atau fraksi halo materi gelap pada slider, bagaimana gradien kurva rotasi galaksi dan konstanta proporsionalitas Kepler berevolusi?`;
+      analogyHighlight = `Dalam astrofisika sistemik (regresi ${analytics.equation}, R² = ${analytics.rSquared.toFixed(3)}), kurva rotasi datar galaksi mengonfirmasi keberadaan distribusi halo materi gelap isotermal, sementara kedalaman transit fotometrik eksoplanet memberikan rasio penampang geometris (Rp/R*)².`;
+      socraticQuestion = `Bagaimana deviasi kecepatan observasi terhadap kurva Keplerian di radius galaktosentrik luar membuktikan keberadaan massa halo materi gelap yang tidak tampak?`;
     }
   }
 
@@ -3130,9 +3174,125 @@ export function generateSocraticDrLabMuResponse(
     dataHighlight: analogyHighlight,
     socraticQuestion,
     detectedTrigger: 'concept-analogy',
-    formattedText: `${observation} ${analogyHighlight} ${socraticQuestion}`,
+    formattedText: `${observation}\n\n${analogyHighlight}\n\n${socraticQuestion}`,
   };
 }
 
+// ============================================================================
+// FITUR 5: SIMULASI BAHAYA KESELAMATAN (SAFETY HAZARD SIMULATOR)
+// ============================================================================
 
+export interface SafetyHazardAlert {
+  isHazardous: boolean;
+  hazardCode: string | null;
+  domain: 'Fisika' | 'Kimia';
+  title: string;
+  headlineAlert: string;
+  scientificExplanation: string;
+  mitigationInstruction: string;
+  triggerParamSummary: string;
+}
 
+export function evaluateSafetyHazard(
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi',
+  physicsParams?: PhysicsParams,
+  chemistryParams?: ChemistryParams
+): SafetyHazardAlert {
+  if (domain === 'Kimia' && chemistryParams) {
+    const temp =
+      chemistryParams.mode === 'reaction-kinetics-arrhenius'
+        ? chemistryParams.kineticsTempC ?? chemistryParams.initialTempC
+        : chemistryParams.initialTempC;
+    const conc = Math.max(
+      chemistryParams.reactantConcentration || 0,
+      chemistryParams.analyteAcidConc || 0,
+      chemistryParams.titrantBaseConc || 0,
+      chemistryParams.kineticsConcA || 0
+    );
+    const hasCatalyst = Boolean(chemistryParams.useCatalyst);
+
+    if (temp > 85 && conc >= 1.8 && !hasCatalyst) {
+      return {
+        isHazardous: true,
+        hazardCode: 'CHEM_THERMAL_RUNAWAY',
+        domain: 'Kimia',
+        title: 'Peringatan Keselamatan: Reaksi Eksotermik di Luar Kendali!',
+        headlineAlert:
+          'Peringatan Keselamatan: Reaksi eksotermik di luar kendali! Amati mengapa hal ini berbahaya di laboratorium riil.',
+        scientificExplanation: `Anda mencampurkan reaktan berkonsentrasi tinggi ([M] = ${conc.toFixed(2)} mol/L) pada suhu awal ekstrem (${temp}°C > 85°C) tanpa katalis pengendali/pendingin. Menurut persamaan Arrhenius k = A·exp(-Ea/RT), laju pelepasan kalor meningkat secara eksponensial melampaui kapasitas disipasi kalorimeter, yang di laboratorium nyata dapat memicu pendidihan eksplosif (thermal runaway), percikan asam korosif, dan pecahnya wadah kaca borosilikat.`,
+        mitigationInstruction:
+          'Turunkan suhu awal larutan di bawah 80°C, kurangi konsentrasi molar reaktan (< 1.8 M), atau aktifkan Katalis Pengendali pada panel variabel.',
+        triggerParamSummary: `T₀ = ${temp}°C (> 85°C), [M] = ${conc.toFixed(2)} M, Katalis = Nonaktif`,
+      };
+    }
+
+    if (
+      chemistryParams.mode === 'ideal-gas-boyle' &&
+      (chemistryParams.gasTemperatureK ?? 300) > 650 &&
+      (chemistryParams.gasVolumeL ?? 10) < 3.5
+    ) {
+      return {
+        isHazardous: true,
+        hazardCode: 'CHEM_OVERPRESSURE_VESSEL',
+        domain: 'Kimia',
+        title: 'Peringatan Keselamatan: Tekanan Bejana Gas Melampaui Batas Kritis!',
+        headlineAlert:
+          'Peringatan Keselamatan: Reaksi eksotermik & tekanan gas di luar kendali! Amati mengapa hal ini berbahaya di laboratorium riil.',
+        scientificExplanation: `Pemanasan gas pada suhu ${chemistryParams.gasTemperatureK} K dalam volume sempit (${chemistryParams.gasVolumeL} L) menghasilkan lonjakan tekanan ekstrem sesuai P = nRT/V yang melampaui batas ketahanan katup pengaman silinder kaca.`,
+        mitigationInstruction:
+          'Perbesar volume ruang gas (V > 4.0 L) atau turunkan temperatur absolut gas.',
+        triggerParamSummary: `T = ${chemistryParams.gasTemperatureK} K, V = ${chemistryParams.gasVolumeL} L`,
+      };
+    }
+  }
+
+  if (domain === 'Fisika' && physicsParams) {
+    const pendAngle = Math.abs(physicsParams.pendulumAngle ?? 0);
+    if (physicsParams.mode === 'pendulum-harmonic' && pendAngle > 80) {
+      return {
+        isHazardous: true,
+        hazardCode: 'PHYS_PENDULUM_EXTREME_ANGLE',
+        domain: 'Fisika',
+        title: 'Peringatan Keselamatan: Sudut Ayunan Pendulum Melampaui Batas Aman (> 80°)!',
+        headlineAlert:
+          'Peringatan Keselamatan: Beban & sudut simpangan melampaui batas statif! Amati mengapa hal ini berbahaya di laboratorium riil.',
+        scientificExplanation: `Simpangan sudut awal θ = ${pendAngle}° (> 80°) menyebabkan tegangan tali maksimum T_max = m·g·(3 - 2·cos θ₀) di titik terendah melonjak hampir 3 kali lipat berat beban, ditambah hentakan kejut (slack-snap) yang di laboratorium nyata dapat menggulingkan statif penyangga atau memutuskan kawat penggantung.`,
+        mitigationInstruction:
+          'Turunkan sudut simpangan pendulum ke rentang aman (θ ≤ 75°) agar statif tetap stabil dan aproksimasi harmonik berlaku.',
+        triggerParamSummary: `Sudut Ayunan θ = ${pendAngle}° (> 80°), L = ${physicsParams.pendulumLength ?? 1.2} m`,
+      };
+    }
+
+    const isWireOverload =
+      (physicsParams.mass >= 24 && Math.abs(physicsParams.appliedForce) >= 180) ||
+      (physicsParams.mode === 'spring-hooke' &&
+        Math.abs(physicsParams.springDisplacement) >= 1.8 &&
+        physicsParams.springConstantK >= 180);
+
+    if (isWireOverload) {
+      return {
+        isHazardous: true,
+        hazardCode: 'PHYS_WIRE_BREAKING_STRESS',
+        domain: 'Fisika',
+        title: 'Peringatan Keselamatan: Beban Melampaui Batas Regangan Putus Kawat/Pegas!',
+        headlineAlert:
+          'Peringatan Keselamatan: Tegangan mekanik melampaui batas elastisitas (Ultimate Tensile Strength)! Amati mengapa hal ini berbahaya di laboratorium riil.',
+        scientificExplanation: `Kombinasi beban massa tinggi (${physicsParams.mass} kg) dan gaya tarik/pegas ekstrem menghasilkan tegangan mekanik σ = F/A yang melampaui batas regangan putus (breaking stress) kawat baja laboratorium. Di laboratorium riil, putusnya kawat bertegangan tinggi dapat melontarkan beban logam secara tiba-tiba (whiplash hazard).`,
+        mitigationInstruction:
+          'Kurangi massa beban (< 22 kg), kecilkan gaya tarik, atau kurangi simpangan pegas di bawah batas elastis Hooke.',
+        triggerParamSummary: `m = ${physicsParams.mass} kg, F = ${physicsParams.appliedForce} N, Δx = ${physicsParams.springDisplacement} m`,
+      };
+    }
+  }
+
+  return {
+    isHazardous: false,
+    hazardCode: null,
+    domain: domain === 'Kimia' ? 'Kimia' : 'Fisika',
+    title: '',
+    headlineAlert: '',
+    scientificExplanation: '',
+    mitigationInstruction: '',
+    triggerParamSummary: '',
+  };
+}

@@ -83,6 +83,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     renderer.toneMappingExposure = 1.1;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.domElement.style.touchAction = 'none';
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 

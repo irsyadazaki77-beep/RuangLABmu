@@ -11,6 +11,7 @@ import {
   AcademicReportData,
   generateAcademicReportHTML,
   downloadAcademicReportFile,
+  exportOfficialLabReportPDF,
 } from '../../utils/academicReportExporter';
 import { labSound } from '../../utils/soundEngine';
 
@@ -39,6 +40,11 @@ export const AcademicReportPreviewModal: React.FC<
     }
   };
 
+  const handleExportPDF = () => {
+    labSound.playClick(760);
+    exportOfficialLabReportPDF(reportData);
+  };
+
   return (
     <div
       className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-3 sm:p-6"
@@ -60,7 +66,7 @@ export const AcademicReportPreviewModal: React.FC<
                 </h3>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 inline-flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" />
-                  Siap Cetak
+                  Siap Cetak / PDF
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
@@ -72,11 +78,19 @@ export const AcademicReportPreviewModal: React.FC<
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              onClick={handleExportPDF}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Unduh PDF Resmi (.PDF)
+            </button>
+            <button
+              type="button"
               onClick={handlePrintIframe}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              Cetak / Simpan PDF
+              Cetak A4
             </button>
             <button
               type="button"
@@ -84,7 +98,7 @@ export const AcademicReportPreviewModal: React.FC<
                 labSound.playClick();
                 downloadAcademicReportFile(reportData, 'html');
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-sky-400" />
               Unduh .HTML

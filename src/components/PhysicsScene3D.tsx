@@ -20,6 +20,7 @@ interface PhysicsScene3DProps {
   metrics: PhysicsMetrics;
   instant: KinematicsInstant;
   simTime: number;
+  simTimeRef?: React.RefObject<number>;
   showVectorOverlay: boolean;
   simFrame?: SimulationFrame | null;
   remoteCursors?: Record<string, SpatialCursorPayload>;
@@ -121,6 +122,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   metrics,
   instant,
   simTime,
+  simTimeRef,
   showVectorOverlay,
   simFrame,
   remoteCursors,
@@ -184,6 +186,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     renderer.toneMappingExposure = 1.1;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.domElement.style.touchAction = 'none';
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
@@ -776,6 +779,36 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     }
 
     // =========================================================
+    // 9. SAFETY HAZARD 3D SMOKE & ALARM LIGHT GROUP (FITUR 5)
+    // =========================================================
+    const hazardGroup = new THREE.Group();
+    hazardGroup.visible = false;
+    scene.add(hazardGroup);
+
+    const hazardLight = new THREE.PointLight(0xff1e42, 0, 18);
+    hazardLight.position.set(0, 4.5, 2.0);
+    hazardGroup.add(hazardLight);
+
+    const HAZARD_SMOKE_COUNT = 28;
+    const hazardSmokeMeshes: THREE.Mesh[] = [];
+    const smokeGeo = new THREE.SphereGeometry(0.24, 12, 12);
+    const smokeMat = new THREE.MeshBasicMaterial({
+      color: 0xef4444,
+      transparent: true,
+      opacity: 0.45,
+    });
+    for (let i = 0; i < HAZARD_SMOKE_COUNT; i++) {
+      const sMesh = new THREE.Mesh(smokeGeo, smokeMat.clone());
+      sMesh.position.set(
+        (Math.random() - 0.5) * 4.5,
+        0.5 + Math.random() * 3.5,
+        (Math.random() - 0.5) * 2.5
+      );
+      hazardSmokeMeshes.push(sMesh);
+      hazardGroup.add(sMesh);
+    }
+
+    // =========================================================
     // DIRECT 3D MESH DRAGGING (RAYCASTER GIZMOS)
     // =========================================================
     let isDragging = false;
@@ -849,12 +882,28 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       const {
         params: p,
         metrics: m,
-        instant: inst,
-        simTime: t,
+        instant: baseInst,
+        simTime: baseTime,
         showVectorOverlay: showVec,
       } = latestRef.current;
 
-      inclineGroup.visible = p.mode === 'newton-incline';
+      const nowSec = performance.now() / 1000;
+      const t = simTimeRef && typeof simTimeRef.current === 'number' ? simTimeRef.current : baseTime;
+      const inst = simTimeRef && typeof simTimeRef.current === 'number'
+        ? evaluateKinematicsAtTime(p, t)
+        : baseInst;
+
+      const isKnownSpecialMode =
+        p.mode === 'projectile-gravity' ||
+        (p.mode as string) === 'projectile-motion' ||
+        p.mode === 'spring-hooke' ||
+        p.mode === 'pendulum-harmonic' ||
+        p.mode === 'stokes-viscosity' ||
+        p.mode === 'ohm-wheatstone' ||
+        p.mode === 'optics-young-slit' ||
+        p.mode === 'photoelectric-planck';
+
+      inclineGroup.visible = p.mode === 'newton-incline' || !isKnownSpecialMode;
       projectileGroup.visible = p.mode === 'projectile-gravity' || (p.mode as string) === 'projectile-motion';
       springGroup.visible = p.mode === 'spring-hooke';
       pendulumGroup.visible = p.mode === 'pendulum-harmonic';
@@ -863,17 +912,73 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       youngSlitGroup.visible = p.mode === 'optics-young-slit';
       photoelectricGroup.visible = p.mode === 'photoelectric-planck';
 
-      // 1. Incline update
-      if (p.mode === 'newton-incline') {
-        const thetaRad = (p.inclineAngle * Math.PI) / 180;
+      // Safety Hazard 3D Smoke & Pulsing Red Light (Fitur 5)
+      const isHazardous =
+        (p.mode === 'pendulum-harmonic' && Math.abs(p.pendulumAngle ?? 0) > 80) ||
+        (p.mass >= 24 && Math.abs(p.appliedForce) >= 180) ||
+        (p.mode === 'spring-hooke' && Math.abs(p.springDisplacement) >= 1.8 && p.springConstantK >= 180);
+
+      hazardGroup.visible = isHazardous;
+      if (isHazardous) {
+        hazardLight.intensity = 3.5 + Math.sin(nowSec * 14) * 2.5;
+        hazardSmokeMeshes.forEach((sMesh, idx) => {
+          const cycle = (nowSec * 1.4 + idx * 0.17) % 1.0;
+          sMesh.position.y = 0.4 + cycle * 4.2;
+          sMesh.position.x = Math.sin(nowSec * 2.2 + idx) * (1.2 + cycle * 1.6);
+          sMesh.position.z = Math.cos(nowSec * 1.8 + idx) * (0.8 + cycle * 1.1);
+          sMesh.scale.setScalar(0.6 + cycle * 1.8);
+          (sMesh.material as THREE.MeshBasicMaterial).opacity = (1 - cycle) * 0.55;
+        });
+      }
+
+      // 1. Incline & General Mechanics update
+      if (inclineGroup.visible) {
+        const effectiveAngle = p.mode === 'newton-incline' ? p.inclineAngle : 0;
+        const thetaRad = (effectiveAngle * Math.PI) / 180;
         pivotGroup.rotation.z = thetaRad;
         const strutH = Math.max(0.15, 7.8 * Math.tan(thetaRad));
         supportPillar.scale.set(1, strutH, 1);
         supportPillar.position.set(3.2, 0.24 + strutH / 2, 0);
 
-        const rawDisp = p.initialVelocity * t + 0.5 * m.acceleration * t * t;
-        const rampPos = 1.6 + Math.max(-1.2, Math.min(28, rawDisp)) * 0.22;
+        const cycleT = t % 3.2;
+        const rawDisp = p.initialVelocity * cycleT + 0.5 * m.acceleration * cycleT * cycleT;
+        const wrappedDisp = ((rawDisp % 26) + 26) % 26;
+        const rampPos = 1.6 + Math.max(-1.0, Math.min(26, Math.abs(m.acceleration) > 0.05 ? wrappedDisp : rawDisp)) * 0.22;
         blockGroup.position.set(rampPos, 0, 0);
+
+        // Update 3D Force Vectors on Block
+        if (showVec) {
+          const origin = new THREE.Vector3(0, 0.45, 0);
+          orientAndScaleArrow(
+            arrowApplied,
+            origin,
+            new THREE.Vector3(p.appliedForce >= 0 ? 1 : -1, 0, 0),
+            Math.min(2.6, Math.abs(p.appliedForce) / 35)
+          );
+          orientAndScaleArrow(
+            arrowFriction,
+            origin,
+            new THREE.Vector3(m.netForce >= 0 ? -1 : 1, 0, 0),
+            Math.min(2.2, Math.abs(m.frictionForce) / 25)
+          );
+          orientAndScaleArrow(
+            arrowNormal,
+            origin,
+            new THREE.Vector3(0, 1, 0),
+            Math.min(2.4, m.normalForce / 45)
+          );
+          orientAndScaleArrow(
+            arrowWeight,
+            origin,
+            new THREE.Vector3(-Math.sin(thetaRad), -Math.cos(thetaRad), 0),
+            Math.min(2.5, m.weightForce / 45)
+          );
+        } else {
+          arrowApplied.visible = false;
+          arrowFriction.visible = false;
+          arrowNormal.visible = false;
+          arrowWeight.visible = false;
+        }
       }
 
       // 2. Projectile update
@@ -882,15 +987,35 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         const scaleX = 10.4 / maxRange;
         const scaleY = 4.8 / Math.max(18, m.maxProjectileHeight * 1.15);
         cannonPivot.rotation.z = (p.launchAngle * Math.PI) / 180;
-        const curX = -5.2 + inst.positionX * scaleX;
-        const curY = 0.25 + inst.positionY * scaleY;
+
+        // Update parabolic trajectory curve points dynamically
+        const flightT = Math.max(0.5, m.timeOfFlight);
+        const posAttr = trajGeo.getAttribute('position') as THREE.BufferAttribute;
+        for (let i = 0; i <= 60; i++) {
+          const sampleT = (i / 60) * flightT;
+          const sampleInst = evaluateKinematicsAtTime(p, sampleT);
+          const sx = -5.2 + sampleInst.positionX * scaleX;
+          const sy = Math.max(0.05, 0.25 + sampleInst.positionY * scaleY);
+          posAttr.setXYZ(i, sx, sy, 0);
+        }
+        posAttr.needsUpdate = true;
+        trajLine.computeLineDistances();
+
+        const loopT = t % Math.max(1.5, flightT + 0.35);
+        const loopInst = evaluateKinematicsAtTime(p, Math.min(loopT, flightT));
+        const curX = -5.2 + loopInst.positionX * scaleX;
+        const curY = 0.25 + loopInst.positionY * scaleY;
         projectileBall.position.set(curX, curY, 0);
         targetRing.position.set(-5.2 + m.projectileRange * scaleX, 0.03, 0);
       }
 
       // 3. Spring update
       else if (p.mode === 'spring-hooke') {
-        const massX = 0.5 + inst.positionX * 2.1;
+        const omega = Math.sqrt(Math.max(1, p.springConstantK) / Math.max(0.2, p.mass));
+        const amp = Math.abs(p.springDisplacement) > 0.05 ? p.springDisplacement : 0.85;
+        const damp = Math.exp(-0.04 * (p.dampingCoeff ?? 0.15) * (t % 6.0));
+        const liveX = amp * damp * Math.cos(omega * t);
+        const massX = 0.5 + liveX * 2.1;
         springMassBlock.position.set(massX, 0.87, 0);
         const span = Math.max(0.8, massX - 0.65 - -4.95);
         springRings.forEach((ring, idx) => {
@@ -901,7 +1026,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       // 4. Pendulum update
       else if (p.mode === 'pendulum-harmonic') {
         const L = Math.max(0.3, p.pendulumLength ?? 1.2);
-        const thetaRad = inst.pendulumAngleRad ?? ((p.pendulumAngle ?? 25) * Math.PI) / 180 * Math.cos(2.8 * t);
+        const omegaP = Math.sqrt(Math.max(1.0, p.gravity) / L);
+        const maxAngleRad = ((p.pendulumAngle ?? 25) * Math.PI) / 180;
+        const thetaRad = maxAngleRad * Math.cos(omegaP * t);
         pendPivotGroup.rotation.z = thetaRad;
         pendRod.scale.set(1, L * 1.5, 1);
         pendRod.position.set(0, -L * 0.75, 0);
@@ -911,7 +1038,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       // 5. Stokes update
       else if (p.mode === 'stokes-viscosity') {
         const vt = m.stokesTerminalVelocity ?? 0.8;
-        const yPos = 4.6 - ((t * vt) % 3.6);
+        const yPos = 4.6 - ((t * Math.max(0.35, vt)) % 3.6);
         stokesSphere.position.y = yPos;
         const rScale = (p.sphereRadius ?? 5) / 10;
         stokesSphere.scale.setScalar(rScale);
@@ -925,7 +1052,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       else if (p.mode === 'ohm-wheatstone') {
         const ig = m.galvanometerCurrent ?? 0;
         const needleAngle = Math.max(-0.6, Math.min(0.6, (ig / 50) * Math.PI * 0.4));
-        galvoNeedle.rotation.y = needleAngle;
+        galvoNeedle.rotation.y = needleAngle + Math.sin(nowSec * 6) * 0.015;
       }
 
       // 7. Young's slit update
@@ -934,7 +1061,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         const beamColor = wavelengthToHex(wl);
         (laserBeamLine.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
 
-        // Redraw interference fringes on screen canvas
         const ctx = fringeCanvas.getContext('2d');
         if (ctx) {
           ctx.fillStyle = '#050811';
@@ -961,10 +1087,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
             return;
           }
           particle.visible = true;
-          const pFrac = ((t * 1.5 + idx / PE_PARTICLES_COUNT) % 1.0);
+          const pFrac = ((nowSec * 0.85 + idx / PE_PARTICLES_COUNT) % 1.0);
           const stopV = p.stoppingPotential ?? 1.5;
           const maxKe = m.photoelectricMaxKe ?? 1.2;
-          // If stopped, parabolic turnaround
           if (stopV > maxKe) {
             const turnX = -1.1 + (maxKe / stopV) * 2.0;
             const x = pFrac < 0.5 ? -1.1 + (turnX - -1.1) * (pFrac * 2) : turnX - (turnX - -1.1) * ((pFrac - 0.5) * 2);
