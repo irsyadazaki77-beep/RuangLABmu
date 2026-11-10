@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { AcademicLevel } from '../utils/scienceEngine';
+import { LAB_EVENTS, emitLabEvent } from '../utils/labEventBus';
 
 export type LabDomain = 'physics' | 'chemistry' | 'biology' | 'astronomy';
 export type IndonesianDomain = 'fisika' | 'kimia' | 'biologi' | 'astronomi';
@@ -44,6 +45,9 @@ export interface LabState {
   setActiveDomain: (domain: AnyLabDomain) => void;
   setActiveModule: (moduleId: string) => void;
   setIsSimulating: (isSimulating: boolean | ((prev: boolean) => boolean)) => void;
+  toggleSimulation: () => void;
+  triggerResetTrial: () => void;
+  triggerCaptureSnapshot: () => void;
   setPlaybackSpeed: (speed: number) => void;
   toggleSound: () => void;
   setSoundEnabled: (enabled: boolean) => void;
@@ -57,7 +61,7 @@ export interface LabState {
 export const useLabStore = create<LabState>((set, get) => ({
   activeDomain: 'physics',
   activeModuleId: 'newton-incline',
-  isSimulating: false,
+  isSimulating: true,
   playbackSpeed: 1.0,
   soundEnabled: true,
   academicLevel: 'sma',
@@ -82,8 +86,24 @@ export const useLabStore = create<LabState>((set, get) => ({
     }
   },
 
+  toggleSimulation: () => {
+    const next = !get().isSimulating;
+    set({ isSimulating: next });
+    emitLabEvent(LAB_EVENTS.TOGGLE_SIMULATION, { isSimulating: next });
+  },
+
+  triggerResetTrial: () => {
+    set({ isSimulating: false });
+    emitLabEvent(LAB_EVENTS.RESET_TRIAL, { timestamp: Date.now() });
+  },
+
+  triggerCaptureSnapshot: () => {
+    emitLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, { timestamp: Date.now() });
+  },
+
   setPlaybackSpeed: (playbackSpeed: number) => {
     set({ playbackSpeed });
+    emitLabEvent(LAB_EVENTS.CHANGE_SPEED, { speed: playbackSpeed });
   },
 
   toggleSound: () => {

@@ -59,7 +59,7 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
   onQuickRecord,
   onProceedToAnalysis,
 }) => {
-  const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [collapsed, setCollapsed] = useState<boolean>(true);
 
   const steps = [
     {
@@ -93,6 +93,23 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
 
   const completedCount = steps.filter((s) => s.done).length;
 
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          labSound.playClick();
+          setCollapsed(false);
+        }}
+        className="pointer-events-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full lab-glass-panel border border-slate-300/80 dark:border-slate-700/80 text-xs font-bold text-slate-800 dark:text-slate-100 shadow-lg hover:scale-[1.02] transition-all cursor-pointer"
+        title="Buka Panduan Praktikum 3D"
+      >
+        <span aria-hidden="true">🧭</span>
+        <span>Panduan ({completedCount}/3)</span>
+      </button>
+    );
+  }
+
   return (
     <div className="pointer-events-auto max-w-xs sm:max-w-sm rounded-2xl bg-slate-950/90 backdrop-blur-md border border-slate-800/90 text-xs text-slate-100 shadow-2xl overflow-hidden transition-all">
       <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 border-b border-slate-800/80">
@@ -109,12 +126,12 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
           type="button"
           onClick={() => {
             labSound.playClick();
-            setCollapsed((c) => !c);
+            setCollapsed(true);
           }}
           className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer shrink-0"
-          title={collapsed ? 'Tampilkan Langkah Mikro' : 'Ringkas Panduan'}
+          title="Ringkas Panduan"
         >
-          {collapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+          <ChevronDown className="w-3.5 h-3.5" />
         </button>
       </div>
 

@@ -495,77 +495,8 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
 
         {/* VIEW 4: Student Workflow Stage 2 (3D Simulation Cockpit & Docking Split-View) */}
         {userRole === 'siswa' && !isLobbyMode && workflowStep === 2 && (
-          <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden">
-            {/* MISSION PROGRESS BAR ABOVE 3D CANVAS (FITUR 3) */}
-            <div className="shrink-0 max-w-[1600px] w-full mx-auto px-4 pt-2.5">
-              <div className="rounded-xl bg-slate-900/95 border border-slate-800 px-3.5 py-2 flex flex-wrap items-center justify-between gap-3 shadow-md">
-                <div className="flex flex-wrap items-center gap-2.5 min-w-0">
-                  <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-400 shrink-0">
-                    <Target className="w-4 h-4" />
-                    <span>Misi Praktikum:</span>
-                  </div>
-                  <select
-                    aria-label="Pilih Misi Praktikum"
-                    value={activeMission.id}
-                    onChange={(e) => {
-                      labSound.playClick();
-                      setSelectedMissionId(e.target.value);
-                    }}
-                    className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-bold text-white cursor-pointer"
-                  >
-                    {domainMissions.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.title} ({m.targetCondition.metricLabel}: {m.targetCondition.targetVal}{' '}
-                        {m.targetCondition.unit})
-                      </option>
-                    ))}
-                  </select>
-                  <span className="hidden xl:inline text-[11px] text-slate-400 truncate max-w-md">
-                    {activeMission.storyline}
-                  </span>
-                </div>
-
-                {/* Live Progress Bar & Badge Status */}
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="flex items-center gap-2 text-xs font-mono">
-                    <span className="text-slate-400">{activeMission.targetCondition.metricLabel}:</span>
-                    <span
-                      className={`font-bold tabular-nums ${
-                        missionProgress.isCompleted ? 'text-emerald-400' : 'text-sky-400'
-                      }`}
-                    >
-                      {missionProgress.currentValue} {activeMission.targetCondition.unit}
-                    </span>
-                    <span className="text-slate-500">
-                      (Target {activeMission.targetCondition.minVal}–{activeMission.targetCondition.maxVal})
-                    </span>
-                  </div>
-
-                  <div className="w-28 h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-300 ${
-                        missionProgress.isCompleted ? 'bg-emerald-400' : 'bg-sky-500'
-                      }`}
-                      style={{ width: `${missionProgress.progressPct}%` }}
-                    />
-                  </div>
-
-                  {missionProgress.isCompleted || completedChallengeIds.includes(activeMission.id) ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-[11px] font-bold text-emerald-300">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{activeMission.rewardBadge}</span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-[11px] font-mono text-slate-400">
-                      <Trophy className="w-3 h-3 text-amber-400" />
-                      <span>Galat: {missionProgress.errorPct}%</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 min-h-0 relative overflow-y-auto">
+          <div className="flex-1 min-h-0 flex overflow-hidden h-full w-full">
+            <div className="flex-1 min-h-0 flex overflow-hidden relative w-full h-full">
               {activeDomain === 'physics' && (
                 <PhysicsLabView
                   params={physicsParams}

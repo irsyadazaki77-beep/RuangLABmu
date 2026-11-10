@@ -8,6 +8,8 @@ import {
   BarChart3,
   X,
   Gauge,
+  Target,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   CircularGaugeMeter,
@@ -44,6 +46,9 @@ export interface CompactTelemetryRibbonProps {
     microscopicDetail: string;
     accentColor?: string;
   };
+  recordsCount?: number;
+  missionTitle?: string;
+  missionObjective?: string;
   extraBadge?: React.ReactNode;
 }
 
@@ -57,12 +62,6 @@ export interface LabWorkflowStagePillProps {
   hasHypothesis?: boolean;
 }
 
-/**
- * Workflow-Stage Progressive Disclosure Stepper Pill:
- * - Mode 1: [1. Hipotesis & Persiapan]
- * - Mode 2: [2. Eksperimen Aktif]
- * - Mode 3: [3. Analisis & Laporan]
- */
 export const LabWorkflowStagePill: React.FC<LabWorkflowStagePillProps> = ({
   activeStage,
   onChangeStage,
@@ -170,20 +169,49 @@ export const LabWorkflowStagePill: React.FC<LabWorkflowStagePillProps> = ({
   );
 };
 
+const DEFAULT_DOMAIN_MISSIONS: Record<
+  CompactTelemetryRibbonProps['domain'],
+  { title: string; objective: string }
+> = {
+  Fisika: {
+    title: 'Eksperimen Kinematika & Dinamika',
+    objective:
+      'Variasikan variabel bebas pada panel kanan dan rekam minimal 3 titik data untuk menguji linearitas R².',
+  },
+  Kimia: {
+    title: 'Eksperimen Reaksi & Kesetimbangan',
+    objective:
+      'Amati perubahan parameter kimiawi secara real-time dan rekam minimal 3 titik data pengamatan.',
+  },
+  Biologi: {
+    title: 'Observasi Bioreaktor & Fisiologi',
+    objective:
+      'Uji pengaruh faktor lingkungan terhadap respons biologis dan rekam minimal 3 titik data.',
+  },
+  Astronomi: {
+    title: 'Observatorium Astrofisika & Orbit',
+    objective:
+      'Variasikan parameter orbit/bintang dan rekam minimal 3 titik data untuk evaluasi Hukum Kepler/Hubble.',
+  },
+};
+
 /**
- * Slim horizontal telemetry ribbon (`max-h-[48px]` / `h-12`) mounted at the top of the 3D canvas.
- * Displays key numeric readouts in `IBM Plex Mono` (`tabular-nums`) + live SVG mini-sparkline,
- * with Click-to-Expand popover for full-size `CircularGaugeMeter` & `LiveTelemetryOscilloscope`.
+ * Slim 48px (`h-12`) full-bleed horizontal telemetry ribbon mounted at the top of the 3D canvas column.
+ * Includes a compact `🎯 Misi Aktif` popover badge on the left, live numeric readouts in `IBM Plex Mono`
+ * (`tabular-nums`) + SVG mini-sparkline, and Click-to-Expand popover for `CircularGaugeMeter` & `LiveTelemetryOscilloscope`.
  */
 export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
   domain,
   metrics,
   oscilloscope,
+  recordsCount = 0,
+  missionTitle,
+  missionObjective,
   extraBadge,
 }) => {
-  const [expandedId, setExpandedId] = useState<string | 'oscilloscope' | null>(
-    null
-  );
+  const [expandedId, setExpandedId] = useState<
+    string | 'oscilloscope' | 'mission' | null
+  >(null);
   const [historyMap, setHistoryMap] = useState<Record<string, number[]>>({});
 
   // Record 18-point rolling sparkline history for each metric
@@ -223,15 +251,56 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
   };
 
   const activeMetric = metrics.find((m) => m.id === expandedId) ?? null;
+  const effectiveMissionTitle =
+    missionTitle || DEFAULT_DOMAIN_MISSIONS[domain].title;
+  const effectiveMissionObj =
+    missionObjective || DEFAULT_DOMAIN_MISSIONS[domain].objective;
+  const isMissionComplete = recordsCount >= 3;
 
   return (
     <div
       data-testid="compact-telemetry-ribbon"
-      className="relative z-30 w-full select-none"
+      className="relative z-30 w-full h-12 shrink-0 border-b border-[var(--comfort-border)] bg-[var(--comfort-surface)] select-none"
     >
       {/* Slim 48px Horizontal Telemetry Bar */}
-      <div className="lab-glass-panel h-12 max-h-[48px] px-3 rounded-xl flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+      <div className="h-full px-3 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Compact Active Mission Badge at Far Left */}
+          <button
+            type="button"
+            data-testid="telemetry-mission-badge"
+            onClick={() => {
+              labSound.playClick();
+              setExpandedId((prev) => (prev === 'mission' ? null : 'mission'));
+            }}
+            className={`h-8 px-2.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+              expandedId === 'mission'
+                ? 'bg-amber-500/20 border-amber-500 text-amber-900 dark:text-amber-200 shadow-xs'
+                : isMissionComplete
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/25'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20'
+            }`}
+            title="Klik untuk melihat detail Misi Praktikum & progres pengumpulan data"
+          >
+            <span aria-hidden="true">🎯</span>
+            <span>Misi Aktif</span>
+            <span
+              className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold tabular-nums ${
+                isMissionComplete
+                  ? 'bg-emerald-500/25 text-emerald-900 dark:text-emerald-200'
+                  : 'bg-amber-500/20 text-amber-900 dark:text-amber-200'
+              }`}
+            >
+              {Math.min(3, recordsCount)}/3
+            </span>
+          </button>
+
+          <div
+            className="w-px h-5 bg-[var(--comfort-border)] mx-0.5 shrink-0"
+            aria-hidden="true"
+          />
+
+          {/* Telemetry Metrics */}
           {metrics.map((m) => {
             const isSelected = expandedId === m.id;
             const precision = m.precision ?? (Math.abs(m.value) >= 100 ? 1 : 2);
@@ -250,7 +319,7 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                   setExpandedId((prev) => (prev === m.id ? null : m.id));
                 }}
                 title={`Klik untuk membuka instrumen gauge & osiloskop: ${m.label}`}
-                className={`h-9 px-2.5 rounded-lg border text-left transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+                className={`h-8 px-2.5 rounded-lg border text-left transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
                   isSelected
                     ? 'bg-sky-500/20 border-sky-400 text-slate-900 dark:text-white shadow-xs'
                     : isWarn
@@ -318,7 +387,7 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
             className={`h-8 px-2.5 rounded-lg border text-[11px] font-mono font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
               expandedId === 'oscilloscope'
                 ? 'bg-sky-500 text-slate-950 border-sky-400 font-bold'
-                : 'bg-slate-900/80 text-sky-300 border-slate-700 hover:border-sky-400/60'
+                : 'bg-slate-900/5 dark:bg-slate-900/80 text-sky-700 dark:text-sky-300 border-slate-300/80 dark:border-slate-700 hover:border-sky-400/60'
             }`}
             title="Klik untuk membuka Osiloskop Telemetri & Gauge Meter lengkap"
           >
@@ -333,7 +402,7 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
         </div>
       </div>
 
-      {/* Click-to-Expand Popover Panel (Gauge Meters + LiveTelemetryOscilloscope) */}
+      {/* Click-to-Expand Popover Panel (Mission Details OR Gauge Meters + LiveTelemetryOscilloscope) */}
       <AnimatePresence>
         {expandedId !== null && (
           <>
@@ -341,73 +410,133 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
               className="fixed inset-0 z-30"
               onClick={() => setExpandedId(null)}
             />
-            <motion.div
-              initial={{ opacity: 0, y: -6, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.98 }}
-              transition={{ duration: 0.16 }}
-              data-testid="telemetry-expanded-popover"
-              className="absolute left-0 right-0 top-14 z-40 lab-glass-panel rounded-2xl p-4 shadow-2xl space-y-3"
-            >
-              <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800 pb-2">
-                <div className="flex items-center gap-2">
-                  <Gauge className="w-4 h-4 text-sky-500 dark:text-sky-400" />
-                  <span className="text-xs font-bold text-slate-900 dark:text-white">
-                    Instrumen Telemetri Presisi & Osiloskop ({domain})
-                  </span>
-                  {activeMetric && (
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-sky-500/15 text-sky-600 dark:text-sky-300 border border-sky-500/30">
-                      Fokus: {activeMetric.label}
+            {expandedId === 'mission' ? (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                transition={{ duration: 0.16 }}
+                data-testid="telemetry-mission-popover"
+                className="absolute left-3 top-13 z-40 w-80 sm:w-96 lab-glass-panel rounded-2xl p-4 shadow-2xl border border-slate-300/80 dark:border-slate-700/80 space-y-3"
+              >
+                <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Target className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                      Misi Praktikum Aktif ({domain})
                     </span>
-                  )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-800 cursor-pointer"
+                    title="Tutup Detail Misi"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setExpandedId(null)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-800 cursor-pointer"
-                  title="Tutup Popover Telemetri"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
-                {/* Circular Gauge Meters */}
-                <div className="lg:col-span-5 grid grid-cols-3 gap-2">
-                  {metrics.map((m) => (
-                    <CircularGaugeMeter
-                      key={m.id}
-                      label={m.label}
-                      value={m.value}
-                      min={m.min}
-                      max={m.max}
-                      unit={m.unit}
-                      color={m.color || '#0ea5e9'}
-                      warningThreshold={m.warningThreshold}
-                      precision={m.precision ?? 2}
-                      badgeText={m.badgeText}
-                      size="sm"
+                <div className="space-y-2">
+                  <div className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                    {effectiveMissionTitle}
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {effectiveMissionObj}
+                  </p>
+                  <div className="pt-1 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-mono">
+                      <span className="text-slate-600 dark:text-slate-400">
+                        Progres Rekam Data:
+                      </span>
+                      <span className="font-bold text-slate-900 dark:text-white tabular-nums flex items-center gap-1">
+                        {isMissionComplete && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        )}
+                        {recordsCount} / 3 Titik Data
+                      </span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          isMissionComplete ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`}
+                        style={{
+                          width: `${Math.min(100, (recordsCount / 3) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                transition={{ duration: 0.16 }}
+                data-testid="telemetry-expanded-popover"
+                className="absolute left-3 right-3 top-13 z-40 lab-glass-panel rounded-2xl p-4 shadow-2xl border border-slate-300/80 dark:border-slate-700/80 space-y-3"
+              >
+                <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Gauge className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                      Instrumen Telemetri Presisi & Osiloskop ({domain})
+                    </span>
+                    {activeMetric && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-sky-500/15 text-sky-600 dark:text-sky-300 border border-sky-500/30">
+                        Fokus: {activeMetric.label}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-800 cursor-pointer"
+                    title="Tutup Popover Telemetri"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
+                  {/* Circular Gauge Meters */}
+                  <div className="lg:col-span-5 grid grid-cols-3 gap-2">
+                    {metrics.map((m) => (
+                      <CircularGaugeMeter
+                        key={m.id}
+                        label={m.label}
+                        value={m.value}
+                        min={m.min}
+                        max={m.max}
+                        unit={m.unit}
+                        color={m.color || '#0ea5e9'}
+                        warningThreshold={m.warningThreshold}
+                        precision={m.precision ?? 2}
+                        badgeText={m.badgeText}
+                        size="sm"
+                      />
+                    ))}
+                  </div>
+
+                  {/* Full LiveTelemetryOscilloscope */}
+                  <div className="lg:col-span-7">
+                    <LiveTelemetryOscilloscope
+                      domain={domain}
+                      primaryLabel={oscilloscope.primaryLabel}
+                      primaryValue={oscilloscope.primaryValue}
+                      primaryUnit={oscilloscope.primaryUnit}
+                      secondaryLabel={oscilloscope.secondaryLabel}
+                      secondaryValue={oscilloscope.secondaryValue}
+                      secondaryUnit={oscilloscope.secondaryUnit}
+                      microscopicStateLabel={oscilloscope.microscopicStateLabel}
+                      microscopicDetail={oscilloscope.microscopicDetail}
+                      accentColor={oscilloscope.accentColor}
                     />
-                  ))}
+                  </div>
                 </div>
-
-                {/* Full LiveTelemetryOscilloscope */}
-                <div className="lg:col-span-7">
-                  <LiveTelemetryOscilloscope
-                    domain={domain}
-                    primaryLabel={oscilloscope.primaryLabel}
-                    primaryValue={oscilloscope.primaryValue}
-                    primaryUnit={oscilloscope.primaryUnit}
-                    secondaryLabel={oscilloscope.secondaryLabel}
-                    secondaryValue={oscilloscope.secondaryValue}
-                    secondaryUnit={oscilloscope.secondaryUnit}
-                    microscopicStateLabel={oscilloscope.microscopicStateLabel}
-                    microscopicDetail={oscilloscope.microscopicDetail}
-                    accentColor={oscilloscope.accentColor}
-                  />
-                </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            )}
           </>
         )}
       </AnimatePresence>

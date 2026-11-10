@@ -74,6 +74,8 @@ import {
   LabWorkflowStagePill,
   LabWorkflowStage,
 } from './ui/CompactTelemetryRibbon';
+import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
+import { useLabStore } from '../stores/useLabStore';
 
 interface PhysicsLabViewProps {
   params: PhysicsParams;
@@ -157,15 +159,14 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   const [simTime, setSimTime] = useState<number>(0);
   const simTimeRef = useRef<number>(0);
   const lastReactRenderRef = useRef<number>(0);
-  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  const storePlaybackSpeed = useLabStore((s) => s.playbackSpeed);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(storePlaybackSpeed || 1.0);
   const [showVectorOverlay, setShowVectorOverlay] = useState<boolean>(true);
   const [noiseEnabled, setNoiseEnabled] = useState<boolean>(false);
   const [calibrationConfig, setCalibrationConfig] =
     useState<InstrumentCalibrationConfig>(DEFAULT_CALIBRATION_CONFIG);
   const [hoveredParamKey, setHoveredParamKey] = useState<string | null>(null);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
-  const [workflowStage, setWorkflowStage] = useState<LabWorkflowStage>(2);
-  const [cockpitTab, setCockpitTab] = useState<'controls' | 'data-diff' | 'hypothesis'>('controls');
   const [hazardModalDismissed, setHazardModalDismissed] = useState<boolean>(false);
   const [localHypothesis, setLocalHypothesis] = useState<HypothesisNote>({
     independentVar: 'Gaya Dorong (F) / Sudut (θ)',
@@ -180,12 +181,9 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     if (onChangeHypothesisNote) onChangeHypothesisNote(next);
   };
 
-  const handleStageChange = (stage: LabWorkflowStage) => {
-    setWorkflowStage(stage);
-    if (stage === 1) setCockpitTab('hypothesis');
-    else if (stage === 2) setCockpitTab('controls');
-    else setCockpitTab('data-diff');
-  };
+  useEffect(() => {
+    setPlaybackSpeed(storePlaybackSpeed || 1.0);
+  }, [storePlaybackSpeed]);
 
   // Mystery Sample Exam State
   const [mysteryGuessInput, setMysteryGuessInput] = useState<string>('');
@@ -320,6 +318,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     }
     const nextPlay = !isPlaying;
     setIsPlaying(nextPlay);
+    useLabStore.getState().setIsSimulating(nextPlay);
     if (nextPlay) {
       if (params.mode === 'spring-hooke') {
         labSound.playSpringTwang(params.springDisplacement);
@@ -333,16 +332,36 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     labSound.playClick(460);
     collisionSoundPlayedRef.current = false;
     setIsPlaying(false);
+    useLabStore.getState().setIsSimulating(false);
     simTimeRef.current = 0;
     setSimTime(0);
   };
 
   useEffect(() => {
-    const onGlobalPlayToggle = () => {
-      setIsPlaying((prev) => !prev);
+    const unsubToggle = subscribeLabEvent(LAB_EVENTS.TOGGLE_SIMULATION, (detail) => {
+      setIsPlaying((prev) => {
+        const next = typeof detail?.isSimulating === 'boolean' ? detail.isSimulating : !prev;
+        useLabStore.getState().setIsSimulating(next);
+        return next;
+      });
+    });
+    const unsubReset = subscribeLabEvent(LAB_EVENTS.RESET_TRIAL, () => {
+      collisionSoundPlayedRef.current = false;
+      setIsPlaying(false);
+      useLabStore.getState().setIsSimulating(false);
+      simTimeRef.current = 0;
+      setSimTime(0);
+    });
+    const unsubSpeed = subscribeLabEvent(LAB_EVENTS.CHANGE_SPEED, (detail) => {
+      if (detail?.speed) {
+        setPlaybackSpeed(detail.speed);
+      }
+    });
+    return () => {
+      unsubToggle();
+      unsubReset();
+      unsubSpeed();
     };
-    window.addEventListener('ruanglab:toggle-simulation', onGlobalPlayToggle);
-    return () => window.removeEventListener('ruanglab:toggle-simulation', onGlobalPlayToggle);
   }, []);
 
   const handleRecordClick = () => {
@@ -704,7 +723,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   })();
 
   return (
-    <div className="w-full h-full max-w-[1600px] mx-auto px-4 py-3 overflow-y-auto bg-slate-950 text-slate-100 select-none flex flex-col">
+    <div className="flex-1 flex flex-col lg:flex-row overflow-hidden w-full h-full bg-[var(--comfort-bg)] text-[var(--comfort-text)] select-none">
       {/* Safety Hazard Auto-Modal (Fitur 5) */}
       {safetyHazard.isHazardous && !hazardModalDismissed && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -757,124 +776,13 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
         </div>
       )}
 
-      {/* Top Workflow-Stage Progressive Disclosure Stepper Pill */}
-      {!zenMode && (
-        <div className="mb-3 shrink-0">
-          <LabWorkflowStagePill
-            activeStage={workflowStage}
-            onChangeStage={handleStageChange}
-            domainColor="#0ea5e9"
-            recordsCount={records.length}
-            hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
-          />
-        </div>
-      )}
-
-      {/* MODE 3: SPLIT-SCREEN ANALYSIS & LIVE A/B COMPARISON */}
-      {!zenMode && workflowStage === 3 && (
-        <div
-          data-testid="physics-stage-3-split"
-          className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 overflow-y-auto pb-4"
-        >
-          <div className="lg:col-span-6 space-y-3">
-            <ABLiveComparisonWidget
-              domainLabel="Fisika"
-              currentSummary={`m=${params.mass}kg, F=${params.appliedForce}N, θ=${params.inclineAngle}°, g=${params.gravity}m/s²`}
-              currentParams={{
-                mass: params.mass,
-                appliedForce: params.appliedForce,
-                inclineAngle: params.inclineAngle,
-                frictionCoeffKinetic: params.frictionCoeffKinetic,
-                gravity: params.gravity,
-                initialVelocity: params.initialVelocity,
-                launchAngle: params.launchAngle,
-                springConstantK: params.springConstantK,
-                springDisplacement: params.springDisplacement,
-                restitutionCoeff: params.restitutionCoeff,
-              }}
-              liveMetrics={
-                (params.mode === 'projectile-gravity'
-                  ? [
-                      { key: 'range', label: 'Jangkauan (R)', value: metrics.projectileRange, unit: 'm' },
-                      { key: 'height', label: 'Tinggi Puncak (H)', value: metrics.maxProjectileHeight, unit: 'm' },
-                      { key: 'tof', label: 'Waktu Tempuh (t)', value: metrics.timeOfFlight, unit: 's' },
-                      { key: 'ek', label: 'Energi Kinetik', value: instant.kineticEnergy, unit: 'J' },
-                    ]
-                  : params.mode === 'spring-hooke'
-                  ? [
-                      { key: 'fp', label: 'Gaya Pemulih (Fp)', value: metrics.springRestoringForce, unit: 'N' },
-                      { key: 'period', label: 'Periode (T)', value: metrics.oscillationPeriod, unit: 's' },
-                      { key: 'ep', label: 'Energi Potensial', value: metrics.springPotentialEnergy, unit: 'J' },
-                      { key: 'speed', label: 'Kecepatan v(t)', value: instant.speed, unit: 'm/s' },
-                    ]
-                  : [
-                      { key: 'acc', label: 'Percepatan (a)', value: metrics.acceleration, unit: 'm/s²' },
-                      { key: 'netF', label: 'Gaya Netto (ΣF)', value: metrics.netForce, unit: 'N' },
-                      { key: 'speed', label: 'Kecepatan v(t)', value: instant.speed, unit: 'm/s' },
-                      { key: 'ek', label: 'Energi Kinetik', value: instant.kineticEnergy, unit: 'J' },
-                    ]) as ABMetricItem[]
-              }
-              onRestoreBaselineParams={(baseParams) =>
-                handleParamUpdate(baseParams as Partial<PhysicsParams>)
-              }
-            />
-          </div>
-
-          <div className="lg:col-span-6 space-y-3">
-            <div className="lab-glass-panel rounded-2xl p-4 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h4 className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
-                    Panel Analisis Regresi &amp; LKS Fisika ({records.length} Data)
-                  </h4>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Bandingkan hasil eksperimen terhadap hipotesis awal dan buka lembar kerja penuh.
-                  </p>
-                </div>
-                {onProceedToAnalysis && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick();
-                      onProceedToAnalysis();
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs cursor-pointer shadow-md"
-                  >
-                    Buka LKS &amp; Kurva Regresi Penuh →
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <ExperimentTrialComparePanel
-              records={records}
-              domainFilter="Fisika"
-            />
-          </div>
-        </div>
-      )}
-
-      <div
-        className={`grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 items-stretch ${
-          !zenMode && workflowStage === 3 ? 'hidden' : ''
-        }`}
-      >
-        {/* LEFT COLUMN: Fixed 3D Scene Canvas, CompactTelemetryRibbon & Playback Bar */}
-        <div
-          className={`${
-            zenMode
-              ? 'lg:col-span-12'
-              : workflowStage === 2
-              ? 'lg:col-span-9'
-              : 'lg:col-span-7'
-          } flex flex-col h-full min-h-0 gap-2.5 transition-all`}
-        >
-          {/* Slim 48px Compact Telemetry Ribbon with Click-to-Expand Gauge & Oscilloscope */}
-          {workflowStage !== 1 && (
-            <CompactTelemetryRibbon
-              domain="Fisika"
-              metrics={
-                params.mode === 'projectile-gravity'
+      {/* LEFT COLUMN: Slim 48px Telemetry Ribbon + Full-Bleed 3D Canvas */}
+      <div className="flex-1 relative flex flex-col min-w-0 h-full overflow-hidden">
+        <CompactTelemetryRibbon
+          domain="Fisika"
+          recordsCount={records.length}
+          metrics={
+            params.mode === 'projectile-gravity'
                   ? [
                       {
                         id: 'range',
@@ -932,6 +840,186 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                         max: 300,
                         unit: 'J',
                         color: '#10b981',
+                      },
+                    ]
+                  : params.mode === 'pendulum-harmonic'
+                  ? [
+                      {
+                        id: 'period',
+                        label: 'Periode (T)',
+                        value: metrics.pendulumPeriod ?? 2.0,
+                        min: 0,
+                        max: 8,
+                        unit: 's',
+                        color: '#0ea5e9',
+                      },
+                      {
+                        id: 'freq',
+                        label: 'Frekuensi (f)',
+                        value: metrics.pendulumFrequency ?? 0.5,
+                        min: 0,
+                        max: 5,
+                        unit: 'Hz',
+                        color: '#10b981',
+                      },
+                      {
+                        id: 'speed',
+                        label: 'Kelajuan v(t)',
+                        value: instant.speed,
+                        min: 0,
+                        max: 15,
+                        unit: 'm/s',
+                        color: '#f59e0b',
+                      },
+                    ]
+                  : params.mode === 'stokes-viscosity'
+                  ? [
+                      {
+                        id: 'vt',
+                        label: 'v Terminal (v_t)',
+                        value: metrics.stokesTerminalVelocity ?? 0.5,
+                        min: 0,
+                        max: 10,
+                        unit: 'm/s',
+                        color: '#0ea5e9',
+                      },
+                      {
+                        id: 'drag',
+                        label: 'Gaya Hambat F_d',
+                        value: metrics.stokesDragForce ?? 1.0,
+                        min: 0,
+                        max: 50,
+                        unit: 'N',
+                        color: '#10b981',
+                      },
+                      {
+                        id: 'eta',
+                        label: 'Viskositas (η)',
+                        value: params.fluidViscosityPaS ?? params.fluidViscosity ?? 0.8,
+                        min: 0,
+                        max: 5,
+                        unit: 'Pa·s',
+                        color: '#f59e0b',
+                      },
+                    ]
+                  : params.mode === 'ohm-wheatstone'
+                  ? [
+                      {
+                        id: 'current',
+                        label: 'Arus Rangkaian (I)',
+                        value: metrics.circuitCurrent ?? 1.2,
+                        min: 0,
+                        max: 15,
+                        unit: 'A',
+                        color: '#0ea5e9',
+                      },
+                      {
+                        id: 'galv',
+                        label: 'Arus Galvanometer',
+                        value: metrics.galvanometerCurrent ?? 0,
+                        min: 0,
+                        max: 100,
+                        unit: 'mA',
+                        color: '#10b981',
+                      },
+                      {
+                        id: 'rx',
+                        label: 'Resistor R_x',
+                        value: params.bridgeRx ?? params.resistorRx ?? 300,
+                        min: 10,
+                        max: 1000,
+                        unit: 'Ω',
+                        color: '#f59e0b',
+                      },
+                    ]
+                  : params.mode === 'optics-young-slit'
+                  ? [
+                      {
+                        id: 'fringe',
+                        label: 'Jarak Pita (Δy)',
+                        value: metrics.fringeSpacingMm ?? 2.5,
+                        min: 0,
+                        max: 15,
+                        unit: 'mm',
+                        color: '#0ea5e9',
+                      },
+                      {
+                        id: 'slit',
+                        label: 'Jarak Celah (d)',
+                        value: params.slitDistance ?? 0.25,
+                        min: 0.05,
+                        max: 1.0,
+                        unit: 'mm',
+                        color: '#10b981',
+                      },
+                      {
+                        id: 'lambda',
+                        label: 'Gelombang (λ)',
+                        value: params.lightWavelength ?? 532,
+                        min: 380,
+                        max: 750,
+                        unit: 'nm',
+                        color: '#f59e0b',
+                      },
+                    ]
+                  : params.mode === 'photoelectric-planck'
+                  ? [
+                      {
+                        id: 'ekmax',
+                        label: 'EK_maks Elektron',
+                        value: metrics.photoelectricMaxKe ?? 0.8,
+                        min: 0,
+                        max: 10,
+                        unit: 'eV',
+                        color: '#0ea5e9',
+                      },
+                      {
+                        id: 'vstop',
+                        label: 'Potensial Henti V₀',
+                        value: metrics.photoelectricStoppingVoltage ?? 0.8,
+                        min: 0,
+                        max: 10,
+                        unit: 'V',
+                        color: '#10b981',
+                      },
+                      {
+                        id: 'freq',
+                        label: 'Frekuensi Foton (f)',
+                        value: params.photonFrequency ?? 7.5,
+                        min: 4,
+                        max: 15,
+                        unit: '×10^14 Hz',
+                        color: '#f59e0b',
+                      },
+                    ]
+                  : params.mode === 'collision-momentum'
+                  ? [
+                      {
+                        id: 'v1f',
+                        label: "Kecepatan v₁'",
+                        value: metrics.v1Final,
+                        min: -25,
+                        max: 25,
+                        unit: 'm/s',
+                        color: '#0ea5e9',
+                      },
+                      {
+                        id: 'v2f',
+                        label: "Kecepatan v₂'",
+                        value: metrics.v2Final,
+                        min: -25,
+                        max: 25,
+                        unit: 'm/s',
+                        color: '#10b981',
+                      },
+                      {
+                        id: 'eloss',
+                        label: 'Disipasi EK',
+                        value: metrics.energyLossPct,
+                        min: 0,
+                        max: 100,
+                        unit: '%',
+                        color: '#f59e0b',
                       },
                     ]
                   : [
@@ -1000,14 +1088,13 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                 accentColor: '#0ea5e9',
               }}
             />
-          )}
 
-          {/* 3D Canvas Box */}
+          {/* Full-Bleed 3D Canvas */}
           <div
-            className={`relative w-full flex-1 min-h-[380px] rounded-2xl overflow-hidden border bg-slate-900/60 shadow-2xl transition-all ${
+            className={`relative w-full flex-1 min-h-[360px] overflow-hidden bg-slate-950 transition-all select-none ${
               safetyHazard.isHazardous
-                ? 'border-rose-500 ring-2 ring-rose-500/50 animate-pulse'
-                : 'border-slate-800'
+                ? 'ring-2 ring-inset ring-rose-500/70'
+                : ''
             }`}
           >
             <PhysicsScene3D
@@ -1079,208 +1166,89 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               </div>
             </div>
 
-            {/* Bottom-Left Contextual Micro-Step Guide HUD (Shown in Stage 1 or on demand) */}
-            {workflowStage === 1 && (
-              <div className="absolute bottom-3 left-3 z-20 pointer-events-none hidden sm:block">
-                <ContextualMicroGuideHUD
-                  moduleTitle={
-                    params.mode === 'newton-incline'
-                      ? 'Hukum II Newton & Bidang Miring'
-                      : params.mode === 'projectile-gravity'
-                      ? 'Gerak Parabola (Projektil)'
-                      : params.mode === 'spring-hooke'
-                      ? 'Osilasi Pegas Hooke'
-                      : params.mode === 'collision-momentum'
-                      ? 'Tumbukan & Momentum'
-                      : 'Gravitasi Universal Dua Massa'
-                  }
-                  IndependentVarLabel={
-                    params.mode === 'newton-incline'
-                      ? 'Gaya Dorong (F) / Sudut (θ)'
-                      : params.mode === 'projectile-gravity'
-                      ? 'Kecepatan Awal (v₀) / Sudut (θ)'
-                      : params.mode === 'spring-hooke'
-                      ? 'Simpangan Pegas (Δx)'
-                      : params.mode === 'collision-momentum'
-                      ? 'Massa (m₁) / Restitusi (e)'
-                      : 'Jarak Pemisah (r)'
-                  }
-                  DependentVarLabel={
-                    params.mode === 'newton-incline'
-                      ? 'Percepatan (a)'
-                      : params.mode === 'projectile-gravity'
-                      ? 'Jarak Jangkauan (R)'
-                      : params.mode === 'spring-hooke'
-                      ? 'Gaya Pemulih (Fp)'
-                      : params.mode === 'collision-momentum'
-                      ? 'Kecepatan Akhir (v₁’)'
-                      : 'Gaya Gravitasi (Fg)'
-                  }
-                  recordsCount={records.length}
-                  targetRecords={3}
-                  isPlaying={isPlaying}
-                  hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
-                  onOpenHypothesis={() => handleStageChange(1)}
-                  onOpenCompare={() => handleStageChange(3)}
-                  onQuickRecord={handleRecordClick}
-                  onProceedToAnalysis={onProceedToAnalysis}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Bottom Playback & Recording Bar */}
-          <div className="shrink-0 lab-glass-panel rounded-2xl p-3 shadow-xl">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              {/* Play / Reset controls */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleStartSimulation}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-md whitespace-nowrap ${
-                    isPlaying
-                      ? 'bg-amber-600 hover:bg-amber-500 text-white'
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  }`}
-                >
-                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  <span>{isPlaying ? 'Jeda' : 'Putar Simulasi'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleResetSimulation}
-                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
-                  title="Reset Simulasi ke Awal"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Time Scrubber */}
-              <div className="flex-1 min-w-[150px] flex items-center gap-2">
-                <span className="text-xs font-mono text-slate-400 shrink-0">t:</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={maxSimDuration}
-                  step={0.05}
-                  value={simTime}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    simTimeRef.current = val;
-                    setSimTime(val);
-                  }}
-                  className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
-                />
-                <span className="text-xs font-mono font-bold text-sky-400 shrink-0 w-12 tabular-nums">
-                  {simTime.toFixed(2)}s
-                </span>
-              </div>
-
-              {/* Action Buttons: Catat Data & Analisis Grafik */}
-              <div className="flex items-center gap-2 shrink-0">
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={handleRecordClick}
-                  className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap"
-                >
-                  <Camera className="w-4 h-4 text-slate-950" />
-                  <span>+ Catat Data</span>
-                  <span className="bg-slate-950/20 px-1.5 py-0.5 rounded font-mono text-[11px] text-slate-950 tabular-nums">
-                    {records.length}/3
-                  </span>
-                </motion.button>
-
-                {onProceedToAnalysis && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick();
-                      onProceedToAnalysis();
-                    }}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
-                      records.length >= 3
-                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md'
-                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-                    }`}
-                  >
-                    Grafik & LKS →
-                  </button>
-                )}
-              </div>
+            {/* Bottom-Left Compact Guide Pill (Collapsed by Default) */}
+            <div className="absolute bottom-3 left-3 z-20 pointer-events-none hidden sm:block">
+              <ContextualMicroGuideHUD
+                moduleTitle={
+                  params.mode === 'newton-incline'
+                    ? 'Hukum II Newton & Bidang Miring'
+                    : params.mode === 'projectile-gravity'
+                    ? 'Gerak Parabola (Projektil)'
+                    : params.mode === 'spring-hooke'
+                    ? 'Osilasi Pegas Hooke'
+                    : params.mode === 'collision-momentum'
+                    ? 'Tumbukan & Momentum'
+                    : 'Gravitasi Universal Dua Massa'
+                }
+                IndependentVarLabel={
+                  params.mode === 'newton-incline'
+                    ? 'Gaya Dorong (F) / Sudut (θ)'
+                    : params.mode === 'projectile-gravity'
+                    ? 'Kecepatan Awal (v₀) / Sudut (θ)'
+                    : params.mode === 'spring-hooke'
+                    ? 'Simpangan Pegas (Δx)'
+                    : params.mode === 'collision-momentum'
+                    ? 'Massa (m₁) / Restitusi (e)'
+                    : 'Jarak Pemisah (r)'
+                }
+                DependentVarLabel={
+                  params.mode === 'newton-incline'
+                    ? 'Percepatan (a)'
+                    : params.mode === 'projectile-gravity'
+                    ? 'Jarak Jangkauan (R)'
+                    : params.mode === 'spring-hooke'
+                    ? 'Gaya Pemulih (Fp)'
+                    : params.mode === 'collision-momentum'
+                    ? 'Kecepatan Akhir (v₁’)'
+                    : 'Gaya Gravitasi (Fg)'
+                }
+                recordsCount={records.length}
+                targetRecords={3}
+                isPlaying={isPlaying}
+                hasHypothesis={Boolean(effectiveHypothesis.hypothesisText?.trim())}
+                onQuickRecord={handleRecordClick}
+                onProceedToAnalysis={onProceedToAnalysis}
+              />
             </div>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Progressive Disclosure Deck (80/20 split in Stage 2) */}
+        {/* RIGHT COLUMN: Clean SaaS Parameter Sidebar (Hidden in Zen Mode) */}
         {!zenMode && (
-          <div
-            className={`${
-              workflowStage === 2 ? 'lg:col-span-3' : 'lg:col-span-5'
-            } h-full lg:overflow-y-auto pr-1 space-y-3 pb-4 flex flex-col`}
-          >
-            {workflowStage === 1 && (
-              <div className="space-y-3">
-                <HypothesisScratchpadCard
-                  note={effectiveHypothesis}
-                  onChange={handleUpdateHypothesis}
-                  defaultIndependentVar="Gaya Dorong (F) / Sudut (θ)"
-                  defaultDependentVar="Percepatan Benda (a)"
-                />
-                <CockpitStepGuideBanner
-                  recordsCount={records.length}
-                  onProceedToAnalysis={() => handleStageChange(2)}
-                  domainLabel="Fisika"
-                />
-              </div>
-            )}
+          <aside className="w-full lg:w-80 xl:w-96 border-t lg:border-t-0 lg:border-l border-[var(--comfort-border)] bg-[var(--comfort-surface)] overflow-y-auto p-4 shrink-0 space-y-3.5">
+            {/* Primary Action Bar: Catat Data & Analisis Grafik */}
+            <div className="flex items-center gap-2">
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={handleRecordClick}
+                className="flex-1 px-3.5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+              >
+                <Camera className="w-4 h-4" />
+                <span>+ Catat Data</span>
+                <span className="bg-slate-950/30 px-1.5 py-0.5 rounded font-mono text-[11px] tabular-nums">
+                  {records.length}/3
+                </span>
+              </motion.button>
 
-            {workflowStage === 2 && cockpitTab === 'controls' && (
-              <>
-                {/* Automatic Target Challenge Mission Generator */}
-                <QuickChallengeMissionBanner
-                  domain="Fisika"
-                  mode={params.mode}
-                  liveMetrics={{
-                    acceleration: metrics.acceleration,
-                    netForce: metrics.netForce,
-                    projectileRange: metrics.projectileRange,
-                    maxProjectileHeight: metrics.maxProjectileHeight,
-                    springRestoringForce: metrics.springRestoringForce,
-                    oscillationPeriod: metrics.oscillationPeriod,
-                    v1Final: metrics.v1Final,
-                    energyLossPct: metrics.energyLossPct,
-                    universalGravityForce: metrics.universalGravityForce,
+              {onProceedToAnalysis && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    onProceedToAnalysis();
                   }}
-                  completedIds={completedChallengeIds}
-                  onCompleteChallenge={(ch) => onCompleteChallenge && onCompleteChallenge(ch)}
-                />
-
-                {/* Mode Selector */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-2.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-                    <Sliders className="w-4 h-4 text-sky-400" />
-                    <span>Pilih Sub-Eksperimen Fisika</span>
-                  </div>
-
-                  <select
-                    value={params.mode}
-                    onChange={(e) => {
-                      handleParamUpdate({ mode: e.target.value as PhysicsParams['mode'] });
-                      labSound.playClick(680);
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-sky-500 cursor-pointer"
-                  >
-                    <option value="newton-incline">Hukum II Newton & Bidang Miring</option>
-                    <option value="projectile-gravity">Gerak Parabola (Projektil)</option>
-                    <option value="spring-hooke">Osilasi Pegas Hooke</option>
-                    <option value="collision-momentum">Tumbukan & Momentum</option>
-                    <option value="orbital-gravity">Gravitasi Dua Massa</option>
-                  </select>
-                </div>
+                  className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                    records.length >= 3
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                      : 'bg-slate-200/80 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-[var(--comfort-border)]'
+                  }`}
+                >
+                  Grafik &amp; LKS →
+                </button>
+              )}
+            </div>
 
           {/* Mystery Challenge Form (ONLY if Active for Fisika) */}
           {activeMysteryChallenge && activeMysteryChallenge.domain === 'Fisika' && (
@@ -1349,8 +1317,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
           )}
 
           {/* Parameter Sliders Container */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
-            <div className="text-xs font-bold text-slate-200">Parameter Eksperimen</div>
+          <div className="lab-glass-panel rounded-2xl p-3.5 shadow-sm space-y-3">
+            <div className="text-xs font-bold text-slate-800 dark:text-slate-200">Parameter Eksperimen</div>
 
             <div className="space-y-3">
               <div
@@ -1716,114 +1684,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     }}
                   />
                 </CollapsibleLabSection>
-              </>
-            )}
-
-            {cockpitTab === 'data-diff' && (
-              <div className="space-y-3">
-                {/* Live Side-by-Side A/B Run Comparison */}
-                <ABLiveComparisonWidget
-                  domainLabel="Fisika"
-                  currentSummary={`m=${params.mass}kg, F=${params.appliedForce}N, θ=${params.inclineAngle}°, g=${params.gravity}m/s²`}
-                  currentParams={{
-                    mass: params.mass,
-                    appliedForce: params.appliedForce,
-                    inclineAngle: params.inclineAngle,
-                    frictionCoeffKinetic: params.frictionCoeffKinetic,
-                    gravity: params.gravity,
-                    initialVelocity: params.initialVelocity,
-                    launchAngle: params.launchAngle,
-                    springConstantK: params.springConstantK,
-                    springDisplacement: params.springDisplacement,
-                    restitutionCoeff: params.restitutionCoeff,
-                  }}
-                  liveMetrics={
-                    (params.mode === 'projectile-gravity'
-                      ? [
-                          { key: 'range', label: 'Jangkauan (R)', value: metrics.projectileRange, unit: 'm' },
-                          { key: 'height', label: 'Tinggi Puncak (H)', value: metrics.maxProjectileHeight, unit: 'm' },
-                          { key: 'tof', label: 'Waktu Tempuh (t)', value: metrics.timeOfFlight, unit: 's' },
-                          { key: 'ek', label: 'Energi Kinetik', value: instant.kineticEnergy, unit: 'J' },
-                        ]
-                      : params.mode === 'spring-hooke'
-                      ? [
-                          { key: 'fp', label: 'Gaya Pemulih (Fp)', value: metrics.springRestoringForce, unit: 'N' },
-                          { key: 'period', label: 'Periode (T)', value: metrics.oscillationPeriod, unit: 's' },
-                          { key: 'ep', label: 'Energi Potensial', value: metrics.springPotentialEnergy, unit: 'J' },
-                          { key: 'speed', label: 'Kecepatan v(t)', value: instant.speed, unit: 'm/s' },
-                        ]
-                      : [
-                          { key: 'acc', label: 'Percepatan (a)', value: metrics.acceleration, unit: 'm/s²' },
-                          { key: 'netF', label: 'Gaya Netto (ΣF)', value: metrics.netForce, unit: 'N' },
-                          { key: 'speed', label: 'Kecepatan v(t)', value: instant.speed, unit: 'm/s' },
-                          { key: 'ek', label: 'Energi Kinetik', value: instant.kineticEnergy, unit: 'J' },
-                        ]) as ABMetricItem[]
-                  }
-                  onRestoreBaselineParams={(baseParams) =>
-                    handleParamUpdate(baseParams as Partial<PhysicsParams>)
-                  }
-                />
-
-                {/* Recorded Data Log */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-200 flex items-center gap-1.5">
-                      <Activity className="w-3.5 h-3.5 text-sky-400" />
-                      <span>Log Pengamatan Tercatat ({records.length})</span>
-                    </span>
-                    {onProceedToAnalysis && (
-                      <button
-                        type="button"
-                        onClick={onProceedToAnalysis}
-                        className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 cursor-pointer"
-                      >
-                        Analisis Grafik &amp; LKS →
-                      </button>
-                    )}
-                  </div>
-                  {records.length === 0 ? (
-                    <p className="text-[11px] text-slate-400 py-2">
-                      Belum ada data. Klik <strong>+ Catat Data</strong> pada bilah bawah saat menjalankan simulasi.
-                    </p>
-                  ) : (
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                      {records.map((r, idx) => (
-                        <div
-                          key={r.id}
-                          className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] space-y-1"
-                        >
-                          <div className="flex items-center justify-between font-mono">
-                            <span className="font-bold text-sky-400">
-                              #{records.length - idx} · {r.domain}
-                            </span>
-                            <span className="text-slate-500 tabular-nums">{r.timestamp}</span>
-                          </div>
-                          <div className="text-slate-300 font-mono truncate">{r.parametersSummary}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Side-by-Side Trial Diff Comparison */}
-                <ExperimentTrialComparePanel
-                  records={records}
-                  domainFilter="Fisika"
-                />
-              </div>
-            )}
-
-            {cockpitTab === 'hypothesis' && (
-              <HypothesisScratchpadCard
-                note={effectiveHypothesis}
-                onChange={handleUpdateHypothesis}
-                defaultIndependentVar="Gaya Dorong (F) / Sudut (θ)"
-                defaultDependentVar="Percepatan Benda (a)"
-              />
-            )}
-          </div>
+          </aside>
         )}
-      </div>
     </div>
   );
 };

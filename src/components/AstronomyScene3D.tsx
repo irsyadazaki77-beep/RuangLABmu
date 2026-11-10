@@ -12,9 +12,9 @@ import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
-import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
+import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 
 interface AstronomyScene3DProps {
   params: AstronomyParams;
@@ -149,8 +149,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         if (url) latestRef.current.onCaptureSnapshot(url);
       }
     };
-    window.addEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
-    return () => window.removeEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+    return subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, handleGlobalSnapshot);
   }, []);
 
   useEffect(() => {
@@ -776,56 +775,6 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
           </button>
         ))}
       </div>
-
-      {/* 3D Live Telemetry HUD & Snapshot / Orbit Bar */}
-      <Scene3DTelemetryHUD
-        domainTitle="Astronomi"
-        primaryLabel={
-          params.mode === 'milkyway-galaxy'
-            ? 'Kecepatan Rotasi'
-            : params.mode === 'hubble-expansion'
-            ? 'Laju Resesi Hubble'
-            : 'Periode Orbit (T)'
-        }
-        primaryValue={
-          params.mode === 'milkyway-galaxy'
-            ? `${metrics.observedDarkMatterVelocityKms.toFixed(1)} km/s`
-            : params.mode === 'hubble-expansion'
-            ? `${(metrics.recessionVelocityKms ?? 10500).toFixed(0)} km/s`
-            : `${metrics.orbitalPeriodYears.toFixed(3)} thn`
-        }
-        secondaryLabel={
-          params.mode === 'milkyway-galaxy'
-            ? 'Tanpa Materi Gelap'
-            : params.mode === 'hubble-expansion'
-            ? 'Redshift (z)'
-            : 'Laju Orbit (v)'
-        }
-        secondaryValue={
-          params.mode === 'milkyway-galaxy'
-            ? `${metrics.keplerianVelocityKms.toFixed(1)} km/s`
-            : params.mode === 'hubble-expansion'
-            ? `z = ${(metrics.redshiftZ ?? 0.035).toFixed(4)}`
-            : `${metrics.meanOrbitalVelocityKms.toFixed(2)} km/s`
-        }
-        energyBarLabel="Keseimbangan Gravitasi & Momentum Orbit"
-        energyBarRatio={72}
-        isOrbiting={isOrbiting}
-        onToggleOrbit={() => {
-          const next = !isOrbiting;
-          setIsOrbiting(next);
-          cameraCtrlRef.current?.setOrbit(next);
-        }}
-        onCaptureSnapshot={
-          onCaptureSnapshot
-            ? () => {
-                const url = cameraCtrlRef.current?.captureCanvas();
-                if (url) onCaptureSnapshot(url);
-              }
-            : undefined
-        }
-        snapshotCount={snapshotCount}
-      />
 
       {/* Top-Right Fullscreen Toggle Button */}
       <div className="pointer-events-auto absolute top-4 right-4 z-30">

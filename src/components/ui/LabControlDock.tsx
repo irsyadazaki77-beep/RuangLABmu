@@ -7,18 +7,21 @@ import {
   Camera,
   Play,
   Pause,
+  RotateCcw,
   MessageCircle,
+  Gauge,
 } from 'lucide-react';
 import { useLabStore } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { labSound } from '../../utils/soundEngine';
-import { VisualComfortToolbar } from './VisualComfortToolbar';
 
 export interface LabControlDockProps {
   notificationsCount?: number;
   hasLowR2Alert?: boolean;
   snapshotCount?: number;
 }
+
+const SPEED_OPTIONS = [0.5, 1, 2] as const;
 
 export const LabControlDock: React.FC<LabControlDockProps> = ({
   notificationsCount = 0,
@@ -31,6 +34,12 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     isLobbyMode,
     workflowStep,
     userRole,
+    isSimulating,
+    playbackSpeed,
+    setPlaybackSpeed,
+    toggleSimulation,
+    triggerResetTrial,
+    triggerCaptureSnapshot,
   } = useLabStore();
 
   const {
@@ -38,26 +47,27 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     toggleZenMode,
     drawerOpen,
     toggleDrawer,
-    comfortPrefs,
-    setComfortPrefs,
   } = useUIStore();
 
-  const [simPlaying, setSimPlaying] = useState<boolean>(true);
   const [snapshotPulse, setSnapshotPulse] = useState<boolean>(false);
 
   const is3DStageActive = userRole === 'siswa' && !isLobbyMode && workflowStep === 2;
 
-  const triggerToggleSimulation = () => {
+  const handleToggleSimulation = () => {
     labSound.playClick();
-    setSimPlaying((prev) => !prev);
-    window.dispatchEvent(new CustomEvent('ruanglab:toggle-simulation'));
+    toggleSimulation();
   };
 
-  const triggerCapture3DSnapshot = () => {
+  const handleResetTrial = () => {
+    labSound.playClick(460);
+    triggerResetTrial();
+  };
+
+  const handleCapture3DSnapshot = () => {
     labSound.playRecordSuccess();
     setSnapshotPulse(true);
     setTimeout(() => setSnapshotPulse(false), 350);
-    window.dispatchEvent(new CustomEvent('ruanglab:capture-3d-snapshot'));
+    triggerCaptureSnapshot();
   };
 
   // Global keyboard shortcuts with input focus guard
@@ -93,14 +103,21 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         e.preventDefault();
         labSound.playClick();
         useUIStore.getState().toggleDrawer();
+      } else if (key === 'r' && is3DStageActive) {
+        e.preventDefault();
+        labSound.playClick(460);
+        useLabStore.getState().triggerResetTrial();
       } else if (key === 's' && is3DStageActive) {
         e.preventDefault();
-        triggerCapture3DSnapshot();
+        labSound.playRecordSuccess();
+        setSnapshotPulse(true);
+        setTimeout(() => setSnapshotPulse(false), 350);
+        useLabStore.getState().triggerCaptureSnapshot();
       } else if (e.code === 'Space' && is3DStageActive) {
-        // Avoid hijacking spacebar if a button is focused
         if (activeEl && activeEl.tagName.toLowerCase() === 'button') return;
         e.preventDefault();
-        triggerToggleSimulation();
+        labSound.playClick();
+        useLabStore.getState().toggleSimulation();
       }
     };
 
@@ -116,22 +133,81 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     <div
       role="toolbar"
       aria-label="Dock Kontrol Cepat RuangLABmu"
-      className="fixed bottom-3.5 left-1/2 -translate-x-1/2 z-40 hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl lab-glass-panel shadow-2xl border border-slate-300/80 dark:border-slate-700/80 transition-all duration-200 hover:scale-[1.01]"
+      className={`fixed bottom-3 -translate-x-1/2 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-2xl lab-glass-panel shadow-2xl border border-slate-300/80 dark:border-slate-700/80 transition-all duration-200 select-none ${
+        zenMode
+          ? 'left-1/2'
+          : 'left-1/2 lg:left-[calc(50%-9rem)] xl:left-[calc(50%-11rem)]'
+      }`}
     >
-      {/* 1. Ergonomi Visual Trigger (Popover Upwards) */}
-      <VisualComfortToolbar
-        preferences={comfortPrefs}
-        onChangePreferences={setComfortPrefs}
-        zenMode={zenMode}
-        onToggleZenMode={toggleZenMode}
-        showZenToggle={false}
-        compactTrigger={true}
-        popoverPlacement="top"
-      />
+      {/* 1. Play/Jeda [Space] */}
+      <button
+        type="button"
+        onClick={handleToggleSimulation}
+        title="[Space] Play/Jeda Simulasi"
+        aria-label="Play atau Jeda Simulasi 3D (Shortcut Space)"
+        className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+          isSimulating
+            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
+            : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25'
+        }`}
+      >
+        {isSimulating ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+        <span>{isSimulating ? 'Jeda' : 'Play'}</span>
+        <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-900/15 dark:bg-slate-950/60 text-[9px] font-mono">
+          Space
+        </kbd>
+      </button>
 
-      <div className="w-px h-5 bg-slate-300 dark:bg-slate-700/80 mx-0.5" aria-hidden="true" />
+      {/* 2. Reset [R] */}
+      <button
+        type="button"
+        onClick={handleResetTrial}
+        title="[R] Reset Percobaan Simulasi"
+        aria-label="Reset Percobaan Simulasi (Shortcut R)"
+        className="px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800/80 transition-all cursor-pointer"
+      >
+        <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
+        <span className="hidden sm:inline">Reset</span>
+        <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
+          R
+        </kbd>
+      </button>
 
-      {/* 2. Sound Mute Toggle [M] */}
+      <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/80 mx-0.5" aria-hidden="true" />
+
+      {/* 3. Speed Selector [0.5x | 1x | 2x] */}
+      <div
+        className="flex items-center gap-0.5 bg-slate-200/60 dark:bg-slate-900/70 p-0.5 rounded-xl border border-slate-300/60 dark:border-slate-700/60"
+        role="group"
+        aria-label="Kecepatan Simulasi"
+      >
+        <Gauge className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 ml-1 mr-0.5 hidden md:inline" />
+        {SPEED_OPTIONS.map((spd) => {
+          const isActive = Math.abs(playbackSpeed - spd) < 0.05;
+          return (
+            <button
+              key={spd}
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setPlaybackSpeed(spd);
+              }}
+              className={`px-1.5 py-0.5 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer tabular-nums ${
+                isActive
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-300/50 dark:hover:bg-slate-800'
+              }`}
+              title={`Kecepatan Simulasi ${spd}x`}
+            >
+              {spd}x
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/80 mx-0.5" aria-hidden="true" />
+
+      {/* 4. Sound Mute Toggle [M] */}
       <button
         type="button"
         onClick={() => {
@@ -140,65 +216,43 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         }}
         title={`[M] Mute · ${soundEnabled ? 'Bisukan Suara Lab' : 'Nyalakan Suara Lab'}`}
         aria-label={soundEnabled ? 'Bisukan suara laboratorium (Shortcut M)' : 'Nyalakan suara laboratorium (Shortcut M)'}
-        className={`group relative px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+        className={`group relative px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
           soundEnabled
             ? 'text-sky-600 dark:text-sky-400 hover:bg-slate-200/70 dark:hover:bg-slate-800/80'
             : 'text-slate-400 dark:text-slate-500 hover:bg-slate-200/70 dark:hover:bg-slate-800/80'
         }`}
       >
         {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-        <kbd className="hidden xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
+        <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
           M
         </kbd>
       </button>
 
-      {/* 3. Play/Pause Simulation [Space] & 3D Snapshot [S] when in 3D Stage */}
-      {is3DStageActive && (
-        <>
-          <button
-            type="button"
-            onClick={triggerToggleSimulation}
-            title="[Space] Play/Pause Simulasi"
-            aria-label="Play atau Pause Simulasi 3D (Shortcut Space)"
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-              simPlaying
-                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
-                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25'
-            }`}
-          >
-            {simPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            <span className="hidden xl:inline">{simPlaying ? 'Jeda' : 'Play'}</span>
-            <kbd className="px-1 py-0.2 rounded bg-slate-900/15 dark:bg-slate-950/60 text-[9px] font-mono">
-              Space
-            </kbd>
-          </button>
+      {/* 5. Snapshot [S] */}
+      <button
+        type="button"
+        onClick={handleCapture3DSnapshot}
+        title="[S] Tangkap Snapshot Kanvas 3D"
+        aria-label="Tangkap Snapshot Kanvas 3D (Shortcut S)"
+        className={`px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+          snapshotPulse
+            ? 'bg-sky-500 text-slate-950 scale-95'
+            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800/80'
+        }`}
+      >
+        <Camera className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+        <span className="hidden lg:inline">Snapshot</span>
+        {snapshotCount > 0 && (
+          <span className="px-1.5 py-0.2 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-300 font-mono text-[10px] tabular-nums">
+            {snapshotCount}
+          </span>
+        )}
+        <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
+          S
+        </kbd>
+      </button>
 
-          <button
-            type="button"
-            onClick={triggerCapture3DSnapshot}
-            title="[S] Tangkap Snapshot Kanvas 3D"
-            aria-label="Tangkap Snapshot Kanvas 3D (Shortcut S)"
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-              snapshotPulse
-                ? 'bg-sky-500 text-slate-950 scale-95'
-                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800/80'
-            }`}
-          >
-            <Camera className="w-4 h-4 text-sky-500 dark:text-sky-400" />
-            <span className="hidden xl:inline">Snapshot</span>
-            {snapshotCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-300 font-mono text-[10px] tabular-nums">
-                {snapshotCount}
-              </span>
-            )}
-            <kbd className="hidden xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
-              S
-            </kbd>
-          </button>
-        </>
-      )}
-
-      {/* 4. Zen Mode Toggle [Z] */}
+      {/* 6. Zen Mode Toggle [Z] */}
       <button
         type="button"
         onClick={() => {
@@ -207,22 +261,22 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         }}
         title="[Z] Zen Mode (Layar Penuh Kanvas 3D)"
         aria-label={zenMode ? 'Keluar dari Zen Mode (Shortcut Z)' : 'Aktifkan Zen Mode (Shortcut Z)'}
-        className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+        className={`px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
           zenMode
             ? 'bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-500/40'
             : 'text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800/80'
         }`}
       >
         {zenMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-        <span className="hidden xl:inline">{zenMode ? 'Normal' : 'Zen'}</span>
-        <kbd className="hidden xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
+        <span className="hidden lg:inline">{zenMode ? 'Normal' : 'Zen'}</span>
+        <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
           Z
         </kbd>
       </button>
 
-      <div className="w-px h-5 bg-slate-300 dark:bg-slate-700/80 mx-0.5" aria-hidden="true" />
+      <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/80 mx-0.5" aria-hidden="true" />
 
-      {/* 5. Dr. LabMu Assistant Trigger [A] */}
+      {/* 7. Dr. LabMu Assistant Trigger [A] */}
       <button
         type="button"
         onClick={() => {
@@ -231,16 +285,16 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         }}
         title="[A] Tanya Dr. LabMu (Asisten Sokratik)"
         aria-label="Buka atau tutup Asisten Sokratik Dr. LabMu (Shortcut A)"
-        className={`relative px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+        className={`relative px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
           drawerOpen
             ? 'bg-sky-600 text-white shadow-sm'
             : 'bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 border border-sky-500/30'
         }`}
       >
-        <MessageCircle className="w-4 h-4" />
+        <MessageCircle className="w-3.5 h-3.5" />
         <span>Dr. LabMu</span>
         <kbd
-          className={`hidden xl:inline-block px-1 py-0.2 rounded text-[9px] font-mono ${
+          className={`hidden 2xl:inline-block px-1 py-0.2 rounded text-[9px] font-mono ${
             drawerOpen
               ? 'bg-sky-700 text-sky-100'
               : 'bg-sky-500/20 text-sky-700 dark:text-sky-300'

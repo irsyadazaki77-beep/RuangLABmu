@@ -13,9 +13,9 @@ import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
-import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
+import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 
 interface PhysicsScene3DProps {
   params: PhysicsParams;
@@ -190,8 +190,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         if (url) latestRef.current.onCaptureSnapshot(url);
       }
     };
-    window.addEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
-    return () => window.removeEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+    return subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, handleGlobalSnapshot);
   }, []);
 
   useEffect(() => {
@@ -1345,60 +1344,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           </div>
         )}
       </div>
-
-      {/* 3D Live Telemetry HUD & Snapshot / Orbit Bar */}
-      <Scene3DTelemetryHUD
-        domainTitle="Fisika"
-        primaryLabel={
-          params.mode === 'projectile-gravity'
-            ? 'Jarak Jangkauan (R)'
-            : params.mode === 'spring-hooke'
-            ? 'Gaya Pemulih (Fp)'
-            : 'Percepatan (a)'
-        }
-        primaryValue={
-          params.mode === 'projectile-gravity'
-            ? `${metrics.projectileRange.toFixed(2)} m`
-            : params.mode === 'spring-hooke'
-            ? `${metrics.springRestoringForce.toFixed(2)} N`
-            : `${metrics.acceleration.toFixed(2)} m/s²`
-        }
-        secondaryLabel={
-          params.mode === 'projectile-gravity'
-            ? 'Tinggi Puncak (H)'
-            : params.mode === 'spring-hooke'
-            ? 'Energi Potensial'
-            : 'Resultan ΣF'
-        }
-        secondaryValue={
-          params.mode === 'projectile-gravity'
-            ? `${metrics.maxProjectileHeight.toFixed(2)} m`
-            : params.mode === 'spring-hooke'
-            ? `${metrics.springPotentialEnergy.toFixed(2)} J`
-            : `${metrics.netForce.toFixed(2)} N`
-        }
-        energyBarLabel="Energi Kinetik vs Potensial"
-        energyBarRatio={
-          instant.kineticEnergy + instant.potentialEnergy > 0.01
-            ? (instant.kineticEnergy / (instant.kineticEnergy + instant.potentialEnergy)) * 100
-            : 55
-        }
-        isOrbiting={isOrbiting}
-        onToggleOrbit={() => {
-          const next = !isOrbiting;
-          setIsOrbiting(next);
-          cameraCtrlRef.current?.setOrbit(next);
-        }}
-        onCaptureSnapshot={
-          onCaptureSnapshot
-            ? () => {
-                const url = cameraCtrlRef.current?.captureCanvas();
-                if (url) onCaptureSnapshot(url);
-              }
-            : undefined
-        }
-        snapshotCount={snapshotCount}
-      />
 
       {/* Top-Right Fullscreen Toggle Button (Mobile & Desktop) */}
       <div className="pointer-events-auto absolute top-4 right-4 z-30">

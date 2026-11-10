@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "ruanglabmu",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,7 +10,7 @@
     "build": "npm run build:client && npm run build:server",
     "start": "NODE_ENV=production node dist-server/server.cjs",
     "preview": "vite preview",
-    "clean": "rm -rf dist dist-server server.js",
+    "clean": "rm -rf dist dist-server",
     "lint": "tsc --noEmit",
     "test": "tsx --test src/utils/*.test.ts"
   },

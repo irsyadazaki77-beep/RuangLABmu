@@ -12,9 +12,9 @@ import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
-import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
+import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 
 interface ChemistryScene3DProps {
   params: ChemistryParams;
@@ -105,8 +105,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         if (url) latestRef.current.onCaptureSnapshot(url);
       }
     };
-    window.addEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
-    return () => window.removeEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+    return subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, handleGlobalSnapshot);
   }, []);
 
   useEffect(() => {
@@ -804,60 +803,6 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           </button>
         ))}
       </div>
-
-      {/* 3D Live Telemetry HUD & Snapshot / Orbit Bar */}
-      <Scene3DTelemetryHUD
-        domainTitle="Kimia"
-        primaryLabel={
-          params.mode === 'acid-base-titration'
-            ? 'pH Larutan'
-            : params.mode === 'electrochemistry-cell'
-            ? 'Potensial Sel (E_sel)'
-            : 'Suhu Akhir (T_akhir)'
-        }
-        primaryValue={
-          params.mode === 'acid-base-titration'
-            ? `${metrics.currentPh.toFixed(2)}`
-            : params.mode === 'electrochemistry-cell'
-            ? `${metrics.nernstCellPotentialE.toFixed(3)} V`
-            : `${metrics.finalTempC.toFixed(1)} °C`
-        }
-        secondaryLabel={
-          params.mode === 'acid-base-titration'
-            ? 'Volume Titran Vb'
-            : params.mode === 'electrochemistry-cell'
-            ? 'Energi Gibbs (ΔG)'
-            : 'Entalpi (ΔH)'
-        }
-        secondaryValue={
-          params.mode === 'acid-base-titration'
-            ? `${params.titrantAddedMl.toFixed(1)} mL`
-            : params.mode === 'electrochemistry-cell'
-            ? `${metrics.electroFreeEnergyDeltaG.toFixed(1)} kJ`
-            : `${metrics.deltaHReaction.toFixed(1)} kJ/mol`
-        }
-        energyBarLabel="Progres & Keseimbangan Reaksi"
-        energyBarRatio={
-          params.mode === 'acid-base-titration'
-            ? (metrics.currentPh / 14) * 100
-            : Math.min(95, Math.max(15, (metrics.finalTempC / 90) * 100))
-        }
-        isOrbiting={isOrbiting}
-        onToggleOrbit={() => {
-          const next = !isOrbiting;
-          setIsOrbiting(next);
-          cameraCtrlRef.current?.setOrbit(next);
-        }}
-        onCaptureSnapshot={
-          onCaptureSnapshot
-            ? () => {
-                const url = cameraCtrlRef.current?.captureCanvas();
-                if (url) onCaptureSnapshot(url);
-              }
-            : undefined
-        }
-        snapshotCount={snapshotCount}
-      />
 
       {/* Top-Right Fullscreen Toggle Button */}
       <div className="pointer-events-auto absolute top-4 right-4 z-30">

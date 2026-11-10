@@ -6,9 +6,9 @@ import { Maximize2, Minimize2 } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { labSound } from '../utils/soundEngine';
-import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
+import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 
 interface BiologyScene3DProps {
   mode:
@@ -82,8 +82,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         if (url) onCaptureSnapshotRef.current(url);
       }
     };
-    window.addEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
-    return () => window.removeEventListener('ruanglab:capture-3d-snapshot', handleGlobalSnapshot);
+    return subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, handleGlobalSnapshot);
   }, []);
 
   useEffect(() => {
@@ -704,60 +703,6 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           </button>
         ))}
       </div>
-
-      {/* 3D Live Telemetry HUD & Snapshot / Orbit Bar */}
-      <Scene3DTelemetryHUD
-        domainTitle="Biologi"
-        primaryLabel={
-          mode === 'photosynthesis-ingenhousz'
-            ? 'Intensitas Cahaya'
-            : mode === 'enzyme-catalase'
-            ? 'pH Larutan'
-            : 'Konsentrasi Sukrosa'
-        }
-        primaryValue={
-          mode === 'photosynthesis-ingenhousz'
-            ? `${params.lightIntensityLux ?? 1200} lux`
-            : mode === 'enzyme-catalase'
-            ? `pH ${(params.solutionPH ?? 7.0).toFixed(1)}`
-            : `${(params.sucroseConcMolar ?? 0.3).toFixed(2)} M`
-        }
-        secondaryLabel={
-          mode === 'photosynthesis-ingenhousz'
-            ? 'Spektrum λ'
-            : mode === 'enzyme-catalase'
-            ? 'Substrat H₂O₂'
-            : 'Suhu Ruang'
-        }
-        secondaryValue={
-          mode === 'photosynthesis-ingenhousz'
-            ? `${params.wavelengthNm ?? 660} nm`
-            : mode === 'enzyme-catalase'
-            ? `${params.substrateConcMm ?? 10} mM`
-            : `${params.temperatureC ?? 25} °C`
-        }
-        energyBarLabel="Aktivitas Biokimia & Seluler"
-        energyBarRatio={
-          mode === 'photosynthesis-ingenhousz'
-            ? Math.min(95, ((params.lightIntensityLux ?? 1200) / 2500) * 100)
-            : 68
-        }
-        isOrbiting={isOrbiting}
-        onToggleOrbit={() => {
-          const next = !isOrbiting;
-          setIsOrbiting(next);
-          cameraCtrlRef.current?.setOrbit(next);
-        }}
-        onCaptureSnapshot={
-          onCaptureSnapshot
-            ? () => {
-                const url = cameraCtrlRef.current?.captureCanvas();
-                if (url) onCaptureSnapshot(url);
-              }
-            : undefined
-        }
-        snapshotCount={snapshotCount}
-      />
 
       {/* Top-Right Fullscreen Toggle Button */}
       <div className="pointer-events-auto absolute top-4 right-4 z-30">

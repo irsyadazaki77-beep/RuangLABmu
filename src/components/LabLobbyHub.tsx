@@ -804,7 +804,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                 <div className="px-5 pb-4 pt-3 border-t border-stone-100 dark:border-slate-800/80 flex items-center justify-between gap-2.5">
                   {primaryEquation ? (
                     <div
-                      className="min-w-0 flex-1 px-2.5 py-1.5 rounded-lg bg-stone-50 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 text-xs font-mono text-sky-700 dark:text-sky-300 truncate"
+                      className="min-w-0 flex-1 px-2.5 py-1.5 rounded-lg bg-stone-50 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 text-xs font-mono text-sky-700 dark:text-sky-300 truncate select-text"
                       title={primaryEquation}
                     >
                       <SciFormula text={primaryEquation} />

@@ -328,6 +328,66 @@ export function useLabSession() {
     });
   };
 
+  // Synchronize domain simulation mode whenever activeModuleId changes
+  useEffect(() => {
+    const physicsModeMap: Record<string, typeof physicsParams.mode> = {
+      'newton-incline': 'newton-incline',
+      'projectile-motion': 'projectile-gravity',
+      'pendulum-harmonic': 'pendulum-harmonic',
+      'spring-hooke': 'spring-hooke',
+      'collision-momentum': 'collision-momentum',
+      'stokes-viscosity': 'stokes-viscosity',
+      'ohm-wheatstone': 'ohm-wheatstone',
+      'optics-young-slit': 'optics-young-slit',
+      'photoelectric-planck': 'photoelectric-planck',
+      'gravity-orbital': 'orbital-gravity',
+    };
+    const chemistryModeMap: Record<string, typeof chemistryParams.mode> = {
+      'thermo-calorimetry': 'thermo-calorimetry',
+      'acid-base-titration': 'acid-base-titration',
+      'redox-electrochemistry': 'electrochemistry-cell',
+      'ideal-gas-boyle': 'ideal-gas-boyle',
+      'reaction-kinetics-arrhenius': 'reaction-kinetics-arrhenius',
+      'spectrophotometry-beer': 'spectrophotometry-beer',
+    };
+    const astronomyModeMap: Record<string, typeof astronomyParams.mode> = {
+      'solar-kepler': 'solar-kepler',
+      'milky-way-rotation': 'milkyway-galaxy',
+      'exoplanet-transit': 'stellar-exoplanet',
+      'stellar-wien-spectrum': 'stellar-wien-spectrum',
+      'hubble-expansion': 'hubble-expansion',
+    };
+
+    if (physicsModeMap[activeModuleId]) {
+      setPhysicsParams((prev) =>
+        prev.mode === physicsModeMap[activeModuleId]
+          ? prev
+          : { ...prev, mode: physicsModeMap[activeModuleId] }
+      );
+    } else if (chemistryModeMap[activeModuleId]) {
+      setChemistryParams((prev) =>
+        prev.mode === chemistryModeMap[activeModuleId]
+          ? prev
+          : { ...prev, mode: chemistryModeMap[activeModuleId] }
+      );
+    } else if (astronomyModeMap[activeModuleId]) {
+      setAstronomyParams((prev) =>
+        prev.mode === astronomyModeMap[activeModuleId]
+          ? prev
+          : { ...prev, mode: astronomyModeMap[activeModuleId] }
+      );
+    } else if (
+      [
+        'photosynthesis-ingenhousz',
+        'enzyme-catalase',
+        'predator-prey-dynamics',
+        'osmosis-plasmolysis',
+      ].includes(activeModuleId)
+    ) {
+      setSelectedBioModuleId(activeModuleId);
+    }
+  }, [activeModuleId]);
+
   const handleSelectCatalogModule = (mod: ExperimentModule) => {
     labSound.playClick();
     setActiveModule(mod.id);

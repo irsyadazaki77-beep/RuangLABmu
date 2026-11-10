@@ -73,7 +73,7 @@ export default function App() {
   } = session;
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[var(--comfort-bg)] text-[var(--comfort-text)] transition-colors duration-200 select-none">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[var(--comfort-bg)] text-[var(--comfort-text)] transition-colors duration-200">
       {/* 1. Header Komposisi Terpadu */}
       <TopNavigationHeader
         experimentModule={currentExperimentModule}

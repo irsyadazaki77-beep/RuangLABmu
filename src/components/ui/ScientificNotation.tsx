@@ -85,7 +85,8 @@ export const SciFormula: React.FC<SciFormulaProps> = ({
     .replace(/C_6H_12O_6/g, 'C_{6}H_{12}O_{6}')
     .replace(/H_2O_2/g, 'H_{2}O_{2}')
     .replace(/H_2O\b/g, 'H_{2}O')
-    .replace(/\b([vVtTrREFIkKmMpPH])(0|1|2|3|x|y|max|m|p|k|g|s|w|a|b|obs|disk|bulge|halo|sel|awal|akhir)\b/g, '$1_{$2}')
+    .replace(/\b(K)(m|a|b|w|p|c|sp)\b/g, '$1_{$2}')
+    .replace(/\b([vVtTrREFIMpPH])(0|1|2|3|x|y|max|p|k|g|s|w|a|b|obs|disk|bulge|halo|sel|awal|akhir)\b/g, '$1_{$2}')
     .replace(/\b(R)\^(2)\b/g, 'R^2');
 
   // Tokenize by explicit superscripts (^{...} or ^token) and subscripts (_{...} or _token)

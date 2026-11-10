@@ -636,7 +636,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 select-text">
       {/* Step 3 Header & Navigation Bar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-xs">
         <div>
