@@ -18,6 +18,10 @@ import {
 } from '../registry/experimentRegistry';
 import { labSound } from '../utils/soundEngine';
 import { ComfortThemeMode } from './ui/VisualComfortToolbar';
+import {
+  ScientificBadge,
+  AchievementBadgesStrip,
+} from './ui/ScientificEnhancementSuite';
 
 interface LabLobbyHubProps {
   activeTier: EducationTier;
@@ -30,6 +34,7 @@ interface LabLobbyHubProps {
   onOpenMysteryExam?: () => void;
   comfortTheme?: ComfortThemeMode;
   onChangeComfortTheme?: (theme: ComfortThemeMode) => void;
+  badges?: ScientificBadge[];
 }
 
 const DOMAIN_ICONS: Record<
@@ -93,6 +98,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
   onOpenMysteryExam,
   comfortTheme = 'dark',
   onChangeComfortTheme,
+  badges = [],
 }) => {
   const [selectedDomain, setSelectedDomain] = useState<ScienceDomain | 'all'>('all');
   const [cognitiveFilter, setCognitiveFilter] = useState<CognitiveLoadTier>('all');
@@ -275,6 +281,9 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
           </div>
         </div>
       </section>
+
+      {/* 1B. STUDENT SCIENTIFIC ACHIEVEMENT BADGES STRIP */}
+      {badges.length > 0 && <AchievementBadgesStrip badges={badges} />}
 
       {/* 2. 3-COLUMN PROPORTIONAL EXPERIMENT MODULE GRID */}
       {filteredModules.length === 0 ? (

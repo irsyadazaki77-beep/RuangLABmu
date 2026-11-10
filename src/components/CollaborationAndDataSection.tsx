@@ -31,6 +31,12 @@ import {
   HypothesisScratchpadCard,
   ExperimentTrialComparePanel,
 } from './ui/HypothesisAndCompareDock';
+import {
+  Lab3DSnapshot,
+  SnapshotAndReplayGallery,
+  ClassLeaderboardCard,
+} from './ui/ScientificEnhancementSuite';
+import type { StudentProgressItem } from './TeacherDashboardView';
 
 export interface GroupTaskItem {
   id: string;
@@ -65,6 +71,10 @@ interface CollaborationAndDataSectionProps {
   onBackToCatalog?: () => void;
   hypothesisNote?: HypothesisNote;
   onChangeHypothesisNote?: (next: HypothesisNote) => void;
+  snapshots3D?: Lab3DSnapshot[];
+  onDeleteSnapshot?: (id: string) => void;
+  onReplayRecord?: (rec: ExperimentRecord) => void;
+  students?: StudentProgressItem[];
 }
 
 export const CollaborationAndDataSection: React.FC<
@@ -84,6 +94,10 @@ export const CollaborationAndDataSection: React.FC<
   onBackToCatalog,
   hypothesisNote,
   onChangeHypothesisNote,
+  snapshots3D = [],
+  onDeleteSnapshot,
+  onReplayRecord,
+  students = [],
 }) => {
   const [domainFilter, setDomainFilter] = useState<'Semua' | ScienceDomain>('Semua');
   const [newTaskTitle, setNewTaskTitle] = useState<string>('');
@@ -161,6 +175,7 @@ export const CollaborationAndDataSection: React.FC<
       }),
       domain: domainStr,
       records: activeRecs,
+      snapshots3D,
       regressionSummary: reg
         ? {
             slope: reg.slopeM,
@@ -300,6 +315,26 @@ export const CollaborationAndDataSection: React.FC<
             </button>
           )}
         </div>
+      </div>
+
+      {/* 3D Snapshot Gallery & Trial Replay + Class Leaderboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className={students.length > 0 ? 'lg:col-span-7' : 'lg:col-span-12'}>
+          <SnapshotAndReplayGallery
+            snapshots={snapshots3D}
+            records={records}
+            onDeleteSnapshot={onDeleteSnapshot}
+            onReplayRecord={onReplayRecord}
+          />
+        </div>
+        {students.length > 0 && (
+          <div className="lg:col-span-5">
+            <ClassLeaderboardCard
+              students={students}
+              highlightStudentName={activeStudentName}
+            />
+          </div>
+        )}
       </div>
 
       {/* Hypothesis Scratchpad + Side-by-Side Trial Comparator Row */}

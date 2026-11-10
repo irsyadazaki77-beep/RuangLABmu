@@ -1,9 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { labSound } from '../utils/soundEngine';
+import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
 
 interface BiologyScene3DProps {
   mode: 'photosynthesis-ingenhousz' | 'enzyme-catalase' | 'osmosis-plasmolysis';
@@ -15,7 +18,11 @@ interface BiologyScene3DProps {
     hoveredObject?: string
   ) => void;
   isPlaying?: boolean;
+  onCaptureSnapshot?: (dataUrl: string) => void;
+  snapshotCount?: number;
 }
+
+type BioCameraPreset = 'isometric' | 'front' | 'top' | 'focus';
 
 function wavelengthToHexColor(wavelengthNm: number): number {
   if (wavelengthNm < 440) return 0x7c3aed; // Violet
@@ -31,12 +38,21 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   params,
   remoteCursors = {},
   onEmitCursor,
-  isPlaying = true,
+  onCaptureSnapshot,
+  snapshotCount = 0,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const cursorManagerRef = useRef<SpatialCursorManager | null>(null);
   const onEmitCursorRef = useRef(onEmitCursor);
   onEmitCursorRef.current = onEmitCursor;
+  const [activePreset, setActivePreset] = useState<BioCameraPreset>('isometric');
+  const [isOrbiting, setIsOrbiting] = useState<boolean>(false);
+
+  const cameraCtrlRef = useRef<{
+    setPreset: (preset: BioCameraPreset) => void;
+    setOrbit: (orbit: boolean) => void;
+    captureCanvas: () => string | null;
+  } | null>(null);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -48,28 +64,87 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
 
     // Three.js Scene, Camera, Renderer
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f172a); // Deep slate slate-900
+    scene.background = new THREE.Color(0x0b1120);
+    scene.fog = new THREE.FogExp2(0x0b1120, 0.02);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 3.5, 7.5);
+    camera.position.set(2.8, 3.8, 7.2);
     camera.lookAt(0, 1.2, 0);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: true,
+    });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.innerHTML = '';
     container.appendChild(renderer.domElement);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = envTexture;
+    pmrem.dispose();
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.autoRotateSpeed = 1.4;
+    controls.target.set(0, 1.3, 0);
+    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.minDistance = 2.8;
+    controls.maxDistance = 20;
+
+    let camTransitionActive = false;
+    const desiredCamPos = new THREE.Vector3(2.8, 3.8, 7.2);
+    const desiredTarget = new THREE.Vector3(0, 1.3, 0);
+
+    controls.addEventListener('start', () => {
+      camTransitionActive = false;
+    });
+
+    const applyCameraPreset = (preset: BioCameraPreset) => {
+      if (preset === 'isometric') {
+        desiredCamPos.set(2.8, 3.8, 7.2);
+        desiredTarget.set(0, 1.3, 0);
+      } else if (preset === 'front') {
+        desiredCamPos.set(0, 2.0, 7.8);
+        desiredTarget.set(0, 1.4, 0);
+      } else if (preset === 'top') {
+        desiredCamPos.set(0, 10.5, 0.5);
+        desiredTarget.set(0, 0, 0);
+      } else {
+        desiredCamPos.set(1.2, 2.1, 4.2);
+        desiredTarget.set(0, 1.3, 0);
+      }
+      camTransitionActive = true;
+    };
+
+    cameraCtrlRef.current = {
+      setPreset: applyCameraPreset,
+      setOrbit: (orbit: boolean) => {
+        controls.autoRotate = orbit;
+      },
+      captureCanvas: () => {
+        renderer.render(scene, camera);
+        return renderer.domElement.toDataURL('image/png');
+      },
+    };
 
     // Collaboration Cursor Group
     const cursorManager = new SpatialCursorManager(scene);
     cursorManagerRef.current = cursorManager;
 
-    // Ambient & Directional Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
-    scene.add(ambientLight);
+    // Studio Lights
+    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.7);
+    scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.6);
     dirLight.position.set(5, 8, 4);
     dirLight.castShadow = true;
     scene.add(dirLight);
@@ -450,6 +525,19 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         });
       }
 
+      if (camTransitionActive) {
+        camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamPos.x, 6, 0.016);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamPos.y, 6, 0.016);
+        camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamPos.z, 6, 0.016);
+        controls.target.x = THREE.MathUtils.damp(controls.target.x, desiredTarget.x, 6, 0.016);
+        controls.target.y = THREE.MathUtils.damp(controls.target.y, desiredTarget.y, 6, 0.016);
+        controls.target.z = THREE.MathUtils.damp(controls.target.z, desiredTarget.z, 6, 0.016);
+        if (camera.position.distanceToSquared(desiredCamPos) < 0.01) {
+          camTransitionActive = false;
+        }
+      }
+
+      controls.update();
       renderer.render(scene, camera);
     };
 
@@ -474,6 +562,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('mousemove', handlePointerMove);
+      controls.dispose();
 
       if (cursorManagerRef.current) {
         cursorManagerRef.current.dispose();
@@ -490,6 +579,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           }
         }
       });
+      if (envTexture) envTexture.dispose();
       renderer.dispose();
       if (renderer.domElement.parentElement) {
         renderer.domElement.parentElement.removeChild(renderer.domElement);
@@ -527,7 +617,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden bg-slate-950 touch-none select-none ${
+      className={`relative w-full h-full overflow-hidden bg-[#0B1120] touch-none select-none ${
         isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : ''
       }`}
     >
@@ -537,22 +627,98 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         className="w-full h-full block cursor-crosshair touch-none"
       />
 
-      {/* Top-Center 3D Mode Label Pill */}
-      <div className="pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-2 rounded-full backdrop-blur-xl bg-slate-900/75 border border-white/15 px-3.5 py-1.5 text-xs font-mono text-slate-200 shadow-2xl z-20">
-        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-        <span>
-          {mode === 'photosynthesis-ingenhousz' && 'Aparatus Ingenhousz 3D · Fotobiologi'}
-          {mode === 'enzyme-catalase' && 'Kinetika Dekomposisi H₂O₂ 3D · Enzimologi'}
-          {mode === 'osmosis-plasmolysis' && 'Kamar Osmometer & Plasmolisis 3D · Sitologi'}
+      {/* Top Camera Controls */}
+      <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full bg-slate-900/90 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
+        <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-semibold mr-1">
+          Kamera 3D:
         </span>
+        {(
+          [
+            { id: 'isometric', label: 'Isometrik' },
+            { id: 'front', label: 'Depan' },
+            { id: 'top', label: 'Atas' },
+            { id: 'focus', label: 'Fokus' },
+          ] as const
+        ).map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            onClick={() => {
+              labSound.playClick();
+              setActivePreset(preset.id);
+              cameraCtrlRef.current?.setPreset(preset.id);
+            }}
+            className={`px-2.5 py-1 text-[11px] font-mono font-medium rounded-full transition-colors cursor-pointer ${
+              activePreset === preset.id
+                ? 'bg-emerald-500 text-slate-950 font-bold shadow-xs'
+                : 'text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {preset.label}
+          </button>
+        ))}
       </div>
+
+      {/* 3D Live Telemetry HUD & Snapshot / Orbit Bar */}
+      <Scene3DTelemetryHUD
+        domainTitle="Biologi"
+        primaryLabel={
+          mode === 'photosynthesis-ingenhousz'
+            ? 'Intensitas Cahaya'
+            : mode === 'enzyme-catalase'
+            ? 'pH Larutan'
+            : 'Konsentrasi Sukrosa'
+        }
+        primaryValue={
+          mode === 'photosynthesis-ingenhousz'
+            ? `${params.lightIntensityLux ?? 1200} lux`
+            : mode === 'enzyme-catalase'
+            ? `pH ${(params.solutionPH ?? 7.0).toFixed(1)}`
+            : `${(params.sucroseConcMolar ?? 0.3).toFixed(2)} M`
+        }
+        secondaryLabel={
+          mode === 'photosynthesis-ingenhousz'
+            ? 'Spektrum λ'
+            : mode === 'enzyme-catalase'
+            ? 'Substrat H₂O₂'
+            : 'Suhu Ruang'
+        }
+        secondaryValue={
+          mode === 'photosynthesis-ingenhousz'
+            ? `${params.wavelengthNm ?? 660} nm`
+            : mode === 'enzyme-catalase'
+            ? `${params.substrateConcMm ?? 10} mM`
+            : `${params.temperatureC ?? 25} °C`
+        }
+        energyBarLabel="Aktivitas Biokimia & Seluler"
+        energyBarRatio={
+          mode === 'photosynthesis-ingenhousz'
+            ? Math.min(95, ((params.lightIntensityLux ?? 1200) / 2500) * 100)
+            : 68
+        }
+        isOrbiting={isOrbiting}
+        onToggleOrbit={() => {
+          const next = !isOrbiting;
+          setIsOrbiting(next);
+          cameraCtrlRef.current?.setOrbit(next);
+        }}
+        onCaptureSnapshot={
+          onCaptureSnapshot
+            ? () => {
+                const url = cameraCtrlRef.current?.captureCanvas();
+                if (url) onCaptureSnapshot(url);
+              }
+            : undefined
+        }
+        snapshotCount={snapshotCount}
+      />
 
       {/* Top-Right Fullscreen Toggle Button */}
       <div className="pointer-events-auto absolute top-4 right-4 z-30">
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl backdrop-blur-xl bg-slate-900/80 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
           title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D (Sentuh & Mobile)'}
         >
           {isFullscreen ? (

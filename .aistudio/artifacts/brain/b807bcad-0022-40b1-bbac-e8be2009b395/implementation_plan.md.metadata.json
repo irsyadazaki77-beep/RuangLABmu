@@ -1,6 +1,6 @@
 {
-  "summary":  "Rencana penataan ulang UI/UX menyeluruh RuangLABmu (SimuLab) dengan pengungkapan bertahap (progressive disclosure), akordion lipat untuk instrumen lanjutan di kokpit 3D, navigasi bar atas yang bersih, panduan langkah demi langkah dengan tombol Lanjut kontekstual, serta penyederhanaan halaman Analisis LKS, Katalog Lobi, dan Dashboard Pengajar.",
-  "updatedAt":  "2026-11-08T10:39:14.930251202Z",
+  "summary":  "Rencana pengembangan dan penyempurnaan menyeluruh fitur serta visual RuangLABmu (SimuLab) mencakup kamera sinematik & HUD 3D WebGL, tangkapan layar 3D untuk laporan akademik, simulasi komparasi A/B Run, generator tantangan & asisten suara Dr. LabMu, serta papan peringkat kelas dan lencana pencapaian praktikum.",
+  "updatedAt":  "2026-11-08T11:14:23.505406543Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

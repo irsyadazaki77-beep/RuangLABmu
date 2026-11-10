@@ -62,6 +62,12 @@ import {
   ExperimentTrialComparePanel,
   HypothesisNote,
 } from './ui/HypothesisAndCompareDock';
+import {
+  QuickChallengeMissionBanner,
+  ABLiveComparisonWidget,
+  ABMetricItem,
+  TargetChallengeMission,
+} from './ui/ScientificEnhancementSuite';
 
 interface PhysicsLabViewProps {
   params: PhysicsParams;
@@ -104,6 +110,15 @@ interface PhysicsLabViewProps {
   hypothesisNote?: HypothesisNote;
   onChangeHypothesisNote?: (next: HypothesisNote) => void;
   zenMode?: boolean;
+  onCapture3DSnapshot?: (
+    dataUrl: string,
+    moduleTitle: string,
+    paramsSummary: string,
+    primaryMetric: string
+  ) => void;
+  snapshotCount?: number;
+  completedChallengeIds?: string[];
+  onCompleteChallenge?: (challenge: TargetChallengeMission) => void;
 }
 
 export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
@@ -127,6 +142,10 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   hypothesisNote,
   onChangeHypothesisNote,
   zenMode = false,
+  onCapture3DSnapshot,
+  snapshotCount = 0,
+  completedChallengeIds = [],
+  onCompleteChallenge,
 }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [simTime, setSimTime] = useState<number>(1.2);
@@ -668,6 +687,31 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               remoteCursors={remoteCursors}
               onEmitCursor={onEmitCursor}
               onUpdateParam={(paramKey, value) => handleParamUpdate({ [paramKey]: value })}
+              snapshotCount={snapshotCount}
+              onCaptureSnapshot={(dataUrl) => {
+                setShutterFlash(true);
+                setTimeout(() => setShutterFlash(false), 260);
+                if (onCapture3DSnapshot) {
+                  const modTitle =
+                    params.mode === 'newton-incline'
+                      ? 'Hukum II Newton & Bidang Miring'
+                      : params.mode === 'projectile-gravity'
+                      ? 'Kinematika Projektil'
+                      : params.mode === 'spring-hooke'
+                      ? 'Osilasi Pegas Hooke'
+                      : params.mode === 'collision-momentum'
+                      ? 'Tumbukan & Momentum'
+                      : 'Gravitasi Universal';
+                  const pSum = `m=${params.mass}kg, F=${params.appliedForce}N, θ=${params.inclineAngle}°, g=${params.gravity}m/s²`;
+                  const pMetric =
+                    params.mode === 'projectile-gravity'
+                      ? `R = ${metrics.projectileRange} m`
+                      : params.mode === 'spring-hooke'
+                      ? `Fp = ${metrics.springRestoringForce} N`
+                      : `a = ${metrics.acceleration} m/s²`;
+                  onCapture3DSnapshot(dataUrl, modTitle, pSum, pMetric);
+                }
+              }}
             />
 
             {/* Shutter Flash Animation */}
@@ -915,6 +959,25 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
             {cockpitTab === 'controls' && (
               <>
+                {/* Automatic Target Challenge Mission Generator */}
+                <QuickChallengeMissionBanner
+                  domain="Fisika"
+                  mode={params.mode}
+                  liveMetrics={{
+                    acceleration: metrics.acceleration,
+                    netForce: metrics.netForce,
+                    projectileRange: metrics.projectileRange,
+                    maxProjectileHeight: metrics.maxProjectileHeight,
+                    springRestoringForce: metrics.springRestoringForce,
+                    oscillationPeriod: metrics.oscillationPeriod,
+                    v1Final: metrics.v1Final,
+                    energyLossPct: metrics.energyLossPct,
+                    universalGravityForce: metrics.universalGravityForce,
+                  }}
+                  completedIds={completedChallengeIds}
+                  onCompleteChallenge={(ch) => onCompleteChallenge && onCompleteChallenge(ch)}
+                />
+
                 {/* Mode Selector */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-2.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
@@ -1377,6 +1440,49 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
             {cockpitTab === 'data-diff' && (
               <div className="space-y-3">
+                {/* Live Side-by-Side A/B Run Comparison */}
+                <ABLiveComparisonWidget
+                  domainLabel="Fisika"
+                  currentSummary={`m=${params.mass}kg, F=${params.appliedForce}N, θ=${params.inclineAngle}°, g=${params.gravity}m/s²`}
+                  currentParams={{
+                    mass: params.mass,
+                    appliedForce: params.appliedForce,
+                    inclineAngle: params.inclineAngle,
+                    frictionCoeffKinetic: params.frictionCoeffKinetic,
+                    gravity: params.gravity,
+                    initialVelocity: params.initialVelocity,
+                    launchAngle: params.launchAngle,
+                    springConstantK: params.springConstantK,
+                    springDisplacement: params.springDisplacement,
+                    restitutionCoeff: params.restitutionCoeff,
+                  }}
+                  liveMetrics={
+                    (params.mode === 'projectile-gravity'
+                      ? [
+                          { key: 'range', label: 'Jangkauan (R)', value: metrics.projectileRange, unit: 'm' },
+                          { key: 'height', label: 'Tinggi Puncak (H)', value: metrics.maxProjectileHeight, unit: 'm' },
+                          { key: 'tof', label: 'Waktu Tempuh (t)', value: metrics.timeOfFlight, unit: 's' },
+                          { key: 'ek', label: 'Energi Kinetik', value: instant.kineticEnergy, unit: 'J' },
+                        ]
+                      : params.mode === 'spring-hooke'
+                      ? [
+                          { key: 'fp', label: 'Gaya Pemulih (Fp)', value: metrics.springRestoringForce, unit: 'N' },
+                          { key: 'period', label: 'Periode (T)', value: metrics.oscillationPeriod, unit: 's' },
+                          { key: 'ep', label: 'Energi Potensial', value: metrics.springPotentialEnergy, unit: 'J' },
+                          { key: 'speed', label: 'Kecepatan v(t)', value: instant.speed, unit: 'm/s' },
+                        ]
+                      : [
+                          { key: 'acc', label: 'Percepatan (a)', value: metrics.acceleration, unit: 'm/s²' },
+                          { key: 'netF', label: 'Gaya Netto (ΣF)', value: metrics.netForce, unit: 'N' },
+                          { key: 'speed', label: 'Kecepatan v(t)', value: instant.speed, unit: 'm/s' },
+                          { key: 'ek', label: 'Energi Kinetik', value: instant.kineticEnergy, unit: 'J' },
+                        ]) as ABMetricItem[]
+                  }
+                  onRestoreBaselineParams={(baseParams) =>
+                    handleParamUpdate(baseParams as Partial<PhysicsParams>)
+                  }
+                />
+
                 {/* Recorded Data Log */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
                   <div className="flex items-center justify-between text-xs">

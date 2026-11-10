@@ -3,6 +3,7 @@ import {
   ExperimentModule,
   EducationTier,
 } from '../registry/experimentRegistry';
+import type { Lab3DSnapshot } from '../components/ui/ScientificEnhancementSuite';
 
 export interface AcademicReportData {
   experimentTitle: string;
@@ -14,6 +15,7 @@ export interface AcademicReportData {
   domain: string;
   module?: ExperimentModule;
   records: ExperimentRecord[];
+  snapshots3D?: Lab3DSnapshot[];
   regressionSummary?: {
     slope: number;
     intercept: number;
@@ -76,6 +78,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
     discussionNotes,
     conclusionNotes,
     hypothesisSummary,
+    snapshots3D,
   } = data;
 
   const objectives =
@@ -396,6 +399,30 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
         .map((item) => `<li><strong>${item.title} [${item.badge}]:</strong> ${item.feedback}</li>`)
         .join('')}
     </ul>
+  </div>
+  `
+      : ''
+  }
+
+  ${
+    snapshots3D && snapshots3D.length > 0
+      ? `
+  <div class="section-title">V-C. Lampiran Dokumentasi Visual Simulasi 3D (${snapshots3D.length} Tangkapan Layar)</div>
+  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 8px 0;">
+    ${snapshots3D
+      .slice(0, 4)
+      .map(
+        (snap, idx) => `
+      <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; background: #f8fafc;">
+        <img src="${snap.dataUrl}" alt="${snap.moduleTitle}" style="width: 100%; height: 130px; object-fit: cover; border-radius: 4px; background: #0f172a;" />
+        <div style="font-family: sans-serif; font-size: 8.5pt; margin-top: 4px;">
+          <strong>Foto 3D #${idx + 1} (${snap.timestamp}) — ${snap.moduleTitle}</strong><br/>
+          <span style="font-family: monospace; color: #0369a1;">${snap.primaryMetric}</span> · <span style="font-family: monospace; color: #475569;">${snap.parametersSummary}</span>
+        </div>
+      </div>
+    `
+      )
+      .join('')}
   </div>
   `
       : ''

@@ -59,6 +59,12 @@ import {
   ExperimentTrialComparePanel,
   HypothesisNote,
 } from './ui/HypothesisAndCompareDock';
+import {
+  QuickChallengeMissionBanner,
+  ABLiveComparisonWidget,
+  ABMetricItem,
+  TargetChallengeMission,
+} from './ui/ScientificEnhancementSuite';
 
 interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -96,6 +102,15 @@ interface ChemistryLabViewProps {
   hypothesisNote?: HypothesisNote;
   onChangeHypothesisNote?: (next: HypothesisNote) => void;
   zenMode?: boolean;
+  onCapture3DSnapshot?: (
+    dataUrl: string,
+    moduleTitle: string,
+    paramsSummary: string,
+    primaryMetric: string
+  ) => void;
+  snapshotCount?: number;
+  completedChallengeIds?: string[];
+  onCompleteChallenge?: (challenge: TargetChallengeMission) => void;
 }
 
 export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
@@ -113,6 +128,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   hypothesisNote,
   onChangeHypothesisNote,
   zenMode = false,
+  onCapture3DSnapshot,
+  snapshotCount = 0,
+  completedChallengeIds = [],
+  onCompleteChallenge,
 }) => {
   const [isReacting, setIsReacting] = useState<boolean>(false);
   const [reactionProgress, setReactionProgress] = useState<number>(0);
@@ -593,6 +612,32 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               remoteCursors={remoteCursors}
               onEmitCursor={onEmitCursor}
               onUpdateParam={(key, val) => handleParamChange({ [key]: val } as Partial<ChemistryParams>)}
+              snapshotCount={snapshotCount}
+              onCaptureSnapshot={(dataUrl) => {
+                setShutterFlash(true);
+                setTimeout(() => setShutterFlash(false), 260);
+                if (onCapture3DSnapshot) {
+                  const modTitle =
+                    params.mode === 'acid-base-titration'
+                      ? 'Titrasi Asam-Basa'
+                      : params.mode === 'electrochemistry-cell'
+                      ? 'Sel Galvani Nernst'
+                      : params.mode === 'ideal-gas-boyle'
+                      ? 'Hukum Gas Ideal'
+                      : params.mode === 'spectrophotometry-beer'
+                      ? 'Spektrofotometri UV-Vis'
+                      : 'Termokimia & Kalorimetri';
+                  const pSum =
+                    params.mode === 'acid-base-titration'
+                      ? `[Asam]=${params.analyteAcidConc}M, Vb=${params.titrantAddedMl}mL`
+                      : `T₀=${params.initialTempC}°C, [M]=${params.reactantConcentration}M`;
+                  const pMetric =
+                    params.mode === 'acid-base-titration'
+                      ? `pH = ${metrics.currentPh.toFixed(2)}`
+                      : `ΔG = ${metrics.deltaG} kJ/mol`;
+                  onCapture3DSnapshot(dataUrl, modTitle, pSum, pMetric);
+                }
+              }}
             />
 
             {/* Shutter Flash Animation */}
@@ -838,6 +883,22 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
 
             {cockpitTab === 'controls' && (
               <>
+                {/* Automatic Target Challenge Mission Generator */}
+                <QuickChallengeMissionBanner
+                  domain="Kimia"
+                  mode={params.mode}
+                  liveMetrics={{
+                    currentPh: metrics.currentPh,
+                    nernstCellPotentialE: metrics.nernstCellPotentialE,
+                    gasPressureAtm: metrics.gasPressureAtm ?? 1,
+                    absorbanceA: metrics.absorbanceA ?? 0,
+                    finalTempC: metrics.finalTempC,
+                    deltaG: metrics.deltaG,
+                  }}
+                  completedIds={completedChallengeIds}
+                  onCompleteChallenge={(ch) => onCompleteChallenge && onCompleteChallenge(ch)}
+                />
+
                 {/* Mode Selector */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-2.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
@@ -1293,6 +1354,53 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
 
             {cockpitTab === 'data-diff' && (
               <div className="space-y-3">
+                {/* Live Side-by-Side A/B Run Comparison */}
+                <ABLiveComparisonWidget
+                  domainLabel="Kimia"
+                  currentSummary={
+                    params.mode === 'acid-base-titration'
+                      ? `Ma=${params.analyteAcidConc}M, Mb=${params.titrantBaseConc}M, Vb=${params.titrantAddedMl}mL`
+                      : `T₀=${params.initialTempC}°C, [M]=${params.reactantConcentration}M`
+                  }
+                  currentParams={{
+                    initialTempC: params.initialTempC,
+                    reactantConcentration: params.reactantConcentration,
+                    analyteAcidConc: params.analyteAcidConc,
+                    titrantBaseConc: params.titrantBaseConc,
+                    titrantAddedMl: params.titrantAddedMl,
+                    anodeConcM: params.anodeConcM,
+                    cathodeConcM: params.cathodeConcM,
+                    gasVolumeL: params.gasVolumeL ?? 10,
+                    gasTemperatureK: params.gasTemperatureK ?? 300,
+                    spectroConcMm: params.spectroConcMm ?? 0.5,
+                  }}
+                  liveMetrics={
+                    (params.mode === 'acid-base-titration'
+                      ? [
+                          { key: 'ph', label: 'pH Larutan', value: metrics.currentPh, unit: 'pH' },
+                          { key: 'veq', label: 'Vol Ekuivalen', value: metrics.equivalenceVolumeMl, unit: 'mL' },
+                          { key: 'vb', label: 'Vol Titran (Vb)', value: params.titrantAddedMl, unit: 'mL' },
+                          { key: 'ma', label: 'Molaritas Asam', value: params.analyteAcidConc, unit: 'M' },
+                        ]
+                      : params.mode === 'electrochemistry-cell'
+                      ? [
+                          { key: 'esel', label: 'Potensial Nernst', value: metrics.nernstCellPotentialE, unit: 'V' },
+                          { key: 'dg', label: 'ΔG Redoks', value: metrics.electroFreeEnergyDeltaG, unit: 'kJ/mol' },
+                          { key: 'q', label: 'Kuosien Q', value: metrics.reactionQuotientQ, unit: '' },
+                          { key: 'e0', label: 'Potensial E°', value: metrics.standardCellPotentialE0, unit: 'V' },
+                        ]
+                      : [
+                          { key: 'dg', label: 'Energi Bebas (ΔG)', value: metrics.deltaG, unit: 'kJ/mol' },
+                          { key: 'tf', label: 'Suhu Akhir', value: metrics.finalTempC, unit: '°C' },
+                          { key: 'rate', label: 'Laju Reaksi (r)', value: metrics.reactionRate, unit: 'M/s' },
+                          { key: 'dh', label: 'Entalpi (ΔH)', value: metrics.deltaHReaction, unit: 'kJ/mol' },
+                        ]) as ABMetricItem[]
+                  }
+                  onRestoreBaselineParams={(baseParams) =>
+                    handleParamChange(baseParams as Partial<ChemistryParams>)
+                  }
+                />
+
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-200">

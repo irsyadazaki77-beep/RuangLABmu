@@ -12,6 +12,7 @@ import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
+import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
 
 interface AstronomyScene3DProps {
   params: AstronomyParams;
@@ -25,6 +26,8 @@ interface AstronomyScene3DProps {
     hoveredObject?: string
   ) => void;
   onUpdateParam?: (paramKey: string, value: number) => void;
+  onCaptureSnapshot?: (dataUrl: string) => void;
+  snapshotCount?: number;
 }
 
 type CameraPreset = 'isometric' | 'ecliptic' | 'top' | 'focus';
@@ -89,11 +92,14 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   remoteCursors,
   onEmitCursor,
   onUpdateParam,
+  onCaptureSnapshot,
+  snapshotCount = 0,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
+  const [isOrbiting, setIsOrbiting] = useState<boolean>(false);
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
 
   const latestRef = useRef({
@@ -117,6 +123,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
   const cameraCtrlRef = useRef<{
     setPreset: (preset: CameraPreset) => void;
+    setOrbit: (orbit: boolean) => void;
+    captureCanvas: () => string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -129,6 +137,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance',
+      preserveDrawingBuffer: true,
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -152,27 +161,44 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
+    controls.autoRotateSpeed = 1.2;
     controls.minDistance = 3.5;
     controls.maxDistance = 60;
 
+    let camTransitionActive = false;
+    const desiredCamPos = new THREE.Vector3(0, 9.5, 14.5);
+    const desiredTarget = new THREE.Vector3(0, 0, 0);
+
+    controls.addEventListener('start', () => {
+      camTransitionActive = false;
+    });
+
     const applyCameraPreset = (presetName: CameraPreset) => {
       if (presetName === 'isometric') {
-        camera.position.set(0, 9.5, 14.5);
-        controls.target.set(0, 0, 0);
+        desiredCamPos.set(0, 9.5, 14.5);
+        desiredTarget.set(0, 0, 0);
       } else if (presetName === 'ecliptic') {
-        camera.position.set(0, 1.4, 15.8);
-        controls.target.set(0, 0, 0);
+        desiredCamPos.set(0, 1.4, 15.8);
+        desiredTarget.set(0, 0, 0);
       } else if (presetName === 'top') {
-        camera.position.set(0, 19.5, 0.5);
-        controls.target.set(0, 0, 0);
+        desiredCamPos.set(0, 19.5, 0.5);
+        desiredTarget.set(0, 0, 0);
       } else {
-        camera.position.set(2.5, 4.2, 8.6);
-        controls.target.set(0, 0, 0);
+        desiredCamPos.set(2.5, 4.2, 8.6);
+        desiredTarget.set(0, 0, 0);
       }
-      controls.update();
+      camTransitionActive = true;
     };
-    cameraCtrlRef.current = { setPreset: applyCameraPreset };
-    applyCameraPreset('isometric');
+    cameraCtrlRef.current = {
+      setPreset: applyCameraPreset,
+      setOrbit: (orbit: boolean) => {
+        controls.autoRotate = orbit;
+      },
+      captureCanvas: () => {
+        renderer.render(scene, camera);
+        return renderer.domElement.toDataURL('image/png');
+      },
+    };
 
     // Deep space lighting
     scene.add(new THREE.AmbientLight(0x94a3b8, 0.45));
@@ -530,6 +556,18 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         camera.position
       );
 
+      if (camTransitionActive) {
+        camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamPos.x, 6, 0.016);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamPos.y, 6, 0.016);
+        camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamPos.z, 6, 0.016);
+        controls.target.x = THREE.MathUtils.damp(controls.target.x, desiredTarget.x, 6, 0.016);
+        controls.target.y = THREE.MathUtils.damp(controls.target.y, desiredTarget.y, 6, 0.016);
+        controls.target.z = THREE.MathUtils.damp(controls.target.z, desiredTarget.z, 6, 0.016);
+        if (camera.position.distanceToSquared(desiredCamPos) < 0.01) {
+          camTransitionActive = false;
+        }
+      }
+
       controls.update();
       renderer.render(scene, camera);
       rafId = requestAnimationFrame(tick);
@@ -700,12 +738,62 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         ))}
       </div>
 
+      {/* 3D Live Telemetry HUD & Snapshot / Orbit Bar */}
+      <Scene3DTelemetryHUD
+        domainTitle="Astronomi"
+        primaryLabel={
+          params.mode === 'milkyway-galaxy'
+            ? 'Kecepatan Rotasi'
+            : params.mode === 'hubble-expansion'
+            ? 'Laju Resesi Hubble'
+            : 'Periode Orbit (T)'
+        }
+        primaryValue={
+          params.mode === 'milkyway-galaxy'
+            ? `${metrics.observedDarkMatterVelocityKms.toFixed(1)} km/s`
+            : params.mode === 'hubble-expansion'
+            ? `${(metrics.recessionVelocityKms ?? 10500).toFixed(0)} km/s`
+            : `${metrics.orbitalPeriodYears.toFixed(3)} thn`
+        }
+        secondaryLabel={
+          params.mode === 'milkyway-galaxy'
+            ? 'Tanpa Materi Gelap'
+            : params.mode === 'hubble-expansion'
+            ? 'Redshift (z)'
+            : 'Laju Orbit (v)'
+        }
+        secondaryValue={
+          params.mode === 'milkyway-galaxy'
+            ? `${metrics.keplerianVelocityKms.toFixed(1)} km/s`
+            : params.mode === 'hubble-expansion'
+            ? `z = ${(metrics.redshiftZ ?? 0.035).toFixed(4)}`
+            : `${metrics.meanOrbitalVelocityKms.toFixed(2)} km/s`
+        }
+        energyBarLabel="Keseimbangan Gravitasi & Momentum Orbit"
+        energyBarRatio={72}
+        isOrbiting={isOrbiting}
+        onToggleOrbit={() => {
+          const next = !isOrbiting;
+          setIsOrbiting(next);
+          cameraCtrlRef.current?.setOrbit(next);
+        }}
+        onCaptureSnapshot={
+          onCaptureSnapshot
+            ? () => {
+                const url = cameraCtrlRef.current?.captureCanvas();
+                if (url) onCaptureSnapshot(url);
+              }
+            : undefined
+        }
+        snapshotCount={snapshotCount}
+      />
+
       {/* Top-Right Fullscreen Toggle Button */}
       <div className="pointer-events-auto absolute top-4 right-4 z-30">
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl backdrop-blur-xl bg-slate-900/80 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
           title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D (Sentuh & Mobile)'}
         >
           {isFullscreen ? (

@@ -36,6 +36,7 @@ import {
   HypothesisScratchpadCard,
   ExperimentTrialComparePanel,
 } from './ui/HypothesisAndCompareDock';
+import type { Lab3DSnapshot } from './ui/ScientificEnhancementSuite';
 
 interface AnalyticsAndWorksheetPanelProps {
   records: ExperimentRecord[];
@@ -48,6 +49,7 @@ interface AnalyticsAndWorksheetPanelProps {
   hypothesisNote?: HypothesisNote;
   onChangeHypothesisNote?: (next: HypothesisNote) => void;
   onAskDrLabMu?: (prompt: string) => void;
+  snapshots3D?: Lab3DSnapshot[];
 }
 
 const PRESET_DATASETS: Record<
@@ -127,6 +129,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<
   hypothesisNote,
   onChangeHypothesisNote,
   onAskDrLabMu,
+  snapshots3D = [],
 }) => {
   const [selectedDatasetKey, setSelectedDatasetKey] =
     useState<string>('newton-force-acc');
@@ -569,6 +572,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<
       }),
       domain: domainStr,
       records: records,
+      snapshots3D,
       chartImageDataUrl: chartDataUrl,
       regressionSummary: regression
         ? {

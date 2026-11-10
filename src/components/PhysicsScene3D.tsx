@@ -13,6 +13,7 @@ import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
+import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
 
 interface PhysicsScene3DProps {
   params: PhysicsParams;
@@ -28,6 +29,8 @@ interface PhysicsScene3DProps {
     hoveredObject?: string
   ) => void;
   onUpdateParam?: (paramKey: string, value: number) => void;
+  onCaptureSnapshot?: (dataUrl: string) => void;
+  snapshotCount?: number;
 }
 
 type CameraPreset = 'isometric' | 'front' | 'top' | 'focus';
@@ -123,12 +126,15 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   remoteCursors,
   onEmitCursor,
   onUpdateParam,
+  onCaptureSnapshot,
+  snapshotCount = 0,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [hudCollapsed, setHudCollapsed] = useState(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
+  const [isOrbiting, setIsOrbiting] = useState<boolean>(false);
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
 
   const latestRef = useRef({
@@ -156,6 +162,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
   const cameraCtrlRef = useRef<{
     setPreset: (preset: CameraPreset) => void;
+    setOrbit: (orbit: boolean) => void;
+    captureCanvas: () => string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -168,6 +176,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance',
+      preserveDrawingBuffer: true,
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -193,34 +202,52 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     pmrem.dispose();
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 250);
-    camera.position.set(0, 6.2, 13.5);
+    camera.position.set(4.8, 6.2, 12.8);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
+    controls.autoRotateSpeed = 1.4;
     controls.target.set(0, 1.4, 0);
     controls.maxPolarAngle = Math.PI * 0.49;
     controls.minDistance = 4;
     controls.maxDistance = 38;
 
+    let camTransitionActive = false;
+    const desiredCamPos = new THREE.Vector3(4.8, 6.2, 12.8);
+    const desiredTarget = new THREE.Vector3(0, 1.4, 0);
+
+    controls.addEventListener('start', () => {
+      camTransitionActive = false;
+    });
+
     const applyCameraPreset = (preset: CameraPreset) => {
       if (preset === 'isometric') {
-        camera.position.set(4.8, 6.2, 12.8);
-        controls.target.set(0, 1.4, 0);
+        desiredCamPos.set(4.8, 6.2, 12.8);
+        desiredTarget.set(0, 1.4, 0);
       } else if (preset === 'front') {
-        camera.position.set(0, 2.6, 14.2);
-        controls.target.set(0, 1.5, 0);
+        desiredCamPos.set(0, 2.6, 14.2);
+        desiredTarget.set(0, 1.5, 0);
       } else if (preset === 'top') {
-        camera.position.set(0, 16.5, 0.8);
-        controls.target.set(0, 0, 0);
+        desiredCamPos.set(0, 16.5, 0.8);
+        desiredTarget.set(0, 0, 0);
       } else {
-        camera.position.set(1.8, 3.4, 8.2);
-        controls.target.set(0, 1.6, 0);
+        desiredCamPos.set(1.8, 3.4, 8.2);
+        desiredTarget.set(0, 1.6, 0);
       }
-      controls.update();
+      camTransitionActive = true;
     };
-    cameraCtrlRef.current = { setPreset: applyCameraPreset };
-    applyCameraPreset('isometric');
+
+    cameraCtrlRef.current = {
+      setPreset: applyCameraPreset,
+      setOrbit: (orbit: boolean) => {
+        controls.autoRotate = orbit;
+      },
+      captureCanvas: () => {
+        renderer.render(scene, camera);
+        return renderer.domElement.toDataURL('image/png');
+      },
+    };
 
     // Studio 3-Point Lighting
     const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.65);
@@ -954,6 +981,18 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         camera.position
       );
 
+      if (camTransitionActive) {
+        camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamPos.x, 6, 0.016);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamPos.y, 6, 0.016);
+        camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamPos.z, 6, 0.016);
+        controls.target.x = THREE.MathUtils.damp(controls.target.x, desiredTarget.x, 6, 0.016);
+        controls.target.y = THREE.MathUtils.damp(controls.target.y, desiredTarget.y, 6, 0.016);
+        controls.target.z = THREE.MathUtils.damp(controls.target.z, desiredTarget.z, 6, 0.016);
+        if (camera.position.distanceToSquared(desiredCamPos) < 0.01) {
+          camTransitionActive = false;
+        }
+      }
+
       controls.update();
       renderer.render(scene, camera);
       rafId = requestAnimationFrame(tick);
@@ -1138,12 +1177,66 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         )}
       </div>
 
+      {/* 3D Live Telemetry HUD & Snapshot / Orbit Bar */}
+      <Scene3DTelemetryHUD
+        domainTitle="Fisika"
+        primaryLabel={
+          params.mode === 'projectile-gravity'
+            ? 'Jarak Jangkauan (R)'
+            : params.mode === 'spring-hooke'
+            ? 'Gaya Pemulih (Fp)'
+            : 'Percepatan (a)'
+        }
+        primaryValue={
+          params.mode === 'projectile-gravity'
+            ? `${metrics.projectileRange.toFixed(2)} m`
+            : params.mode === 'spring-hooke'
+            ? `${metrics.springRestoringForce.toFixed(2)} N`
+            : `${metrics.acceleration.toFixed(2)} m/s²`
+        }
+        secondaryLabel={
+          params.mode === 'projectile-gravity'
+            ? 'Tinggi Puncak (H)'
+            : params.mode === 'spring-hooke'
+            ? 'Energi Potensial'
+            : 'Resultan ΣF'
+        }
+        secondaryValue={
+          params.mode === 'projectile-gravity'
+            ? `${metrics.maxProjectileHeight.toFixed(2)} m`
+            : params.mode === 'spring-hooke'
+            ? `${metrics.springPotentialEnergy.toFixed(2)} J`
+            : `${metrics.netForce.toFixed(2)} N`
+        }
+        energyBarLabel="Energi Kinetik vs Potensial"
+        energyBarRatio={
+          instant.kineticEnergy + instant.potentialEnergy > 0.01
+            ? (instant.kineticEnergy / (instant.kineticEnergy + instant.potentialEnergy)) * 100
+            : 55
+        }
+        isOrbiting={isOrbiting}
+        onToggleOrbit={() => {
+          const next = !isOrbiting;
+          setIsOrbiting(next);
+          cameraCtrlRef.current?.setOrbit(next);
+        }}
+        onCaptureSnapshot={
+          onCaptureSnapshot
+            ? () => {
+                const url = cameraCtrlRef.current?.captureCanvas();
+                if (url) onCaptureSnapshot(url);
+              }
+            : undefined
+        }
+        snapshotCount={snapshotCount}
+      />
+
       {/* Top-Right Fullscreen Toggle Button (Mobile & Desktop) */}
       <div className="pointer-events-auto absolute top-4 right-4 z-30">
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl backdrop-blur-xl bg-slate-900/80 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
           title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D (Sentuh & Mobile)'}
         >
           {isFullscreen ? (

@@ -44,6 +44,12 @@ import {
   ExperimentTrialComparePanel,
   HypothesisNote,
 } from './ui/HypothesisAndCompareDock';
+import {
+  QuickChallengeMissionBanner,
+  ABLiveComparisonWidget,
+  ABMetricItem,
+  TargetChallengeMission,
+} from './ui/ScientificEnhancementSuite';
 
 interface BiologyLabViewProps {
   activeStudentName: string;
@@ -79,6 +85,15 @@ interface BiologyLabViewProps {
   hypothesisNote?: HypothesisNote;
   onChangeHypothesisNote?: (next: HypothesisNote) => void;
   zenMode?: boolean;
+  onCapture3DSnapshot?: (
+    dataUrl: string,
+    moduleTitle: string,
+    paramsSummary: string,
+    primaryMetric: string
+  ) => void;
+  snapshotCount?: number;
+  completedChallengeIds?: string[];
+  onCompleteChallenge?: (challenge: TargetChallengeMission) => void;
 }
 
 export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
@@ -98,6 +113,10 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   hypothesisNote,
   onChangeHypothesisNote,
   zenMode = false,
+  onCapture3DSnapshot,
+  snapshotCount = 0,
+  completedChallengeIds = [],
+  onCompleteChallenge,
 }) => {
   const biologyModules = useMemo(() => getExperimentsByDomain('biologi'), []);
   const [internalModuleId, setInternalModuleId] = useState<string>(
@@ -366,6 +385,24 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
               remoteCursors={remoteCursors}
               onEmitCursor={onEmitCursor}
               isPlaying={isPlaying}
+              snapshotCount={snapshotCount}
+              onCaptureSnapshot={(dataUrl) => {
+                setShutterFlash(true);
+                setTimeout(() => setShutterFlash(false), 260);
+                if (onCapture3DSnapshot) {
+                  const summaryParts = currentModule.parameters.map(
+                    (p) => `${p.label}=${paramsState[p.key]} ${p.unit}`
+                  );
+                  const out0 = currentModule.outputs[0];
+                  const val0 = out0 ? currentOutputs[out0.key] : 0;
+                  onCapture3DSnapshot(
+                    dataUrl,
+                    currentModule.title,
+                    summaryParts.join(', '),
+                    out0 ? `${out0.label} = ${val0?.toFixed(1)} ${out0.unit}` : 'Bioreaktor Aktif'
+                  );
+                }
+              }}
             />
 
             {/* Shutter Flash Animation */}
@@ -562,6 +599,15 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
 
             {cockpitTab === 'controls' && (
               <>
+                {/* Automatic Target Challenge Mission Generator */}
+                <QuickChallengeMissionBanner
+                  domain="Biologi"
+                  mode={currentMode}
+                  liveMetrics={currentOutputs}
+                  completedIds={completedChallengeIds}
+                  onCompleteChallenge={(ch) => onCompleteChallenge && onCompleteChallenge(ch)}
+                />
+
                 {/* Module Selector */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-2.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
@@ -684,6 +730,26 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
 
             {cockpitTab === 'data-diff' && (
               <div className="space-y-3">
+                {/* Live Side-by-Side A/B Run Comparison */}
+                <ABLiveComparisonWidget
+                  domainLabel="Biologi"
+                  currentSummary={currentModule.parameters
+                    .map((p) => `${p.key.slice(0, 4)}=${paramsState[p.key]}${p.unit}`)
+                    .join(', ')}
+                  currentParams={paramsState}
+                  liveMetrics={
+                    currentModule.outputs.map((out) => ({
+                      key: out.key,
+                      label: out.label,
+                      value: currentOutputs[out.key] ?? 0,
+                      unit: out.unit,
+                    })) as ABMetricItem[]
+                  }
+                  onRestoreBaselineParams={(baseParams) =>
+                    setParamsState((prev) => ({ ...prev, ...baseParams }))
+                  }
+                />
+
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-200">

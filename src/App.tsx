@@ -42,6 +42,11 @@ import {
   EyeComfortTheme,
 } from './components/ui/VisualComfortToolbar';
 import { HypothesisNote } from './components/ui/HypothesisAndCompareDock';
+import {
+  Lab3DSnapshot,
+  TargetChallengeMission,
+  computeStudentBadges,
+} from './components/ui/ScientificEnhancementSuite';
 
 // Code Splitting via React.lazy for performance optimization
 const PhysicsLabView = lazy(() =>
@@ -125,6 +130,10 @@ export default function App() {
   const [mysterySubmissions, setMysterySubmissions] = useState<
     MysterySubmissionResult[]
   >([]);
+
+  // 3D WebGL Snapshot Gallery & Target Challenge Mission State
+  const [capturedSnapshots, setCapturedSnapshots] = useState<Lab3DSnapshot[]>([]);
+  const [completedChallengeIds, setCompletedChallengeIds] = useState<string[]>([]);
 
   // Adaptive Eye-Comfort Preferences & Lab Audio Engine State
   const [comfortPrefs, setComfortPrefs] = useState<VisualComfortPreferences>(() => {
@@ -1221,6 +1230,159 @@ export default function App() {
 
   const [lksAnswers, setLksAnswers] = useState<Record<string, string>>({});
 
+  // Handler to capture 3D WebGL snapshots and store them for Step 4 Gallery & A4 Report
+  const handleCapture3DSnapshot = (
+    domain: ScienceDomain,
+    dataUrl: string,
+    moduleTitle: string,
+    paramsSummary: string,
+    primaryMetric: string
+  ) => {
+    const newSnap: Lab3DSnapshot = {
+      id: `SNAP-${Math.floor(100 + Math.random() * 900)}`,
+      timestamp: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+      domain,
+      moduleTitle,
+      parametersSummary: paramsSummary,
+      primaryMetric,
+      dataUrl,
+    };
+    setCapturedSnapshots((prev) => [newSnap, ...prev.slice(0, 7)]);
+    handlePushNotification({
+      id: `notif-snap-${Date.now()}`,
+      timestamp: newSnap.timestamp,
+      severity: 'nominal',
+      domain,
+      title: `Tangkapan Layar 3D Tersimpan (${newSnap.id})`,
+      message: `Visualisasi 3D "${moduleTitle}" (${primaryMetric}) telah ditambahkan ke Galeri & Lampiran Laporan A4.`,
+    });
+  };
+
+  // Handler when a student completes an Automatic Target Challenge Mission in the 3D cockpit
+  const handleCompleteChallenge = (challenge: TargetChallengeMission) => {
+    setCompletedChallengeIds((prev) =>
+      prev.includes(challenge.id) ? prev : [...prev, challenge.id]
+    );
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.name === currentProfile.name
+          ? {
+              ...s,
+              completionPct: Math.min(100, s.completionPct + 10),
+              currentActivity: `Menyelesaikan ${challenge.title} (+${challenge.points} XP)`,
+              lastActive: 'Baru saja',
+            }
+          : s
+      )
+    );
+    handlePushNotification({
+      id: `notif-chal-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+      severity: 'nominal',
+      domain: challenge.domain,
+      title: `Misi Tantangan Tercapai: ${challenge.title} (+${challenge.points} Poin)`,
+      message: `${currentProfile.name} berhasil mencapai target ${challenge.targetValue} ${challenge.unit}! Lencana & skor kelas diperbarui.`,
+    });
+  };
+
+  // Handler to replay any recorded trial back into the 3D Simulation Cockpit
+  const handleReplayRecord = (rec: ExperimentRecord) => {
+    labSound.playRecordSuccess();
+    const domMap: Record<ScienceDomain, LabDomainId> = {
+      Fisika: 'fisika',
+      Kimia: 'kimia',
+      Biologi: 'biologi',
+      Astronomi: 'astronomi',
+    };
+    const targetDom = domMap[rec.domain] || 'fisika';
+    setActiveDomain(targetDom);
+
+    // Parse key=number pairs from parametersSummary if available
+    const summary = rec.parametersSummary;
+    const extractNum = (pattern: RegExp): number | null => {
+      const m = summary.match(pattern);
+      return m && m[1] ? parseFloat(m[1]) : null;
+    };
+
+    if (rec.domain === 'Fisika') {
+      const mVal = extractNum(/m=([\d.]+)/);
+      const fVal = extractNum(/F=([-\d.]+)/);
+      const thVal = extractNum(/θ=([\d.]+)/);
+      const gVal = extractNum(/g=([\d.]+)/);
+      const v0Val = extractNum(/v₀=([\d.]+)/);
+      const kVal = extractNum(/k=([\d.]+)/);
+      setPhysicsParams((prev) => ({
+        ...prev,
+        ...(mVal !== null ? { mass: mVal } : {}),
+        ...(fVal !== null ? { appliedForce: fVal } : {}),
+        ...(thVal !== null ? { inclineAngle: thVal } : {}),
+        ...(gVal !== null ? { gravity: gVal } : {}),
+        ...(v0Val !== null ? { initialVelocity: v0Val } : {}),
+        ...(kVal !== null ? { springConstantK: kVal } : {}),
+      }));
+    } else if (rec.domain === 'Kimia') {
+      const t0Val = extractNum(/T₀=([\d.]+)/);
+      const vbVal = extractNum(/V_b=([\d.]+)/);
+      const maVal = extractNum(/\[Asam\]=([\d.]+)/);
+      setChemistryParams((prev) => ({
+        ...prev,
+        ...(t0Val !== null ? { initialTempC: t0Val } : {}),
+        ...(vbVal !== null ? { titrantAddedMl: vbVal } : {}),
+        ...(maVal !== null ? { analyteAcidConc: maVal } : {}),
+      }));
+    } else if (rec.domain === 'Astronomi') {
+      const aVal = extractNum(/a=([\d.]+)/);
+      const eVal = extractNum(/e=([\d.]+)/);
+      const rVal = extractNum(/R=([\d.]+)/);
+      setAstronomyParams((prev) => ({
+        ...prev,
+        ...(aVal !== null ? { customSemiMajorAxisAu: aVal } : {}),
+        ...(eVal !== null ? { customEccentricity: eVal } : {}),
+        ...(rVal !== null ? { galactocentricRadiusKpc: rVal } : {}),
+      }));
+    }
+
+    setIsLobbyMode(false);
+    setWorkflowStep(2);
+    handlePushNotification({
+      id: `notif-replay-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      severity: 'nominal',
+      domain: rec.domain,
+      title: `Memutar Ulang Rekaman ${rec.id}`,
+      message: `Parameter "${rec.parametersSummary}" telah dimuat ulang ke Kokpit Simulasi 3D.`,
+    });
+  };
+
+  const studentBadges = useMemo(
+    () =>
+      computeStudentBadges({
+        completedSafetyCount: completedSafetyIds.length,
+        recordsCount: records.length,
+        lksGraded,
+        snapshotsCount: capturedSnapshots.length,
+        challengesSolvedCount: completedChallengeIds.length,
+      }),
+    [
+      completedSafetyIds.length,
+      records.length,
+      lksGraded,
+      capturedSnapshots.length,
+      completedChallengeIds.length,
+    ]
+  );
+
   const {
     recoverableSession,
     showRecoveryBanner,
@@ -1734,6 +1896,7 @@ export default function App() {
             onOpenMysteryExam={handleOpenMysteryExamFromLobby}
             comfortTheme={comfortPrefs.theme}
             onChangeComfortTheme={handleChangeComfortTheme}
+            badges={studentBadges}
           />
         )}
 
@@ -1795,6 +1958,12 @@ export default function App() {
                 hypothesisNote={currentModuleHypothesis}
                 onChangeHypothesisNote={handleUpdateCurrentHypothesis}
                 zenMode={zenMode}
+                snapshotCount={capturedSnapshots.length}
+                onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
+                  handleCapture3DSnapshot('Fisika', dataUrl, modTitle, pSum, pMetric)
+                }
+                completedChallengeIds={completedChallengeIds}
+                onCompleteChallenge={handleCompleteChallenge}
               />
             )}
 
@@ -1838,6 +2007,12 @@ export default function App() {
                 hypothesisNote={currentModuleHypothesis}
                 onChangeHypothesisNote={handleUpdateCurrentHypothesis}
                 zenMode={zenMode}
+                snapshotCount={capturedSnapshots.length}
+                onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
+                  handleCapture3DSnapshot('Kimia', dataUrl, modTitle, pSum, pMetric)
+                }
+                completedChallengeIds={completedChallengeIds}
+                onCompleteChallenge={handleCompleteChallenge}
               />
             )}
 
@@ -1883,6 +2058,12 @@ export default function App() {
                 hypothesisNote={currentModuleHypothesis}
                 onChangeHypothesisNote={handleUpdateCurrentHypothesis}
                 zenMode={zenMode}
+                snapshotCount={capturedSnapshots.length}
+                onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
+                  handleCapture3DSnapshot('Biologi', dataUrl, modTitle, pSum, pMetric)
+                }
+                completedChallengeIds={completedChallengeIds}
+                onCompleteChallenge={handleCompleteChallenge}
               />
             )}
 
@@ -1926,6 +2107,12 @@ export default function App() {
                 hypothesisNote={currentModuleHypothesis}
                 onChangeHypothesisNote={handleUpdateCurrentHypothesis}
                 zenMode={zenMode}
+                snapshotCount={capturedSnapshots.length}
+                onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
+                  handleCapture3DSnapshot('Astronomi', dataUrl, modTitle, pSum, pMetric)
+                }
+                completedChallengeIds={completedChallengeIds}
+                onCompleteChallenge={handleCompleteChallenge}
               />
             )}
           </>
@@ -1943,6 +2130,7 @@ export default function App() {
               onProceedToReport={() => setWorkflowStep(4)}
               hypothesisNote={currentModuleHypothesis}
               onChangeHypothesisNote={handleUpdateCurrentHypothesis}
+              snapshots3D={capturedSnapshots}
               onAskDrLabMu={(promptText) => {
                 setDrawerTab('dr-labmu');
                 setDrawerOpen(true);
@@ -1986,6 +2174,12 @@ export default function App() {
               onBackToCatalog={() => setIsLobbyMode(true)}
               hypothesisNote={currentModuleHypothesis}
               onChangeHypothesisNote={handleUpdateCurrentHypothesis}
+              snapshots3D={capturedSnapshots}
+              onDeleteSnapshot={(id) =>
+                setCapturedSnapshots((prev) => prev.filter((s) => s.id !== id))
+              }
+              onReplayRecord={handleReplayRecord}
+              students={students}
               onCSVExported={(count) =>
                 handlePushNotification({
                   id: `notif-csv-${Date.now()}`,

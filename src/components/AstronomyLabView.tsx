@@ -51,6 +51,12 @@ import {
   ExperimentTrialComparePanel,
   HypothesisNote,
 } from './ui/HypothesisAndCompareDock';
+import {
+  QuickChallengeMissionBanner,
+  ABLiveComparisonWidget,
+  ABMetricItem,
+  TargetChallengeMission,
+} from './ui/ScientificEnhancementSuite';
 
 interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -88,6 +94,15 @@ interface AstronomyLabViewProps {
   hypothesisNote?: HypothesisNote;
   onChangeHypothesisNote?: (next: HypothesisNote) => void;
   zenMode?: boolean;
+  onCapture3DSnapshot?: (
+    dataUrl: string,
+    moduleTitle: string,
+    paramsSummary: string,
+    primaryMetric: string
+  ) => void;
+  snapshotCount?: number;
+  completedChallengeIds?: string[];
+  onCompleteChallenge?: (challenge: TargetChallengeMission) => void;
 }
 
 export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
@@ -105,6 +120,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   hypothesisNote,
   onChangeHypothesisNote,
   zenMode = false,
+  onCapture3DSnapshot,
+  snapshotCount = 0,
+  completedChallengeIds = [],
+  onCompleteChallenge,
 }) => {
   const [isRunning, setIsRunning] = useState<boolean>(true);
   const [simTime, setSimTime] = useState<number>(0);
@@ -465,6 +484,32 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               remoteCursors={remoteCursors}
               onEmitCursor={onEmitCursor}
               onUpdateParam={(key, val) => onChangeParams((p) => ({ ...p, [key]: val }))}
+              snapshotCount={snapshotCount}
+              onCaptureSnapshot={(dataUrl) => {
+                setShutterFlash(true);
+                setTimeout(() => setShutterFlash(false), 260);
+                if (onCapture3DSnapshot) {
+                  const modTitle =
+                    params.mode === 'solar-kepler'
+                      ? `Orbit Hukum Kepler (${activePlanet.name})`
+                      : params.mode === 'milkyway-galaxy'
+                      ? 'Kurva Rotasi Bima Sakti'
+                      : params.mode === 'stellar-wien-spectrum'
+                      ? 'Spektroskopi Bintang Wien'
+                      : params.mode === 'hubble-expansion'
+                      ? 'Ekspansi Kosmos Hubble'
+                      : 'Fotometri Transit Eksoplanet';
+                  const pSum =
+                    params.mode === 'solar-kepler'
+                      ? `a=${params.customSemiMajorAxisAu} AU, e=${params.customEccentricity}, M*=${params.centralStarMassSolar} M☉`
+                      : `R=${params.galactocentricRadiusKpc} kpc, Teff=${params.starEffectiveTempK} K`;
+                  const pMetric =
+                    params.mode === 'solar-kepler'
+                      ? `T = ${metrics.orbitalPeriodYears} thn`
+                      : `v = ${metrics.meanOrbitalVelocityKms} km/s`;
+                  onCapture3DSnapshot(dataUrl, modTitle, pSum, pMetric);
+                }
+              }}
             />
 
             {/* Shutter Flash Animation */}
@@ -707,6 +752,21 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
 
             {cockpitTab === 'controls' && (
               <>
+                {/* Automatic Target Challenge Mission Generator */}
+                <QuickChallengeMissionBanner
+                  domain="Astronomi"
+                  mode={params.mode}
+                  liveMetrics={{
+                    orbitalPeriodYears: metrics.orbitalPeriodYears,
+                    observedDarkMatterVelocityKms: metrics.observedDarkMatterVelocityKms,
+                    peakWavelengthNm: metrics.peakWavelengthNm ?? 500,
+                    recessionVelocityKms: metrics.recessionVelocityKms ?? 7000,
+                    transitDepthPct: metrics.transitDepthPct,
+                  }}
+                  completedIds={completedChallengeIds}
+                  onCompleteChallenge={(ch) => onCompleteChallenge && onCompleteChallenge(ch)}
+                />
+
                 {/* Mode Selector */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
@@ -1116,6 +1176,52 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
 
             {cockpitTab === 'data-diff' && (
               <div className="space-y-3">
+                {/* Live Side-by-Side A/B Run Comparison */}
+                <ABLiveComparisonWidget
+                  domainLabel="Astronomi"
+                  currentSummary={
+                    params.mode === 'solar-kepler'
+                      ? `a=${params.customSemiMajorAxisAu}AU, e=${params.customEccentricity}, M*=${params.centralStarMassSolar}M☉`
+                      : `R=${params.galactocentricRadiusKpc}kpc, Teff=${params.starEffectiveTempK}K`
+                  }
+                  currentParams={{
+                    customSemiMajorAxisAu: params.customSemiMajorAxisAu,
+                    customEccentricity: params.customEccentricity,
+                    centralStarMassSolar: params.centralStarMassSolar,
+                    galactocentricRadiusKpc: params.galactocentricRadiusKpc,
+                    darkMatterHaloFraction: params.darkMatterHaloFraction,
+                    starEffectiveTempK: params.starEffectiveTempK,
+                    exoplanetRadiusEarth: params.exoplanetRadiusEarth,
+                    galaxyDistanceMpc: params.galaxyDistanceMpc ?? 100,
+                    hubbleConstantH0: params.hubbleConstantH0 ?? 70,
+                  }}
+                  liveMetrics={
+                    (params.mode === 'solar-kepler'
+                      ? [
+                          { key: 't', label: 'Periode Orbit (T)', value: metrics.orbitalPeriodYears, unit: 'thn' },
+                          { key: 'vorb', label: 'Kecepatan Orbit', value: metrics.meanOrbitalVelocityKms, unit: 'km/s' },
+                          { key: 'ratio', label: 'Rasio T²/a³', value: metrics.keplerRatioT2OverA3, unit: '' },
+                          { key: 'peri', label: 'Perihelion', value: metrics.perihelionAu, unit: 'AU' },
+                        ]
+                      : params.mode === 'milkyway-galaxy'
+                      ? [
+                          { key: 'vdm', label: 'v Observasi (DM)', value: metrics.observedDarkMatterVelocityKms, unit: 'km/s' },
+                          { key: 'vkep', label: 'v Keplerian', value: metrics.keplerianVelocityKms, unit: 'km/s' },
+                          { key: 'anom', label: 'Anomali Δv', value: metrics.velocityAnomalyKms, unit: 'km/s' },
+                          { key: 'mass', label: 'Massa M(<R)', value: metrics.enclosedMassBillionSolar, unit: '×10⁹M☉' },
+                        ]
+                      : [
+                          { key: 'lum', label: 'Luminositas (L)', value: metrics.stellarLuminositySolar, unit: 'L☉' },
+                          { key: 'depth', label: 'Kedalaman Transit', value: metrics.transitDepthPct, unit: '%' },
+                          { key: 'lmax', label: 'λ Puncak Wien', value: metrics.peakWavelengthNm ?? 500, unit: 'nm' },
+                          { key: 'vrec', label: 'Kecepatan Resesi', value: metrics.recessionVelocityKms ?? 7000, unit: 'km/s' },
+                        ]) as ABMetricItem[]
+                  }
+                  onRestoreBaselineParams={(baseParams) =>
+                    onChangeParams((prev) => ({ ...prev, ...baseParams }))
+                  }
+                />
+
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-200">

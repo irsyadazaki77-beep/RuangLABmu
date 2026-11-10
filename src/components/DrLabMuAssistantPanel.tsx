@@ -115,6 +115,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
   const [studentQuery, setStudentQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSpeakingAnswer, setIsSpeakingAnswer] = useState<boolean>(false);
+  const [autoSpeakEnabled, setAutoSpeakEnabled] = useState<boolean>(false);
   const [historyByDomain, setHistoryByDomain] = useState<
     Record<string, ConversationTurn[]>
   >({});
@@ -303,6 +304,16 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
       setStudentQuery('');
     }
     setIsLoading(false);
+
+    if (autoSpeakEnabled) {
+      const script = `${newTurn.response.observation} ${newTurn.response.dataHighlight} Pertanyaan sokratik: ${newTurn.response.socraticQuestion}`;
+      speakNarration(script, {
+        rate: 0.96,
+        onStart: () => setIsSpeakingAnswer(true),
+        onEnd: () => setIsSpeakingAnswer(false),
+        onError: () => setIsSpeakingAnswer(false),
+      });
+    }
   };
 
   useEffect(() => {
@@ -424,11 +435,11 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                 {/* Telemetry Status Bar */}
                 <div className="px-4 py-2 bg-slate-100/80 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 shrink-0">
                   <span>
-                    Data Terekam: <strong className="font-mono text-slate-900 dark:text-white">{records.length}</strong>
+                    Data: <strong className="font-mono text-slate-900 dark:text-white">{records.length}</strong>
                   </span>
                   <span>·</span>
                   <span>
-                    Regresi R²:{' '}
+                    R²:{' '}
                     <strong
                       className={`font-mono ${
                         hasLowR2Alert
@@ -439,7 +450,25 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                       {liveTelemetry.analytics.rSquared.toFixed(3)}
                     </strong>
                   </span>
-                  { domainHistory.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      const next = !autoSpeakEnabled;
+                      setAutoSpeakEnabled(next);
+                      if (!next) stopNarration();
+                    }}
+                    className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-semibold border transition-colors flex items-center gap-1 cursor-pointer ${
+                      autoSpeakEnabled
+                        ? 'bg-sky-500/15 border-sky-500/40 text-sky-600 dark:text-sky-300'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'
+                    }`}
+                    title="Bacakan balasan Dr. LabMu secara otomatis dengan asisten suara"
+                  >
+                    <Volume2 className="w-3 h-3" />
+                    <span>{autoSpeakEnabled ? 'Auto-Suara: ON' : 'Auto-Suara'}</span>
+                  </button>
+                  {domainHistory.length > 0 && (
                     <button
                       type="button"
                       onClick={() => {
@@ -565,6 +594,19 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                     >
                       <HelpCircle className="w-3 h-3" />
                       <span>Panduan Kesimpulan</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleAskDrLabMu(
+                          `Bagaimana strategi mengatur parameter ${readableTopic} agar misi tantangan tercapai dengan presisi R² tinggi?`
+                        )
+                      }
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-700 dark:text-purple-300 text-[11px] font-semibold transition-colors cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Strategi Tantangan</span>
                     </button>
                   </div>
 

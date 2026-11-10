@@ -36,6 +36,7 @@ import {
   RadarLaneSummary,
   StudentRadarCard,
 } from '../utils/telemetryRadar';
+import { ClassLeaderboardCard } from './ui/ScientificEnhancementSuite';
 
 export interface StudentProgressItem {
   id: string;
@@ -646,6 +647,9 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
         {/* TAB 2: Live Student Activity Table + Automated Rubric Matrix */}
         {teacherTab === 'rubrik' && (
         <div className="lg:col-span-12 space-y-6">
+          {/* Class & Group Competency Leaderboard */}
+          <ClassLeaderboardCard students={visibleStudents} />
+
           {/* 1. Student Live Activity Table */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">

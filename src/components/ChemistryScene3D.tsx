@@ -12,6 +12,7 @@ import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
+import { Scene3DTelemetryHUD } from './ui/ScientificEnhancementSuite';
 
 interface ChemistryScene3DProps {
   params: ChemistryParams;
@@ -27,6 +28,8 @@ interface ChemistryScene3DProps {
     hoveredObject?: string
   ) => void;
   onUpdateParam?: (paramKey: string, value: number) => void;
+  onCaptureSnapshot?: (dataUrl: string) => void;
+  snapshotCount?: number;
 }
 
 type CameraPreset = 'isometric' | 'front' | 'top' | 'closeup';
@@ -41,11 +44,14 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   remoteCursors,
   onEmitCursor,
   onUpdateParam,
+  onCaptureSnapshot,
+  snapshotCount = 0,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
+  const [isOrbiting, setIsOrbiting] = useState<boolean>(false);
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
 
   const latestRef = useRef({
@@ -73,6 +79,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
   const cameraCtrlRef = useRef<{
     setPreset: (preset: CameraPreset) => void;
+    setOrbit: (orbit: boolean) => void;
+    captureCanvas: () => string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -85,6 +93,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance',
+      preserveDrawingBuffer: true,
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -104,34 +113,51 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     pmrem.dispose();
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 200);
-    camera.position.set(0, 5.5, 11.5);
+    camera.position.set(4.2, 5.8, 10.5);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
+    controls.autoRotateSpeed = 1.4;
     controls.target.set(0, 1.4, 0);
     controls.maxPolarAngle = Math.PI * 0.49;
     controls.minDistance = 3.5;
     controls.maxDistance = 30;
 
+    let camTransitionActive = false;
+    const desiredCamPos = new THREE.Vector3(4.2, 5.8, 10.5);
+    const desiredTarget = new THREE.Vector3(0, 1.4, 0);
+
+    controls.addEventListener('start', () => {
+      camTransitionActive = false;
+    });
+
     const applyCameraPreset = (presetName: CameraPreset) => {
       if (presetName === 'isometric') {
-        camera.position.set(4.2, 5.8, 10.5);
-        controls.target.set(0, 1.4, 0);
+        desiredCamPos.set(4.2, 5.8, 10.5);
+        desiredTarget.set(0, 1.4, 0);
       } else if (presetName === 'front') {
-        camera.position.set(0, 2.8, 11.2);
-        controls.target.set(0, 1.5, 0);
+        desiredCamPos.set(0, 2.8, 11.2);
+        desiredTarget.set(0, 1.5, 0);
       } else if (presetName === 'top') {
-        camera.position.set(0, 14.5, 0.5);
-        controls.target.set(0, 0, 0);
+        desiredCamPos.set(0, 14.5, 0.5);
+        desiredTarget.set(0, 0, 0);
       } else {
-        camera.position.set(1.5, 2.5, 5.2);
-        controls.target.set(0, 1.4, 0);
+        desiredCamPos.set(1.5, 2.5, 5.2);
+        desiredTarget.set(0, 1.4, 0);
       }
-      controls.update();
+      camTransitionActive = true;
     };
-    cameraCtrlRef.current = { setPreset: applyCameraPreset };
-    applyCameraPreset('isometric');
+    cameraCtrlRef.current = {
+      setPreset: applyCameraPreset,
+      setOrbit: (orbit: boolean) => {
+        controls.autoRotate = orbit;
+      },
+      captureCanvas: () => {
+        renderer.render(scene, camera);
+        return renderer.domElement.toDataURL('image/png');
+      },
+    };
 
     // Lighting
     scene.add(new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.65));
@@ -548,6 +574,18 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         camera.position
       );
 
+      if (camTransitionActive) {
+        camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamPos.x, 6, 0.016);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamPos.y, 6, 0.016);
+        camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamPos.z, 6, 0.016);
+        controls.target.x = THREE.MathUtils.damp(controls.target.x, desiredTarget.x, 6, 0.016);
+        controls.target.y = THREE.MathUtils.damp(controls.target.y, desiredTarget.y, 6, 0.016);
+        controls.target.z = THREE.MathUtils.damp(controls.target.z, desiredTarget.z, 6, 0.016);
+        if (camera.position.distanceToSquared(desiredCamPos) < 0.01) {
+          camTransitionActive = false;
+        }
+      }
+
       controls.update();
       renderer.render(scene, camera);
       rafId = requestAnimationFrame(tick);
@@ -718,12 +756,66 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         ))}
       </div>
 
+      {/* 3D Live Telemetry HUD & Snapshot / Orbit Bar */}
+      <Scene3DTelemetryHUD
+        domainTitle="Kimia"
+        primaryLabel={
+          params.mode === 'acid-base-titration'
+            ? 'pH Larutan'
+            : params.mode === 'electrochemistry-cell'
+            ? 'Potensial Sel (E_sel)'
+            : 'Suhu Akhir (T_akhir)'
+        }
+        primaryValue={
+          params.mode === 'acid-base-titration'
+            ? `${metrics.currentPh.toFixed(2)}`
+            : params.mode === 'electrochemistry-cell'
+            ? `${metrics.nernstCellPotentialE.toFixed(3)} V`
+            : `${metrics.finalTempC.toFixed(1)} °C`
+        }
+        secondaryLabel={
+          params.mode === 'acid-base-titration'
+            ? 'Volume Titran Vb'
+            : params.mode === 'electrochemistry-cell'
+            ? 'Energi Gibbs (ΔG)'
+            : 'Entalpi (ΔH)'
+        }
+        secondaryValue={
+          params.mode === 'acid-base-titration'
+            ? `${params.titrantAddedMl.toFixed(1)} mL`
+            : params.mode === 'electrochemistry-cell'
+            ? `${metrics.electroFreeEnergyDeltaG.toFixed(1)} kJ`
+            : `${metrics.deltaHReaction.toFixed(1)} kJ/mol`
+        }
+        energyBarLabel="Progres & Keseimbangan Reaksi"
+        energyBarRatio={
+          params.mode === 'acid-base-titration'
+            ? (metrics.currentPh / 14) * 100
+            : Math.min(95, Math.max(15, (metrics.finalTempC / 90) * 100))
+        }
+        isOrbiting={isOrbiting}
+        onToggleOrbit={() => {
+          const next = !isOrbiting;
+          setIsOrbiting(next);
+          cameraCtrlRef.current?.setOrbit(next);
+        }}
+        onCaptureSnapshot={
+          onCaptureSnapshot
+            ? () => {
+                const url = cameraCtrlRef.current?.captureCanvas();
+                if (url) onCaptureSnapshot(url);
+              }
+            : undefined
+        }
+        snapshotCount={snapshotCount}
+      />
+
       {/* Top-Right Fullscreen Toggle Button */}
       <div className="pointer-events-auto absolute top-4 right-4 z-30">
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl backdrop-blur-xl bg-slate-900/80 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
           title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D (Sentuh & Mobile)'}
         >
           {isFullscreen ? (
