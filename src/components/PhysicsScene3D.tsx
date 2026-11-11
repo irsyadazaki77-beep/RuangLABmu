@@ -2,11 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {
+  createBrushedMetalTextures,
+  createGraduationScaleTexture,
+  createStudioComposer,
+  createStudioWorkbenchGroup,
+} from '../utils/threeStudioKit';
 import {
   PhysicsParams,
   PhysicsMetrics,
@@ -304,7 +306,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     renderer.setPixelRatio(pixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.05;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
@@ -319,7 +321,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const initialThemeColors = getSceneThemeColors(activeComfortTheme, 'Fisika');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(initialThemeColors.backgroundHex);
-    scene.fog = new THREE.FogExp2(initialThemeColors.fogHex, 0.018);
+    scene.fog = new THREE.FogExp2(initialThemeColors.fogHex, 0.014);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -329,25 +331,17 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 250);
     camera.position.set(4.8, 6.2, 12.8);
 
-    // Post-Processing Pipeline: RenderPass + UnrealBloomPass + FXAAShader
-    const composer = new EffectComposer(renderer);
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
-
-    const bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(width, height),
-      0.45, // strength
-      0.4,  // radius
-      0.85  // threshold
+    // Post-Processing Pipeline: Hardware MSAA RenderTarget + RenderPass + Subtle Bloom + ACES OutputPass
+    const studioComposer = createStudioComposer(
+      renderer,
+      scene,
+      camera,
+      width,
+      height,
+      isSoftwareGl,
+      { strength: 0.24, radius: 0.35, threshold: 0.90 }
     );
-    composer.addPass(bloomPass);
-
-    const fxaaPass = new ShaderPass(FXAAShader);
-    fxaaPass.material.uniforms['resolution'].value.set(
-      1 / (width * pixelRatio),
-      1 / (height * pixelRatio)
-    );
-    composer.addPass(fxaaPass);
+    const { composer } = studioComposer;
 
     // Bounded OrbitControls (Tahap 4)
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -412,27 +406,18 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     rimLight.position.set(-9, 6, -8);
     scene.add(rimLight);
 
-    // Floor & Calibration Grid
-    const floorGeo = new THREE.PlaneGeometry(60, 60);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: initialThemeColors.floorHex,
-      roughness: 0.85,
-      metalness: 0.1,
+    // Studio Lab Bench, Floor & Calibration Grid
+    const workbench = createStudioWorkbenchGroup(initialThemeColors, {
+      width: 14.0,
+      depth: 7.4,
+      thickness: 0.28,
+      benchY: -0.14,
+      floorY: -0.28,
+      gridSize: 32,
+      gridDivisions: 32,
     });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.name = 'Lantai Laboratorium';
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    scene.add(floor);
-
-    const gridHelper = new THREE.GridHelper(
-      32,
-      32,
-      initialThemeColors.gridPrimaryHex,
-      initialThemeColors.gridSecondaryHex
-    );
-    gridHelper.position.y = 0.01;
-    scene.add(gridHelper);
+    workbench.group.name = 'Meja & Lantai Laboratorium';
+    scene.add(workbench.group);
 
     cameraCtrlRef.current = {
       setPreset: applyCameraPreset,
@@ -445,8 +430,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       },
       applyTheme: (colors) => {
         scene.background = new THREE.Color(colors.backgroundHex);
-        scene.fog = new THREE.FogExp2(colors.fogHex, 0.018);
-        floorMat.color.setHex(colors.floorHex);
+        scene.fog = new THREE.FogExp2(colors.fogHex, 0.014);
+        workbench.updateTheme(colors);
         hemiLight.color.setHex(colors.ambientSkyHex);
         hemiLight.groundColor.setHex(colors.ambientGroundHex);
         hemiLight.intensity = colors.ambientIntensity;
@@ -456,26 +441,49 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     // Collaborative 3D Laser Pointer Manager
     const cursorManager = new SpatialCursorManager(scene);
 
-    // Shared Materials
+    // Shared PBR Materials & Precision Textures
+    const metalTex = createBrushedMetalTextures();
+    const rampScaleTex = createGraduationScaleTexture({
+      maxValue: 200,
+      majorStep: 50,
+      minorStep: 10,
+      unit: 'cm',
+      width: 256,
+      height: 512,
+    });
+
     const brushedSteelMat = new THREE.MeshStandardMaterial({
-      color: 0x94a3b8,
-      metalness: 0.82,
-      roughness: 0.25,
+      color: 0xcbd5e1,
+      roughnessMap: metalTex?.roughnessMap ?? null,
+      bumpMap: metalTex?.bumpMap ?? null,
+      bumpScale: 0.006,
+      metalness: 0.88,
+      roughness: 0.24,
+      envMapIntensity: 1.35,
     });
     const darkFrameMat = new THREE.MeshStandardMaterial({
-      color: 0x334155,
-      metalness: 0.55,
-      roughness: 0.4,
+      color: 0x1e293b,
+      roughnessMap: metalTex?.roughnessMap ?? null,
+      bumpMap: metalTex?.bumpMap ?? null,
+      bumpScale: 0.005,
+      metalness: 0.62,
+      roughness: 0.36,
+      envMapIntensity: 1.05,
     });
-    const primaryMassMat = new THREE.MeshStandardMaterial({
+    const primaryMassMat = new THREE.MeshPhysicalMaterial({
       color: 0x0284c7,
-      metalness: 0.35,
-      roughness: 0.25,
+      metalness: 0.28,
+      roughness: 0.2,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.12,
+      envMapIntensity: 1.25,
     });
     const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.78,
+      color: 0xd97706,
+      roughnessMap: metalTex?.roughnessMap ?? null,
+      metalness: 0.84,
       roughness: 0.24,
+      envMapIntensity: 1.3,
     });
 
     // =========================================================
@@ -512,7 +520,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     scene.add(inclineGroup);
 
     const basePedestal = new THREE.Mesh(
-      new THREE.BoxGeometry(10.5, 0.24, 2.6),
+      new RoundedBoxGeometry(10.6, 0.24, 2.7, 3, 0.04),
       darkFrameMat
     );
     basePedestal.position.set(0, 0.12, 0);
@@ -523,8 +531,16 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     pivotGroup.position.set(-4.6, 0.24, 0);
     inclineGroup.add(pivotGroup);
 
+    // Hinge pin axle connecting base pedestal & ramp pivot cleanly
+    const hingeAxle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.11, 2.24, 20),
+      brassMat
+    );
+    hingeAxle.rotation.x = Math.PI / 2;
+    pivotGroup.add(hingeAxle);
+
     const rampBoard = new THREE.Mesh(
-      new THREE.BoxGeometry(9.2, 0.22, 2.1),
+      new RoundedBoxGeometry(9.2, 0.22, 2.1, 3, 0.03),
       brushedSteelMat
     );
     rampBoard.position.set(4.6, -0.11, 0);
@@ -533,7 +549,18 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     rampBoard.userData = { draggableParam: 'inclineAngle', min: 0, max: 60, step: 1, label: 'Kemiringan θ' };
     pivotGroup.add(rampBoard);
 
-    const railGeo = new THREE.BoxGeometry(9.2, 0.12, 0.08);
+    if (rampScaleTex) {
+      const rampScaleStrip = new THREE.Mesh(
+        new THREE.PlaneGeometry(8.8, 0.55),
+        new THREE.MeshBasicMaterial({ map: rampScaleTex, transparent: true, opacity: 0.85, depthWrite: false })
+      );
+      rampScaleStrip.rotation.x = -Math.PI / 2;
+      rampScaleStrip.rotation.z = -Math.PI / 2;
+      rampScaleStrip.position.set(4.6, 0.008, 0.76);
+      pivotGroup.add(rampScaleStrip);
+    }
+
+    const railGeo = new RoundedBoxGeometry(9.2, 0.13, 0.08, 2, 0.02);
     const railFront = new THREE.Mesh(railGeo, darkFrameMat);
     railFront.position.set(4.6, 0.06, 1.0);
     const railBack = new THREE.Mesh(railGeo, darkFrameMat);
@@ -544,7 +571,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     pivotGroup.add(blockGroup);
 
     const massBox = new THREE.Mesh(
-      new THREE.BoxGeometry(1.15, 0.78, 1.15),
+      new RoundedBoxGeometry(1.18, 0.76, 1.18, 4, 0.06),
       primaryMassMat
     );
     massBox.position.set(0, 0.39, 0);
@@ -552,6 +579,15 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     massBox.receiveShadow = true;
     massBox.userData = { draggableParam: 'appliedForce', min: -100, max: 200, step: 5, label: 'Gaya Dorong F' };
     blockGroup.add(massBox);
+
+    // Metallic brass hook loop & optical flag pin atop carriage block
+    const blockCapRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.14, 0.032, 12, 24),
+      brassMat
+    );
+    blockCapRing.position.set(0, 0.82, 0);
+    blockCapRing.castShadow = true;
+    blockGroup.add(blockCapRing);
 
     const arrowApplied = createArrowGroup(0x10b981);
     const arrowFriction = createArrowGroup(0xf59e0b);
@@ -574,7 +610,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     scene.add(projectileGroup);
 
     const launchTower = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 1, 1.2),
+      new RoundedBoxGeometry(1.24, 1, 1.24, 3, 0.05),
       darkFrameMat
     );
     launchTower.position.set(-5.2, 0.5, 0);
@@ -641,7 +677,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     scene.add(springGroup);
 
     const springWall = new THREE.Mesh(
-      new THREE.BoxGeometry(0.4, 2.5, 2.5),
+      new RoundedBoxGeometry(0.42, 2.5, 2.5, 3, 0.04),
       darkFrameMat
     );
     springWall.position.set(-5.2, 1.25, 0);
@@ -666,7 +702,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     }
 
     const springMassBlock = new THREE.Mesh(
-      new THREE.BoxGeometry(1.3, 1.3, 1.3),
+      new RoundedBoxGeometry(1.32, 1.32, 1.32, 4, 0.07),
       primaryMassMat
     );
     springMassBlock.castShadow = true;
@@ -1640,10 +1676,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
-      composer.setSize(w, h);
-      bloomPass.resolution.set(w, h);
-      fxaaPass.material.uniforms['resolution'].value.set(1 / (w * pr), 1 / (h * pr));
-      composer.render();
+      studioComposer.resize(w, h, pr);
+      studioComposer.render();
     };
     const resizeObserver = new ResizeObserver(() => handleResize());
     resizeObserver.observe(container);
@@ -1659,11 +1693,11 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       cursorManager.dispose();
       controls.dispose();
 
-      // Dispose Post-Processing & Textures
-      renderPass.dispose?.();
-      bloomPass.dispose();
-      fxaaPass.dispose?.();
-      composer.dispose();
+      // Dispose Post-Processing, Workbench & Textures
+      studioComposer.dispose();
+      workbench.dispose();
+      metalTex?.dispose();
+      rampScaleTex?.dispose();
       fringeTexture.dispose();
 
       // Deep Three.js GPU resource disposal
@@ -1730,61 +1764,50 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         </div>
       )}
 
-      {/* Top Camera Controls */}
-      <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full bg-slate-900/90 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
-        <span className="text-[10px] font-mono uppercase tracking-wider text-sky-400 font-semibold mr-1">
-          Kamera 3D:
-        </span>
-        {(
-          [
-            { id: 'isometric', label: 'Isometrik' },
-            { id: 'front', label: 'Depan' },
-            { id: 'top', label: 'Atas' },
-            { id: 'focus', label: 'Fokus' },
-          ] as const
-        ).map((preset) => (
-          <button
-            key={preset.id}
-            type="button"
-            onClick={() => handleSelectCameraPreset(preset.id)}
-            className={`px-2.5 py-1 text-[11px] font-mono font-medium rounded-full transition-colors cursor-pointer ${
-              activePreset === preset.id
-                ? 'bg-sky-500 text-slate-950 font-bold shadow-xs'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            {preset.label}
-          </button>
-        ))}
-        {!hudCollapsed && showVectorOverlay && (
-          <div className="hidden xl:flex items-center gap-2 pl-2 ml-1 border-l border-white/15 text-[10px] font-mono text-slate-300">
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
-              Gaya/Vektor
+      {/* Unified Camera & Fullscreen Toolbar (Top-Right, Uncluttered Canvas) */}
+      <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20">
+        <div className="hidden md:flex items-center gap-0.5">
+          {(
+            [
+              { id: 'isometric', label: 'Iso' },
+              { id: 'front', label: 'Depan' },
+              { id: 'top', label: 'Atas' },
+              { id: 'focus', label: 'Fokus' },
+            ] as const
+          ).map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => handleSelectCameraPreset(preset.id)}
+              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer ${
+                activePreset === preset.id
+                  ? 'bg-sky-500 text-slate-950 font-bold'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {preset.label}
+            </button>
+          ))}
+          {!hudCollapsed && showVectorOverlay && (
+            <span className="hidden xl:flex items-center gap-1 px-2 text-[10px] font-mono text-emerald-300 border-l border-white/15">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              Vektor
             </span>
-          </div>
-        )}
-      </div>
-
-      {/* Bottom-Right Fullscreen Toggle Button (Mobile & Desktop) */}
-      <div className="pointer-events-auto absolute bottom-4 right-4 z-30">
+          )}
+          <span className="mx-1 h-4 w-px bg-white/15" aria-hidden="true" />
+        </div>
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
-          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D (Sentuh & Mobile)'}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer"
+          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
         >
           {isFullscreen ? (
-            <>
-              <Minimize2 className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden sm:inline">Kecilkan 3D</span>
-            </>
+            <Minimize2 className="w-3.5 h-3.5 text-sky-400" />
           ) : (
-            <>
-              <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden sm:inline font-semibold">Layar Penuh 3D</span>
-            </>
+            <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
           )}
+          <span className="hidden sm:inline">{isFullscreen ? 'Kecilkan' : 'Layar Penuh'}</span>
         </button>
       </div>
     </div>

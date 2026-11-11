@@ -350,12 +350,11 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                   </div>
                 </div>
 
-                {/* Live Mini-Sparkline SVG */}
                 <svg
-                  width={44}
-                  height={16}
+                  width={40}
+                  height={14}
                   viewBox="0 0 44 16"
-                  className="overflow-visible shrink-0 hidden sm:block"
+                  className="overflow-visible shrink-0 hidden lg:block"
                   aria-hidden="true"
                 >
                   <polyline
@@ -367,12 +366,6 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                     points={buildSparklinePoints(m)}
                   />
                 </svg>
-
-                <ChevronDown
-                  className={`w-3 h-3 text-slate-400 transition-transform duration-150 ${
-                    isSelected ? 'rotate-180 text-sky-400' : ''
-                  }`}
-                />
               </button>
             );
           })}

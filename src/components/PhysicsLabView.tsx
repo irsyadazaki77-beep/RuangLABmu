@@ -844,15 +844,17 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
           </div>
 
           {/* Interactive Formula Card */}
-          <InteractiveFormulaCard
-            title="Hukum Fisika & Analisis Kuantitatif"
-            tokens={telemetryMetrics.map((tm) => ({
-              symbol: tm.id.slice(0, 3),
-              value: tm.value,
-              unit: tm.unit,
-              description: tm.label,
-            }))}
-          />
+          <CollapsibleLabSection title="Rumus & Kalkulator Interaktif" defaultOpen={false}>
+            <InteractiveFormulaCard
+              title="Hukum Fisika & Analisis Kuantitatif"
+              tokens={telemetryMetrics.map((tm) => ({
+                symbol: tm.label.split(' ')[0],
+                value: tm.value,
+                unit: tm.unit,
+                description: tm.label,
+              }))}
+            />
+          </CollapsibleLabSection>
         </>
       }
     />

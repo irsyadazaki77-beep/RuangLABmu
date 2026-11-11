@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+import {
+  createBrushedMetalTextures,
+  createLabBenchTextures,
+  createStudioComposer,
+} from '../utils/threeStudioKit';
 import { Maximize2, Minimize2, Focus } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { SpatialCursorManager } from '../utils/spatialCursorGroup';
@@ -193,7 +193,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     renderer.setPixelRatio(pixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.05;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
@@ -210,25 +210,17 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     scene.environment = envTexture;
     pmrem.dispose();
 
-    // Post-Processing Pipeline: RenderPass + UnrealBloomPass + FXAAShader
-    const composer = new EffectComposer(renderer);
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
-
-    const bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(width, height),
-      0.45, // strength (fluorescent cell glow)
-      0.4,  // radius
-      0.85  // threshold
+    // Post-Processing Pipeline: Hardware MSAA RenderTarget + RenderPass + Subtle Bloom + ACES OutputPass
+    const studioComposer = createStudioComposer(
+      renderer,
+      scene,
+      camera,
+      width,
+      height,
+      isSoftwareGl,
+      { strength: 0.25, radius: 0.36, threshold: 0.88 }
     );
-    composer.addPass(bloomPass);
-
-    const fxaaPass = new ShaderPass(FXAAShader);
-    fxaaPass.material.uniforms['resolution'].value.set(
-      1 / (width * pixelRatio),
-      1 / (height * pixelRatio)
-    );
-    composer.addPass(fxaaPass);
+    const { composer } = studioComposer;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -317,13 +309,19 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     stageCondenserLight.shadow.bias = -0.0001;
     scene.add(stageCondenserLight);
 
-    // Laboratory Table Surface with Optical Condenser Aperture Port
-    const tableGeo = new THREE.RingGeometry(0.95, 4.5, 36);
+    // Laboratory Table Surface with Phenolic PBR Texture & Optical Condenser Collar
+    const bioBenchTex = createLabBenchTextures(initialColors.tableHex, 3, 3);
+    const bioMetalTex = createBrushedMetalTextures();
+    const tableGeo = new THREE.RingGeometry(0.95, 5.2, 48);
     tableGeo.rotateX(-Math.PI / 2);
     const tableMat = new THREE.MeshStandardMaterial({
       color: initialColors.tableHex,
-      roughness: 0.4,
-      metalness: 0.1,
+      map: bioBenchTex?.map ?? null,
+      roughnessMap: bioBenchTex?.roughnessMap ?? null,
+      bumpMap: bioBenchTex?.bumpMap ?? null,
+      bumpScale: 0.008,
+      roughness: 0.52,
+      metalness: 0.08,
       side: THREE.DoubleSide,
     });
     const tableMesh = new THREE.Mesh(tableGeo, tableMat);
@@ -331,6 +329,20 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     tableMesh.receiveShadow = true;
     tableMesh.name = 'Meja Mikroskop & Laboratorium Biologi';
     scene.add(tableMesh);
+
+    const condenserBezel = new THREE.Mesh(
+      new THREE.TorusGeometry(0.98, 0.055, 14, 48),
+      new THREE.MeshStandardMaterial({
+        color: 0xd97706,
+        roughnessMap: bioMetalTex?.roughnessMap ?? null,
+        metalness: 0.85,
+        roughness: 0.24,
+        envMapIntensity: 1.25,
+      })
+    );
+    condenserBezel.rotation.x = Math.PI / 2;
+    condenserBezel.position.y = 0.015;
+    scene.add(condenserBezel);
 
     // Optical Condenser Lens Ring embedded in stage center
     const condenserLens = new THREE.Mesh(
@@ -964,10 +976,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
-      composer.setSize(w, h);
-      bloomPass.resolution.set(w, h);
-      fxaaPass.material.uniforms['resolution'].value.set(1 / (w * pr), 1 / (h * pr));
-      composer.render();
+      studioComposer.resize(w, h, pr);
+      studioComposer.render();
     };
 
     const resizeObserver = new ResizeObserver(() => handleResize());
@@ -988,11 +998,10 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         cursorManagerRef.current.dispose();
       }
 
-      // Dispose Post-Processing & Organelle Textures
-      renderPass.dispose?.();
-      bloomPass.dispose();
-      fxaaPass.dispose?.();
-      composer.dispose();
+      // Dispose Post-Processing & Organelle/Bench Textures
+      studioComposer.dispose();
+      bioBenchTex?.dispose();
+      bioMetalTex?.dispose();
       nucleusTex.dispose();
       mitoTex.dispose();
       chloroTex.dispose();
@@ -1069,43 +1078,56 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         className="w-full h-full block cursor-crosshair touch-none"
       />
 
-      {/* Top Camera Controls */}
-      <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full bg-slate-900/90 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
-        <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-semibold mr-1">
-          Kamera 3D:
-        </span>
-        {(
-          [
-            { id: 'isometric', label: 'Isometrik' },
-            { id: 'front', label: 'Depan' },
-            { id: 'top', label: 'Atas' },
-            { id: 'focus', label: 'Fokus' },
-          ] as const
-        ).map((preset) => (
-          <button
-            key={preset.id}
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setActivePreset(preset.id);
-              cameraCtrlRef.current?.setPreset(preset.id);
-            }}
-            className={`px-2.5 py-1 text-[11px] font-mono font-medium rounded-full transition-colors cursor-pointer ${
-              activePreset === preset.id
-                ? 'bg-emerald-500 text-slate-950 font-bold shadow-xs'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            {preset.label}
-          </button>
-        ))}
+      {/* Unified Top-Right Camera & Fullscreen Pill */}
+      <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20">
+        <div className="hidden md:flex items-center gap-0.5">
+          {(
+            [
+              { id: 'isometric', label: 'Iso' },
+              { id: 'front', label: 'Depan' },
+              { id: 'top', label: 'Atas' },
+              { id: 'focus', label: 'Fokus' },
+            ] as const
+          ).map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setActivePreset(preset.id);
+                cameraCtrlRef.current?.setPreset(preset.id);
+              }}
+              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer ${
+                activePreset === preset.id
+                  ? 'bg-emerald-500 text-slate-950 font-bold'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {preset.label}
+            </button>
+          ))}
+          <span className="mx-1 h-4 w-px bg-white/15" aria-hidden="true" />
+        </div>
+        <button
+          type="button"
+          onClick={handleToggleFullscreen}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer"
+          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
+        >
+          {isFullscreen ? (
+            <Minimize2 className="w-3.5 h-3.5 text-emerald-400" />
+          ) : (
+            <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+          )}
+          <span className="hidden sm:inline">{isFullscreen ? 'Kecilkan' : 'Layar Penuh'}</span>
+        </button>
       </div>
 
-      {/* Interactive 3D Microscope Lens Focus & Condenser Control Dock (Tahap 5) */}
-      <div className="pointer-events-auto absolute top-16 left-4 flex items-center gap-3 rounded-2xl bg-slate-900/95 border border-emerald-500/35 px-3.5 py-2 shadow-2xl z-20">
-        <div className="flex items-center gap-1.5 text-emerald-400 text-[11px] font-mono font-bold">
+      {/* Interactive 3D Microscope Lens Focus Control (Compact Top-Left Pill) */}
+      <div className="pointer-events-auto absolute top-3 left-3 flex items-center gap-2 rounded-xl bg-slate-900/80 backdrop-blur-md border border-emerald-500/30 px-3 py-1.5 shadow-lg z-20">
+        <div className="flex items-center gap-1.5 text-emerald-400 text-[11px] font-semibold">
           <Focus className="w-3.5 h-3.5" />
-          <span>Fokus Lensa 3D:</span>
+          <span className="hidden sm:inline">Fokus Lensa</span>
         </div>
         <input
           type="range"
@@ -1119,42 +1141,20 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
             setLensFocus(nextFocus);
             cameraCtrlRef.current?.setPreset(activePreset);
           }}
-          className="w-24 sm:w-32 accent-emerald-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
+          className="w-20 sm:w-28 accent-emerald-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
         />
-        <span className="text-[11px] font-mono text-emerald-200 font-bold min-w-[36px] text-right">
+        <span className="text-[11px] font-mono tabular-nums text-emerald-200 font-bold min-w-[32px] text-right">
           {lensFocus}%
         </span>
       </div>
 
       {/* Floating Organelle Focus Badge */}
       {clickedBadge && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-xl bg-emerald-950/95 border border-emerald-500/50 text-emerald-200 text-xs font-mono font-bold shadow-xl flex items-center gap-2 pointer-events-none">
+        <div className="absolute top-14 left-3 z-30 px-3 py-1 rounded-xl bg-emerald-950/90 border border-emerald-500/40 text-emerald-200 text-xs font-medium shadow-lg flex items-center gap-2 pointer-events-none">
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          <span>Fokus Organel: {clickedBadge}</span>
+          <span>{clickedBadge}</span>
         </div>
       )}
-
-      {/* Bottom-Right Fullscreen Toggle Button */}
-      <div className="pointer-events-auto absolute bottom-4 right-4 z-30">
-        <button
-          type="button"
-          onClick={handleToggleFullscreen}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
-          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D (Sentuh & Mobile)'}
-        >
-          {isFullscreen ? (
-            <>
-              <Minimize2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Kecilkan 3D</span>
-            </>
-          ) : (
-            <>
-              <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline font-semibold">Layar Penuh 3D</span>
-            </>
-          )}
-        </button>
-      </div>
     </div>
   );
 };

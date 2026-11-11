@@ -150,30 +150,30 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
             </div>
           )}
 
-          {/* Bottom-Left: Collapsible Panduan Praktikum 3D Pill (Collapsed by default) */}
-          <div className="absolute bottom-3 left-3 z-20 pointer-events-auto hidden sm:block max-w-sm">
+          {/* Bottom-Left: Minimalist Collapsible Panduan 3D Pill */}
+          <div className="absolute bottom-3 left-3 z-20 pointer-events-auto hidden md:block max-w-xs">
             {guideHud ? (
               guideHud
             ) : (
-              <div className="rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-700/80 shadow-lg text-xs overflow-hidden transition-all">
+              <div className="rounded-xl bg-slate-900/75 backdrop-blur-md border border-white/15 shadow-lg text-xs overflow-hidden transition-all">
                 <button
                   type="button"
                   onClick={() => {
                     labSound.playClick(620);
                     setGuideCollapsed(!guideCollapsed);
                   }}
-                  className="w-full px-3 py-2 flex items-center justify-between gap-3 text-sky-300 hover:text-white font-semibold cursor-pointer"
+                  className="px-2.5 py-1.5 flex items-center justify-between gap-2 text-slate-200 hover:text-white font-medium cursor-pointer"
                 >
-                  <span className="flex items-center gap-1.5 font-bold">
-                    <span>💡 Panduan Praktikum 3D</span>
+                  <span className="flex items-center gap-1.5">
+                    <span>💡 Panduan</span>
                   </span>
-                  {guideCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  {guideCollapsed ? <ChevronUp className="w-3.5 h-3.5 text-sky-400" /> : <ChevronDown className="w-3.5 h-3.5 text-sky-400" />}
                 </button>
 
                 {!guideCollapsed && (
-                  <div className="px-3 pb-3 pt-1 text-slate-300 text-[11px] leading-relaxed border-t border-slate-800/80 space-y-1.5">
+                  <div className="px-3 pb-3 pt-1.5 text-slate-300 text-[11px] leading-relaxed border-t border-white/10 space-y-1">
                     <p className="font-semibold text-white">{guideTitle || 'Eksplorasi Variabel & Aparatus'}</p>
-                    <p>{guideText || 'Ubah parameter di panel samping atau interaksikan langsung objek 3D di kanvas. Ambil minimal 3 rekaman data untuk melihat kurva regresi ilmiah.'}</p>
+                    <p>{guideText || 'Atur parameter di panel kanan atau seret objek 3D langsung. Catat minimal 3 data pengamatan untuk grafik regresi.'}</p>
                   </div>
                 )}
               </div>

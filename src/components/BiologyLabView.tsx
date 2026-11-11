@@ -302,15 +302,17 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
           </CollapsibleLabSection>
 
           {/* Interactive Formula Card */}
-          <InteractiveFormulaCard
-            title={currentModule.title}
-            tokens={currentModule.parameters.slice(0, 3).map((p) => ({
-              symbol: p.key.slice(0, 2),
-              value: paramsState[p.key] ?? p.defaultValue,
-              unit: p.unit,
-              description: p.label,
-            }))}
-          />
+          <CollapsibleLabSection title="Rumus & Kalkulator Interaktif" defaultOpen={false}>
+            <InteractiveFormulaCard
+              title={currentModule.title}
+              tokens={currentModule.parameters.slice(0, 3).map((p) => ({
+                symbol: p.label.split(' ')[0],
+                value: paramsState[p.key] ?? p.defaultValue,
+                unit: p.unit,
+                description: p.label,
+              }))}
+            />
+          </CollapsibleLabSection>
         </>
       }
     />

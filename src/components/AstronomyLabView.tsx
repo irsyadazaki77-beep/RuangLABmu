@@ -483,15 +483,17 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
           </CollapsibleLabSection>
 
           {/* Interactive Formula Card */}
-          <InteractiveFormulaCard
-            title="Hukum Astrofisika & Kosmologi"
-            tokens={telemetryMetrics.map((tm) => ({
-              symbol: tm.id.slice(0, 3),
-              value: tm.value,
-              unit: tm.unit,
-              description: tm.label,
-            }))}
-          />
+          <CollapsibleLabSection title="Rumus & Kalkulator Interaktif" defaultOpen={false}>
+            <InteractiveFormulaCard
+              title="Hukum Astrofisika & Kosmologi"
+              tokens={telemetryMetrics.map((tm) => ({
+                symbol: tm.label.split(' ')[0],
+                value: tm.value,
+                unit: tm.unit,
+                description: tm.label,
+              }))}
+            />
+          </CollapsibleLabSection>
         </>
       }
     />

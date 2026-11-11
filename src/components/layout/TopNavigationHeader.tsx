@@ -8,6 +8,8 @@ import {
   BookOpen,
   Moon,
   Trophy,
+  Search,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ExperimentModule } from '../../registry/experimentRegistry';
@@ -57,6 +59,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
   } = useLabStore();
 
   const [isGradebookOpen, setIsGradebookOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
 
   // Gamification state & celebration modal
   const [gamificationProfile, setGamificationProfile] = useState<GamificationProfile>(() =>
@@ -243,9 +246,9 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         )}
       </div>
 
-      {/* Zone 3: Right Utilities (Gamification XP/Level, [ID|EN] Switcher, Sync, Role, Theme, Dr. LabMu) */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* FITUR 1: Compact Level / XP & Badges Trigger */}
+      {/* Zone 3: Calm Right Utilities (XP, Quick Search, Unified Settings Popover, Dr. LabMu) */}
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 relative">
+        {/* Compact Level / XP Pill */}
         <button
           type="button"
           onClick={() => {
@@ -255,112 +258,18 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           }}
           aria-label={`Profil Gamifikasi Siswa Level ${gamificationProfile.level} (${gamificationProfile.xp} XP)`}
           title="Lihat Level, XP & Koleksi Lencana Saintifik"
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
+          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
         >
           <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
           <span className="font-mono text-[11px] font-bold tabular-nums">
-            {t('nav.level')}{gamificationProfile.level} · {gamificationProfile.xp} XP
+            {t('nav.level')}{gamificationProfile.level}
           </span>
-          {gamificationProfile.unlockedBadges.length > 0 && (
-            <span className="hidden xl:inline text-[10px] font-mono text-amber-600 dark:text-amber-400 tabular-nums">
-              ({gamificationProfile.unlockedBadges.length}/5)
-            </span>
-          )}
+          <span className="hidden xl:inline font-mono text-[11px] opacity-80 tabular-nums">
+            · {gamificationProfile.xp} XP
+          </span>
         </button>
 
-        {/* FITUR 4: Multi-Language Switcher [ID | EN] */}
-        <div
-          role="group"
-          aria-label="Pilih Bahasa Antarmuka (ID / EN)"
-          className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 text-[11px] font-mono font-bold shrink-0"
-        >
-          <button
-            type="button"
-            onClick={() => handleLanguageSwitch('id')}
-            aria-label="Bahasa Indonesia (ID)"
-            className={`px-1.5 py-0.5 rounded-md transition-colors cursor-pointer ${
-              activeLang === 'id'
-                ? 'bg-sky-600 text-white shadow-xs'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            ID
-          </button>
-          <span className="text-slate-300 dark:text-slate-700 px-0.5" aria-hidden="true">
-            |
-          </span>
-          <button
-            type="button"
-            onClick={() => handleLanguageSwitch('en')}
-            aria-label="English Language (EN)"
-            className={`px-1.5 py-0.5 rounded-md transition-colors cursor-pointer ${
-              activeLang === 'en'
-                ? 'bg-sky-600 text-white shadow-xs'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            EN
-          </button>
-        </div>
-
-        {/* 1. Status Sync (Real WebSocket Connection Indicator) */}
-        <div
-          role="status"
-          aria-label={wsConnected ? 'Tersambung ke Lab Sync Server' : 'Mode Sinkronisasi Lokal'}
-          title={wsConnected ? 'Real-Time Sync Aktif' : 'Sinkronisasi Lokal'}
-          className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-stone-100/80 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800"
-        >
-          <span
-            className={`w-2 h-2 rounded-full shrink-0 ${
-              wsConnected
-                ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]'
-                : 'bg-amber-500 animate-pulse'
-            }`}
-          />
-          <span className="hidden xl:inline text-[11px] font-mono">
-            {wsConnected ? t('nav.syncActive') : t('nav.syncLocal')}
-          </span>
-        </div>
-
-        {/* 2. Role Switcher (Siswa / Guru) & Gradebook Trigger */}
-        <div
-          role="group"
-          aria-label="Pilih Peran Pengguna"
-          className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 text-xs font-semibold shrink-0"
-        >
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setUserRole('siswa');
-            }}
-            className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-              userRole === 'siswa'
-                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <span>{t('nav.roleStudent')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setUserRole('pengajar');
-              setIsLobbyMode(false);
-            }}
-            className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-              userRole === 'pengajar'
-                ? 'bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-300 shadow-xs'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <GraduationCap className="w-3.5 h-3.5 hidden sm:inline" />
-            <span>{t('nav.roleTeacher')}</span>
-          </button>
-        </div>
-
-        {/* Gradebook Button (Hanya tampil / aktif saat role Guru aktif) */}
+        {/* Gradebook Button (Only active when role Guru is selected) */}
         {userRole === 'pengajar' && (
           <button
             type="button"
@@ -376,57 +285,164 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           </button>
         )}
 
-        {/* Command Palette Trigger Button */}
+        {/* Command Palette Trigger */}
         <button
           type="button"
           onClick={() => {
             labSound.playClick();
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
           }}
-          title="Buka Menu Pencarian & Aksi Cepat (Ctrl+K / ⌘K)"
+          title={`${t('nav.search')} (Ctrl+K)`}
           aria-label="Buka Pencarian & Perintah Cepat"
-          className="hidden lg:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-600 dark:text-slate-300 text-xs font-semibold cursor-pointer transition-colors shrink-0"
+          className="p-1.5 sm:px-2 sm:py-1 flex items-center gap-1.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-600 dark:text-slate-300 text-xs font-semibold cursor-pointer transition-colors shrink-0"
         >
-          <span className="hidden xl:inline">{t('nav.search')}</span>
-          <kbd className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-stone-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-            Ctrl+K
-          </kbd>
+          <Search className="w-3.5 h-3.5" />
+          <span className="hidden xl:inline text-[11px] text-slate-400 font-mono">⌘K</span>
         </button>
 
-        {/* 3. Theme Switcher (Terang / Sepia / Gelap) */}
-        <div
-          role="group"
-          aria-label="Pilih Tema Tampilan"
-          className="hidden sm:flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 text-xs font-semibold shrink-0"
-        >
-          {(
-            [
-              { id: 'light' as ComfortThemeMode, label: t('nav.themeLight'), Icon: Sun },
-              { id: 'sepia' as ComfortThemeMode, label: t('nav.themeSepia'), Icon: BookOpen },
-              { id: 'dark' as ComfortThemeMode, label: t('nav.themeDark'), Icon: Moon },
-            ] as const
-          ).map(({ id, label, Icon }) => {
-            const active = comfortPrefs.theme === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => handleThemeSwitch(id)}
-                title={`Tema ${label}`}
-                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                  active
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5 shrink-0 text-amber-500 dark:text-sky-400" />
-                <span className="hidden 2xl:inline">{label}</span>
-              </button>
-            );
-          })}
+        {/* Consolidated Preferences Popover (Theme, Language, Role, Sync Status) */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              labSound.playClick();
+              setPrefsOpen((prev) => !prev);
+            }}
+            aria-expanded={prefsOpen}
+            aria-label="Pengaturan Tampilan, Bahasa, dan Peran"
+            title="Tema, Bahasa (ID/EN), Peran (Siswa/Guru) & Sync"
+            className={`relative p-1.5 sm:px-2 sm:py-1 flex items-center gap-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+              prefsOpen
+                ? 'bg-sky-600 text-white border-sky-600'
+                : 'bg-stone-100 dark:bg-slate-900 border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-700 dark:text-slate-300'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-emerald-500' : 'bg-amber-400'}`}
+              title={wsConnected ? t('nav.syncActive') : t('nav.syncLocal')}
+            />
+          </button>
+
+          {prefsOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setPrefsOpen(false)} />
+              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-2xl p-3 space-y-3 z-50 text-xs">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Tema Tampilan
+                  </span>
+                  <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800">
+                    {(
+                      [
+                        { id: 'light' as ComfortThemeMode, label: t('nav.themeLight'), Icon: Sun },
+                        { id: 'sepia' as ComfortThemeMode, label: t('nav.themeSepia'), Icon: BookOpen },
+                        { id: 'dark' as ComfortThemeMode, label: t('nav.themeDark'), Icon: Moon },
+                      ] as const
+                    ).map(({ id, label, Icon }) => {
+                      const active = comfortPrefs.theme === id;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => handleThemeSwitch(id)}
+                          className={`py-1.5 px-1 rounded-lg font-semibold flex items-center justify-center gap-1 cursor-pointer transition-colors ${
+                            active
+                              ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          <Icon className="w-3 h-3 text-amber-500 dark:text-sky-400 shrink-0" />
+                          <span>{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Bahasa
+                  </span>
+                  <div className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 font-mono font-bold">
+                    <button
+                      type="button"
+                      onClick={() => handleLanguageSwitch('id')}
+                      className={`px-2 py-0.5 rounded-md cursor-pointer ${
+                        activeLang === 'id'
+                          ? 'bg-sky-600 text-white'
+                          : 'text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      ID
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLanguageSwitch('en')}
+                      className={`px-2 py-0.5 rounded-md cursor-pointer ${
+                        activeLang === 'en'
+                          ? 'bg-sky-600 text-white'
+                          : 'text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      EN
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Mode Pengguna
+                  </span>
+                  <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        labSound.playClick();
+                        setUserRole('siswa');
+                        setPrefsOpen(false);
+                      }}
+                      className={`py-1.5 rounded-lg cursor-pointer ${
+                        userRole === 'siswa'
+                          ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                          : 'text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      {t('nav.roleStudent')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        labSound.playClick();
+                        setUserRole('pengajar');
+                        setIsLobbyMode(false);
+                        setPrefsOpen(false);
+                      }}
+                      className={`py-1.5 rounded-lg cursor-pointer flex items-center justify-center gap-1 ${
+                        userRole === 'pengajar'
+                          ? 'bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-300 shadow-xs'
+                          : 'text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      <span>{t('nav.roleTeacher')}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-stone-200/80 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>Status Sync</span>
+                  <span className="flex items-center gap-1.5 font-mono font-semibold text-slate-700 dark:text-slate-200">
+                    <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    {wsConnected ? t('nav.syncActive') : t('nav.syncLocal')}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* 4. Dr. LabMu Assistant Button */}
+        {/* Single Clear Dr. LabMu Assistant Button */}
         <button
           type="button"
           onClick={() => {
@@ -434,6 +450,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             toggleDrawer();
           }}
           aria-label={drawerOpen ? 'Tutup Asisten Dr. LabMu' : 'Buka Asisten Dr. LabMu'}
+          title="[A] Tanya Dr. LabMu (Asisten Sokratik AI)"
           className={`relative px-2.5 py-1 flex items-center gap-1.5 rounded-lg border font-semibold text-xs transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
             drawerOpen
               ? 'bg-sky-600 text-white border-sky-600 shadow-xs'

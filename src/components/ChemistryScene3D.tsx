@@ -2,11 +2,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {
+  buildLatheFromProfile,
+  createBeakerProfilePoints,
+  createBrushedMetalTextures,
+  createBuretteClampAssembly,
+  createErlenmeyerProfilePoints,
+  createFunnelProfilePoints,
+  createGraduationScaleTexture,
+  createStudioComposer,
+  createStudioWorkbenchGroup,
+} from '../utils/threeStudioKit';
 import {
   ChemistryParams,
   ChemistryMetrics,
@@ -217,7 +224,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     renderer.setPixelRatio(pixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.04;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
@@ -232,7 +239,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const initialColors = getSceneThemeColors(activeComfortTheme, 'Kimia');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(initialColors.backgroundHex);
-    scene.fog = new THREE.FogExp2(initialColors.fogHex, 0.018);
+    scene.fog = new THREE.FogExp2(initialColors.fogHex, 0.015);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -242,25 +249,17 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 200);
     camera.position.set(4.2, 5.8, 10.5);
 
-    // Post-Processing Pipeline: RenderPass + UnrealBloomPass + FXAAShader
-    const composer = new EffectComposer(renderer);
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
-
-    const bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(width, height),
-      0.45, // strength
-      0.4,  // radius
-      0.85  // threshold
+    // Post-Processing Pipeline: Hardware MSAA RenderTarget + RenderPass + Subtle Bloom + ACES OutputPass
+    const studioComposer = createStudioComposer(
+      renderer,
+      scene,
+      camera,
+      width,
+      height,
+      isSoftwareGl,
+      { strength: 0.22, radius: 0.34, threshold: 0.90 }
     );
-    composer.addPass(bloomPass);
-
-    const fxaaPass = new ShaderPass(FXAAShader);
-    fxaaPass.material.uniforms['resolution'].value.set(
-      1 / (width * pixelRatio),
-      1 / (height * pixelRatio)
-    );
-    composer.addPass(fxaaPass);
+    const { composer } = studioComposer;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -324,29 +323,15 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     fillLight.position.set(-7, 5, -6);
     scene.add(fillLight);
 
-    // Floor & Lab Bench Table
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: initialColors.floorHex,
-      roughness: 0.85,
+    // Studio Laboratory Bench & Brushed PBR Materials
+    const workbench = createStudioWorkbenchGroup(initialColors, {
+      width: 11.2,
+      depth: 6.4,
+      thickness: 0.3,
+      benchY: 0.14,
+      floorY: -0.02,
     });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    scene.add(floor);
-
-    const tableMat = new THREE.MeshStandardMaterial({
-      color: initialColors.tableHex,
-      roughness: 0.7,
-      metalness: 0.1,
-    });
-    const tableTop = new THREE.Mesh(
-      new THREE.BoxGeometry(10.5, 0.28, 6.0),
-      tableMat
-    );
-    tableTop.position.set(0, 0.14, 0);
-    tableTop.castShadow = true;
-    tableTop.receiveShadow = true;
-    scene.add(tableTop);
+    scene.add(workbench.group);
 
     cameraCtrlRef.current = {
       setPreset: applyCameraPreset,
@@ -359,29 +344,77 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       },
       applyTheme: (colors) => {
         scene.background = new THREE.Color(colors.backgroundHex);
-        scene.fog = new THREE.FogExp2(colors.fogHex, 0.018);
-        floorMat.color.setHex(colors.floorHex);
-        tableMat.color.setHex(colors.tableHex);
+        scene.fog = new THREE.FogExp2(colors.fogHex, 0.015);
+        workbench.updateTheme(colors);
         hemiLight.color.setHex(colors.ambientSkyHex);
         hemiLight.groundColor.setHex(colors.ambientGroundHex);
         hemiLight.intensity = colors.ambientIntensity;
       },
     };
 
-    // Shared Materials & Refractive Photorealistic Glass Material
-    const darkFrameMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.5, roughness: 0.4 });
-    const brushedSteelMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.25 });
-    const brassMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.75, roughness: 0.25 });
+    // Shared PBR Materials & Refractive Borosilicate Glass Material
+    const metalTex = createBrushedMetalTextures();
+    const buretteScaleTex = createGraduationScaleTexture({
+      maxValue: 50,
+      majorStep: 10,
+      minorStep: 5,
+      unit: 'mL',
+      invertTopToBottom: true,
+    });
+    const beakerScaleTex = createGraduationScaleTexture({
+      maxValue: 250,
+      majorStep: 50,
+      minorStep: 25,
+      unit: 'mL',
+    });
+
+    const darkFrameMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughnessMap: metalTex?.roughnessMap ?? null,
+      bumpMap: metalTex?.bumpMap ?? null,
+      bumpScale: 0.005,
+      metalness: 0.62,
+      roughness: 0.36,
+      envMapIntensity: 1.05,
+    });
+    const brushedSteelMat = new THREE.MeshStandardMaterial({
+      color: 0xcbd5e1,
+      roughnessMap: metalTex?.roughnessMap ?? null,
+      bumpMap: metalTex?.bumpMap ?? null,
+      bumpScale: 0.006,
+      metalness: 0.88,
+      roughness: 0.24,
+      envMapIntensity: 1.35,
+    });
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      roughnessMap: metalTex?.roughnessMap ?? null,
+      metalness: 0.84,
+      roughness: 0.26,
+      envMapIntensity: 1.25,
+    });
     const glassMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
+      color: 0xe0f2fe,
       roughness: 0.05,
-      transmission: 0.96,
-      thickness: 0.8,
-      ior: 1.52,
+      metalness: 0.0,
+      transmission: 0.92,
+      thickness: 0.42,
+      ior: 1.47,
       transparent: true,
       opacity: 1,
-      reflectivity: 0.5,
+      reflectivity: 0.65,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.04,
+      envMapIntensity: 1.65,
     });
+    const graduationOverlayMat = (tex: THREE.CanvasTexture | null) =>
+      new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        opacity: 0.88,
+      });
 
     const cursorManager = new SpatialCursorManager(scene);
 
@@ -396,33 +429,47 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const thermoGroup = new THREE.Group();
     scene.add(thermoGroup);
 
-    const calVessel = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.4, 1.4, 2.6, 32, 1, true),
-      glassMat
-    );
-    calVessel.position.set(0, 1.5, 0);
+    const calVesselGeo = buildLatheFromProfile(createBeakerProfilePoints(1.42, 2.55, 0.065), 48);
+    const calVessel = new THREE.Mesh(calVesselGeo, glassMat);
+    calVessel.position.set(0, 0.29, 0);
     calVessel.castShadow = true;
     thermoGroup.add(calVessel);
+
+    const calJacket = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.48, 1.48, 1.65, 40, 1, true),
+      darkFrameMat
+    );
+    calJacket.position.set(0, 1.15, 0);
+    calJacket.castShadow = true;
+    thermoGroup.add(calJacket);
 
     const calLiquidMat = createLiquidWobbleMaterial(0x38bdf8, 0.76);
     liquidShaderMaterials.push(calLiquidMat);
     const calLiquid = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.32, 1.32, 1.6, 32, 16),
+      new THREE.CylinderGeometry(1.33, 1.33, 1.6, 36, 16),
       calLiquidMat
     );
-    calLiquid.position.set(0, 1.05, 0);
+    calLiquid.position.set(0, 1.12, 0);
     thermoGroup.add(calLiquid);
 
     const calLid = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.5, 1.5, 0.2, 32),
+      new THREE.CylinderGeometry(1.52, 1.52, 0.18, 40),
       brushedSteelMat
     );
-    calLid.position.set(0, 2.85, 0);
+    calLid.position.set(0, 2.86, 0);
     calLid.castShadow = true;
     thermoGroup.add(calLid);
 
+    const calGrommet = new THREE.Mesh(
+      new THREE.TorusGeometry(0.11, 0.035, 12, 24),
+      darkFrameMat
+    );
+    calGrommet.rotation.x = Math.PI / 2;
+    calGrommet.position.set(0.6, 2.95, 0);
+    thermoGroup.add(calGrommet);
+
     const calThermometer = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.06, 0.06, 2.8, 16),
+      new THREE.CylinderGeometry(0.055, 0.055, 2.75, 16),
       new THREE.MeshStandardMaterial({
         color: 0xef4444,
         metalness: 0.2,
@@ -442,37 +489,83 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const titrationGroup = new THREE.Group();
     scene.add(titrationGroup);
 
-    // Retort Stand
-    const retBase = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.2, 3.2), darkFrameMat);
-    retBase.position.set(-1.4, 0.38, 0);
+    // Cast-iron Beveled Retort Base + Porcelain Tile Stage + Chrome Stand Rod
+    const retBase = new THREE.Mesh(new RoundedBoxGeometry(2.6, 0.22, 3.2, 3, 0.04), darkFrameMat);
+    retBase.position.set(-1.35, 0.4, 0);
     retBase.castShadow = true;
     retBase.receiveShadow = true;
     titrationGroup.add(retBase);
-    const retRod = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 6.4, 16), brushedSteelMat);
-    retRod.position.set(-2.2, 3.4, 0);
+
+    const porcelainTile = new THREE.Mesh(
+      new RoundedBoxGeometry(2.2, 0.06, 2.2, 2, 0.02),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.28, metalness: 0.02 })
+    );
+    porcelainTile.position.set(0, 0.53, 0);
+    porcelainTile.receiveShadow = true;
+    titrationGroup.add(porcelainTile);
+
+    const rodCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.16, 20), brushedSteelMat);
+    rodCollar.position.set(-2.2, 0.57, 0);
+    titrationGroup.add(rodCollar);
+
+    const retRod = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 6.4, 20), brushedSteelMat);
+    retRod.position.set(-2.2, 3.6, 0);
     retRod.castShadow = true;
     titrationGroup.add(retRod);
 
-    // Burette Glass Tube (Refractive MeshPhysicalMaterial)
-    const buretteTube = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 4.4, 24), glassMat);
-    buretteTube.position.set(0, 4.4, 0);
+    // Articulated Twin Burette Clamps attaching Burette physically to Retort Rod
+    titrationGroup.add(createBuretteClampAssembly(-2.2, 0, 5.2, brushedSteelMat, darkFrameMat));
+    titrationGroup.add(createBuretteClampAssembly(-2.2, 0, 3.3, brushedSteelMat, darkFrameMat));
+
+    // Burette Glass Tube + Graduated 0-50 mL Scale Sleeve + Tapered Drip Tip + Funnel
+    const buretteTube = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 4.1, 28), glassMat);
+    buretteTube.position.set(0, 4.45, 0);
     buretteTube.castShadow = true;
     titrationGroup.add(buretteTube);
+
+    if (buretteScaleTex) {
+      const buretteScaleMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.186, 0.186, 3.7, 28, 1, true),
+        graduationOverlayMat(buretteScaleTex)
+      );
+      buretteScaleMesh.position.set(0, 4.45, 0);
+      buretteScaleMesh.rotation.y = -Math.PI * 0.45;
+      titrationGroup.add(buretteScaleMesh);
+    }
+
+    const buretteTip = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.032, 0.48, 20), glassMat);
+    buretteTip.position.set(0, 1.98, 0);
+    titrationGroup.add(buretteTip);
+
+    const buretteFunnel = new THREE.Mesh(
+      buildLatheFromProfile(createFunnelProfilePoints(0.32, 0.08, 0.36, 0.22), 32),
+      glassMat
+    );
+    buretteFunnel.position.set(0, 6.38, 0);
+    titrationGroup.add(buretteFunnel);
 
     // Titrant liquid inside burette
     const buretteLiquidMat = createLiquidWobbleMaterial(0x38bdf8, 0.75);
     liquidShaderMaterials.push(buretteLiquidMat);
     const buretteLiquid = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.15, 0.15, 4.0, 24, 12),
+      new THREE.CylinderGeometry(0.145, 0.145, 3.8, 24, 12),
       buretteLiquidMat
     );
     buretteLiquid.position.set(0, 4.4, 0);
     titrationGroup.add(buretteLiquid);
 
-    // Stopcock valve tap with 3D Positional Audio Emitter (Tahap 4)
-    const stopcock = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.8, 16), brassMat);
+    // Stopcock PTFE valve body + Brass tap handle with 3D Positional Audio Emitter
+    const stopcockBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.16, 0.36, 20),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.35 })
+    );
+    stopcockBody.rotation.z = Math.PI / 2;
+    stopcockBody.position.set(0, 2.26, 0);
+    titrationGroup.add(stopcockBody);
+
+    const stopcock = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.78, 16), brassMat);
     stopcock.rotation.z = Math.PI / 2;
-    stopcock.position.set(0, 2.2, 0);
+    stopcock.position.set(0, 2.26, 0);
     stopcock.castShadow = true;
     stopcock.userData = { draggableParam: 'titrantAddedMl', min: 0, max: 50, step: 0.5, label: 'Volume Titran Vb' };
     titrationGroup.add(stopcock);
@@ -480,10 +573,10 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const buretSoundEmitter = labSound.createPositionalSoundEmitter(camera, 'titration-drop');
     stopcock.add(buretSoundEmitter.sound);
 
-    // Erlenmeyer Flask at bottom (Refractive MeshPhysicalMaterial)
-    const flaskGeo = new THREE.CylinderGeometry(0.4, 1.4, 1.8, 32);
+    // True Thick-Walled Lathe Erlenmeyer Flask at bottom
+    const flaskGeo = buildLatheFromProfile(createErlenmeyerProfilePoints(1.24, 0.38, 2.15, 0.045), 48);
     const flaskMesh = new THREE.Mesh(flaskGeo, glassMat);
-    flaskMesh.position.set(0, 1.2, 0);
+    flaskMesh.position.set(0, 0.56, 0);
     flaskMesh.castShadow = true;
     titrationGroup.add(flaskMesh);
 
@@ -491,10 +584,10 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const analyteLiquidMat = createLiquidWobbleMaterial(0xf8fafc, 0.82);
     liquidShaderMaterials.push(analyteLiquidMat);
     const analyteSolution = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.68, 1.32, 1.0, 32, 16),
+      new THREE.CylinderGeometry(0.68, 1.15, 0.96, 36, 16),
       analyteLiquidMat
     );
-    analyteSolution.position.set(0, 0.8, 0);
+    analyteSolution.position.set(0, 1.06, 0);
     titrationGroup.add(analyteSolution);
 
     // =========================================================
@@ -503,35 +596,55 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const redoxGroup = new THREE.Group();
     scene.add(redoxGroup);
 
-    // Left beaker (Anode)
-    const beakerLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.8, 28), glassMat);
-    beakerLeft.position.set(-1.8, 1.2, 0);
+    const sharedBeakerGeo = buildLatheFromProfile(createBeakerProfilePoints(0.92, 1.85, 0.045), 40);
+
+    // Left beaker (Anode) with Graduations
+    const beakerLeft = new THREE.Mesh(sharedBeakerGeo, glassMat);
+    beakerLeft.position.set(-1.8, 0.29, 0);
     beakerLeft.castShadow = true;
+    if (beakerScaleTex) {
+      const beakerLeftScale = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.926, 0.926, 1.5, 32, 1, true),
+        graduationOverlayMat(beakerScaleTex)
+      );
+      beakerLeftScale.position.set(-1.8, 1.15, 0);
+      beakerLeftScale.rotation.y = -Math.PI * 0.4;
+      redoxGroup.add(beakerLeftScale);
+    }
     const anodeLiquidMat = createLiquidWobbleMaterial(0x94a3b8, 0.72);
     liquidShaderMaterials.push(anodeLiquidMat);
     const anodeLiquid = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.84, 0.84, 1.25, 28, 12),
+      new THREE.CylinderGeometry(0.85, 0.85, 1.25, 32, 12),
       anodeLiquidMat
     );
-    anodeLiquid.position.set(-1.8, 0.92, 0);
-    const anodeElectrode = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.0, 0.08), brushedSteelMat);
+    anodeLiquid.position.set(-1.8, 0.96, 0);
+    const anodeElectrode = new THREE.Mesh(new RoundedBoxGeometry(0.28, 2.0, 0.09, 2, 0.015), brushedSteelMat);
     anodeElectrode.position.set(-1.8, 1.4, 0);
     anodeElectrode.castShadow = true;
     anodeElectrode.userData = { draggableParam: 'anodeConcM', min: 0.01, max: 2.0, step: 0.05, label: '[Anoda]' };
     redoxGroup.add(beakerLeft, anodeLiquid, anodeElectrode);
 
-    // Right beaker (Cathode)
-    const beakerRight = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.8, 28), glassMat);
-    beakerRight.position.set(1.8, 1.2, 0);
+    // Right beaker (Cathode) with Graduations
+    const beakerRight = new THREE.Mesh(sharedBeakerGeo, glassMat);
+    beakerRight.position.set(1.8, 0.29, 0);
     beakerRight.castShadow = true;
+    if (beakerScaleTex) {
+      const beakerRightScale = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.926, 0.926, 1.5, 32, 1, true),
+        graduationOverlayMat(beakerScaleTex)
+      );
+      beakerRightScale.position.set(1.8, 1.15, 0);
+      beakerRightScale.rotation.y = -Math.PI * 0.4;
+      redoxGroup.add(beakerRightScale);
+    }
     const cathodeLiquidMat = createLiquidWobbleMaterial(0x0284c7, 0.76);
     liquidShaderMaterials.push(cathodeLiquidMat);
     const cathodeLiquid = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.84, 0.84, 1.25, 28, 12),
+      new THREE.CylinderGeometry(0.85, 0.85, 1.25, 32, 12),
       cathodeLiquidMat
     );
-    cathodeLiquid.position.set(1.8, 0.92, 0);
-    const cathodeElectrode = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.0, 0.08), brassMat);
+    cathodeLiquid.position.set(1.8, 0.96, 0);
+    const cathodeElectrode = new THREE.Mesh(new RoundedBoxGeometry(0.28, 2.0, 0.09, 2, 0.015), brassMat);
     cathodeElectrode.position.set(1.8, 1.4, 0);
     cathodeElectrode.castShadow = true;
     cathodeElectrode.userData = { draggableParam: 'cathodeConcM', min: 0.01, max: 2.0, step: 0.05, label: '[Katoda]' };
@@ -539,15 +652,15 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
     // Salt Bridge U-Tube
     const saltBridge = new THREE.Mesh(
-      new THREE.TorusGeometry(1.8, 0.12, 12, 32, Math.PI),
+      new THREE.TorusGeometry(1.8, 0.12, 14, 36, Math.PI),
       glassMat
     );
     saltBridge.position.set(0, 1.6, 0);
     saltBridge.castShadow = true;
     redoxGroup.add(saltBridge);
 
-    // Digital Voltmeter
-    const voltMeter = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 0.8), darkFrameMat);
+    // Digital Voltmeter Housing
+    const voltMeter = new THREE.Mesh(new RoundedBoxGeometry(1.65, 1.0, 0.82, 3, 0.05), darkFrameMat);
     voltMeter.position.set(0, 2.8, -1.2);
     voltMeter.castShadow = true;
     redoxGroup.add(voltMeter);
@@ -1102,10 +1215,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
-      composer.setSize(w, h);
-      bloomPass.resolution.set(w, h);
-      fxaaPass.material.uniforms['resolution'].value.set(1 / (w * pr), 1 / (h * pr));
-      composer.render();
+      studioComposer.resize(w, h, pr);
+      studioComposer.render();
     };
     const resizeObserver = new ResizeObserver(() => handleResize());
     resizeObserver.observe(container);
@@ -1121,11 +1232,12 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       cursorManager.dispose();
       controls.dispose();
 
-      // Dispose Post-Processing Pipeline & Textures
-      renderPass.dispose?.();
-      bloomPass.dispose();
-      fxaaPass.dispose?.();
-      composer.dispose();
+      // Dispose Post-Processing Pipeline, Studio Workbench & Textures
+      studioComposer.dispose();
+      workbench.dispose();
+      metalTex?.dispose();
+      buretteScaleTex?.dispose();
+      beakerScaleTex?.dispose();
       bubbleTex.dispose();
 
       // Deep Three.js GPU resource disposal
@@ -1192,53 +1304,44 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         </div>
       )}
 
-      {/* Top Camera Controls */}
-      <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full bg-slate-900/90 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
-        <span className="text-[10px] font-mono uppercase tracking-wider text-sky-400 font-semibold mr-1">
-          Kamera 3D:
-        </span>
-        {(
-          [
-            { id: 'isometric', label: 'Isometrik' },
-            { id: 'front', label: 'Depan' },
-            { id: 'top', label: 'Atas' },
-            { id: 'closeup', label: 'Fokus' },
-          ] as const
-        ).map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => handleSelectCameraPreset(p.id)}
-            className={`px-2.5 py-1 text-[11px] font-mono font-medium rounded-full transition-colors cursor-pointer ${
-              activePreset === p.id
-                ? 'bg-sky-500 text-slate-950 font-bold shadow-xs'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Bottom-Right Fullscreen Toggle Button */}
-      <div className="pointer-events-auto absolute bottom-4 right-4 z-30">
+      {/* Unified Camera & Fullscreen Toolbar (Top-Right, Uncluttered Canvas) */}
+      <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20">
+        <div className="hidden md:flex items-center gap-0.5">
+          {(
+            [
+              { id: 'isometric', label: 'Iso' },
+              { id: 'front', label: 'Depan' },
+              { id: 'top', label: 'Atas' },
+              { id: 'closeup', label: 'Fokus' },
+            ] as const
+          ).map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => handleSelectCameraPreset(p.id)}
+              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer ${
+                activePreset === p.id
+                  ? 'bg-sky-500 text-slate-950 font-bold'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+          <span className="mx-1 h-4 w-px bg-white/15" aria-hidden="true" />
+        </div>
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
-          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D (Sentuh & Mobile)'}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer"
+          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
         >
           {isFullscreen ? (
-            <>
-              <Minimize2 className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden sm:inline">Kecilkan 3D</span>
-            </>
+            <Minimize2 className="w-3.5 h-3.5 text-sky-400" />
           ) : (
-            <>
-              <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden sm:inline font-semibold">Layar Penuh 3D</span>
-            </>
+            <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
           )}
+          <span className="hidden sm:inline">{isFullscreen ? 'Kecilkan' : 'Layar Penuh'}</span>
         </button>
       </div>
     </div>

@@ -8,7 +8,6 @@ import {
   Play,
   Pause,
   RotateCcw,
-  MessageCircle,
   Gauge,
 } from 'lucide-react';
 import { useLabStore } from '../../stores/useLabStore';
@@ -25,8 +24,6 @@ export interface LabControlDockProps {
 const SPEED_OPTIONS = [0.5, 1, 2] as const;
 
 export const LabControlDock: React.FC<LabControlDockProps> = ({
-  notificationsCount = 0,
-  hasLowR2Alert = false,
   snapshotCount = 0,
 }) => {
   const { t } = useTranslation();
@@ -47,8 +44,6 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
   const {
     zenMode,
     toggleZenMode,
-    drawerOpen,
-    toggleDrawer,
   } = useUIStore();
 
   const [snapshotPulse, setSnapshotPulse] = useState<boolean>(false);
@@ -141,7 +136,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           : 'left-1/2 lg:left-[calc(50%-9rem)] xl:left-[calc(50%-11rem)]'
       }`}
     >
-      {/* 1. Play/Jeda [Space] */}
+      {/* 1. Play/Jeda */}
       <button
         type="button"
         onClick={handleToggleSimulation}
@@ -155,12 +150,9 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       >
         {isSimulating ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
         <span>{isSimulating ? t('controls.pause') : t('controls.play')}</span>
-        <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-900/15 dark:bg-slate-950/60 text-[9px] font-mono">
-          Space
-        </kbd>
       </button>
 
-      {/* 2. Reset [R] */}
+      {/* 2. Reset */}
       <button
         type="button"
         onClick={handleResetTrial}
@@ -170,9 +162,6 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       >
         <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
         <span className="hidden sm:inline">{t('controls.reset')}</span>
-        <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
-          R
-        </kbd>
       </button>
 
       <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/80 mx-0.5" aria-hidden="true" />
@@ -209,28 +198,25 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
 
       <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/80 mx-0.5" aria-hidden="true" />
 
-      {/* 4. Sound Mute Toggle [M] */}
+      {/* 4. Sound Mute Toggle */}
       <button
         type="button"
         onClick={() => {
           toggleSound();
           labSound.setEnabled(!soundEnabled);
         }}
-        title={`[M] Mute · ${soundEnabled ? t('controls.mute') : t('controls.unmute')}`}
+        title={`[M] ${soundEnabled ? t('controls.mute') : t('controls.unmute')}`}
         aria-label={soundEnabled ? 'Bisukan suara laboratorium (Shortcut M)' : 'Nyalakan suara laboratorium (Shortcut M)'}
-        className={`group relative px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+        className={`px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
           soundEnabled
             ? 'text-sky-600 dark:text-sky-400 hover:bg-slate-200/70 dark:hover:bg-slate-800/80'
             : 'text-slate-400 dark:text-slate-500 hover:bg-slate-200/70 dark:hover:bg-slate-800/80'
         }`}
       >
         {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-        <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
-          M
-        </kbd>
       </button>
 
-      {/* 5. Snapshot [S] */}
+      {/* 5. Snapshot */}
       <button
         type="button"
         onClick={handleCapture3DSnapshot}
@@ -249,20 +235,17 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
             {snapshotCount}
           </span>
         )}
-        <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
-          S
-        </kbd>
       </button>
 
-      {/* 6. Zen Mode Toggle [Z] */}
+      {/* 6. Zen Mode Toggle */}
       <button
         type="button"
         onClick={() => {
           labSound.playClick();
           toggleZenMode();
         }}
-        title="[Z] Zen Mode (Layar Penuh Kanvas 3D)"
-        aria-label={zenMode ? 'Keluar dari Zen Mode (Shortcut Z)' : 'Aktifkan Zen Mode (Shortcut Z)'}
+        title="[Z] Fokus Penuh (Sembunyikan Sidebar Kontrol)"
+        aria-label={zenMode ? 'Keluar dari Mode Fokus (Shortcut Z)' : 'Aktifkan Mode Fokus (Shortcut Z)'}
         className={`px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
           zenMode
             ? 'bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-500/40'
@@ -271,50 +254,6 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       >
         {zenMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         <span className="hidden lg:inline">{zenMode ? t('controls.normal') : t('controls.zen')}</span>
-        <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
-          Z
-        </kbd>
-      </button>
-
-      <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/80 mx-0.5" aria-hidden="true" />
-
-      {/* 7. Dr. LabMu Assistant Trigger [A] */}
-      <button
-        type="button"
-        onClick={() => {
-          labSound.playClick();
-          toggleDrawer();
-        }}
-        title="[A] Tanya Dr. LabMu (Asisten Sokratik)"
-        aria-label="Buka atau tutup Asisten Sokratik Dr. LabMu (Shortcut A)"
-        className={`relative px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-          drawerOpen
-            ? 'bg-sky-600 text-white shadow-sm'
-            : 'bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 border border-sky-500/30'
-        }`}
-      >
-        <MessageCircle className="w-3.5 h-3.5" />
-        <span>Dr. LabMu</span>
-        <kbd
-          className={`hidden 2xl:inline-block px-1 py-0.2 rounded text-[9px] font-mono ${
-            drawerOpen
-              ? 'bg-sky-700 text-sky-100'
-              : 'bg-sky-500/20 text-sky-700 dark:text-sky-300'
-          }`}
-        >
-          A
-        </kbd>
-        {hasLowR2Alert && (
-          <span
-            className="w-2 h-2 rounded-full bg-amber-400 animate-ping absolute -top-0.5 -right-0.5"
-            title="Deviasi Data Terdeteksi!"
-          />
-        )}
-        {notificationsCount > 0 && !hasLowR2Alert && (
-          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-slate-900/80 text-sky-300 tabular-nums">
-            {notificationsCount}
-          </span>
-        )}
       </button>
     </div>
   );

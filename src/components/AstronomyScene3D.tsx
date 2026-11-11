@@ -2,11 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+import {
+  createPlanetSurfaceTexture,
+  createStudioComposer,
+} from '../utils/threeStudioKit';
 import {
   AstronomyParams,
   AstronomyMetrics,
@@ -260,7 +259,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     renderer.setPixelRatio(pixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.06;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
@@ -285,25 +284,17 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 400);
     camera.position.set(0, 9.5, 14.5);
 
-    // Post-Processing Pipeline: RenderPass + UnrealBloomPass + FXAAShader
-    const composer = new EffectComposer(renderer);
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
-
-    const bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(width, height),
-      0.45, // strength
-      0.4,  // radius
-      0.85  // threshold
+    // Post-Processing Pipeline: Hardware MSAA + Balanced Solar Bloom + ACES OutputPass
+    const studioComposer = createStudioComposer(
+      renderer,
+      scene,
+      camera,
+      width,
+      height,
+      isSoftwareGl,
+      { strength: 0.34, radius: 0.42, threshold: 0.85 }
     );
-    composer.addPass(bloomPass);
-
-    const fxaaPass = new ShaderPass(FXAAShader);
-    fxaaPass.material.uniforms['resolution'].value.set(
-      1 / (width * pixelRatio),
-      1 / (height * pixelRatio)
-    );
-    composer.addPass(fxaaPass);
+    const { composer } = studioComposer;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -526,14 +517,25 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     const orbitLine = new THREE.LineLoop(orbitGeo, new THREE.LineBasicMaterial({ color: 0x38bdf8 }));
     solarGroup.add(orbitLine);
 
+    const planetSurfaceTex = createPlanetSurfaceTexture({
+      baseHex: '#0284c7',
+      accentHex: '#22c55e',
+      style: 'terrestrial',
+    });
     const planetMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.55, 32, 32),
+      new THREE.SphereGeometry(0.58, 40, 40),
       new THREE.MeshStandardMaterial({
-        color: 0x38bdf8,
-        roughness: 0.4,
-        metalness: 0.15,
+        color: 0xffffff,
+        map: planetSurfaceTex,
+        roughness: 0.55,
+        metalness: 0.08,
       })
     );
+    const planetAtmosphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.64, 32, 32),
+      createFresnelCoronaMaterial(0x7dd3fc, 0x0284c7)
+    );
+    planetMesh.add(planetAtmosphere);
     planetMesh.castShadow = true;
     planetMesh.receiveShadow = true;
     planetMesh.userData = {
@@ -1041,10 +1043,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
-      composer.setSize(w, h);
-      bloomPass.resolution.set(w, h);
-      fxaaPass.material.uniforms['resolution'].value.set(1 / (w * pr), 1 / (h * pr));
-      composer.render();
+      studioComposer.resize(w, h, pr);
+      studioComposer.render();
     };
     const resizeObserver = new ResizeObserver(() => handleResize());
     resizeObserver.observe(container);
@@ -1061,10 +1061,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       controls.dispose();
 
       // Dispose Post-Processing & Textures
-      renderPass.dispose?.();
-      bloomPass.dispose();
-      fxaaPass.dispose?.();
-      composer.dispose();
+      studioComposer.dispose();
+      planetSurfaceTex?.dispose();
       sunPhotosphereTex.dispose();
       spectrumTexture.dispose();
 
@@ -1137,53 +1135,44 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         </div>
       )}
 
-      {/* Top Camera Controls */}
-      <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full bg-slate-900/90 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
-        <span className="text-[10px] font-mono uppercase tracking-wider text-sky-400 font-semibold mr-1">
-          Kamera 3D:
-        </span>
-        {(
-          [
-            { id: 'isometric', label: 'Isometrik' },
-            { id: 'ecliptic', label: 'Ekliptika' },
-            { id: 'top', label: 'Atas' },
-            { id: 'focus', label: 'Fokus' },
-          ] as const
-        ).map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => handleSelectCameraPreset(p.id)}
-            className={`px-2.5 py-1 text-[11px] font-mono font-medium rounded-full transition-colors cursor-pointer ${
-              activePreset === p.id
-                ? 'bg-sky-500 text-slate-950 font-bold shadow-xs'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Bottom-Right Fullscreen Toggle Button */}
-      <div className="pointer-events-auto absolute bottom-4 right-4 z-30">
+      {/* Unified Top-Right Camera & Fullscreen Pill */}
+      <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20">
+        <div className="hidden md:flex items-center gap-0.5">
+          {(
+            [
+              { id: 'isometric', label: 'Iso' },
+              { id: 'ecliptic', label: 'Ekliptika' },
+              { id: 'top', label: 'Atas' },
+              { id: 'focus', label: 'Fokus' },
+            ] as const
+          ).map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => handleSelectCameraPreset(p.id)}
+              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer ${
+                activePreset === p.id
+                  ? 'bg-sky-500 text-slate-950 font-bold'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+          <span className="mx-1 h-4 w-px bg-white/15" aria-hidden="true" />
+        </div>
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-white/20 text-xs font-mono text-white shadow-2xl transition-all cursor-pointer"
-          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D (Sentuh & Mobile)'}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer"
+          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
         >
           {isFullscreen ? (
-            <>
-              <Minimize2 className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden sm:inline">Kecilkan 3D</span>
-            </>
+            <Minimize2 className="w-3.5 h-3.5 text-sky-400" />
           ) : (
-            <>
-              <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden sm:inline font-semibold">Layar Penuh 3D</span>
-            </>
+            <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
           )}
+          <span className="hidden sm:inline">{isFullscreen ? 'Kecilkan' : 'Layar Penuh'}</span>
         </button>
       </div>
     </div>

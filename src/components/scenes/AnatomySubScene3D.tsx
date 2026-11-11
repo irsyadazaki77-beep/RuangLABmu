@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Eye, Layers, Sparkles, X } from 'lucide-react';
+import { createStudioComposer } from '../../utils/threeStudioKit';
 import {
   calculateCardiovascularHeart,
   calculateRespiratoryLungs,
@@ -228,35 +230,89 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance',
+        preserveDrawingBuffer: true,
+      });
     } catch {
       return;
     }
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(pixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.18;
+    renderer.toneMappingExposure = 1.08;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.domElement.style.touchAction = 'none';
     container.appendChild(renderer.domElement);
+
+    const gl = renderer.getContext() as WebGL2RenderingContext;
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    const glRenderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+    const isSoftwareGl = /swiftshader|llvmpipe|softpipe|software/i.test(glRenderer);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = envTexture;
+    pmrem.dispose();
+
+    const studioComposer = createStudioComposer(
+      renderer,
+      scene,
+      camera,
+      width,
+      height,
+      isSoftwareGl,
+      { strength: 0.22, radius: 0.35, threshold: 0.90 }
+    );
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
     controls.target.set(0, 0.1, 0);
 
-    scene.add(new THREE.AmbientLight(0xdbeafe, 0.72));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.65);
+    scene.add(new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 0.72));
+    const keyLight = new THREE.DirectionalLight(0xfff7ed, 2.1);
     keyLight.position.set(5, 8, 6);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(1024, 1024);
+    keyLight.shadow.bias = -0.0002;
     scene.add(keyLight);
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.85);
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.05);
     rimLight.position.set(-6, 4, -5);
     scene.add(rimLight);
-    const subLight = new THREE.PointLight(0xf43f5e, 1.1, 12);
-    subLight.position.set(0, -2.5, 2.5);
+    const subLight = new THREE.PointLight(0xf43f5e, 1.0, 12);
+    subLight.position.set(0, -2.1, 2.5);
     scene.add(subLight);
 
-    const grid = new THREE.GridHelper(12, 24, 0x1e293b, 0x0f172a);
-    grid.position.y = -2.2;
-    scene.add(grid);
+    // Studio Circular Pedestal Stage receiving crisp shadow
+    const pedestalGeo = new THREE.CylinderGeometry(2.6, 2.9, 0.16, 48);
+    const pedestalMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.55,
+      metalness: 0.45,
+      envMapIntensity: 1.0,
+    });
+    const pedestal = new THREE.Mesh(pedestalGeo, pedestalMat);
+    pedestal.position.y = -2.28;
+    pedestal.receiveShadow = true;
+    scene.add(pedestal);
+
+    const haloTrim = new THREE.Mesh(
+      new THREE.TorusGeometry(2.62, 0.022, 12, 64),
+      new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.55,
+        roughness: 0.3,
+      })
+    );
+    haloTrim.rotation.x = Math.PI / 2;
+    haloTrim.position.y = -2.2;
+    scene.add(haloTrim);
 
     const rootGroup = new THREE.Group();
     scene.add(rootGroup);
@@ -304,45 +360,104 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
     if (mode === 'anatomy-cardiovascular-heart') {
       const myoMat = new THREE.MeshPhysicalMaterial({
-        color: 0xbe123c, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.2,
-        transmission: 0.08, transparent: true, opacity: 1.0,
+        color: 0xbe123c, roughness: 0.3, clearcoat: 0.72, clearcoatRoughness: 0.18,
+        transmission: 0.06, transparent: true, opacity: 1.0, sheen: 0.35, sheenColor: new THREE.Color(0xfda4af),
       });
       const rightMyoMat = myoMat.clone(); rightMyoMat.color.setHex(0x9f1239);
       const aortaMat = myoMat.clone(); aortaMat.color.setHex(0xe11d48);
       const venaMat = myoMat.clone(); venaMat.color.setHex(0x2563eb);
       outerMaterials.push(myoMat, rightMyoMat, aortaMat, venaMat);
 
-      const leftVentricle = new THREE.Mesh(new THREE.SphereGeometry(0.85, 32, 32), myoMat);
-      leftVentricle.scale.set(0.85, 1.35, 0.85);
-      leftVentricle.position.set(0.38, -0.35, 0);
-      leftVentricle.rotation.z = -0.22;
+      // Organic conical tapered ventricular myocardium via LatheGeometry (apical curve)
+      const ventriclePts: THREE.Vector2[] = [];
+      for (let i = 0; i <= 14; i += 1) {
+        const t = i / 14;
+        const y = -1.1 + t * 1.9;
+        const r = Math.max(0.01, Math.sin(Math.pow(t, 0.65) * Math.PI) * 0.78 * (0.45 + 0.55 * t));
+        ventriclePts.push(new THREE.Vector2(r, y));
+      }
+      const leftVentGeo = new THREE.LatheGeometry(ventriclePts, 36);
+      const leftVentricle = new THREE.Mesh(leftVentGeo, myoMat);
+      leftVentricle.position.set(0.32, -0.25, 0);
+      leftVentricle.rotation.z = -0.24;
+      leftVentricle.castShadow = true;
 
-      const rightVentricle = new THREE.Mesh(new THREE.SphereGeometry(0.76, 32, 32), rightMyoMat);
-      rightVentricle.scale.set(0.82, 1.22, 0.78);
-      rightVentricle.position.set(-0.42, -0.32, 0.12);
-      rightVentricle.rotation.z = 0.2;
+      const rightVentricle = new THREE.Mesh(leftVentGeo, rightMyoMat);
+      rightVentricle.scale.set(0.86, 0.9, 0.84);
+      rightVentricle.position.set(-0.38, -0.22, 0.14);
+      rightVentricle.rotation.z = 0.22;
+      rightVentricle.castShadow = true;
 
-      const leftAtrium = new THREE.Mesh(new THREE.SphereGeometry(0.54, 24, 24), myoMat);
-      leftAtrium.position.set(0.55, 0.58, -0.1);
-      const rightAtrium = new THREE.Mesh(new THREE.SphereGeometry(0.56, 24, 24), rightMyoMat);
-      rightAtrium.position.set(-0.62, 0.52, 0.12);
+      const leftAtrium = new THREE.Mesh(new THREE.SphereGeometry(0.52, 28, 24), myoMat);
+      leftAtrium.scale.set(1.05, 0.88, 0.92);
+      leftAtrium.position.set(0.52, 0.6, -0.1);
+      leftAtrium.castShadow = true;
 
-      const aortaArch = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.19, 20, 40, Math.PI * 1.15), aortaMat);
-      aortaArch.position.set(0.12, 1.05, 0);
-      aortaArch.rotation.z = -0.15;
+      const rightAtrium = new THREE.Mesh(new THREE.SphereGeometry(0.54, 28, 24), rightMyoMat);
+      rightAtrium.scale.set(1.05, 0.9, 0.95);
+      rightAtrium.position.set(-0.58, 0.54, 0.12);
+      rightAtrium.castShadow = true;
 
-      const venaCava = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 1.65, 20), venaMat);
-      venaCava.position.set(-0.78, 0.85, -0.15);
-      const pulmArtery = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 1.25, 20), venaMat);
-      pulmArtery.position.set(-0.15, 0.92, 0.28);
-      pulmArtery.rotation.z = -0.48;
-      rootGroup.add(leftVentricle, rightVentricle, leftAtrium, rightAtrium, aortaArch, venaCava, pulmArtery);
+      // Sculpted curved Aortic Arch with 3 superior arterial trunks
+      const aortaCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0.18, 0.55, 0.05),
+        new THREE.Vector3(0.32, 1.25, 0.08),
+        new THREE.Vector3(0.05, 1.62, 0),
+        new THREE.Vector3(-0.32, 1.4, -0.18),
+        new THREE.Vector3(-0.36, 0.72, -0.26),
+      ]);
+      const aortaArch = new THREE.Mesh(new THREE.TubeGeometry(aortaCurve, 32, 0.17, 16, false), aortaMat);
+      aortaArch.castShadow = true;
 
-      const septum = new THREE.Mesh(
-        new THREE.BoxGeometry(0.12, 1.45, 0.75),
-        new THREE.MeshStandardMaterial({ color: 0xfda4af, roughness: 0.45 })
+      [-0.08, 0.08, 0.24].forEach((bx, bIdx) => {
+        const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.068, 0.42, 12), aortaMat);
+        branch.position.set(bx, 1.72, -0.02 * bIdx);
+        branch.rotation.z = (bx - 0.08) * -0.4;
+        rootGroup.add(branch);
+      });
+
+      // Left Anterior Descending (LAD) Coronary Vessel wrapping interventricular groove
+      const coronaryCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0.02, 0.48, 0.52),
+        new THREE.Vector3(-0.04, 0.05, 0.68),
+        new THREE.Vector3(0.08, -0.45, 0.56),
+        new THREE.Vector3(0.18, -0.95, 0.25),
+      ]);
+      const coronaryArtery = new THREE.Mesh(
+        new THREE.TubeGeometry(coronaryCurve, 20, 0.036, 10, false),
+        new THREE.MeshPhysicalMaterial({ color: 0xfb7185, roughness: 0.28, clearcoat: 0.6 })
       );
-      septum.position.set(0, -0.32, 0.05);
+
+      const venaCava = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 1.65, 20), venaMat);
+      venaCava.position.set(-0.76, 0.85, -0.15);
+      venaCava.castShadow = true;
+
+      const pulmCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.18, 0.35, 0.36),
+        new THREE.Vector3(-0.12, 0.92, 0.28),
+        new THREE.Vector3(-0.55, 1.1, 0.1),
+      ]);
+      const pulmArtery = new THREE.Mesh(new THREE.TubeGeometry(pulmCurve, 20, 0.145, 14, false), venaMat);
+      pulmArtery.castShadow = true;
+
+      rootGroup.add(
+        leftVentricle,
+        rightVentricle,
+        leftAtrium,
+        rightAtrium,
+        aortaArch,
+        coronaryArtery,
+        venaCava,
+        pulmArtery
+      );
+
+      // Tapered muscular Interventricular Septum (no blocky rectangle)
+      const septum = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.09, 1.05, 8, 16),
+        new THREE.MeshStandardMaterial({ color: 0xfda4af, roughness: 0.42 })
+      );
+      septum.scale.set(0.7, 1.0, 2.8);
+      septum.position.set(0, -0.32, 0.04);
       innerGroup.add(septum);
 
       const rbcCount = 120;
@@ -394,27 +509,60 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       };
     } else if (mode === 'anatomy-respiratory-lungs') {
       const lobeMat = new THREE.MeshPhysicalMaterial({
-        color: 0xfb7185, roughness: 0.32, transmission: 0.75, thickness: 0.8,
-        transparent: true, opacity: 0.78, clearcoat: 0.4,
+        color: 0xfb7185, roughness: 0.28, transmission: 0.72, thickness: 0.85,
+        transparent: true, opacity: 0.8, clearcoat: 0.65, clearcoatRoughness: 0.15,
       });
       outerMaterials.push(lobeMat);
 
-      const rightLung = new THREE.Mesh(new THREE.SphereGeometry(0.95, 32, 32), lobeMat);
-      rightLung.scale.set(0.88, 1.42, 0.78);
-      rightLung.position.set(-1.05, 0.35, 0);
-      const leftLung = new THREE.Mesh(new THREE.SphereGeometry(0.9, 32, 32), lobeMat);
-      leftLung.scale.set(0.82, 1.38, 0.76);
-      leftLung.position.set(1.05, 0.35, 0);
+      // Sculpted conical anatomical lung lobe LatheGeometry (narrower apex, broad concave basal seat)
+      const lungPts: THREE.Vector2[] = [
+        new THREE.Vector2(0.01, 1.32),
+        new THREE.Vector2(0.32, 1.18),
+        new THREE.Vector2(0.62, 0.78),
+        new THREE.Vector2(0.84, 0.15),
+        new THREE.Vector2(0.92, -0.68),
+        new THREE.Vector2(0.86, -1.16),
+        new THREE.Vector2(0.55, -1.24),
+        new THREE.Vector2(0.01, -1.08),
+      ];
+      const lungGeo = new THREE.LatheGeometry(lungPts, 36);
+      const rightLung = new THREE.Mesh(lungGeo, lobeMat);
+      rightLung.scale.set(0.92, 1.0, 0.78);
+      rightLung.position.set(-1.05, 0.28, 0);
+      rightLung.castShadow = true;
+
+      const leftLung = new THREE.Mesh(lungGeo, lobeMat);
+      leftLung.scale.set(0.85, 0.96, 0.76);
+      leftLung.position.set(1.05, 0.28, 0);
+      leftLung.castShadow = true;
       rootGroup.add(rightLung, leftLung);
 
-      const airwayMat = new THREE.MeshStandardMaterial({ color: 0xbae6fd, roughness: 0.35 });
-      const trachea = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.45, 20), airwayMat);
+      const airwayMat = new THREE.MeshStandardMaterial({ color: 0xe0f2fe, roughness: 0.34, clearcoat: 0.25 } as any);
+      const trachea = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 1.45, 20), airwayMat);
       trachea.position.set(0, 1.35, 0);
-      const leftBronchus = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 1.15, 16), airwayMat);
-      leftBronchus.position.set(0.52, 0.55, 0); leftBronchus.rotation.z = 0.72;
-      const rightBronchus = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 1.15, 16), airwayMat);
-      rightBronchus.position.set(-0.52, 0.55, 0); rightBronchus.rotation.z = -0.72;
-      innerGroup.add(trachea, leftBronchus, rightBronchus);
+      innerGroup.add(trachea);
+
+      // Cartilaginous tracheal C-rings
+      for (let r = 0; r < 7; r += 1) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.185, 0.025, 8, 24), airwayMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(0, 0.8 + r * 0.18, 0);
+        innerGroup.add(ring);
+      }
+
+      const leftBronchusCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0.65, 0),
+        new THREE.Vector3(0.45, 0.42, 0),
+        new THREE.Vector3(0.98, 0.05, 0.05),
+      ]);
+      const rightBronchusCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0.65, 0),
+        new THREE.Vector3(-0.45, 0.42, 0),
+        new THREE.Vector3(-0.98, 0.05, 0.05),
+      ]);
+      const leftBronchus = new THREE.Mesh(new THREE.TubeGeometry(leftBronchusCurve, 16, 0.095, 12, false), airwayMat);
+      const rightBronchus = new THREE.Mesh(new THREE.TubeGeometry(rightBronchusCurve, 16, 0.095, 12, false), airwayMat);
+      innerGroup.add(leftBronchus, rightBronchus);
 
       const diaphragm = new THREE.Mesh(
         new THREE.SphereGeometry(1.65, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.38),
@@ -477,9 +625,12 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
       for (let d = 0; d < 6; d++) {
         const ang = (d / 6) * Math.PI * 2;
-        const dendrite = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.09, 0.95, 10), somaMat);
-        dendrite.position.set(-2.45 + Math.cos(ang) * 0.35, Math.sin(ang) * 0.65, Math.sin(ang * 2) * 0.35);
-        dendrite.rotation.z = ang + Math.PI / 2;
+        const dendCurve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(-2.1 + Math.cos(ang) * 0.45, Math.sin(ang) * 0.45, Math.sin(ang * 2) * 0.25),
+          new THREE.Vector3(-2.45 + Math.cos(ang) * 0.85, Math.sin(ang) * 0.92, Math.sin(ang * 2) * 0.45),
+          new THREE.Vector3(-2.72 + Math.cos(ang) * 1.15, Math.sin(ang) * 1.25, Math.cos(ang) * 0.52),
+        ]);
+        const dendrite = new THREE.Mesh(new THREE.TubeGeometry(dendCurve, 12, 0.045, 8, false), somaMat);
         rootGroup.add(dendrite);
       }
 
@@ -491,11 +642,13 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       axonCore.position.set(0.15, 0, 0);
       innerGroup.add(axonCore);
 
+      // Rounded Schwann capsule myelin sheaths separated by Ranvier nodes
       const myelinSegments: THREE.Mesh[] = [];
       for (let s = 0; s < 4; s++) {
-        const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.68, 20), myelinMat);
+        const seg = new THREE.Mesh(new THREE.CapsuleGeometry(0.21, 0.44, 8, 20), myelinMat);
         seg.rotation.z = Math.PI / 2;
         seg.position.set(-1.05 + s * 0.88, 0, 0);
+        seg.castShadow = true;
         myelinSegments.push(seg);
         rootGroup.add(seg);
       }
@@ -584,26 +737,52 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
       updateFrame(elapsed, dt);
       controls.update();
-      renderer.render(scene, camera);
+      studioComposer.render();
     };
     animate();
 
+    let lastW = width;
+    let lastH = height;
     const handleResize = () => {
       if (!container) return;
       const w = container.clientWidth || 720;
       const h = container.clientHeight || 460;
+      if (w === lastW && h === lastH) return;
+      lastW = w;
+      lastH = h;
+      const pr = renderer.getPixelRatio();
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      studioComposer.resize(w, h, pr);
+      studioComposer.render();
     };
+    const resizeObserver = new ResizeObserver(() => handleResize());
+    resizeObserver.observe(container);
     window.addEventListener('resize', handleResize);
 
     return () => {
       cancelAnimationFrame(animId);
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('mousedown', onPointerDown);
       controls.dispose();
+      studioComposer.dispose();
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
+          obj.geometry?.dispose();
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach((m) => m?.dispose());
+          } else if (obj.material) {
+            obj.material.dispose();
+          }
+        }
+      });
+      envTexture.dispose();
       renderer.dispose();
+      if (renderer.domElement.parentElement) {
+        renderer.domElement.parentElement.removeChild(renderer.domElement);
+      }
     };
   }, [mode]);
 
