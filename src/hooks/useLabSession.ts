@@ -26,6 +26,8 @@ import {
 } from '../stores/initialLabParams';
 import { recordTelemetryInteraction } from '../utils/telemetryRecorder';
 import { evaluateDataPrecisionXP } from '../services/gamificationEngine';
+import { aiVoiceAssistant } from '../services/aiVoiceAssistant';
+import { LAB_EVENTS } from '../utils/labEventBus';
 
 
 export function useLabSession() {
@@ -489,6 +491,77 @@ export function useLabSession() {
     chemistryParams.initialTempC,
     astronomyParams.customSemiMajorAxisAu,
   ]);
+
+  // Fase 1 — Tugas 1 & 2: Sinkronkan telemetri ke Asisten Suara Full-Duplex & tangani interaksi Laser Pointer VR
+  useEffect(() => {
+    aiVoiceAssistant.updateLiveLabContext({
+      domain: activeScienceDomain,
+      academicLevel,
+      physicsParams,
+      chemistryParams,
+      astronomyParams,
+      biologyContext,
+      records,
+    });
+  }, [
+    activeScienceDomain,
+    academicLevel,
+    physicsParams,
+    chemistryParams,
+    astronomyParams,
+    biologyContext,
+    records,
+  ]);
+
+  useEffect(() => {
+    const onXRSpatialSelect = (event: Event) => {
+      const detail = (event as CustomEvent<{ parameterDelta?: number }>).detail;
+      const stepDir = detail?.parameterDelta && detail.parameterDelta < 0 ? -1 : 1;
+      labSound.playClick(stepDir > 0 ? 740 : 560);
+
+      if (activeDomain === 'physics') {
+        setPhysicsParams((prev) => ({
+          ...prev,
+          appliedForce: Math.max(5, Math.min(100, prev.appliedForce + stepDir * 5)),
+        }));
+      } else if (activeDomain === 'chemistry') {
+        setChemistryParams((prev) => ({
+          ...prev,
+          titrantAddedMl: Number(
+            Math.max(0, Math.min(50, prev.titrantAddedMl + stepDir * 1.5)).toFixed(1)
+          ),
+        }));
+      } else if (activeDomain === 'astronomy') {
+        setAstronomyParams((prev) => ({
+          ...prev,
+          customSemiMajorAxisAu: Number(
+            Math.max(0.4, Math.min(10, prev.customSemiMajorAxisAu + stepDir * 0.25)).toFixed(2)
+          ),
+        }));
+      }
+    };
+
+    const onScaffoldingAskDrLabMu = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          prompt: string;
+        }>
+      ).detail;
+      if (detail?.prompt) {
+        setExternalDrLabMuPrompt({
+          id: Date.now(),
+          prompt: detail.prompt,
+        });
+      }
+    };
+
+    window.addEventListener('ruanglab:xr-spatial-select', onXRSpatialSelect);
+    window.addEventListener(LAB_EVENTS.SCAFFOLDING_ASK_DR_LABMU, onScaffoldingAskDrLabMu);
+    return () => {
+      window.removeEventListener('ruanglab:xr-spatial-select', onXRSpatialSelect);
+      window.removeEventListener(LAB_EVENTS.SCAFFOLDING_ASK_DR_LABMU, onScaffoldingAskDrLabMu);
+    };
+  }, [activeDomain]);
 
   return {
     currentExperimentModule,

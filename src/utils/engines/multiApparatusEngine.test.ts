@@ -1,0 +1,194 @@
+import { describe, it, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  MultiApparatusEngine,
+  computePortDistance3D,
+} from './multiApparatusEngine';
+import {
+  evaluateAdaptiveScaffolding,
+  resolveScaffoldingTier,
+  adaptiveScaffoldingEngine,
+} from './adaptiveScaffoldingEngine';
+import { useLabStore } from '../../stores/useLabStore';
+
+describe('Fase 2: MultiApparatusEngine & AdaptiveScaffoldingEngine', () => {
+  beforeEach(() => {
+    useLabStore.getState().clearApparatusDockings();
+    adaptiveScaffoldingEngine.reset();
+  });
+
+  it('TUGAS 1: detects Snap-to-Port magnetic candidate within 0.5 units and locks connection into useLabStore', () => {
+    const engine = new MultiApparatusEngine(0.5);
+
+    engine.registerNode({
+      id: 'buret-a',
+      type: 'source',
+      ports: [{ id: 'tip-out', type: 'fluid', position: [0, 2.8, 0] }],
+      state: { volumeMl: 50, flowRateMlPerSec: 2.5, valveOpen: true },
+    });
+
+    engine.registerNode({
+      id: 'erlenmeyer-b',
+      type: 'detector',
+      ports: [{ id: 'neck-in', type: 'fluid', position: [0, 1.5, 0] }],
+      state: { volumeMl: 25, receivedFluidMl: 0, pH: 1.0 },
+    });
+
+    // Initially distance is 1.3 units (>= 0.5) -> no snap candidate
+    assert.strictEqual(
+      computePortDistance3D([0, 2.8, 0], [0, 1.5, 0]),
+      1.3
+    );
+    assert.strictEqual(engine.findMagneticSnapCandidate('buret-a'), null);
+
+    // Move buret-a port to [0, 1.82, 0] -> distance is 0.32 units (< 0.5)
+    const snapCandidate = engine.moveNodeAndEvaluateSnap('buret-a', {
+      'tip-out': [0, 1.82, 0],
+    });
+    assert.ok(snapCandidate, 'Expected magnetic snap candidate when distance < 0.5');
+    assert.strictEqual(snapCandidate?.isWithinSnapRadius, true);
+    assert.strictEqual(snapCandidate?.distance, 0.32);
+    assert.strictEqual(snapCandidate?.portType, 'fluid');
+    assert.deepStrictEqual(snapCandidate?.snapPosition, [0, 1.5, 0]);
+
+    // Release mouse to commit snap docking and verify useLabStore receives event
+    const docked = engine.commitActiveSnapOnRelease();
+    assert.ok(docked);
+    assert.strictEqual(docked?.sourceNodeId, 'buret-a');
+    assert.strictEqual(docked?.targetNodeId, 'erlenmeyer-b');
+
+    const buretNode = engine.getNode('buret-a')!;
+    const flaskNode = engine.getNode('erlenmeyer-b')!;
+    assert.strictEqual(buretNode.ports[0].connectedTo, 'erlenmeyer-b:neck-in');
+    assert.strictEqual(flaskNode.ports[0].connectedTo, 'buret-a:tip-out');
+    assert.deepStrictEqual(buretNode.ports[0].position, [0, 1.5, 0]);
+
+    const storeConns = useLabStore.getState().dockedConnections;
+    assert.strictEqual(storeConns.length, 1);
+    assert.strictEqual(storeConns[0].sourceNodeId, 'buret-a');
+  });
+
+  it('TUGAS 1: simulates fluid flow, electric current (Ohm), and optical beam refraction (Snell) across docked ports', () => {
+    const engine = new MultiApparatusEngine(0.5);
+
+    // 1. Fluid pair: Burette (0.1M NaOH) -> Erlenmeyer (25mL of 0.1M HCl)
+    engine.registerNode({
+      id: 'buret',
+      type: 'source',
+      ports: [{ id: 'p-out', type: 'fluid', position: [0, 1, 0] }],
+      state: { volumeMl: 50, flowRateMlPerSec: 5.0, concentrationM: 0.1, valveOpen: true },
+    });
+    engine.registerNode({
+      id: 'flask',
+      type: 'detector',
+      ports: [{ id: 'p-in', type: 'fluid', position: [0, 1, 0] }],
+      state: {
+        volumeMl: 25,
+        initialAcidVolumeMl: 25,
+        initialAcidM: 0.1,
+        receivedFluidMl: 0,
+        pH: 1.0,
+      },
+    });
+    engine.connectPorts('buret', 'p-out', 'flask', 'p-in');
+
+    // 2. Electric pair: 12V Power Supply -> 4 Ohm Resistor
+    engine.registerNode({
+      id: 'dc-supply',
+      type: 'source',
+      ports: [{ id: 'e-out', type: 'electric', position: [2, 1, 0] }],
+      state: { voltageV: 12, resistanceOhm: 0, switchClosed: true },
+    });
+    engine.registerNode({
+      id: 'ammeter-load',
+      type: 'detector',
+      ports: [{ id: 'e-in', type: 'electric', position: [2, 1, 0] }],
+      state: { resistanceOhm: 4 },
+    });
+    engine.connectPorts('dc-supply', 'e-out', 'ammeter-load', 'e-in');
+
+    // 3. Optical pair: 20mW 532nm Laser -> Lens/Photodetector (T = 0.85, n = 1.5)
+    engine.registerNode({
+      id: 'laser-src',
+      type: 'source',
+      ports: [{ id: 'o-out', type: 'optical', position: [4, 1, 0] }],
+      state: { intensityMw: 20, wavelengthNm: 532, incidentAngleDeg: 30, laserOn: true },
+    });
+    engine.registerNode({
+      id: 'photo-det',
+      type: 'detector',
+      ports: [{ id: 'o-in', type: 'optical', position: [4, 1, 0] }],
+      state: { transmittance: 0.85, refractiveIndex: 1.5 },
+    });
+    engine.connectPorts('laser-src', 'o-out', 'photo-det', 'o-in');
+
+    // Step simulation for dt = 5.0 seconds (5.0 mL/s * 5 s = 25 mL NaOH -> equivalence point pH 7.0!)
+    const summary = engine.stepTransfer(5.0);
+    assert.strictEqual(summary.activeConnectionsCount, 3);
+    assert.strictEqual(summary.fluidTransferredMl, 25);
+    assert.strictEqual(summary.electricCurrentAmp, 3);
+    assert.strictEqual(summary.opticalIntensityMw, 17);
+
+    const buretState = engine.getNode('buret')!.state;
+    const flaskState = engine.getNode('flask')!.state;
+    assert.strictEqual(buretState.volumeMl, 25);
+    assert.strictEqual(flaskState.volumeMl, 50);
+    assert.strictEqual(flaskState.pH, 7.0);
+
+    const loadState = engine.getNode('ammeter-load')!.state;
+    assert.strictEqual(loadState.currentAmp, 3);
+    assert.strictEqual(loadState.powerWatt, 36);
+
+    const detState = engine.getNode('photo-det')!.state;
+    assert.strictEqual(detState.detectedIntensityMw, 17);
+    assert.strictEqual(detState.refractedAngleDeg, 19.47);
+  });
+
+  it('TUGAS 2: classifies Stagnant Trial, Erratic Outliers (R² < 0.70), and Safety Violation across 3 scaffolding tiers', () => {
+    const now = 1_700_000_000_000;
+
+    // 1. Stagnant Trial (> 2 minutes idle while recordsCount < 3)
+    const stagnantHint = evaluateAdaptiveScaffolding({
+      nowTimestamp: now,
+      lastInteractionTimestamp: now - 135_000, // 2m 15s idle
+      recordsCount: 1,
+      targetRecordsCount: 3,
+      rSquaredHistory: [0.96],
+      domain: 'Fisika',
+      occurrenceCount: 1,
+    });
+    assert.ok(stagnantHint);
+    assert.strictEqual(stagnantHint?.condition, 'stagnant_trial');
+    assert.strictEqual(stagnantHint?.tier, 1);
+
+    // 2. Erratic Outliers (repeated R² < 0.70) -> Tier 2 Targeted Clue
+    const outlierHint = evaluateAdaptiveScaffolding({
+      nowTimestamp: now,
+      lastInteractionTimestamp: now - 10_000,
+      recordsCount: 3,
+      rSquaredHistory: [0.64, 0.55],
+      domain: 'Kimia',
+      occurrenceCount: 3, // resolves to Tier 2 (occ - 1 = 2)
+    });
+    assert.ok(outlierHint);
+    assert.strictEqual(outlierHint?.condition, 'erratic_outliers');
+    assert.strictEqual(outlierHint?.tier, 2);
+    assert.ok(outlierHint?.targetedVariable?.includes('Titran'));
+
+    // 3. Safety Violation (Temperature > 85°C) -> Tier 3 Visual Focus
+    const safetyHint = evaluateAdaptiveScaffolding({
+      nowTimestamp: now,
+      lastInteractionTimestamp: now - 5_000,
+      recordsCount: 2,
+      rSquaredHistory: [0.99],
+      temperatureC: 96,
+      maxSafeTemperatureC: 85,
+      domain: 'Kimia',
+      occurrenceCount: 2,
+    });
+    assert.ok(safetyHint);
+    assert.strictEqual(safetyHint?.condition, 'safety_violation');
+    assert.strictEqual(safetyHint?.tier, 3);
+    assert.strictEqual(resolveScaffoldingTier('erratic_outliers', 3), 3);
+  });
+});

@@ -9,6 +9,9 @@ export const LAB_EVENTS = {
   CAPTURE_SNAPSHOT: 'ruanglab:capture-snapshot',
   RESET_TRIAL: 'ruanglab:reset-trial',
   CHANGE_SPEED: 'ruanglab:change-speed',
+  APPARATUS_DOCKED: 'ruanglab:apparatus-docked',
+  SCAFFOLDING_FOCUS_INSTRUMENT: 'ruanglab:scaffolding-focus-instrument',
+  SCAFFOLDING_ASK_DR_LABMU: 'ruanglab:scaffolding-ask-dr-labmu',
 } as const;
 
 export type LabEventName = (typeof LAB_EVENTS)[keyof typeof LAB_EVENTS];
@@ -18,6 +21,26 @@ export interface LabEventPayloadMap {
   [LAB_EVENTS.CAPTURE_SNAPSHOT]: { timestamp: number };
   [LAB_EVENTS.RESET_TRIAL]: { timestamp: number };
   [LAB_EVENTS.CHANGE_SPEED]: { speed: number };
+  [LAB_EVENTS.APPARATUS_DOCKED]: {
+    sourceNodeId: string;
+    sourcePortId: string;
+    targetNodeId: string;
+    targetPortId: string;
+    portType: 'fluid' | 'electric' | 'optical';
+    snappedPosition: [number, number, number];
+    timestamp: number;
+  };
+  [LAB_EVENTS.SCAFFOLDING_FOCUS_INSTRUMENT]: {
+    instrumentId: string;
+    targetPosition: [number, number, number];
+    cameraOffset?: [number, number, number];
+    reason: string;
+  };
+  [LAB_EVENTS.SCAFFOLDING_ASK_DR_LABMU]: {
+    prompt: string;
+    tier: 1 | 2 | 3;
+    condition: 'stagnant_trial' | 'erratic_outliers' | 'safety_violation';
+  };
 }
 
 export function emitLabEvent<K extends LabEventName>(
@@ -40,3 +63,4 @@ export function subscribeLabEvent<K extends LabEventName>(
   window.addEventListener(eventName, listener);
   return () => window.removeEventListener(eventName, listener);
 }
+

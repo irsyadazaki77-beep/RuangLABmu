@@ -15,7 +15,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist dist-server",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/utils/*.test.ts"
+    "test": "tsx --test src/utils/*.test.ts src/utils/engines/*.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.32.0",

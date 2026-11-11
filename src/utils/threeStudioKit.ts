@@ -7,6 +7,8 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { SceneThemeColors } from '../components/ui/VisualComfortToolbar';
+import { registerActiveXRScene } from './webXRStudioAdapter';
+import { attachMultiApparatusAndScaffoldingVisuals } from './engines/multiApparatusEngine';
 
 export interface ProfilePoint2D {
   x: number;
@@ -771,13 +773,26 @@ export function createStudioComposer(
     }
   };
 
+  const xrRig = registerActiveXRScene(renderer, scene, camera);
+  const sandboxVisuals = attachMultiApparatusAndScaffoldingVisuals(scene, camera);
+
   return {
     composer,
     renderTarget,
     bloomPass,
     resize,
-    render: () => composer.render(),
+    render: () => {
+      xrRig.updateSpatialRaycasters();
+      sandboxVisuals.updatePerFrame(0.016);
+      if (renderer.xr?.isPresenting) {
+        renderer.render(scene, camera);
+      } else {
+        composer.render();
+      }
+    },
     dispose: () => {
+      sandboxVisuals.dispose();
+      xrRig.dispose();
       renderTarget.dispose();
       composer.dispose();
     },

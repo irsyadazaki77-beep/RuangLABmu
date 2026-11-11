@@ -1,14 +1,20 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Maximize2,
-  Minimize2,
-  Camera,
   ChevronDown,
   ChevronUp,
-  Compass,
+  Crosshair,
 } from 'lucide-react';
 import { CompactTelemetryRibbon, TelemetryRibbonMetric } from '../ui/CompactTelemetryRibbon';
+import { VoiceLabMentorDock } from '../ui/VoiceLabMentorDock';
+import { AdaptiveNudgeToast } from '../ui/AdaptiveNudgeToast';
+import {
+  checkImmersiveVRSupport,
+  subscribeWebXRState,
+  toggleImmersiveVRSession,
+  WebXRStateSnapshot,
+  getWebXRState,
+} from '../../utils/webXRStudioAdapter';
 import { labSound } from '../../utils/soundEngine';
 
 export interface CameraPresetItem {
@@ -65,29 +71,25 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
   guideTitle,
   guideText,
   zenMode = false,
-  activeCameraPreset = 'isometric',
-  cameraPresets = DEFAULT_CAMERA_PRESETS,
-  onSelectCameraPreset,
   isHazardous = false,
   shutterFlash = false,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [guideCollapsed, setGuideCollapsed] = useState<boolean>(true);
+  const [xrState, setXRState] = useState<WebXRStateSnapshot>(() => getWebXRState());
 
-  const toggleFullscreen = () => {
-    labSound.playClick();
-    if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen?.().catch(() => {
-        setIsFullscreen(!isFullscreen);
-      });
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen?.().catch(() => {
-        setIsFullscreen(false);
-      });
-      setIsFullscreen(false);
-    }
+  useEffect(() => {
+    void checkImmersiveVRSupport();
+    const unsub = subscribeWebXRState((next) => {
+      setXRState(next);
+    });
+    return unsub;
+  }, []);
+
+  const handleToggleVRMode = async () => {
+    labSound.playClick(700);
+    await toggleImmersiveVRSession();
   };
 
   return (
@@ -125,7 +127,11 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
         {/* Full-Bleed 3D Canvas Viewport */}
         <div
           className={`relative w-full flex-1 min-h-[360px] overflow-hidden bg-slate-950 transition-all select-none ${
-            isHazardous ? 'ring-2 ring-inset ring-rose-500/70' : ''
+            isHazardous
+              ? 'ring-2 ring-inset ring-rose-500/70'
+              : xrState.isSessionActive
+                ? 'ring-2 ring-inset ring-sky-400/80'
+                : ''
           }`}
         >
           {canvas}
@@ -143,10 +149,55 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Top-Left Custom Overlays (e.g. Vector Toggles, Domain Badges) */}
-          {topOverlay && (
-            <div className="absolute top-3 left-3 z-20 flex items-center pointer-events-none">
-              <div className="pointer-events-auto">{topOverlay}</div>
+          {/* Top-Left Custom Overlays + WebXR Mode VR Button */}
+          <div className="absolute top-3 left-3 z-20 flex flex-wrap items-center gap-2 pointer-events-none">
+            {topOverlay && <div className="pointer-events-auto">{topOverlay}</div>}
+
+            {(xrState.isHardwareVRSupported || xrState.isProgressiveVRAvailable) && (
+              <button
+                type="button"
+                data-testid="enter-vr-lab-btn"
+                onClick={handleToggleVRMode}
+                aria-pressed={xrState.isSessionActive}
+                title={
+                  xrState.isHardwareVRSupported
+                    ? 'Perangkat mendukung WebXR Immersive-VR — Klik untuk masuk sesi VR'
+                    : 'Aktifkan Mode VR Spasial 3D dengan Kontrol Laser Pointer Kiri/Kanan'
+                }
+                className={`pointer-events-auto px-3 py-1.5 rounded-xl border text-xs font-bold tracking-tight flex items-center gap-1.5 shadow-lg transition-all cursor-pointer ${
+                  xrState.isSessionActive
+                    ? 'bg-sky-600 hover:bg-sky-500 text-white border-sky-300/80 shadow-sky-500/30'
+                    : 'bg-slate-900/90 hover:bg-slate-800 text-sky-300 hover:text-white border-sky-500/40'
+                }`}
+              >
+                <span aria-hidden="true">🥽</span>
+                <span>{xrState.isSessionActive ? 'Keluar Mode VR' : 'Masuk Mode VR'}</span>
+              </button>
+            )}
+
+            <AdaptiveNudgeToast domain={domain} recordsCount={recordsCount} />
+          </div>
+
+          {/* Spatial VR Controller Laser Pointer Status Pill (Active when VR mode is engaged) */}
+          {xrState.isSessionActive && (
+            <div
+              data-testid="xr-spatial-hud"
+              className="pointer-events-none absolute top-14 left-3 z-20 max-w-sm rounded-xl bg-slate-950/90 border border-sky-500/50 px-3 py-2 text-[11px] text-slate-200 shadow-xl space-y-1"
+            >
+              <div className="flex items-center gap-1.5 font-bold text-sky-300">
+                <Crosshair className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>
+                  {xrState.sessionMode === 'native-webxr'
+                    ? 'WebXR Immersive-VR Aktif'
+                    : 'Mode VR Spasial (Laser Pointer Kiri/Kanan)'}
+                </span>
+              </div>
+              <p className="text-[10px] font-mono text-slate-300">
+                {xrState.activeHandHover
+                  ? `Target Bidik (${xrState.activeHandHover.hand === 'right' ? 'Controller Kanan' : 'Controller Kiri'}): ${xrState.activeHandHover.objectName} (${xrState.activeHandHover.distance}m)`
+                  : xrState.lastSpatialAction ||
+                    'Arahkan kursor / controller untuk membidik aparatus 3D & klik untuk interaksi spasial.'}
+              </p>
             </div>
           )}
 
@@ -155,7 +206,7 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
             {guideHud ? (
               guideHud
             ) : (
-              <div className="rounded-xl bg-slate-900/75 backdrop-blur-md border border-white/15 shadow-lg text-xs overflow-hidden transition-all">
+              <div className="rounded-xl bg-slate-900/85 border border-white/15 shadow-lg text-xs overflow-hidden transition-all">
                 <button
                   type="button"
                   onClick={() => {
@@ -167,17 +218,31 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
                   <span className="flex items-center gap-1.5">
                     <span>💡 Panduan</span>
                   </span>
-                  {guideCollapsed ? <ChevronUp className="w-3.5 h-3.5 text-sky-400" /> : <ChevronDown className="w-3.5 h-3.5 text-sky-400" />}
+                  {guideCollapsed ? (
+                    <ChevronUp className="w-3.5 h-3.5 text-sky-400" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 text-sky-400" />
+                  )}
                 </button>
 
                 {!guideCollapsed && (
                   <div className="px-3 pb-3 pt-1.5 text-slate-300 text-[11px] leading-relaxed border-t border-white/10 space-y-1">
-                    <p className="font-semibold text-white">{guideTitle || 'Eksplorasi Variabel & Aparatus'}</p>
-                    <p>{guideText || 'Atur parameter di panel kanan atau seret objek 3D langsung. Catat minimal 3 data pengamatan untuk grafik regresi.'}</p>
+                    <p className="font-semibold text-white">
+                      {guideTitle || 'Eksplorasi Variabel & Aparatus'}
+                    </p>
+                    <p>
+                      {guideText ||
+                        'Atur parameter di panel kanan atau seret objek 3D langsung. Catat minimal 3 data pengamatan untuk grafik regresi.'}
+                    </p>
                   </div>
                 )}
               </div>
             )}
+          </div>
+
+          {/* Bottom-Right: Full-Duplex AI Voice Mentor Dock */}
+          <div className="absolute bottom-3 right-3 z-20 pointer-events-none">
+            <VoiceLabMentorDock domain={domain} />
           </div>
         </div>
       </div>
@@ -191,3 +256,4 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
     </div>
   );
 };
+

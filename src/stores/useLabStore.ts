@@ -30,6 +30,16 @@ export const DOMAIN_TO_ID: Record<AnyLabDomain, IndonesianDomain> = {
   astronomi: 'astronomi',
 };
 
+export interface ApparatusDockingConnection {
+  sourceNodeId: string;
+  sourcePortId: string;
+  targetNodeId: string;
+  targetPortId: string;
+  portType: 'fluid' | 'electric' | 'optical';
+  snappedPosition: [number, number, number];
+  timestamp: number;
+}
+
 export interface LabState {
   activeDomain: LabDomain;
   activeModuleId: string;
@@ -41,6 +51,7 @@ export interface LabState {
   userRole: UserRole;
   isLobbyMode: boolean;
   isSubmissionLocked: boolean;
+  dockedConnections: ApparatusDockingConnection[];
 
   // Actions
   setActiveDomain: (domain: AnyLabDomain) => void;
@@ -57,6 +68,8 @@ export interface LabState {
   setUserRole: (role: UserRole) => void;
   setIsLobbyMode: (isLobby: boolean) => void;
   setSubmissionLocked: (locked: boolean) => void;
+  recordApparatusDocking: (conn: ApparatusDockingConnection) => void;
+  clearApparatusDockings: () => void;
   getIndonesianDomain: () => IndonesianDomain;
 }
 
@@ -77,6 +90,7 @@ export const useLabStore = create<LabState>((set, get) => ({
   userRole: 'siswa',
   isLobbyMode: !isAutoStart,
   isSubmissionLocked: false,
+  dockedConnections: [],
 
   setActiveDomain: (domain: AnyLabDomain) => {
     const canonical = DOMAIN_TO_EN[domain] || 'physics';
@@ -143,7 +157,25 @@ export const useLabStore = create<LabState>((set, get) => ({
     set({ isSubmissionLocked });
   },
 
+  recordApparatusDocking: (conn: ApparatusDockingConnection) => {
+    set((state) => {
+      const filtered = state.dockedConnections.filter(
+        (c) =>
+          !(c.sourceNodeId === conn.sourceNodeId && c.sourcePortId === conn.sourcePortId)
+      );
+      return {
+        dockedConnections: [conn, ...filtered],
+      };
+    });
+    emitLabEvent(LAB_EVENTS.APPARATUS_DOCKED, conn);
+  },
+
+  clearApparatusDockings: () => {
+    set({ dockedConnections: [] });
+  },
+
   getIndonesianDomain: () => {
     return DOMAIN_TO_ID[get().activeDomain];
   },
 }));
+
