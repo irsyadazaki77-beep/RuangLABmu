@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import {
   Atom,
   CheckCircle2,
@@ -16,7 +16,7 @@ import { useLabStore, WorkflowStep } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCollabStore } from '../../stores/useCollabStore';
 import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
-import { TeacherGradebookHub } from '../teacher/TeacherGradebookHub';
+const TeacherGradebookHub = lazy(() => import('../teacher/TeacherGradebookHub'));
 import {
   GamificationProfile,
   ScientificBadge,
@@ -86,7 +86,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     setComfortPrefs,
   } = useUIStore();
 
-  const { wsConnected } = useCollabStore();
+  const { wsConnected, activeRoomId } = useCollabStore();
 
   // Keep root HTML attributes synchronized with active comfort preferences at all times
   useEffect(() => {
@@ -347,6 +347,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             onClick={() => {
               labSound.playClick();
               setUserRole('pengajar');
+              setIsLobbyMode(false);
             }}
             className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
               userRole === 'pengajar'
@@ -458,7 +459,15 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
       </div>
 
       {/* Teacher Gradebook Hub Modal */}
-      <TeacherGradebookHub isOpen={isGradebookOpen} onClose={() => setIsGradebookOpen(false)} />
+      {isGradebookOpen && (
+        <Suspense fallback={null}>
+          <TeacherGradebookHub
+            isOpen={isGradebookOpen}
+            onClose={() => setIsGradebookOpen(false)}
+            activeRoomId={activeRoomId || undefined}
+          />
+        </Suspense>
+      )}
 
       {/* Student Gamification & Badges Celebration Modal */}
       <BadgeNotificationModal

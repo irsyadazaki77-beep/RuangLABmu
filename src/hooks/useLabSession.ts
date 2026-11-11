@@ -51,6 +51,7 @@ export function useLabSession() {
   const currentProfile = STUDENT_PROFILES[selectedProfileIdx] ?? STUDENT_PROFILES[0];
   const [selectedBioModuleId, setSelectedBioModuleId] = useState<string>('photosynthesis-ingenhousz');
   const [lksGraded, setLksGraded] = useState<boolean>(false);
+  const [latestLksScore, setLatestLksScore] = useState<number>(0);
   const [completedChallengeIds, setCompletedChallengeIds] = useState<string[]>([]);
   const [capturedSnapshots, setCapturedSnapshots] = useState<Lab3DSnapshot[]>([]);
   const [externalDrLabMuPrompt, setExternalDrLabMuPrompt] = useState<{ id: number; prompt: string } | null>(null);
@@ -107,6 +108,7 @@ export function useLabSession() {
     students,
     notifications,
     activeMysteryChallenge,
+    mysterySubmissions,
     wsConnected: syncWsConnected,
     ws,
     addRecord,
@@ -114,8 +116,10 @@ export function useLabSession() {
     toggleTask,
     createTask,
     createNote,
-    submitQuizScore,
+    submitQuizScore: backendSubmitQuizScore,
     pushNotification,
+    broadcastTeacherFeedback,
+    broadcastMysteryChallenge,
     submitMysteryExam,
     createRoom,
     joinRoom,
@@ -341,7 +345,7 @@ export function useLabSession() {
       id: `notif-snap-${Date.now()}`,
       timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
       severity: 'nominal',
-      domain: 'Fisika',
+      domain,
       title: 'Tangkapan Layar 3D WebGL Tersimpan',
       message: `Snapshot visual untuk ${modTitle} berhasil ditambahkan ke galeri laporan.`,
     });
@@ -447,10 +451,10 @@ export function useLabSession() {
       hypothesisText: currentModuleHypothesis.hypothesisText,
       reflectionText: currentModuleHypothesis.reflectionText,
       records,
-      lksScore: 100,
+      lksScore: latestLksScore,
       snapshotDataUrl: capturedSnapshots[0]?.dataUrl,
     };
-  }, [currentProfile, activeTierLabel, currentExperimentModule, currentModuleHypothesis, records, capturedSnapshots]);
+  }, [currentProfile, activeTierLabel, currentExperimentModule, currentModuleHypothesis, records, latestLksScore, capturedSnapshots]);
 
   // FITUR 3: Rekam perubahan slider parameter siswa ke buffer telemetri
   useEffect(() => {
@@ -500,6 +504,7 @@ export function useLabSession() {
     notifications,
     lksGraded,
     setLksGraded,
+    latestLksScore,
     capturedSnapshots,
     setCapturedSnapshots,
     completedChallengeIds,
@@ -516,6 +521,7 @@ export function useLabSession() {
     selectedBioModuleId,
     setSelectedBioModuleId,
     activeMysteryChallenge,
+    mysterySubmissions,
     remoteCursors,
     paramLocks,
     emitCursor3D,
@@ -526,9 +532,15 @@ export function useLabSession() {
     reportData,
     deleteRecord,
     exportRecordsToCSV,
-    submitQuizScore,
+    submitQuizScore: (studentName: string, score: number, correctCount: number) => {
+      setLatestLksScore(score);
+      setLksGraded(true);
+      backendSubmitQuizScore(studentName, score, correctCount);
+    },
     handleRecordExperiment,
     pushNotification,
+    broadcastTeacherFeedback,
+    broadcastMysteryChallenge,
     createNote,
     createTask,
     toggleTask,

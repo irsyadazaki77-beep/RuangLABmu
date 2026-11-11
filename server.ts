@@ -7,6 +7,10 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { loadPersistedState, scheduleSaveState } from './src/utils/statePersistence';
 import { generateSocraticDrLabMuResponse } from './src/utils/scienceEngine';
 import {
+  formatDrLabMuAskPayload,
+  normalizeDrLabMuRequest,
+} from './src/utils/labTelemetryHelpers';
+import {
   SpatialCursorPayload,
   ParameterLockPayload,
   LabRoom,
@@ -360,6 +364,28 @@ async function startServer() {
   const server = http.createServer(app);
 
   // REST API Endpoints
+  app.get('/api/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      activeRooms: activeLabRooms.size,
+      recordsCount: experimentRecords.length,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.get('/api/rooms', (_req, res) => {
+    const rooms = Array.from(activeLabRooms.values()).map((room) => ({
+      roomId: room.roomId,
+      domain: room.domain,
+      moduleId: room.moduleId,
+      teacherName: room.teacherName,
+      isFrozenByTeacher: room.isFrozenByTeacher,
+      createdAt: room.createdAt,
+      clientCount: Object.keys(room.clients || {}).length,
+    }));
+    res.json({ rooms });
+  });
+
   app.get('/api/lab-state', (_req, res) => {
     pruneExpiredLocks();
     res.json({
@@ -573,8 +599,8 @@ async function startServer() {
   // Structured Socratic AI endpoint for Dr. LabMu
   app.post('/api/dr-labmu/ask', async (req, res) => {
     try {
-      const telemetry = req.body;
-      if (!telemetry || !telemetry.domain) {
+      const telemetry = normalizeDrLabMuRequest(req.body);
+      if (!telemetry) {
         res.status(400).json({ error: 'Invalid telemetry payload' });
         return;
       }
@@ -609,11 +635,7 @@ async function startServer() {
 
           const parsed = JSON.parse(response.text || '{}');
           if (parsed.observasiSingkat && parsed.insightKonseptual && parsed.pertanyaanPemantik) {
-            res.json({
-              ...parsed,
-              formattedText: `1. Observasi Singkat:\n${parsed.observasiSingkat}\n\n2. Insight / Analogi Konseptual:\n${parsed.insightKonseptual}\n\n3. Pertanyaan Pemantik:\n💡 ${parsed.pertanyaanPemantik}`,
-              source: 'gemini-api',
-            });
+            res.json(formatDrLabMuAskPayload(parsed, 'gemini-api'));
             return;
           }
         } catch {
@@ -622,10 +644,7 @@ async function startServer() {
       }
 
       const fallbackResponse = generateSocraticDrLabMuResponse(telemetry);
-      res.json({
-        ...fallbackResponse,
-        source: 'socratic-engine',
-      });
+      res.json(formatDrLabMuAskPayload(fallbackResponse, 'socratic-engine'));
     } catch {
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -1137,13 +1156,14 @@ Berikan bimbingan Sokratik cerdas:
           });
         } else if (msg.type === 'mystery:broadcast' && msg.payload) {
           const { challenge, author } = msg.payload;
+          const codename = challenge.codename || challenge.codeName || challenge.id || 'MISTERI';
           const notif: ServerNotification = {
             id: `notif-mys-${Date.now()}`,
             timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             severity: 'critical',
             domain: 'Pengajar',
             title: `UJIAN PRAKTIKUM MISTERI: ${challenge.title}`,
-            message: `${author || 'Dr. Hendra Kusuma'} mengirim sampel misteri [${challenge.codeName}] ke meja kerja Anda.`,
+            message: `${author || 'Dr. Hendra Kusuma'} mengirim sampel misteri [${codename}] ke meja kerja Anda.`,
           };
           notifications.unshift(notif);
           persistServerState();
@@ -1160,13 +1180,16 @@ Berikan bimbingan Sokratik cerdas:
             stu.lastActive = 'Baru saja';
             if (result.passed) stu.status = 'Selesai';
           }
+          const guessVal = result.studentGuess ?? result.submittedValue ?? '-';
+          const guessUnit = result.unit ? ` ${result.unit}` : '';
+          const errPct = result.errorPercentage ?? result.errorPercent ?? 0;
           const notif: ServerNotification = {
             id: `notif-mys-sub-${Date.now()}`,
             timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             severity: result.passed ? 'nominal' : 'elevated',
             domain: 'Pengajar',
             title: `Hasil Ujian Misteri ${studentName}: ${result.score}/100`,
-            message: `${studentName} menebak ${result.submittedValue} ${result.unit} pada "${challengeTitle}" (Galat: ${result.errorPercent}%).`,
+            message: `${studentName} menebak ${guessVal}${guessUnit} pada "${challengeTitle}" (Galat: ${errPct}%).`,
           };
           notifications.unshift(notif);
           persistServerState();

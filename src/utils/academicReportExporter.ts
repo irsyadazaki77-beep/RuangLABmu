@@ -1,5 +1,3 @@
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { ExperimentRecord } from './scienceEngine';
 import {
   ExperimentModule,
@@ -577,7 +575,11 @@ ${data.conclusionNotes || ''}
 /**
  * FITUR 4: Ekspor Laporan Praktikum Resmi (PDF Engine) dengan jsPDF & jspdf-autotable
  */
-export function exportOfficialLabReportPDF(sessionData: AcademicReportData): void {
+export async function exportOfficialLabReportPDF(sessionData: AcademicReportData): Promise<void> {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',

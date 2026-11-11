@@ -40,9 +40,9 @@ export const AcademicReportPreviewModal: React.FC<
     }
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     labSound.playClick(760);
-    exportOfficialLabReportPDF(reportData);
+    await exportOfficialLabReportPDF(reportData);
   };
 
   return (

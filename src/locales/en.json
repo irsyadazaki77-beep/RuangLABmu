@@ -72,7 +72,7 @@
   "exam": {
     "bannerTitle": "CONTROLLED LAB EXAM MODE",
     "timeLeft": "Time Remaining",
-    "antiCheatWarning": "Peringatan: Tetap berada di halaman praktikum selama ujian!",
+    "antiCheatWarning": "Warning: Stay on the lab workspace page during the exam!",
     "tabSwitchCount": "Tab Alerts",
     "lockedStatus": "Locked (Submitted)",
     "activeStatus": "Proctoring Active",
@@ -80,7 +80,7 @@
   },
   "gradebook": {
     "title": "Teacher Gradebook & Lab Submissions",
-    "exportClassroom": "Ekspor Format Rekap LMS / Google Classroom",
-    "watchReplay": "Lihat Replay Praktikum"
+    "exportClassroom": "Export LMS / Google Classroom Roster CSV",
+    "watchReplay": "Watch Lab Session Replay"
   }
 }

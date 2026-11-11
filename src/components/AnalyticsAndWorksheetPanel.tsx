@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   TrendingUp,
   FileSpreadsheet,
@@ -44,6 +44,10 @@ export interface AnalyticsAndWorksheetPanelProps {
   onChangeHypothesisNote?: (next: HypothesisNote) => void;
   onAskDrLabMu?: (prompt: string) => void;
   snapshots3D?: Lab3DSnapshot[];
+  onDeleteRecord?: (id: string) => void;
+  onExportCSV?: () => void;
+  moduleId?: string;
+  domain?: string;
 }
 
 const PRESET_DATASETS: Record<
@@ -122,10 +126,21 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
   onChangeHypothesisNote,
   onAskDrLabMu,
   snapshots3D = [],
+  onDeleteRecord,
+  onExportCSV,
+  moduleId,
+  domain,
 }) => {
   const [selectedDatasetKey, setSelectedDatasetKey] = useState<string>(
     records.length >= 2 ? 'custom-records' : 'newton-force-acc'
   );
+  const [hasManualDatasetChoice, setHasManualDatasetChoice] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!hasManualDatasetChoice && records.length >= 2) {
+      setSelectedDatasetKey('custom-records');
+    }
+  }, [records.length, hasManualDatasetChoice]);
   const [curveModel, setCurveModel] = useState<CurveModelType>('linear');
   const [showCompareDock, setShowCompareDock] = useState<boolean>(false);
   const [showHypothesisDock, setShowHypothesisDock] = useState<boolean>(false);
@@ -266,6 +281,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
             value={selectedDatasetKey}
             onChange={(e) => {
               labSound.playClick();
+              setHasManualDatasetChoice(true);
               setSelectedDatasetKey(e.target.value);
             }}
             className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-200 cursor-pointer"
@@ -315,8 +331,8 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
       {/* 2. Observation Records Table */}
       <DataObservationTable
         records={records}
-        onDeleteRecord={() => {}}
-        onExportCSV={() => onExportChartNotification('PDF')}
+        onDeleteRecord={onDeleteRecord || (() => {})}
+        onExportCSV={onExportCSV || (() => onExportChartNotification('PDF'))}
       />
 
       {/* 3. Post-Lab Contextual Mastery Quiz (3 Questions) */}
@@ -334,6 +350,9 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
         onChangeHypothesisNote={onChangeHypothesisNote}
         onSubmitQuizScore={onSubmitQuizScore}
         onPrintPDFReport={handlePrintPDFReport}
+        observationRecords={records}
+        moduleId={moduleId}
+        domain={domain}
       />
 
       {/* Printable Report Modal */}

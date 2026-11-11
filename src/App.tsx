@@ -1,6 +1,7 @@
 import React from 'react';
 import { labSound } from './utils/soundEngine';
 import { useLabStore } from './stores/useLabStore';
+import { useCollabStore } from './stores/useCollabStore';
 import { STUDENT_PROFILES } from './stores/initialLabParams';
 import { TopNavigationHeader } from './components/layout/TopNavigationHeader';
 import { MainLabWorkspace } from './components/layout/MainLabWorkspace';
@@ -11,6 +12,10 @@ import { ExamSessionController } from './components/exam/ExamSessionController';
 import { useLabSession } from './hooks/useLabSession';
 import { recordK3Compliance } from './services/gamificationEngine';
 import { buildSubmissionTelemetryTimeline } from './utils/telemetryRecorder';
+import {
+  computeRecordsRegressionSummary,
+  parseReplayParameters,
+} from './utils/labTelemetryHelpers';
 
 /**
  * RuangLABmu - Virtual Science Laboratory Workspace
@@ -18,7 +23,8 @@ import { buildSubmissionTelemetryTimeline } from './utils/telemetryRecorder';
  * Clean Container Layout using Zustand & useLabSession hook.
  */
 export default function App() {
-  const { setWorkflowStep, isSubmissionLocked, setSubmissionLocked } = useLabStore();
+  const { setActiveDomain, setWorkflowStep, isSubmissionLocked, setSubmissionLocked } = useLabStore();
+  const { activeRoomId } = useCollabStore();
   const session = useLabSession();
 
   const {
@@ -35,6 +41,7 @@ export default function App() {
     notifications,
     lksGraded,
     setLksGraded,
+    latestLksScore,
     capturedSnapshots,
     setCapturedSnapshots,
     completedChallengeIds,
@@ -51,6 +58,7 @@ export default function App() {
     selectedBioModuleId,
     setSelectedBioModuleId,
     activeMysteryChallenge,
+    mysterySubmissions,
     remoteCursors,
     paramLocks,
     emitCursor3D,
@@ -64,6 +72,8 @@ export default function App() {
     submitQuizScore,
     handleRecordExperiment,
     pushNotification,
+    broadcastTeacherFeedback,
+    broadcastMysteryChallenge,
     createNote,
     createTask,
     toggleTask,
@@ -77,6 +87,8 @@ export default function App() {
     toggleTeacherFreeze,
     ws,
   } = session;
+
+  const recordsRegression = computeRecordsRegressionSummary(records);
 
   const handleAutoSubmitExam = async () => {
     setSubmissionLocked(true);
@@ -95,15 +107,19 @@ export default function App() {
         body: JSON.stringify({
           studentName: currentProfile.name,
           studentId: currentProfile.group,
-          roomId: 'LAB-ALPHA',
+          roomId: activeRoomId || 'LAB-ALPHA',
           domain: activeScienceDomain,
           moduleId: currentExperimentModule.id,
           submittedAt: new Date().toISOString(),
           hypothesisText: currentModuleHypothesis.hypothesisText || 'Pengumpulan otomatis saat batas waktu ujian berakhir.',
           observationData: obsPayload,
-          regressionMetrics: { rSquared: 0.99, slope: 1.0, equation: 'y = mx + c' },
+          regressionMetrics: {
+            rSquared: recordsRegression.rSquared,
+            slope: recordsRegression.slope,
+            equation: recordsRegression.equation,
+          },
           quizAnswers: [],
-          quizScore: 100,
+          quizScore: latestLksScore,
           conclusionText: 'Dikumpulkan otomatis oleh ExamSessionController.',
           telemetryLog: buildSubmissionTelemetryTimeline(activeScienceDomain, obsPayload),
         }),
@@ -121,7 +137,7 @@ export default function App() {
         recordsCount={records.length}
         lksGraded={lksGraded}
         notificationsCount={notifications.length}
-        hasLowR2Alert={records.length >= 3}
+        hasLowR2Alert={recordsRegression.isLowR2Alert}
         studentProfiles={STUDENT_PROFILES}
         selectedProfileIdx={selectedProfileIdx}
         onSelectProfileIdx={setSelectedProfileIdx}
@@ -156,6 +172,7 @@ export default function App() {
           astronomyParams={astronomyParams}
           selectedBioModuleId={selectedBioModuleId}
           activeMysteryChallenge={activeMysteryChallenge}
+          mysterySubmissions={mysterySubmissions}
           remoteCursors={remoteCursors}
           paramLocks={paramLocks}
           emitCursor3D={emitCursor3D}
@@ -185,15 +202,51 @@ export default function App() {
           onCreateTask={(title, domain) => createTask(title, currentProfile.group, domain)}
           onCreateNote={(text) => createNote(text, currentProfile.name, 'Siswa', currentProfile.group)}
           onDeleteSnapshot={(id) => setCapturedSnapshots((prev) => prev.filter((s) => s.id !== id))}
+          onBroadcastTeacherFeedback={broadcastTeacherFeedback}
+          onBroadcastMysteryChallenge={broadcastMysteryChallenge}
           onReplayRecord={(rec) => {
             labSound.playClick();
+            const restored = parseReplayParameters(rec);
+            const domainKeyMap = {
+              Fisika: 'physics',
+              Kimia: 'chemistry',
+              Biologi: 'biology',
+              Astronomi: 'astronomy',
+            } as const;
+            setActiveDomain(domainKeyMap[restored.domain]);
+
+            if (restored.physicsPatch) {
+              setPhysicsParams((prev) => ({ ...prev, ...restored.physicsPatch }));
+            }
+            if (restored.chemistryPatch) {
+              setChemistryParams((prev) => ({ ...prev, ...restored.chemistryPatch }));
+            }
+            if (restored.astronomyPatch) {
+              setAstronomyParams((prev) => ({ ...prev, ...restored.astronomyPatch }));
+            }
+            if (restored.biologyPatch) {
+              const numericPatch: Record<string, number> = {};
+              for (const [k, v] of Object.entries(restored.biologyPatch)) {
+                if (typeof v === 'number') numericPatch[k] = v;
+              }
+              if (restored.biologyPatch.mode) {
+                setSelectedBioModuleId(restored.biologyPatch.mode);
+              }
+              setBiologyContext((prev) => ({
+                ...prev,
+                moduleId: restored.biologyPatch?.mode || prev.moduleId,
+                params: { ...prev.params, ...numericPatch },
+              }));
+            }
+
+            setWorkflowStep(2);
             pushNotification({
               id: `notif-replay-${Date.now()}`,
               timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
               severity: 'nominal',
               domain: rec.domain,
               title: `Memuat Ulang Parameter ${rec.id}`,
-              message: `Parameter ${rec.parametersSummary} telah dimuat kembali ke kokpit 3D.`,
+              message: `Parameter ${rec.parametersSummary} (${restored.matchedKeysCount} variabel) telah dimuat kembali ke kokpit 3D.`,
             });
           }}
           onSelectCatalogModule={handleSelectCatalogModule}
@@ -204,7 +257,7 @@ export default function App() {
             });
           }}
           externalDrLabMuPrompt={externalDrLabMuPrompt}
-          hasLowR2Alert={records.length >= 3}
+          hasLowR2Alert={recordsRegression.isLowR2Alert}
           onCreateRoom={createRoom}
           onJoinRoom={joinRoom}
           onLeaveRoom={leaveRoom}

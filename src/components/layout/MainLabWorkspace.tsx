@@ -27,8 +27,10 @@ import {
   CollabNoteItem,
   CollaborationAndDataSection,
 } from '../CollaborationAndDataSection';
-import { AnalyticsAndWorksheetPanel } from '../AnalyticsAndWorksheetPanel';
 import { StudentProgressItem } from '../TeacherDashboardView';
+const AnalyticsAndWorksheetPanel = lazy(() =>
+  import('../AnalyticsAndWorksheetPanel').then((m) => ({ default: m.AnalyticsAndWorksheetPanel }))
+);
 import { DrLabMuAssistantPanel } from '../DrLabMuAssistantPanel';
 import { LabLobbyHub } from '../LabLobbyHub';
 import { PreLabBriefingView } from '../PreLabBriefingView';
@@ -102,6 +104,7 @@ export interface MainLabWorkspaceProps {
   astronomyParams: AstronomyParams;
   selectedBioModuleId: string;
   activeMysteryChallenge: MysterySampleChallenge | null;
+  mysterySubmissions?: MysterySubmissionResult[];
   remoteCursors: Record<string, SpatialCursorPayload>;
   paramLocks: Record<string, ParameterLockPayload>;
   emitCursor3D: (pos: [number, number, number], normal?: [number, number, number], hoveredObject?: string) => void;
@@ -134,6 +137,8 @@ export interface MainLabWorkspaceProps {
   onCreateNote: (text: string) => void;
   onDeleteSnapshot: (id: string) => void;
   onReplayRecord: (rec: ExperimentRecord) => void;
+  onBroadcastTeacherFeedback?: (targetStudentId: string, message: string, author: string) => void;
+  onBroadcastMysteryChallenge?: (challenge: MysterySampleChallenge, author: string) => void;
   onSelectCatalogModule: (mod: ExperimentModule) => void;
   onInjectOutlierDemo: () => void;
   externalDrLabMuPrompt: { id: number; prompt: string } | null;
@@ -167,6 +172,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
   astronomyParams,
   selectedBioModuleId,
   activeMysteryChallenge,
+  mysterySubmissions = [],
   remoteCursors,
   paramLocks,
   emitCursor3D,
@@ -192,6 +198,8 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
   onCreateNote,
   onDeleteSnapshot,
   onReplayRecord,
+  onBroadcastTeacherFeedback,
+  onBroadcastMysteryChallenge,
   onSelectCatalogModule,
   onInjectOutlierDemo,
   externalDrLabMuPrompt,
@@ -219,6 +227,16 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     activeDrawerTab,
     setDrawerTab,
   } = useUIStore();
+
+  const [queuedDrLabMuPrompt, setQueuedDrLabMuPrompt] = useState<{ id: number; prompt: string } | null>(
+    externalDrLabMuPrompt
+  );
+
+  useEffect(() => {
+    if (externalDrLabMuPrompt) {
+      setQueuedDrLabMuPrompt(externalDrLabMuPrompt);
+    }
+  }, [externalDrLabMuPrompt]);
 
   const {
     wsConnected,
@@ -322,7 +340,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/40 text-xs font-mono font-bold text-amber-300">
               <Users className="w-3.5 h-3.5" />
               {activeRoomId
-                ? `MEJA AKTIF: ${activeRoomId} (PIN: ${roomPin || '1234'}) · ${roomMembers.length} Peserta`
+                ? `MEJA AKTIF: ${activeRoomId} (PIN: ${roomPin || '1234'}) · ${Object.keys(roomMembers).length} Peserta`
                 : 'MODE GURU: Belum Membuka Room PIN'}
             </span>
 
@@ -419,7 +437,9 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
             <TeacherDashboardView
               students={students}
               records={records}
+              mysterySubmissions={mysterySubmissions}
               onSendTeacherFeedback={(targetStudentId, message) => {
+                onBroadcastTeacherFeedback?.(targetStudentId, message, currentProfile.name);
                 onPushNotification({
                   id: `notif-fb-${Date.now()}`,
                   timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
@@ -441,6 +461,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
               }}
               activeMysteryChallenge={activeMysteryChallenge}
               onBroadcastMysteryChallenge={(challenge) => {
+                onBroadcastMysteryChallenge?.(challenge, currentProfile.name);
                 onPushNotification({
                   id: `notif-myst-${Date.now()}`,
                   timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
@@ -653,6 +674,18 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
               activeStudentName={currentProfile.name}
               activeGroupId={currentProfile.group}
               onSubmitQuizScore={onSubmitQuizScore}
+              onDeleteRecord={onDeleteRecord}
+              onExportCSV={onExportCSV}
+              hypothesisNote={currentModuleHypothesis}
+              onChangeHypothesisNote={onUpdateCurrentHypothesis}
+              snapshots3D={capturedSnapshots}
+              moduleId={experimentModule.id}
+              domain={activeScienceDomain}
+              onAskDrLabMu={(prompt) => {
+                setDrawerTab('ai');
+                setDrawerOpen(true);
+                setQueuedDrLabMuPrompt({ id: Date.now(), prompt });
+              }}
               onBackToLab={() => setWorkflowStep(2)}
               onProceedToReport={() => setWorkflowStep(4)}
               onExportChartNotification={(fmt: 'PNG' | 'PDF') =>
@@ -735,7 +768,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
         onOpenChange={setDrawerOpen}
         onTabChange={(tab) => setDrawerTab(tab === 'dr-labmu' ? 'ai' : 'analytics')}
         onInjectOutlierDemo={onInjectOutlierDemo}
-        externalPromptRequest={externalDrLabMuPrompt}
+        externalPromptRequest={queuedDrLabMuPrompt}
         wsConnected={wsConnected}
       />
     </main>

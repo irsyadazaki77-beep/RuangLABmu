@@ -1,14 +1,17 @@
 {
   "name": "ruanglabmu",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.1.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
     "build:client": "vite build",
-    "build:server": "esbuild server.ts --bundle --platform=node --target=node20 --outfile=dist-server/server.cjs --external:express --external:ws",
+    "build:server": "esbuild server.ts --bundle --platform=node --target=node22 --outfile=dist-server/server.cjs --external:express --external:ws",
     "build": "npm run build:client && npm run build:server",
-    "start": "NODE_ENV=production node dist-server/server.cjs",
+    "start": "node -e \"process.env.NODE_ENV='production'; require('./dist-server/server.cjs')\"",
     "preview": "vite preview",
     "clean": "rm -rf dist dist-server",
     "lint": "tsc --noEmit",

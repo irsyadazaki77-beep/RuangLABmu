@@ -18,6 +18,8 @@ import {
 import { labSound } from '../../utils/soundEngine';
 import { HypothesisNote } from '../ui/HypothesisAndCompareDock';
 import { useLabStore } from '../../stores/useLabStore';
+import { useCollabStore } from '../../stores/useCollabStore';
+import { computeRecordsRegressionSummary } from '../../utils/labTelemetryHelpers';
 import {
   evaluateDataPrecisionXP,
   recordPerfectLksQuiz,
@@ -99,6 +101,8 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     const finalGrade = gradedResult ?? gradeWorksheetAnswers(answers);
     setGradedResult(finalGrade);
     setIsSubmittingReport(true);
+    const activeRoomId = useCollabStore.getState().activeRoomId || 'LAB-ALPHA';
+    const regSummary = computeRecordsRegressionSummary(observationRecords);
     try {
       const obsPayload = (observationRecords || []).map((r, i) => ({
         'No': i + 1,
@@ -116,16 +120,16 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         body: JSON.stringify({
           studentName: activeStudentName,
           studentId: activeGroupId,
-          roomId: 'LAB-ALPHA',
+          roomId: activeRoomId,
           domain: domain || 'Fisika',
           moduleId: moduleId || 'lab-experiment',
           submittedAt: new Date().toISOString(),
           hypothesisText: hypothesisNote?.hypothesisText || '',
           observationData: obsPayload,
           regressionMetrics: {
-            rSquared: 0.992,
-            slope: 1.05,
-            equation: 'y = 1.05x + 0.12',
+            rSquared: regSummary.rSquared,
+            slope: regSummary.slope,
+            equation: regSummary.equation,
           },
           quizAnswers: Object.entries(answers).map(([qId, val]) => ({
             questionId: qId,
@@ -146,7 +150,9 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         setSubmissionLocked(true);
         // FITUR 1: Berikan XP & Lencana untuk LKS & Presisi Data
         recordPerfectLksQuiz(finalGrade.totalScore, domain, moduleId);
-        evaluateDataPrecisionXP(0.992, domain, moduleId);
+        if (regSummary.hasRegression) {
+          evaluateDataPrecisionXP(regSummary.rSquared, domain, moduleId);
+        }
       }
     } catch {
       // ignore connection error
