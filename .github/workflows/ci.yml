@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   validate-and-build:
-    name: Typecheck, Unit Test & Build (Node.js 20)
+    name: Typecheck, Unit Test & Build (Node.js 22)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -22,7 +22,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
