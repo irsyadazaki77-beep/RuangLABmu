@@ -18,6 +18,9 @@ import {
 import {
   calculateEnzymeKinetics,
   calculateCellOsmosisTonicity,
+  calculateCardiovascularHeart,
+  calculateRespiratoryLungs,
+  calculateNeuralSynapse,
 } from '../utils/scienceEngine';
 
 export const FIXED_DT = 1.0 / 60.0; // 60 Hz fixed timestep
@@ -539,6 +542,57 @@ export class WorkerSimulationContext {
         isLysed: initOsm.isLysed ? 1 : 0,
       };
       this.initialMechanicalEnergy = initOsm.osmoticPressureIntAtm;
+    } else if (this.mode === 'anatomy-cardiovascular-heart') {
+      const cv = calculateCardiovascularHeart({
+        heartRateBpm: this.params.heartRateBpm ?? 72,
+        vesselRadiusRatio: this.params.vesselRadiusRatio ?? 1.0,
+        bloodViscosity: this.params.bloodViscosity ?? 3.5,
+        exerciseIntensity: this.params.exerciseIntensity ?? 20,
+        timeSec: 0,
+      });
+      this.state = {
+        strokeVolumeMl: cv.strokeVolumeMl,
+        cardiacOutputLMin: cv.cardiacOutputLMin,
+        vascularResistance: cv.vascularResistance,
+        systolicMmHg: cv.systolicMmHg,
+        diastolicMmHg: cv.diastolicMmHg,
+        meanArterialPressure: cv.meanArterialPressure,
+        ecgVoltageMv: cv.ecgVoltageMv,
+      };
+      this.initialMechanicalEnergy = cv.meanArterialPressure;
+    } else if (this.mode === 'anatomy-respiratory-lungs') {
+      const resp = calculateRespiratoryLungs({
+        respirationRate: this.params.respirationRate ?? 15,
+        diaphragmEffort: this.params.diaphragmEffort ?? 50,
+        airwayResistance: this.params.airwayResistance ?? 1.0,
+        altitudeMeters: this.params.altitudeMeters ?? 0,
+        timeSec: 0,
+      });
+      this.state = {
+        tidalVolumeMl: resp.tidalVolumeMl,
+        minuteVentilationLMin: resp.minuteVentilationLMin,
+        alveolarPo2MmHg: resp.alveolarPo2MmHg,
+        spo2Percent: resp.spo2Percent,
+        instantLungVolumeMl: resp.instantLungVolumeMl,
+      };
+      this.initialMechanicalEnergy = resp.spo2Percent;
+    } else if (this.mode === 'anatomy-neural-synapse') {
+      const neu = calculateNeuralSynapse({
+        stimulusVoltageMv: this.params.stimulusVoltageMv ?? -40,
+        myelinThickness: this.params.myelinThickness ?? 75,
+        extracellularNaMm: this.params.extracellularNaMm ?? 145,
+        extracellularKMm: this.params.extracellularKMm ?? 4.5,
+        timeSec: 0,
+      });
+      this.state = {
+        nernstNaMv: neu.nernstNaMv,
+        nernstKMv: neu.nernstKMv,
+        restingPotentialMv: neu.restingPotentialMv,
+        conductionVelocityMs: neu.conductionVelocityMs,
+        membranePotentialMv: neu.membranePotentialMv,
+        actionPotentialTriggered: neu.actionPotentialTriggered ? 1 : 0,
+      };
+      this.initialMechanicalEnergy = neu.restingPotentialMv;
     } else {
       // newton-incline
       this.state = {
@@ -782,6 +836,68 @@ export class WorkerSimulationContext {
           },
         };
       }
+    } else if (this.mode === 'anatomy-cardiovascular-heart') {
+      const cv = calculateCardiovascularHeart({
+        heartRateBpm: this.params.heartRateBpm ?? 72,
+        vesselRadiusRatio: this.params.vesselRadiusRatio ?? 1.0,
+        bloodViscosity: this.params.bloodViscosity ?? 3.5,
+        exerciseIntensity: this.params.exerciseIntensity ?? 20,
+        timeSec: this.time,
+      });
+      this.state.strokeVolumeMl = cv.strokeVolumeMl;
+      this.state.cardiacOutputLMin = cv.cardiacOutputLMin;
+      this.state.vascularResistance = cv.vascularResistance;
+      this.state.systolicMmHg = cv.systolicMmHg;
+      this.state.diastolicMmHg = cv.diastolicMmHg;
+      this.state.meanArterialPressure = cv.meanArterialPressure;
+      this.state.ecgVoltageMv = cv.ecgVoltageMv;
+    } else if (this.mode === 'anatomy-respiratory-lungs') {
+      const resp = calculateRespiratoryLungs({
+        respirationRate: this.params.respirationRate ?? 15,
+        diaphragmEffort: this.params.diaphragmEffort ?? 50,
+        airwayResistance: this.params.airwayResistance ?? 1.0,
+        altitudeMeters: this.params.altitudeMeters ?? 0,
+        timeSec: this.time,
+      });
+      this.state.tidalVolumeMl = resp.tidalVolumeMl;
+      this.state.minuteVentilationLMin = resp.minuteVentilationLMin;
+      this.state.alveolarPo2MmHg = resp.alveolarPo2MmHg;
+      this.state.spo2Percent = resp.spo2Percent;
+      this.state.instantLungVolumeMl = resp.instantLungVolumeMl;
+      if (resp.spo2Percent < 85 && !this.bioEventTriggered) {
+        this.bioEventTriggered = true;
+        event = {
+          type: 'hypoxia-alert',
+          payload: {
+            time: Number(this.time.toFixed(2)),
+            spo2Percent: resp.spo2Percent,
+          },
+        };
+      }
+    } else if (this.mode === 'anatomy-neural-synapse') {
+      const neu = calculateNeuralSynapse({
+        stimulusVoltageMv: this.params.stimulusVoltageMv ?? -40,
+        myelinThickness: this.params.myelinThickness ?? 75,
+        extracellularNaMm: this.params.extracellularNaMm ?? 145,
+        extracellularKMm: this.params.extracellularKMm ?? 4.5,
+        timeSec: this.time,
+      });
+      this.state.nernstNaMv = neu.nernstNaMv;
+      this.state.nernstKMv = neu.nernstKMv;
+      this.state.restingPotentialMv = neu.restingPotentialMv;
+      this.state.conductionVelocityMs = neu.conductionVelocityMs;
+      this.state.membranePotentialMv = neu.membranePotentialMv;
+      this.state.actionPotentialTriggered = neu.actionPotentialTriggered ? 1 : 0;
+      if (neu.actionPotentialTriggered && !this.bioEventTriggered) {
+        this.bioEventTriggered = true;
+        event = {
+          type: 'action-potential-fired',
+          payload: {
+            time: Number(this.time.toFixed(2)),
+            conductionVelocityMs: neu.conductionVelocityMs,
+          },
+        };
+      }
     } else {
       // newton-incline
       const m = this.params.mass ?? 4.0;
@@ -969,6 +1085,75 @@ export class WorkerSimulationContext {
       scalars.turgorPressureAtm = Number(turgor.toFixed(4));
       scalars.osmoticPressureIntAtm = Number(piInt.toFixed(4));
       scalars.osmoticPressureExtAtm = Number(piExt.toFixed(4));
+    } else if (this.mode === 'anatomy-cardiovascular-heart') {
+      const sv = this.state.strokeVolumeMl ?? 70;
+      const co = this.state.cardiacOutputLMin ?? 5.04;
+      const r = this.state.vascularResistance ?? 1.0;
+      const sbp = this.state.systolicMmHg ?? 120;
+      const dbp = this.state.diastolicMmHg ?? 80;
+      const map = this.state.meanArterialPressure ?? 93.3;
+      const ecg = this.state.ecgVoltageMv ?? 0;
+
+      positions.heart = { x: co, y: map, z: ecg };
+      velocities.heart = { x: sv, y: sbp - dbp, z: 0 };
+      accelerations.heart = { x: 0, y: 0, z: 0 };
+
+      kinetic = Number(co.toFixed(2));
+      potential = Number(map.toFixed(1));
+      thermal = Number(r.toFixed(3));
+      total = Number(sbp.toFixed(1));
+
+      scalars.strokeVolumeMl = sv;
+      scalars.cardiacOutputLMin = co;
+      scalars.vascularResistance = r;
+      scalars.systolicMmHg = sbp;
+      scalars.diastolicMmHg = dbp;
+      scalars.meanArterialPressure = map;
+      scalars.ecgVoltageMv = ecg;
+    } else if (this.mode === 'anatomy-respiratory-lungs') {
+      const tv = this.state.tidalVolumeMl ?? 500;
+      const ve = this.state.minuteVentilationLMin ?? 7.5;
+      const pao2 = this.state.alveolarPo2MmHg ?? 102;
+      const spo2 = this.state.spo2Percent ?? 97.5;
+      const vol = this.state.instantLungVolumeMl ?? 2650;
+
+      positions.lungs = { x: tv, y: spo2, z: vol };
+      velocities.lungs = { x: ve, y: pao2, z: 0 };
+      accelerations.lungs = { x: 0, y: 0, z: 0 };
+
+      kinetic = Number(ve.toFixed(2));
+      potential = Number(pao2.toFixed(1));
+      thermal = 0;
+      total = Number(spo2.toFixed(2));
+
+      scalars.tidalVolumeMl = tv;
+      scalars.minuteVentilationLMin = ve;
+      scalars.alveolarPo2MmHg = pao2;
+      scalars.spo2Percent = spo2;
+      scalars.instantLungVolumeMl = vol;
+    } else if (this.mode === 'anatomy-neural-synapse') {
+      const eNa = this.state.nernstNaMv ?? 60.7;
+      const eK = this.state.nernstKMv ?? -91.8;
+      const vRest = this.state.restingPotentialMv ?? -70;
+      const vel = this.state.conductionVelocityMs ?? 80;
+      const vm = this.state.membranePotentialMv ?? -70;
+      const fired = this.state.actionPotentialTriggered ?? 1;
+
+      positions.neuron = { x: vm, y: vel, z: fired };
+      velocities.neuron = { x: eNa, y: eK, z: 0 };
+      accelerations.neuron = { x: 0, y: 0, z: 0 };
+
+      kinetic = Number(vel.toFixed(2));
+      potential = Number(vm.toFixed(2));
+      thermal = Number(vRest.toFixed(2));
+      total = Number(eNa.toFixed(2));
+
+      scalars.nernstNaMv = eNa;
+      scalars.nernstKMv = eK;
+      scalars.restingPotentialMv = vRest;
+      scalars.conductionVelocityMs = vel;
+      scalars.membranePotentialMv = vm;
+      scalars.actionPotentialTriggered = fired;
     } else {
       // newton-incline
       const m = this.params.mass ?? 4.0;

@@ -2,6 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import {
   AstronomyParams,
   AstronomyMetrics,
@@ -36,6 +41,89 @@ interface AstronomyScene3DProps {
 
 type CameraPreset = 'isometric' | 'ecliptic' | 'top' | 'focus';
 
+function createSolarPhotosphereTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const grad = ctx.createLinearGradient(0, 0, 0, 128);
+    grad.addColorStop(0, '#f59e0b');
+    grad.addColorStop(0.5, '#fef08a');
+    grad.addColorStop(1, '#ea580c');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 256, 128);
+
+    // Solar granulation cells & sunspots
+    for (let i = 0; i < 220; i++) {
+      const x = (i * 73) % 256;
+      const y = (i * 41) % 128;
+      const r = 3 + (i % 9);
+      ctx.fillStyle = i % 7 === 0 ? 'rgba(180, 83, 9, 0.35)' : 'rgba(255, 251, 235, 0.35)';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  return tex;
+}
+
+function createFresnelCoronaMaterial(
+  coreHex = 0xfef08a,
+  rimHex = 0xf97316
+): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uCoreColor: { value: new THREE.Color(coreHex) },
+      uRimColor: { value: new THREE.Color(rimHex) },
+      uIntensity: { value: 1.45 },
+    },
+    vertexShader: `
+      uniform float uTime;
+      varying vec3 vNormal;
+      varying vec3 vViewDir;
+      varying vec3 vLocalPos;
+
+      void main() {
+        vLocalPos = position;
+        float flare = sin(position.x * 4.5 + uTime * 2.2) * cos(position.y * 4.5 - uTime * 1.8) * 0.035;
+        vec3 displaced = position + normal * flare;
+        vec4 worldPos = modelMatrix * vec4(displaced, 1.0);
+        vNormal = normalize(normalMatrix * normal);
+        vViewDir = normalize(cameraPosition - worldPos.xyz);
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform vec3 uCoreColor;
+      uniform vec3 uRimColor;
+      uniform float uIntensity;
+      varying vec3 vNormal;
+      varying vec3 vViewDir;
+      varying vec3 vLocalPos;
+
+      void main() {
+        float viewDot = abs(dot(normalize(vNormal), normalize(vViewDir)));
+        float fresnel = pow(1.0 - viewDot, 2.4);
+        float pulse = 0.88 + 0.12 * sin(uTime * 3.0 + vLocalPos.y * 3.0);
+        vec3 glowColor = mix(uCoreColor, uRimColor, fresnel) * uIntensity * pulse;
+        float alpha = clamp(fresnel * 0.85 + 0.12, 0.0, 0.92);
+        gl_FragColor = vec4(glowColor, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+  });
+}
+
 function createArrowGroup(colorHex: number): THREE.Group {
   const group = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({
@@ -43,7 +131,7 @@ function createArrowGroup(colorHex: number): THREE.Group {
     roughness: 0.25,
     metalness: 0.2,
     emissive: colorHex,
-    emissiveIntensity: 0.22,
+    emissiveIntensity: 0.35,
   });
   const shaftGeo = new THREE.CylinderGeometry(0.055, 0.055, 1, 12);
   shaftGeo.translate(0, 0.5, 0);
@@ -109,7 +197,6 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
-  const [isOrbiting, setIsOrbiting] = useState<boolean>(false);
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
 
   const latestRef = useRef({
@@ -169,17 +256,26 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       preserveDrawingBuffer: true,
     });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(pixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
+    const gl = renderer.getContext() as WebGL2RenderingContext;
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    const glRenderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+    const isSoftwareGl = /swiftshader|llvmpipe|softpipe|software/i.test(glRenderer);
+
     const initialColors = getSceneThemeColors(activeComfortTheme, 'Astronomi');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(initialColors.backgroundHex);
-    scene.fog = new THREE.FogExp2(initialColors.fogHex, 0.012);
+    scene.fog = new THREE.FogExp2(initialColors.fogHex, 0.008);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -188,6 +284,26 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 400);
     camera.position.set(0, 9.5, 14.5);
+
+    // Post-Processing Pipeline: RenderPass + UnrealBloomPass + FXAAShader
+    const composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(width, height),
+      0.45, // strength
+      0.4,  // radius
+      0.85  // threshold
+    );
+    composer.addPass(bloomPass);
+
+    const fxaaPass = new ShaderPass(FXAAShader);
+    fxaaPass.material.uniforms['resolution'].value.set(
+      1 / (width * pixelRatio),
+      1 / (height * pixelRatio)
+    );
+    composer.addPass(fxaaPass);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -221,14 +337,34 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       camTransitionActive = true;
     };
 
-    // Deep space lighting
+    // Deep space lighting + High-Intensity Quadratic Decay PointLight + Soft Shadow Directional KeyLight
     const ambientLight = new THREE.AmbientLight(
       initialColors.ambientSkyHex,
       initialColors.ambientIntensity
     );
     scene.add(ambientLight);
-    const centralStarLight = new THREE.PointLight(0xfffbeb, 3.5, 90, 0.5);
+
+    // High-intensity quadratic decay PointLight (decay = 2) at Sun center
+    const centralStarLight = new THREE.PointLight(0xfffbeb, 65.0, 140, 2.0);
+    centralStarLight.position.set(0, 0, 0);
     scene.add(centralStarLight);
+
+    // Key DirectionalLight with 2048x2048 PCFSoftShadowMap & bias -0.0001
+    const astroKeyLight = new THREE.DirectionalLight(0xfff7ed, 1.5);
+    astroKeyLight.position.set(8, 14, 10);
+    astroKeyLight.castShadow = true;
+    astroKeyLight.shadow.mapSize.width = 2048;
+    astroKeyLight.shadow.mapSize.height = 2048;
+    astroKeyLight.shadow.camera.near = 0.5;
+    astroKeyLight.shadow.camera.far = 50;
+    const shadowBound = 12;
+    astroKeyLight.shadow.camera.left = -shadowBound;
+    astroKeyLight.shadow.camera.right = shadowBound;
+    astroKeyLight.shadow.camera.top = shadowBound;
+    astroKeyLight.shadow.camera.bottom = -shadowBound;
+    astroKeyLight.shadow.bias = -0.0001;
+    astroKeyLight.shadow.normalBias = 0.02;
+    scene.add(astroKeyLight);
 
     cameraCtrlRef.current = {
       setPreset: applyCameraPreset,
@@ -236,63 +372,153 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         controls.autoRotate = orbit;
       },
       captureCanvas: () => {
-        renderer.render(scene, camera);
+        composer.render();
         return renderer.domElement.toDataURL('image/png');
       },
       applyTheme: (colors) => {
         scene.background = new THREE.Color(colors.backgroundHex);
-        scene.fog = new THREE.FogExp2(colors.fogHex, 0.012);
+        scene.fog = new THREE.FogExp2(colors.fogHex, 0.008);
         ambientLight.color.setHex(colors.ambientSkyHex);
         ambientLight.intensity = colors.ambientIntensity;
       },
     };
 
-    // Background 3D Starfield (800 stars)
-    const starCount = 800;
-    const starPos = new Float32Array(starCount * 3);
-    for (let i = 0; i < starCount; i++) {
-      const r = 55 + (i % 35);
-      const theta = (i * 2.39996) % (Math.PI * 2);
-      const phi = Math.acos(1 - (2 * (i + 0.5)) / starCount);
-      starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      starPos[i * 3 + 1] = r * Math.cos(phi);
-      starPos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-    }
-    const starGeo = new THREE.BufferGeometry();
-    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-    scene.add(
-      new THREE.Points(
-        starGeo,
-        new THREE.PointsMaterial({ color: 0xe2e8f0, size: 0.22, transparent: true, opacity: 0.7 })
-      )
-    );
+    // =========================================================
+    // MULTI-LAYER PARALLAX STARFIELD WITH SPECTRAL COLORS
+    // =========================================================
+    const spectralPalette = [
+      new THREE.Color(0x93c5fd), // O/B Blue-white star
+      new THREE.Color(0xf8fafc), // A/F Pure white star
+      new THREE.Color(0xfde047), // G/K Warm yellow-gold star
+      new THREE.Color(0xfca5a5), // M Dim red dwarf star
+    ];
+
+    const createStarfieldLayer = (count: number, minR: number, maxR: number, pointSize: number) => {
+      const pos = new Float32Array(count * 3);
+      const cols = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        const r = minR + ((i * 17.37) % (maxR - minR));
+        const theta = (i * 2.3999632) % (Math.PI * 2);
+        const phi = Math.acos(1 - (2 * (i + 0.5)) / count);
+        pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+        pos[i * 3 + 1] = r * Math.cos(phi);
+        pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+
+        const c = spectralPalette[i % spectralPalette.length];
+        const brightness = 0.72 + ((i * 13) % 28) / 100;
+        cols[i * 3] = c.r * brightness;
+        cols[i * 3 + 1] = c.g * brightness;
+        cols[i * 3 + 2] = c.b * brightness;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+      const mat = new THREE.PointsMaterial({
+        size: pointSize,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.88,
+        sizeAttenuation: true,
+      });
+      return new THREE.Points(geo, mat);
+    };
+
+    const nearStarLayer = createStarfieldLayer(500, 35, 65, 0.28);
+    const deepStarLayer = createStarfieldLayer(900, 68, 125, 0.18);
+    scene.add(nearStarLayer, deepStarLayer);
 
     const cursorManager = new SpatialCursorManager(scene);
 
     // =========================================================
-    // 1. SOLAR KEPLER 3D GROUP
+    // 1. SOLAR KEPLER 3D GROUP (DYNAMIC SUN + ASTEROID BELT)
     // =========================================================
     const solarGroup = new THREE.Group();
     scene.add(solarGroup);
 
+    const sunPhotosphereTex = createSolarPhotosphereTexture();
+    const sunStdMat = new THREE.MeshStandardMaterial({
+      color: 0xfef08a,
+      map: sunPhotosphereTex,
+      roughness: 0.35,
+      metalness: 0.05,
+      emissive: new THREE.Color(0xf59e0b),
+      emissiveMap: sunPhotosphereTex,
+      emissiveIntensity: 2.2,
+    });
     const sunMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(1.25, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+      new THREE.SphereGeometry(1.25, 40, 40),
+      sunStdMat
     );
     solarGroup.add(sunMesh);
 
+    // Fresnel Glow Corona Shader Layer
+    const sunCoronaMat = createFresnelCoronaMaterial(0xfef08a, 0xf97316);
     const sunCorona = new THREE.Mesh(
-      new THREE.SphereGeometry(1.65, 28, 28),
-      new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.24 })
+      new THREE.SphereGeometry(1.72, 36, 36),
+      sunCoronaMat
     );
     sunMesh.add(sunCorona);
 
+    // Reference Planet Orbits
     SOLAR_PLANET_PRESETS.slice(0, 8).forEach((pl) => {
       const refR = Math.min(8.6, Math.max(2.1, 2.0 + Math.log10(pl.semiMajorAxisAu + 0.7) * 4.2));
       const ringGeo = new THREE.RingGeometry(refR - 0.02, refR + 0.02, 64);
       ringGeo.rotateX(-Math.PI / 2);
-      solarGroup.add(new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x334155, side: THREE.DoubleSide, transparent: true, opacity: 0.3 })));
+      solarGroup.add(
+        new THREE.Mesh(
+          ringGeo,
+          new THREE.MeshBasicMaterial({
+            color: 0x334155,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.3,
+          })
+        )
+      );
     });
+
+    // 3D Rotating Asteroid Belt (InstancedMesh Rocky Asteroids + Micro Dust Ring)
+    const asteroidBeltGroup = new THREE.Group();
+    solarGroup.add(asteroidBeltGroup);
+
+    const ASTEROID_COUNT = 220;
+    const asteroidGeo = new THREE.DodecahedronGeometry(0.065, 0);
+    const asteroidMat = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      roughness: 0.85,
+      metalness: 0.2,
+    });
+    const asteroidInstanced = new THREE.InstancedMesh(asteroidGeo, asteroidMat, ASTEROID_COUNT);
+    asteroidInstanced.castShadow = true;
+    asteroidInstanced.receiveShadow = true;
+
+    const dummyMatrix = new THREE.Matrix4();
+    const dummyPos = new THREE.Vector3();
+    const dummyRot = new THREE.Euler();
+    const dummyQuat = new THREE.Quaternion();
+    const dummyScale = new THREE.Vector3();
+    const asteroidColor = new THREE.Color();
+
+    for (let i = 0; i < ASTEROID_COUNT; i++) {
+      const angle = (i / ASTEROID_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.12;
+      const beltRadius = 4.25 + (Math.random() - 0.5) * 0.65;
+      const yOffset = (Math.random() - 0.5) * 0.28;
+      dummyPos.set(Math.cos(angle) * beltRadius, yOffset, Math.sin(angle) * beltRadius);
+      dummyRot.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      dummyQuat.setFromEuler(dummyRot);
+      const s = 0.55 + Math.random() * 1.15;
+      dummyScale.set(s * 1.2, s * 0.8, s);
+      dummyMatrix.compose(dummyPos, dummyQuat, dummyScale);
+      asteroidInstanced.setMatrixAt(i, dummyMatrix);
+
+      const shade = 0.5 + Math.random() * 0.4;
+      asteroidColor.setRGB(shade, shade * 0.96, shade * 0.9);
+      asteroidInstanced.setColorAt(i, asteroidColor);
+    }
+    asteroidInstanced.instanceMatrix.needsUpdate = true;
+    if (asteroidInstanced.instanceColor) asteroidInstanced.instanceColor.needsUpdate = true;
+    asteroidInstanced.computeBoundingSphere();
+    asteroidBeltGroup.add(asteroidInstanced);
 
     const orbitGeo = new THREE.BufferGeometry();
     const orbitPositions = new Float32Array(96 * 3);
@@ -301,10 +527,22 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     solarGroup.add(orbitLine);
 
     const planetMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.55, 28, 28),
-      new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.4 })
+      new THREE.SphereGeometry(0.55, 32, 32),
+      new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        roughness: 0.4,
+        metalness: 0.15,
+      })
     );
-    planetMesh.userData = { draggableParam: 'customSemiMajorAxisAu', min: 0.4, max: 30.0, step: 0.5, label: 'Sumbu Semi-Mayor a (AU)' };
+    planetMesh.castShadow = true;
+    planetMesh.receiveShadow = true;
+    planetMesh.userData = {
+      draggableParam: 'customSemiMajorAxisAu',
+      min: 0.4,
+      max: 30.0,
+      step: 0.5,
+      label: 'Sumbu Semi-Mayor a (AU)',
+    };
     solarGroup.add(planetMesh);
 
     // =========================================================
@@ -315,8 +553,13 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
     // Galaxy core Sgr A*
     const sgrABulge = new THREE.Mesh(
-      new THREE.SphereGeometry(0.9, 24, 24),
-      new THREE.MeshBasicMaterial({ color: 0xfef08a })
+      new THREE.SphereGeometry(0.9, 28, 28),
+      new THREE.MeshStandardMaterial({
+        color: 0xfef08a,
+        emissive: 0xf59e0b,
+        emissiveIntensity: 2.0,
+        roughness: 0.3,
+      })
     );
     milkyWayGroup.add(sgrABulge);
 
@@ -342,9 +585,19 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     // Marker Star in Galaxy Disk (e.g. Solar System radius)
     const galacticMarkerStar = new THREE.Mesh(
       new THREE.SphereGeometry(0.32, 20, 20),
-      new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+      new THREE.MeshStandardMaterial({
+        color: 0xfacc15,
+        emissive: 0xfacc15,
+        emissiveIntensity: 1.5,
+      })
     );
-    galacticMarkerStar.userData = { draggableParam: 'galactocentricRadiusKpc', min: 1.0, max: 25.0, step: 0.5, label: 'Radius Galaksi R (kpc)' };
+    galacticMarkerStar.userData = {
+      draggableParam: 'galactocentricRadiusKpc',
+      min: 1.0,
+      max: 25.0,
+      step: 0.5,
+      label: 'Radius Galaksi R (kpc)',
+    };
     milkyWayGroup.add(galacticMarkerStar);
 
     // =========================================================
@@ -353,16 +606,28 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     const wienGroup = new THREE.Group();
     scene.add(wienGroup);
 
-    // Glowing blackbody Star Sphere
-    const wienStarMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+    // Glowing blackbody Star Sphere with MeshStandardMaterial + Fresnel Corona
+    const wienStarMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      emissive: 0xfacc15,
+      emissiveIntensity: 1.8,
+      roughness: 0.3,
+    });
     const wienStar = new THREE.Mesh(new THREE.SphereGeometry(1.8, 32, 32), wienStarMat);
     wienStar.position.set(-4.5, 0, 0);
-    wienStar.userData = { draggableParam: 'starEffectiveTempK', min: 2500, max: 35000, step: 250, label: 'Suhu Fotosfer T (K)' };
+    wienStar.userData = {
+      draggableParam: 'starEffectiveTempK',
+      min: 2500,
+      max: 35000,
+      step: 250,
+      label: 'Suhu Fotosfer T (K)',
+    };
     wienGroup.add(wienStar);
 
+    const wienCoronaMat = createFresnelCoronaMaterial(0xfef08a, 0xf59e0b);
     const wienCorona = new THREE.Mesh(
-      new THREE.SphereGeometry(2.3, 28, 28),
-      new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.28 })
+      new THREE.SphereGeometry(2.32, 32, 32),
+      wienCoronaMat
     );
     wienStar.add(wienCorona);
 
@@ -371,7 +636,16 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     prismGeo.rotateX(Math.PI / 2);
     const prismMesh = new THREE.Mesh(
       prismGeo,
-      new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, transmission: 0.95, roughness: 0.05 })
+      new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 1,
+        transmission: 0.96,
+        thickness: 0.8,
+        ior: 1.52,
+        roughness: 0.05,
+        reflectivity: 0.5,
+      })
     );
     prismMesh.position.set(-0.5, 0, 0);
     wienGroup.add(prismMesh);
@@ -379,7 +653,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     // Collimated ray from star to prism
     const starlightBeam = new THREE.Mesh(
       new THREE.CylinderGeometry(0.08, 0.08, 4.0, 12),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 })
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 })
     );
     starlightBeam.rotation.z = Math.PI / 2;
     starlightBeam.position.set(-2.5, 0, 0);
@@ -390,6 +664,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     spectrumCanvas.width = 512;
     spectrumCanvas.height = 128;
     const spectrumTexture = new THREE.CanvasTexture(spectrumCanvas);
+    spectrumTexture.colorSpace = THREE.SRGBColorSpace;
     const spectrumScreen = new THREE.Mesh(
       new THREE.PlaneGeometry(3.6, 1.8),
       new THREE.MeshBasicMaterial({ map: spectrumTexture, side: THREE.DoubleSide })
@@ -411,7 +686,11 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     // Milky Way Observer at center
     const mwObserver = new THREE.Mesh(
       new THREE.SphereGeometry(0.55, 20, 20),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+      new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0284c7,
+        emissiveIntensity: 1.2,
+      })
     );
     mwObserver.position.set(0, 0, 0);
     hubbleGroup.add(mwObserver);
@@ -425,7 +704,14 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.5 })
       );
       gMesh.rotation.x = 0.4;
-      gMesh.userData = { draggableParam: 'galaxyDistanceMpc', min: 20, max: 600, step: 20, label: 'Jarak Galaksi d (Mpc)' };
+      gMesh.castShadow = true;
+      gMesh.userData = {
+        draggableParam: 'galaxyDistanceMpc',
+        min: 20,
+        max: 600,
+        step: 20,
+        label: 'Jarak Galaksi d (Mpc)',
+      };
       hubbleGroup.add(gMesh);
 
       const arrow = createArrowGroup(0xef4444);
@@ -503,17 +789,56 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
     let disposed = false;
     let rafId = 0;
+    let timeoutId = 0;
+    const startTimeMs = performance.now();
+
+    const afterDraw = (cb: () => void) => {
+      const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+      gl.flush();
+      const poll = () => {
+        if (disposed) return;
+        const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
+        if (state === gl.UNSIGNALED) {
+          timeoutId = window.setTimeout(poll, 5);
+        } else {
+          if (sync) gl.deleteSync(sync);
+          timeoutId = window.setTimeout(cb, 80);
+        }
+      };
+      timeoutId = window.setTimeout(poll, 5);
+    };
 
     const tick = () => {
       if (disposed) return;
 
+      const elapsed = (performance.now() - startTimeMs) / 1000;
       const { params: p, metrics: m } = latestRef.current;
-      const t = latestRef.current.simTime ?? 0;
+      const t = latestRef.current.simTime ?? elapsed;
 
       solarGroup.visible = p.mode === 'solar-kepler';
       milkyWayGroup.visible = p.mode === 'milkyway-galaxy' || (p.mode as string) === 'milky-way-rotation';
-      wienGroup.visible = p.mode === 'stellar-wien-spectrum' || p.mode === 'stellar-exoplanet' || (p.mode as string) === 'exoplanet-transit';
+      wienGroup.visible =
+        p.mode === 'stellar-wien-spectrum' ||
+        p.mode === 'stellar-exoplanet' ||
+        (p.mode as string) === 'exoplanet-transit';
       hubbleGroup.visible = p.mode === 'hubble-expansion';
+
+      // Parallax Starfield subtle depth shift & rotation
+      nearStarLayer.rotation.y = elapsed * 0.004;
+      deepStarLayer.rotation.y = -elapsed * 0.0015;
+      nearStarLayer.position.x = -camera.position.x * 0.06;
+      nearStarLayer.position.z = -camera.position.z * 0.06;
+      deepStarLayer.position.x = -camera.position.x * 0.02;
+      deepStarLayer.position.z = -camera.position.z * 0.02;
+
+      // Update Dynamic Sun Shader & Corona
+      sunMesh.rotation.y = elapsed * 0.14;
+      sunStdMat.emissiveIntensity = 2.0 + Math.sin(elapsed * 3.2) * 0.35;
+      sunCoronaMat.uniforms.uTime.value = elapsed;
+      wienCoronaMat.uniforms.uTime.value = elapsed;
+
+      // Rotate Asteroid Belt smoothly
+      asteroidBeltGroup.rotation.y = elapsed * 0.045;
 
       // 1. Kepler Orbit
       if (p.mode === 'solar-kepler') {
@@ -522,7 +847,6 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         const b = a * Math.sqrt(Math.max(0.01, 1 - e * e));
         const c = a * e;
 
-        // Render elliptical orbit path
         const posAttr = orbitGeo.getAttribute('position') as THREE.BufferAttribute;
         for (let i = 0; i < 96; i++) {
           const theta = (i / 96) * Math.PI * 2;
@@ -539,6 +863,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         const curZ = b * Math.sin(curM);
         const scaledR = Math.min(8.6, 2.0 + Math.log10(Math.max(0.2, a)) * 3.5);
         planetMesh.position.set((curX / a) * scaledR, 0, (curZ / b) * scaledR);
+        planetMesh.rotation.y = elapsed * 0.6;
       }
 
       // 2. Milky Way Galaxy
@@ -551,24 +876,29 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       }
 
       // 3. Wien Spectrum
-      else if (p.mode === 'stellar-wien-spectrum' || p.mode === 'stellar-exoplanet' || (p.mode as string) === 'exoplanet-transit') {
+      else if (
+        p.mode === 'stellar-wien-spectrum' ||
+        p.mode === 'stellar-exoplanet' ||
+        (p.mode as string) === 'exoplanet-transit'
+      ) {
         wienStarMat.color.setStyle(m.starColorHex);
-        (wienCorona.material as THREE.MeshBasicMaterial).color.setStyle(m.starColorHex);
+        wienStarMat.emissive.setStyle(m.starColorHex);
+        wienCoronaMat.uniforms.uCoreColor.value.setStyle(m.starColorHex);
+        wienCoronaMat.uniforms.uRimColor.value.setStyle(m.starColorHex);
 
         // Render dynamic rainbow spectrum with absorption dark lines on canvas
         const sCtx = spectrumCanvas.getContext('2d');
         if (sCtx) {
           const grad = sCtx.createLinearGradient(0, 0, spectrumCanvas.width, 0);
-          grad.addColorStop(0, '#7c3aed'); // violet ~400nm
-          grad.addColorStop(0.2, '#2563eb'); // blue ~470nm
-          grad.addColorStop(0.4, '#10b981'); // green ~530nm
-          grad.addColorStop(0.65, '#facc15'); // yellow ~580nm
-          grad.addColorStop(0.85, '#f97316'); // orange ~620nm
-          grad.addColorStop(1.0, '#ef4444'); // red ~700nm
+          grad.addColorStop(0, '#7c3aed');
+          grad.addColorStop(0.2, '#2563eb');
+          grad.addColorStop(0.4, '#10b981');
+          grad.addColorStop(0.65, '#facc15');
+          grad.addColorStop(0.85, '#f97316');
+          grad.addColorStop(1.0, '#ef4444');
           sCtx.fillStyle = grad;
           sCtx.fillRect(0, 0, spectrumCanvas.width, spectrumCanvas.height);
 
-          // Draw Fraunhofer dark absorption lines
           sCtx.fillStyle = '#050811';
           const peakLambda = m.wienPeakWavelengthNm ?? 500;
           const peakX = ((peakLambda - 380) / (720 - 380)) * spectrumCanvas.width;
@@ -618,8 +948,13 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       }
 
       controls.update();
-      renderer.render(scene, camera);
-      rafId = requestAnimationFrame(tick);
+      composer.render();
+
+      if (isSoftwareGl) {
+        afterDraw(tick);
+      } else {
+        rafId = requestAnimationFrame(tick);
+      }
     };
 
     rafId = requestAnimationFrame(tick);
@@ -693,13 +1028,23 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     window.addEventListener('pointerup', handlePointerUp);
     renderer.domElement.addEventListener('pointermove', handlePointerMove);
 
+    let lastW = width;
+    let lastH = height;
     const handleResize = () => {
-      if (!container) return;
+      if (!container || disposed) return;
       const w = container.clientWidth || 960;
       const h = container.clientHeight || 500;
+      if (w === lastW && h === lastH) return;
+      lastW = w;
+      lastH = h;
+      const pr = renderer.getPixelRatio();
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      composer.setSize(w, h);
+      bloomPass.resolution.set(w, h);
+      fxaaPass.material.uniforms['resolution'].value.set(1 / (w * pr), 1 / (h * pr));
+      composer.render();
     };
     const resizeObserver = new ResizeObserver(() => handleResize());
     resizeObserver.observe(container);
@@ -707,6 +1052,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     return () => {
       disposed = true;
       cancelAnimationFrame(rafId);
+      clearTimeout(timeoutId);
       resizeObserver.disconnect();
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', handlePointerUp);
@@ -714,9 +1060,22 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       cursorManager.dispose();
       controls.dispose();
 
+      // Dispose Post-Processing & Textures
+      renderPass.dispose?.();
+      bloomPass.dispose();
+      fxaaPass.dispose?.();
+      composer.dispose();
+      sunPhotosphereTex.dispose();
+      spectrumTexture.dispose();
+
       // Deep Three.js GPU resource disposal
       scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) {
+        if (
+          obj instanceof THREE.Mesh ||
+          obj instanceof THREE.Points ||
+          obj instanceof THREE.Line ||
+          obj instanceof THREE.InstancedMesh
+        ) {
           obj.geometry?.dispose();
           if (Array.isArray(obj.material)) {
             obj.material.forEach((m) => m?.dispose());
@@ -772,14 +1131,14 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
       {/* Interactive Raycaster Drag Toast */}
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full backdrop-blur-xl bg-sky-950/90 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 animate-pulse text-xs font-mono text-sky-200">
+        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
           <span className="h-2 w-2 rounded-full bg-sky-400" />
           <span>Menyetel Astronomi 3D: {dragToast.label} = <b className="text-white">{dragToast.value}</b></span>
         </div>
       )}
 
       {/* Top Camera Controls */}
-      <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full backdrop-blur-xl bg-slate-900/75 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
+      <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full bg-slate-900/90 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
         <span className="text-[10px] font-mono uppercase tracking-wider text-sky-400 font-semibold mr-1">
           Kamera 3D:
         </span>
@@ -806,8 +1165,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         ))}
       </div>
 
-      {/* Top-Right Fullscreen Toggle Button */}
-      <div className="pointer-events-auto absolute top-4 right-4 z-30">
+      {/* Bottom-Right Fullscreen Toggle Button */}
+      <div className="pointer-events-auto absolute bottom-4 right-4 z-30">
         <button
           type="button"
           onClick={handleToggleFullscreen}

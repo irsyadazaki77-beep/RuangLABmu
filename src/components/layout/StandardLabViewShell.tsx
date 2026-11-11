@@ -150,44 +150,6 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
             </div>
           )}
 
-          {/* Top-Right Control Bar: Camera Presets & Fullscreen 3D */}
-          <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 pointer-events-auto">
-            {/* Camera Presets: Isometrik | Atas | Fokus */}
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-900/85 backdrop-blur-md border border-slate-700/80 shadow-md">
-              <Compass className="w-3.5 h-3.5 text-sky-400 ml-1.5 mr-0.5" />
-              {cameraPresets.map((preset) => {
-                const isActive = activeCameraPreset === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick(680);
-                      onSelectCameraPreset?.(preset.id);
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-sky-600 text-white shadow-xs font-bold'
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800'
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Tombol Layar Penuh 3D */}
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh 3D'}
-              className="p-2 rounded-xl bg-slate-900/85 backdrop-blur-md border border-slate-700/80 text-slate-300 hover:text-white hover:bg-slate-800 shadow-md transition-colors cursor-pointer"
-            >
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            </button>
-          </div>
-
           {/* Bottom-Left: Collapsible Panduan Praktikum 3D Pill (Collapsed by default) */}
           <div className="absolute bottom-3 left-3 z-20 pointer-events-auto hidden sm:block max-w-sm">
             {guideHud ? (

@@ -92,32 +92,32 @@ export function getSceneThemeColors(
   if (comfortTheme === 'light') {
     return {
       theme: 'light',
-      backgroundHex: 0xeef2f6,
-      fogHex: 0xeef2f6,
-      floorHex: 0xdbe3ec,
-      tableHex: 0xcbd5e1,
-      gridPrimaryHex: 0x94a3b8,
-      gridSecondaryHex: 0xcbd5e1,
-      ambientSkyHex: 0xffffff,
-      ambientGroundHex: 0x64748b,
-      ambientIntensity: 0.9,
-      containerBgClass: 'bg-[#EEF2F6]',
+      backgroundHex: 0x0f172a,
+      fogHex: 0x0f172a,
+      floorHex: 0x1e293b,
+      tableHex: 0x334155,
+      gridPrimaryHex: 0x475569,
+      gridSecondaryHex: 0x1e293b,
+      ambientSkyHex: 0xe2e8f0,
+      ambientGroundHex: 0x1e293b,
+      ambientIntensity: 0.68,
+      containerBgClass: 'bg-[#0F172A]',
     };
   }
 
   if (comfortTheme === 'sepia') {
     return {
       theme: 'sepia',
-      backgroundHex: 0xe9e1d2,
-      fogHex: 0xe9e1d2,
-      floorHex: 0xd8cebc,
-      tableHex: 0xc7bba6,
-      gridPrimaryHex: 0x8c7f6b,
-      gridSecondaryHex: 0xbdb099,
-      ambientSkyHex: 0xfff8eb,
-      ambientGroundHex: 0x5c5346,
-      ambientIntensity: 0.85,
-      containerBgClass: 'bg-[#E9E1D2]',
+      backgroundHex: 0x171412,
+      fogHex: 0x171412,
+      floorHex: 0x26211d,
+      tableHex: 0x362f29,
+      gridPrimaryHex: 0x5c5346,
+      gridSecondaryHex: 0x2a241e,
+      ambientSkyHex: 0xfef3c7,
+      ambientGroundHex: 0x26201a,
+      ambientIntensity: 0.65,
+      containerBgClass: 'bg-[#171412]',
     };
   }
 

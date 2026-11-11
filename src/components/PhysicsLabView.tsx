@@ -174,38 +174,86 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   }, []);
 
   const handleParamUpdate = (patch: Partial<PhysicsParams>) => {
-    onChangeParams({ ...params, ...patch });
+    const next = { ...params, ...patch };
+    if (patch.mode && patch.mode === 'projectile-gravity' && next.initialVelocity <= 0) {
+      next.initialVelocity = 22;
+    }
+    if (patch.mode && patch.mode === 'collision-momentum' && next.initialVelocity <= 0) {
+      next.initialVelocity = 10;
+    }
+    onChangeParams(next);
+  };
+
+  const modeToCatalogId: Record<string, string> = {
+    'newton-incline': 'newton-incline',
+    'projectile-gravity': 'projectile-motion',
+    'spring-hooke': 'spring-hooke',
+    'pendulum-harmonic': 'pendulum-harmonic',
+    'collision-momentum': 'collision-momentum',
+    'stokes-viscosity': 'stokes-viscosity',
+    'ohm-wheatstone': 'ohm-wheatstone',
+    'optics-young-slit': 'optics-young-slit',
+    'photoelectric-planck': 'photoelectric-planck',
+    'orbital-gravity': 'gravity-orbital',
   };
 
   const handleRecordTrial = () => {
     labSound.playRecordSuccess();
-    const title =
-      params.mode === 'projectile-gravity'
-        ? 'Uji Kinematika Parabola'
-        : params.mode === 'spring-hooke'
-        ? 'Uji Osilasi Pegas Hooke'
-        : params.mode === 'pendulum-harmonic'
-        ? 'Uji Bandul Sederhana Harmonis'
-        : 'Uji Bidang Miring Newton';
+    const titleMap: Record<string, string> = {
+      'newton-incline': 'Uji Bidang Miring Newton',
+      'projectile-gravity': 'Uji Kinematika Parabola',
+      'spring-hooke': 'Uji Osilasi Pegas Hooke',
+      'pendulum-harmonic': 'Uji Bandul Sederhana Harmonis',
+      'collision-momentum': 'Uji Tumbukan 1D & Momentum',
+      'stokes-viscosity': 'Uji Viskositas Fluida Stokes',
+      'ohm-wheatstone': 'Uji Jembatan Wheatstone & Hukum Ohm',
+      'optics-young-slit': 'Uji Interferensi Celah Ganda Young',
+      'photoelectric-planck': 'Uji Efek Fotolistrik Planck',
+      'orbital-gravity': 'Uji Gravitasi Universal Newton',
+    };
+    const title = titleMap[params.mode] || 'Uji Eksperimen Fisika';
 
-    const pSum = `m=${params.mass}kg, F=${params.appliedForce}N, θ=${params.inclineAngle}°`;
-    const numX =
-      params.mode === 'spring-hooke'
-        ? params.springDisplacement
-        : params.mode === 'projectile-gravity'
-        ? params.initialVelocity
-        : params.mode === 'pendulum-harmonic'
-        ? params.pendulumAngle ?? 25
-        : params.appliedForce;
+    let pSum = `m=${params.mass}kg, F=${params.appliedForce}N, θ=${params.inclineAngle}°`;
+    let numX = params.appliedForce;
+    let numY1 = metrics.acceleration;
 
-    const numY1 =
-      params.mode === 'spring-hooke'
-        ? metrics.springRestoringForce
-        : params.mode === 'projectile-gravity'
-        ? metrics.projectileRange
-        : params.mode === 'pendulum-harmonic'
-        ? metrics.pendulumPeriod ?? 2.0
-        : metrics.acceleration;
+    if (params.mode === 'projectile-gravity') {
+      pSum = `v₀=${params.initialVelocity}m/s, θ=${params.launchAngle}°, g=${params.gravity}m/s²`;
+      numX = params.initialVelocity;
+      numY1 = metrics.projectileRange;
+    } else if (params.mode === 'spring-hooke') {
+      pSum = `k=${params.springConstantK}N/m, Δx=${params.springDisplacement}m, m=${params.mass}kg`;
+      numX = params.springDisplacement;
+      numY1 = Math.abs(metrics.springRestoringForce);
+    } else if (params.mode === 'pendulum-harmonic') {
+      pSum = `L=${params.pendulumLength ?? 1.2}m, θ₀=${params.pendulumAngle ?? 25}°, g=${params.gravity}m/s²`;
+      numX = params.pendulumLength ?? 1.2;
+      numY1 = metrics.pendulumPeriod ?? 2.2;
+    } else if (params.mode === 'collision-momentum') {
+      pSum = `m₁=${params.mass}kg, v₁=${params.initialVelocity}m/s, m₂=${params.collisionMass2}kg, e=${params.restitutionCoeff}`;
+      numX = params.initialVelocity;
+      numY1 = metrics.v1Final;
+    } else if (params.mode === 'stokes-viscosity') {
+      pSum = `η=${params.fluidViscosity ?? 0.8}Pa·s, r=${params.sphereRadius ?? 5}mm`;
+      numX = params.sphereRadius ?? 5;
+      numY1 = metrics.stokesTerminalVelocity ?? 0.5;
+    } else if (params.mode === 'ohm-wheatstone') {
+      pSum = `V=${params.circuitVoltage ?? 12}V, Rx=${params.resistorRx ?? 100}Ω`;
+      numX = params.resistorRx ?? 100;
+      numY1 = metrics.galvanometerCurrent ?? 0;
+    } else if (params.mode === 'optics-young-slit') {
+      pSum = `λ=${params.lightWavelength ?? 532}nm, d=${params.slitDistance ?? 0.25}mm, L=${params.screenDistance ?? 1.5}m`;
+      numX = params.lightWavelength ?? 532;
+      numY1 = metrics.fringeSpacingMm ?? 3.2;
+    } else if (params.mode === 'photoelectric-planck') {
+      pSum = `λ=${params.lightWavelength ?? 400}nm, W=${params.targetMetalWorkFunction ?? 2.3}eV`;
+      numX = params.lightWavelength ?? 400;
+      numY1 = metrics.photoelectricMaxKe ?? 0.8;
+    } else if (params.mode === 'orbital-gravity') {
+      pSum = `M₁=${params.mass}kg, M₂=${params.secondaryMass}kg, r=${params.separationDistance}m`;
+      numX = params.separationDistance;
+      numY1 = metrics.universalGravityForce;
+    }
 
     onRecordExperiment(
       title,
@@ -220,36 +268,55 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     );
   };
 
-  // Telemetry Metrics Array
-  const telemetryMetrics = [
-    {
-      id: 'accel',
-      label: 'Percepatan (a)',
-      value: metrics.acceleration,
-      min: -20,
-      max: 35,
-      unit: 'm/s²',
-      color: '#0ea5e9',
-    },
-    {
-      id: 'netf',
-      label: 'Resultan ΣF',
-      value: metrics.netForce,
-      min: -150,
-      max: 250,
-      unit: 'N',
-      color: '#10b981',
-    },
-    {
-      id: 'speed',
-      label: 'Kecepatan v(t)',
-      value: instant.speed,
-      min: 0,
-      max: 50,
-      unit: 'm/s',
-      color: '#f59e0b',
-    },
-  ];
+  // Mode-adaptive Telemetry Metrics Array
+  const telemetryMetrics =
+    params.mode === 'projectile-gravity'
+      ? [
+          { id: 'range', label: 'Jangkauan (R)', value: metrics.projectileRange, min: 0, max: 150, unit: 'm', color: '#0ea5e9' },
+          { id: 'hmax', label: 'Tinggi Maks (H)', value: metrics.maxProjectileHeight, min: 0, max: 80, unit: 'm', color: '#10b981' },
+          { id: 'tof', label: 'Waktu Terbang', value: metrics.timeOfFlight, min: 0, max: 12, unit: 's', color: '#f59e0b' },
+        ]
+      : params.mode === 'spring-hooke'
+      ? [
+          { id: 'frest', label: 'Gaya Pegas (Fp)', value: metrics.springRestoringForce, min: -400, max: 400, unit: 'N', color: '#0ea5e9' },
+          { id: 'ep', label: 'Energi Ep Pegas', value: metrics.springPotentialEnergy, min: 0, max: 300, unit: 'J', color: '#10b981' },
+          { id: 'period', label: 'Periode (T)', value: metrics.oscillationPeriod, min: 0, max: 6, unit: 's', color: '#f59e0b' },
+        ]
+      : params.mode === 'pendulum-harmonic'
+      ? [
+          { id: 'tpend', label: 'Periode Ayun (T)', value: metrics.pendulumPeriod ?? 2.2, min: 0, max: 5, unit: 's', color: '#0ea5e9' },
+          { id: 'fpend', label: 'Frekuensi (f)', value: metrics.pendulumFrequency ?? 0.45, min: 0, max: 3, unit: 'Hz', color: '#10b981' },
+          { id: 'angle', label: 'Simpangan θ₀', value: params.pendulumAngle ?? 25, min: 0, max: 90, unit: '°', color: '#f59e0b' },
+        ]
+      : params.mode === 'stokes-viscosity'
+      ? [
+          { id: 'vt', label: 'Kecepatan Terminal', value: metrics.stokesTerminalVelocity ?? 0.5, min: 0, max: 5, unit: 'm/s', color: '#0ea5e9' },
+          { id: 'fdrag', label: 'Gaya Gesek Stokes', value: metrics.stokesDragForce ?? 0.1, min: 0, max: 2, unit: 'N', color: '#10b981' },
+          { id: 'visc', label: 'Viskositas (η)', value: params.fluidViscosity ?? 0.8, min: 0, max: 2, unit: 'Pa·s', color: '#f59e0b' },
+        ]
+      : params.mode === 'ohm-wheatstone'
+      ? [
+          { id: 'ig', label: 'Arus Galvanometer', value: metrics.galvanometerCurrent ?? 0, min: -50, max: 50, unit: 'mA', color: '#0ea5e9' },
+          { id: 'itot', label: 'Arus Rangkaian', value: metrics.circuitCurrent ?? 0.1, min: 0, max: 5, unit: 'A', color: '#10b981' },
+          { id: 'rx', label: 'Hambatan Rx', value: params.resistorRx ?? 100, min: 10, max: 1000, unit: 'Ω', color: '#f59e0b' },
+        ]
+      : params.mode === 'optics-young-slit'
+      ? [
+          { id: 'dy', label: 'Jarak Pita (Δy)', value: metrics.fringeSpacingMm ?? 3.2, min: 0, max: 15, unit: 'mm', color: '#0ea5e9' },
+          { id: 'wl', label: 'Panjang Gelombang', value: params.lightWavelength ?? 532, min: 380, max: 700, unit: 'nm', color: '#10b981' },
+          { id: 'slit', label: 'Celah (d)', value: params.slitDistance ?? 0.25, min: 0.05, max: 1.0, unit: 'mm', color: '#f59e0b' },
+        ]
+      : params.mode === 'photoelectric-planck'
+      ? [
+          { id: 'ke', label: 'Ek Maks Fotoelektron', value: metrics.photoelectricMaxKe ?? 0.8, min: 0, max: 5, unit: 'eV', color: '#0ea5e9' },
+          { id: 'v0', label: 'Potensial Henti V₀', value: metrics.photoelectricStoppingVoltage ?? 0.8, min: 0, max: 5, unit: 'V', color: '#10b981' },
+          { id: 'wf', label: 'Fungsi Kerja (W)', value: params.targetMetalWorkFunction ?? 2.3, min: 2, max: 5.5, unit: 'eV', color: '#f59e0b' },
+        ]
+      : [
+          { id: 'accel', label: 'Percepatan (a)', value: metrics.acceleration, min: -20, max: 35, unit: 'm/s²', color: '#0ea5e9' },
+          { id: 'netf', label: 'Resultan ΣF', value: metrics.netForce, min: -150, max: 250, unit: 'N', color: '#10b981' },
+          { id: 'speed', label: 'Kecepatan v(t)', value: instant.speed, min: 0, max: 50, unit: 'm/s', color: '#f59e0b' },
+        ];
 
   return (
     <StandardLabViewShell
@@ -257,12 +324,12 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       recordsCount={records.length}
       telemetryMetrics={telemetryMetrics}
       oscilloscope={{
-        primaryLabel: 'Percepatan a(t)',
-        primaryValue: metrics.acceleration,
-        primaryUnit: 'm/s²',
-        secondaryLabel: 'Kecepatan v(t)',
-        secondaryValue: instant.speed,
-        secondaryUnit: 'm/s',
+        primaryLabel: telemetryMetrics[0].label,
+        primaryValue: telemetryMetrics[0].value,
+        primaryUnit: telemetryMetrics[0].unit,
+        secondaryLabel: telemetryMetrics[1].label,
+        secondaryValue: telemetryMetrics[1].value,
+        secondaryUnit: telemetryMetrics[1].unit,
         microscopicStateLabel: `ΣF = ${metrics.netForce} N (fk = ${Math.abs(metrics.frictionForce)} N)`,
         microscopicDetail: `W∥ = ${metrics.gravityParallel} N dan gaya normal N = ${metrics.normalForce} N.`,
         accentColor: '#0ea5e9',
@@ -331,7 +398,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    handleParamUpdate({ mass: 10, appliedForce: 50 });
+                    handleParamUpdate({ mass: 10, appliedForce: 50, pendulumAngle: 30, springDisplacement: 0.8 });
                     setHazardModalDismissed(false);
                   }}
                   className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-extrabold text-xs cursor-pointer"
@@ -382,8 +449,12 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
             <select
               value={params.mode}
               onChange={(e) => {
+                const nextMode = e.target.value as PhysicsParams['mode'];
                 labSound.playClick();
-                handleParamUpdate({ mode: e.target.value as any });
+                handleParamUpdate({ mode: nextMode });
+                if (modeToCatalogId[nextMode]) {
+                  useLabStore.getState().setActiveModule(modeToCatalogId[nextMode]);
+                }
               }}
               className="w-full text-xs p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold"
             >
@@ -396,51 +467,353 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               <option value="ohm-wheatstone">Hukum Ohm &amp; Jembatan Wheatstone</option>
               <option value="optics-young-slit">Interferensi Celah Ganda Young</option>
               <option value="photoelectric-planck">Efek Fotolistrik &amp; Konstanta Planck</option>
+              <option value="orbital-gravity">Gravitasi Universal &amp; Orbit Satelit</option>
             </select>
           </div>
 
           {/* Sliders & Controls */}
           <CollapsibleLabSection title="Variabel & Parameter Eksperimen" defaultOpen>
             <div className="space-y-3">
-              <TactileParameterControl
-                label="Massa Benda (m)"
-                unit="kg"
-                value={params.mass}
-                min={0.5}
-                max={30}
-                step={0.5}
-                onChange={(v) => handleParamUpdate({ mass: v })}
-              />
+              {params.mode === 'projectile-gravity' ? (
+                <>
+                  <TactileParameterControl
+                    label="Kecepatan Awal (v₀)"
+                    unit="m/s"
+                    value={params.initialVelocity || 22}
+                    min={5}
+                    max={50}
+                    step={1}
+                    onChange={(v) => handleParamUpdate({ initialVelocity: v })}
+                  />
+                  <TactileParameterControl
+                    label="Sudut Peluncuran (θ)"
+                    unit="°"
+                    value={params.launchAngle}
+                    min={10}
+                    max={85}
+                    step={1}
+                    onChange={(v) => handleParamUpdate({ launchAngle: v })}
+                  />
+                  <TactileParameterControl
+                    label="Tinggi Awal Menara (h₀)"
+                    unit="m"
+                    value={params.initialHeight}
+                    min={0}
+                    max={40}
+                    step={1}
+                    onChange={(v) => handleParamUpdate({ initialHeight: v })}
+                  />
+                  <TactileParameterControl
+                    label="Massa Proyektil (m)"
+                    unit="kg"
+                    value={params.mass}
+                    min={0.5}
+                    max={25}
+                    step={0.5}
+                    onChange={(v) => handleParamUpdate({ mass: v })}
+                  />
+                </>
+              ) : params.mode === 'spring-hooke' ? (
+                <>
+                  <TactileParameterControl
+                    label="Konstanta Pegas (k)"
+                    unit="N/m"
+                    value={params.springConstantK}
+                    min={10}
+                    max={400}
+                    step={5}
+                    onChange={(v) => handleParamUpdate({ springConstantK: v })}
+                  />
+                  <TactileParameterControl
+                    label="Simpangan Tarik (Δx)"
+                    unit="m"
+                    value={params.springDisplacement}
+                    min={-2.0}
+                    max={2.0}
+                    step={0.1}
+                    onChange={(v) => handleParamUpdate({ springDisplacement: v })}
+                  />
+                  <TactileParameterControl
+                    label="Massa Beban (m)"
+                    unit="kg"
+                    value={params.mass}
+                    min={0.5}
+                    max={25}
+                    step={0.5}
+                    onChange={(v) => handleParamUpdate({ mass: v })}
+                  />
+                  <TactileParameterControl
+                    label="Koefisien Redaman (b)"
+                    unit="Ns/m"
+                    value={params.dampingCoeff}
+                    min={0}
+                    max={2.0}
+                    step={0.05}
+                    onChange={(v) => handleParamUpdate({ dampingCoeff: v })}
+                  />
+                </>
+              ) : params.mode === 'pendulum-harmonic' ? (
+                <>
+                  <TactileParameterControl
+                    label="Panjang Tali Bandul (L)"
+                    unit="m"
+                    value={params.pendulumLength ?? 1.2}
+                    min={0.3}
+                    max={2.5}
+                    step={0.1}
+                    onChange={(v) => handleParamUpdate({ pendulumLength: v })}
+                  />
+                  <TactileParameterControl
+                    label="Sudut Simpangan Awal (θ₀)"
+                    unit="°"
+                    value={params.pendulumAngle ?? 25}
+                    min={5}
+                    max={85}
+                    step={1}
+                    onChange={(v) => handleParamUpdate({ pendulumAngle: v })}
+                  />
+                  <TactileParameterControl
+                    label="Massa Bandul (m)"
+                    unit="kg"
+                    value={params.mass}
+                    min={0.5}
+                    max={20}
+                    step={0.5}
+                    onChange={(v) => handleParamUpdate({ mass: v })}
+                  />
+                </>
+              ) : params.mode === 'collision-momentum' ? (
+                <>
+                  <TactileParameterControl
+                    label="Massa Benda 1 (m₁)"
+                    unit="kg"
+                    value={params.mass}
+                    min={0.5}
+                    max={25}
+                    step={0.5}
+                    onChange={(v) => handleParamUpdate({ mass: v })}
+                  />
+                  <TactileParameterControl
+                    label="Kecepatan Awal 1 (v₁)"
+                    unit="m/s"
+                    value={params.initialVelocity || 10}
+                    min={1}
+                    max={30}
+                    step={1}
+                    onChange={(v) => handleParamUpdate({ initialVelocity: v })}
+                  />
+                  <TactileParameterControl
+                    label="Massa Benda 2 (m₂)"
+                    unit="kg"
+                    value={params.collisionMass2}
+                    min={0.5}
+                    max={25}
+                    step={0.5}
+                    onChange={(v) => handleParamUpdate({ collisionMass2: v })}
+                  />
+                  <TactileParameterControl
+                    label="Koefisien Restitusi (e)"
+                    unit=""
+                    value={params.restitutionCoeff}
+                    min={0}
+                    max={1.0}
+                    step={0.05}
+                    onChange={(v) => handleParamUpdate({ restitutionCoeff: v })}
+                  />
+                </>
+              ) : params.mode === 'stokes-viscosity' ? (
+                <>
+                  <TactileParameterControl
+                    label="Viskositas Fluida (η)"
+                    unit="Pa·s"
+                    value={params.fluidViscosity ?? 0.8}
+                    min={0.05}
+                    max={2.0}
+                    step={0.05}
+                    onChange={(v) => handleParamUpdate({ fluidViscosity: v, fluidViscosityPaS: v })}
+                  />
+                  <TactileParameterControl
+                    label="Jari-jari Bola (r)"
+                    unit="mm"
+                    value={params.sphereRadius ?? 5}
+                    min={1}
+                    max={20}
+                    step={0.5}
+                    onChange={(v) => handleParamUpdate({ sphereRadius: v, sphereRadiusMm: v })}
+                  />
+                  <TactileParameterControl
+                    label="Massa Jenis Bola (ρ_b)"
+                    unit="kg/m³"
+                    value={params.sphereDensity ?? 7800}
+                    min={2000}
+                    max={9000}
+                    step={100}
+                    onChange={(v) => handleParamUpdate({ sphereDensity: v, sphereDensityKgM3: v })}
+                  />
+                </>
+              ) : params.mode === 'ohm-wheatstone' ? (
+                <>
+                  <TactileParameterControl
+                    label="Tegangan Sumber (V)"
+                    unit="V"
+                    value={params.circuitVoltage ?? 12}
+                    min={1}
+                    max={24}
+                    step={1}
+                    onChange={(v) => handleParamUpdate({ circuitVoltage: v, circuitVoltageV: v })}
+                  />
+                  <TactileParameterControl
+                    label="Resistor Uji (Rx)"
+                    unit="Ω"
+                    value={params.resistorRx ?? 100}
+                    min={10}
+                    max={500}
+                    step={5}
+                    onChange={(v) => handleParamUpdate({ resistorRx: v, bridgeRx: v })}
+                  />
+                  <TactileParameterControl
+                    label="Resistor Pembanding (R₃)"
+                    unit="Ω"
+                    value={params.resistorR3 ?? 100}
+                    min={10}
+                    max={500}
+                    step={5}
+                    onChange={(v) => handleParamUpdate({ resistorR3: v, bridgeR3: v })}
+                  />
+                </>
+              ) : params.mode === 'optics-young-slit' ? (
+                <>
+                  <TactileParameterControl
+                    label="Panjang Gelombang Laser (λ)"
+                    unit="nm"
+                    value={params.lightWavelength ?? 532}
+                    min={400}
+                    max={700}
+                    step={10}
+                    onChange={(v) => handleParamUpdate({ lightWavelength: v })}
+                  />
+                  <TactileParameterControl
+                    label="Jarak Antar Celah (d)"
+                    unit="mm"
+                    value={params.slitDistance ?? 0.25}
+                    min={0.05}
+                    max={0.8}
+                    step={0.05}
+                    onChange={(v) => handleParamUpdate({ slitDistance: v })}
+                  />
+                  <TactileParameterControl
+                    label="Jarak Celah ke Layar (L)"
+                    unit="m"
+                    value={params.screenDistance ?? 1.5}
+                    min={0.5}
+                    max={3.0}
+                    step={0.1}
+                    onChange={(v) => handleParamUpdate({ screenDistance: v })}
+                  />
+                </>
+              ) : params.mode === 'photoelectric-planck' ? (
+                <>
+                  <TactileParameterControl
+                    label="Panjang Gelombang Foton (λ)"
+                    unit="nm"
+                    value={params.lightWavelength ?? 400}
+                    min={200}
+                    max={700}
+                    step={10}
+                    onChange={(v) => handleParamUpdate({ lightWavelength: v })}
+                  />
+                  <TactileParameterControl
+                    label="Fungsi Kerja Logam (W₀)"
+                    unit="eV"
+                    value={params.targetMetalWorkFunction ?? 2.3}
+                    min={2.0}
+                    max={5.5}
+                    step={0.1}
+                    onChange={(v) => handleParamUpdate({ targetMetalWorkFunction: v })}
+                  />
+                  <TactileParameterControl
+                    label="Potensial Penghenti (V₀)"
+                    unit="V"
+                    value={params.stoppingPotential ?? 1.2}
+                    min={0}
+                    max={5.0}
+                    step={0.1}
+                    onChange={(v) => handleParamUpdate({ stoppingPotential: v })}
+                  />
+                </>
+              ) : params.mode === 'orbital-gravity' ? (
+                <>
+                  <TactileParameterControl
+                    label="Massa Primer (M₁)"
+                    unit="kg"
+                    value={params.mass}
+                    min={1}
+                    max={50}
+                    step={1}
+                    onChange={(v) => handleParamUpdate({ mass: v })}
+                  />
+                  <TactileParameterControl
+                    label="Massa Sekunder (M₂)"
+                    unit="kg"
+                    value={params.secondaryMass}
+                    min={100}
+                    max={5000}
+                    step={100}
+                    onChange={(v) => handleParamUpdate({ secondaryMass: v })}
+                  />
+                  <TactileParameterControl
+                    label="Jarak Pisah Pusat (r)"
+                    unit="m"
+                    value={params.separationDistance}
+                    min={1}
+                    max={30}
+                    step={0.5}
+                    onChange={(v) => handleParamUpdate({ separationDistance: v })}
+                  />
+                </>
+              ) : (
+                <>
+                  <TactileParameterControl
+                    label="Massa Benda (m)"
+                    unit="kg"
+                    value={params.mass}
+                    min={0.5}
+                    max={30}
+                    step={0.5}
+                    onChange={(v) => handleParamUpdate({ mass: v })}
+                  />
 
-              <TactileParameterControl
-                label="Gaya Dorong Luar (F)"
-                unit="N"
-                value={params.appliedForce}
-                min={-150}
-                max={250}
-                step={5}
-                onChange={(v) => handleParamUpdate({ appliedForce: v })}
-              />
+                  <TactileParameterControl
+                    label="Gaya Dorong Luar (F)"
+                    unit="N"
+                    value={params.appliedForce}
+                    min={-150}
+                    max={250}
+                    step={5}
+                    onChange={(v) => handleParamUpdate({ appliedForce: v })}
+                  />
 
-              <TactileParameterControl
-                label="Sudut Kemiringan (θ)"
-                unit="°"
-                value={params.inclineAngle}
-                min={0}
-                max={60}
-                step={1}
-                onChange={(v) => handleParamUpdate({ inclineAngle: v })}
-              />
+                  <TactileParameterControl
+                    label="Sudut Kemiringan (θ)"
+                    unit="°"
+                    value={params.inclineAngle}
+                    min={0}
+                    max={60}
+                    step={1}
+                    onChange={(v) => handleParamUpdate({ inclineAngle: v })}
+                  />
 
-              <TactileParameterControl
-                label="Koefisien Gesek Kinetis (μk)"
-                unit=""
-                value={params.frictionCoeffKinetic}
-                min={0}
-                max={0.8}
-                step={0.05}
-                onChange={(v) => handleParamUpdate({ frictionCoeffKinetic: v })}
-              />
+                  <TactileParameterControl
+                    label="Koefisien Gesek Kinetis (μk)"
+                    unit=""
+                    value={params.frictionCoeffKinetic}
+                    min={0}
+                    max={0.8}
+                    step={0.05}
+                    onChange={(v) => handleParamUpdate({ frictionCoeffKinetic: v })}
+                  />
+                </>
+              )}
             </div>
           </CollapsibleLabSection>
 
@@ -472,13 +845,13 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
           {/* Interactive Formula Card */}
           <InteractiveFormulaCard
-            title="Hukum II Newton & Analisis Resultan Gaya"
-            tokens={[
-              { symbol: 'a', value: metrics.acceleration, unit: 'm/s²', description: 'Percepatan' },
-              { symbol: 'F', value: params.appliedForce, unit: 'N', description: 'Gaya Dorong' },
-              { symbol: 'm', value: params.mass, unit: 'kg', description: 'Massa Benda' },
-              { symbol: 'sin(θ)', value: params.inclineAngle, unit: '°', description: 'Sudut Bidang' },
-            ]}
+            title="Hukum Fisika & Analisis Kuantitatif"
+            tokens={telemetryMetrics.map((tm) => ({
+              symbol: tm.id.slice(0, 3),
+              value: tm.value,
+              unit: tm.unit,
+              description: tm.label,
+            }))}
           />
         </>
       }

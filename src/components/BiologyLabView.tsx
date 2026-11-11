@@ -30,6 +30,7 @@ import {
 } from './ui/ScientificEnhancementSuite';
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
+import { useLabStore } from '../stores/useLabStore';
 
 export interface BiologyLabViewProps {
   activeStudentName: string;
@@ -267,8 +268,10 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
             <select
               value={currentModule.id}
               onChange={(e) => {
+                const nextId = e.target.value;
                 labSound.playClick();
-                onSelectModuleId?.(e.target.value);
+                useLabStore.getState().setActiveModule(nextId);
+                onSelectModuleId?.(nextId);
               }}
               className="w-full text-xs p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold"
             >

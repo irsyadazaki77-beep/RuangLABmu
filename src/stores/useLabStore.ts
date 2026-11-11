@@ -58,16 +58,22 @@ export interface LabState {
   getIndonesianDomain: () => IndonesianDomain;
 }
 
+const initialUrlParams =
+  typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+const isAutoStart = initialUrlParams?.get('autostart') === '1';
+const urlDomainParam = initialUrlParams?.get('domain') as AnyLabDomain | null;
+const urlModuleParam = initialUrlParams?.get('module');
+
 export const useLabStore = create<LabState>((set, get) => ({
-  activeDomain: 'physics',
-  activeModuleId: 'newton-incline',
+  activeDomain: (urlDomainParam && DOMAIN_TO_EN[urlDomainParam]) || 'physics',
+  activeModuleId: urlModuleParam || 'newton-incline',
   isSimulating: true,
   playbackSpeed: 1.0,
   soundEnabled: true,
   academicLevel: 'sma',
-  workflowStep: 1,
+  workflowStep: isAutoStart ? 2 : 1,
   userRole: 'siswa',
-  isLobbyMode: true,
+  isLobbyMode: !isAutoStart,
 
   setActiveDomain: (domain: AnyLabDomain) => {
     const canonical = DOMAIN_TO_EN[domain] || 'physics';

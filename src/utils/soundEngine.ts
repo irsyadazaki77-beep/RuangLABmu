@@ -5,9 +5,20 @@ class LabSoundEngine {
   private ctx: AudioContext | null = null;
   private enabled: boolean = true;
   private lastDropTime: number = 0;
+  private userInteracted: boolean = false;
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      const markInteracted = () => {
+        this.userInteracted = true;
+      };
+      window.addEventListener('pointerdown', markInteracted, { once: true, passive: true });
+      window.addEventListener('keydown', markInteracted, { once: true, passive: true });
+    }
+  }
 
   private getContext(): AudioContext | null {
-    if (!this.enabled || typeof window === 'undefined') return null;
+    if (!this.enabled || !this.userInteracted || typeof window === 'undefined') return null;
     if (!this.ctx) {
       const AudioCtx =
         window.AudioContext ||

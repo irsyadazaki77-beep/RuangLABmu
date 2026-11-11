@@ -8,6 +8,11 @@ import {
   calculateEnzymeKinetics,
   calculateLotkaVolterraMetrics,
   calculateCellOsmosisTonicity,
+  calculateCardiovascularHeart,
+  evaluateEcgWaveformMv,
+  calculateRespiratoryLungs,
+  calculateNeuralSynapse,
+  evaluateActionPotentialMv,
   calculateBiologyMetrics,
   calculateLinearRegression,
   gradeWorksheetAnswers,
@@ -834,6 +839,125 @@ test('Universal Experiment Registry: Module Catalog Integrity & Numerical Output
   const smpMods = getAllExperiments('SMP');
   assert.ok(smpMods.length > 0, 'SMP modules should exist in catalog');
 });
+
+test('Anatomi & Fisiologi Tubuh Manusia 3D: Kardiovaskular (Poiseuille & EKG), Spirometri (Hill SpO2), & Neurofisiologi (All-or-None)', () => {
+  // 1. Kardiovaskular & Hemodinamika Jantung (anatomy-cardiovascular-heart)
+  const normalHeart = calculateCardiovascularHeart({
+    heartRateBpm: 72,
+    vesselRadiusRatio: 1.0,
+    bloodViscosity: 3.2,
+    exerciseIntensity: 15,
+    timeSec: 0.30 * (60 / 72),
+  });
+  assert.ok(normalHeart.strokeVolumeMl > 60 && normalHeart.strokeVolumeMl < 110);
+  const expectedCO = Number(((72 * normalHeart.strokeVolumeMl) / 1000).toFixed(2));
+  assert.equal(normalHeart.cardiacOutputLMin, expectedCO);
+  // Puncak R kompleks QRS sekitar fase 0.30 menghasilkan tegangan EKG positif tinggi (> 0.8 mV)
+  assert.ok(normalHeart.ecgVoltageMv > 0.8, `Expected R-wave peak > 0.8 mV, got ${normalHeart.ecgVoltageMv}`);
+
+  // Hukum Poiseuille: penyempitan jari-jari pembuluh r = 0.5 meningkatkan resistensi 16x lipat (1 / 0.5^4 = 16)
+  const constrictedHeart = calculateCardiovascularHeart({
+    heartRateBpm: 72,
+    vesselRadiusRatio: 0.5,
+    bloodViscosity: 3.2,
+    exerciseIntensity: 15,
+    timeSec: 0.5,
+  });
+  const resistanceRatio = constrictedHeart.vascularResistance / normalHeart.vascularResistance;
+  assert.ok(Math.abs(resistanceRatio - 16) < 0.2, `Expected ~16x Poiseuille resistance ratio, got ${resistanceRatio}`);
+  assert.ok(constrictedHeart.meanArterialPressure > normalHeart.meanArterialPressure);
+  assert.ok(constrictedHeart.systolicMmHg > normalHeart.systolicMmHg);
+
+  // Fungsi gelombang EKG periodik
+  const ecgBaseline = evaluateEcgWaveformMv(0.75 * (60 / 72), 72);
+  assert.ok(Math.abs(ecgBaseline) < 0.15);
+
+  // 2. Mekanika Respirasi & Spirometri Paru-Paru (anatomy-respiratory-lungs)
+  const seaLevelLungs = calculateRespiratoryLungs({
+    respirationRate: 15,
+    diaphragmEffort: 50,
+    airwayResistance: 1.0,
+    altitudeMeters: 0,
+    timeSec: 0.5,
+  });
+  assert.ok(seaLevelLungs.tidalVolumeMl >= 450);
+  assert.ok(seaLevelLungs.alveolarPo2MmHg > 95);
+  assert.ok(seaLevelLungs.spo2Percent >= 96, `Expected sea-level SpO2 >= 96%, got ${seaLevelLungs.spo2Percent}%`);
+
+  // Ketinggian ekstrem (6500 mdpl) menurunkan tekanan parsial O2 alveolus dan saturasi SpO2 kurva Hill secara signifikan
+  const highAltitudeLungs = calculateRespiratoryLungs({
+    respirationRate: 14,
+    diaphragmEffort: 45,
+    airwayResistance: 1.2,
+    altitudeMeters: 6500,
+    timeSec: 0.5,
+  });
+  assert.ok(highAltitudeLungs.alveolarPo2MmHg < 45, `Expected severe alveolar hypoxia at 6500m, got ${highAltitudeLungs.alveolarPo2MmHg}`);
+  assert.ok(highAltitudeLungs.spo2Percent < 75, `Expected SpO2 drop on Hill curve at 6500m, got ${highAltitudeLungs.spo2Percent}%`);
+
+  // 3. Neurofisiologi & Potensial Aksi Neuron (anatomy-neural-synapse)
+  // Sub-threshold (-62 mV < -55 mV): Hukum All-or-None TIDAK terpicu
+  const subThreshold = calculateNeuralSynapse({
+    stimulusVoltageMv: -62,
+    myelinThickness: 75,
+    extracellularNaMm: 145,
+    extracellularKMm: 4.5,
+    timeSec: 0.25,
+  });
+  assert.equal(subThreshold.actionPotentialTriggered, false);
+  assert.equal(subThreshold.conductionVelocityMs, 0);
+  assert.ok(subThreshold.membranePotentialMv < -55);
+  assert.ok(subThreshold.nernstNaMv > 50);
+  assert.ok(subThreshold.nernstKMv < -75);
+
+  // Supra-threshold (-35 mV >= -55 mV): Hukum All-or-None TERPICU & konduksi saltatorik meningkat bersama mielin
+  const unmyelinated = calculateNeuralSynapse({
+    stimulusVoltageMv: -35,
+    myelinThickness: 0,
+    extracellularNaMm: 145,
+    extracellularKMm: 4.5,
+    timeSec: 0.25,
+  });
+  const heavilyMyelinated = calculateNeuralSynapse({
+    stimulusVoltageMv: -35,
+    myelinThickness: 100,
+    extracellularNaMm: 145,
+    extracellularKMm: 4.5,
+    timeSec: 0.25,
+  });
+  assert.equal(unmyelinated.actionPotentialTriggered, true);
+  assert.equal(heavilyMyelinated.actionPotentialTriggered, true);
+  assert.ok(heavilyMyelinated.conductionVelocityMs > unmyelinated.conductionVelocityMs * 10);
+  const peakMv = evaluateActionPotentialMv(0.25, {
+    stimulusVoltageMv: -35,
+    restingPotentialMv: -70,
+    nernstNaMv: 60.7,
+    nernstKMv: -91.8,
+  });
+  assert.ok(peakMv > 10, 'Peak depolarization should exceed +10 mV');
+
+  // 4. Integrasi WorkerSimulationContext untuk ke-3 mode Anatomi
+  const workerCtx = new WorkerSimulationContext();
+
+  workerCtx.init('anatomy-cardiovascular-heart', { heartRateBpm: 80, vesselRadiusRatio: 1.0, bloodViscosity: 3.2, exerciseIntensity: 20 });
+  for (let i = 0; i < 30; i++) workerCtx.step();
+  const heartFrame = workerCtx.ringBuffer.getLatest()!;
+  assert.ok(heartFrame.scalars!.cardiacOutputLMin > 3);
+  assert.ok(heartFrame.scalars!.systolicMmHg > 90);
+
+  workerCtx.init('anatomy-respiratory-lungs', { respirationRate: 16, diaphragmEffort: 50, airwayResistance: 1.2, altitudeMeters: 7000 });
+  for (let i = 0; i < 30; i++) workerCtx.step();
+  const lungFrame = workerCtx.ringBuffer.getLatest()!;
+  assert.ok(lungFrame.scalars!.minuteVentilationLMin > 2);
+  assert.ok(lungFrame.scalars!.spo2Percent < 85);
+
+  workerCtx.init('anatomy-neural-synapse', { stimulusVoltageMv: -30, myelinThickness: 80, extracellularNaMm: 145, extracellularKMm: 4.5 });
+  for (let i = 0; i < 30; i++) workerCtx.step();
+  const neuralFrame = workerCtx.ringBuffer.getLatest()!;
+  assert.equal(neuralFrame.scalars!.actionPotentialTriggered, 1);
+  assert.ok(neuralFrame.scalars!.conductionVelocityMs > 50);
+});
+
 
 
 

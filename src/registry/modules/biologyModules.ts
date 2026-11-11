@@ -3,6 +3,9 @@ import {
   calculateEnzymeKinetics,
   calculateLotkaVolterraMetrics,
   calculateCellOsmosisTonicity,
+  calculateCardiovascularHeart,
+  calculateRespiratoryLungs,
+  calculateNeuralSynapse,
 } from '../../utils/scienceEngine';
 
 export const BIOLOGY_MODULES: ExperimentModule[] = [
@@ -79,18 +82,13 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
     computeStep: (params) => {
       const { lightIntensityLux = 1200, wavelengthNm = 660, bicarbonateConc = 2.5, waterTempC = 28 } = params;
 
-      // Chlorophyll absorption curve model (peaks at blue ~435nm & red ~660nm, valley at green ~530nm)
       const bluePeak = Math.exp(-Math.pow((wavelengthNm - 435) / 35, 2));
       const redPeak = Math.exp(-Math.pow((wavelengthNm - 660) / 40, 2));
       const chlorophyllEfficiency = Math.min(1.0, 0.12 + 0.88 * Math.max(bluePeak, redPeak));
 
-      // Light saturation factor
       const lightFactor = lightIntensityLux / (lightIntensityLux + 600);
-
-      // CO2 substrate factor
       const co2Factor = (bicarbonateConc + 0.1) / (bicarbonateConc + 1.2);
 
-      // Temperature enzyme optimum factor (~30°C optimum, drops past 40°C)
       let tempFactor = 1.0;
       if (waterTempC < 30) {
         tempFactor = Math.max(0.1, (waterTempC - 10) / 20);
@@ -98,10 +96,10 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
         tempFactor = Math.max(0.05, 1.0 - Math.pow((waterTempC - 30) / 14, 2));
       }
 
-      const maxBubbleRate = 95.0; // bubbles per min max
+      const maxBubbleRate = 95.0;
       const bubbleRatePerMin = maxBubbleRate * lightFactor * chlorophyllEfficiency * co2Factor * tempFactor;
       const chlorophyllEfficiencyPct = chlorophyllEfficiency * 100;
-      const o2VolumeProducedMl = bubbleRatePerMin * 0.042; // mL in 10 minutes
+      const o2VolumeProducedMl = bubbleRatePerMin * 0.042;
 
       return { bubbleRatePerMin, chlorophyllEfficiencyPct, o2VolumeProducedMl, limitingFactorCode: 1 };
     },
@@ -365,6 +363,277 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
 
       const cellTurgorState = massChangePct >= 0 ? 1 : 0;
       return { solutePotentialMpa, massChangePct, plasmolyzedCellsPct, cellTurgorState };
+    },
+  },
+
+  // ============================================================================
+  // SUB-DOMAIN BARU: ANATOMI & FISIOLOGI TUBUH MANUSIA 3D
+  // ============================================================================
+  {
+    id: 'anatomy-cardiovascular-heart',
+    title: 'Kardiovaskular & Hemodinamika Jantung 3D',
+    domain: 'biologi',
+    subCategory: 'Anatomi & Fisiologi Tubuh Manusia 3D',
+    supportedTiers: ['SMP', 'SMA', 'Mahasiswa'],
+    difficulty: 2,
+    estimatedMinutes: 40,
+    objectives: {
+      SMP: [
+        'Mengamati anatomi 4 ruang jantung manusia (Serambi Kanan/Kiri dan Bilik Kanan/Kiri) serta katupnya.',
+        'Membedakan jalur peredaran darah besar (sistemik kaya O₂) dan peredaran darah kecil (pulmonal kaya CO₂).',
+      ],
+      SMA: [
+        'Menghitung Curah Jantung (Cardiac Output) dari Frekuensi Detak Jantung (HR) dan Volume Sekuncup (SV).',
+        'Menganalisis pengaruh penyempitan pembuluh darah (plak aterosklerosis) terhadap tekanan darah Sistolik dan Diastolik.',
+      ],
+      Mahasiswa: [
+        'Memodelkan resistensi vaskular sistemik berdasarkan Hukum Poiseuille (R ∝ η / r⁴) dan regulasi Frank-Starling.',
+        'Menginterpretasikan morfologi gelombang elektrokardiogram (EKG) P-Q-R-S-T dan Tekanan Arteri Rata-Rata (MAP).',
+      ],
+    },
+    theorySummary:
+      'Jantung manusia bekerja sebagai pompa ganda elektromekanis yang memompa darah melalui sirkulasi pulmonal dan sistemik. Curah jantung (Cardiac Output, CO = HR × SV) ditentukan oleh kecepatan pacu nodus sinoatrial (SA) dan volume sekuncup ventrikel. Berdasarkan Hukum Poiseuille, resistensi pembuluh darah berbanding lurus dengan viskositas darah (η) dan berbanding terbalik dengan pangkat empat jari-jari lumen pembuluh (r⁴), sehingga penyempitan arteri akibat plak meningkatkan Mean Arterial Pressure (MAP) secara drastis.',
+    keyEquations: [
+      'CO = \\frac{HR \\times SV}{1000} \\quad (\\text{L/menit})',
+      'R_{\\text{vaskular}} = \\frac{8 \\eta L}{\\pi r^4} \\propto \\frac{\\eta}{r^4} \\quad (\\text{Hukum Poiseuille})',
+      'MAP = DBP + \\frac{1}{3}(SBP - DBP) \\approx CO \\times SVR',
+      'V_{\\text{EKG}}(t) = \\sum_{i \\in \\{P,Q,R,S,T\\}} A_i \\exp\\left(-\\frac{(\\phi(t) - \\mu_i)^2}{2\\sigma_i^2}\\right)',
+    ],
+    apparatusList: [
+      'Model Anatomi Jantung Manusia 3D Berdetak & Sirkulasi Sistemik-Pulmonal',
+      'Monitor Elektrokardiograf (EKG) Sadapan II Real-Time (Gelombang P-Q-R-S-T)',
+      'Sphygmomanometer Digital Pengukur Tekanan Sistolik / Diastolik & MAP',
+      'Doppler Flowmeter Vaskular & Simulator Viskositas Darah Poiseuille',
+    ],
+    safetyNotes: [
+      'Perhatikan perubahan tajam pada tekanan sistolik (> 160 mmHg) saat rasio radius pembuluh diperkecil di bawah 0.6 (simulasi krisis hipertensi).',
+      'Pada frekuensi jantung ekstrem (> 150 bpm), amati penurunan waktu pengisian diastolik yang membatasi Volume Sekuncup (SV).',
+    ],
+    parameters: [
+      { key: 'heartRateBpm', label: 'Frekuensi Detak Jantung (HR)', unit: 'bpm', min: 40, max: 200, step: 2, defaultValue: 72, variableRole: 'bebas', instrumentType: 'stopwatch' },
+      { key: 'vesselRadiusRatio', label: 'Rasio Radius Pembuluh (r/r₀)', unit: 'rasio', min: 0.4, max: 1.2, step: 0.05, defaultValue: 1.0, variableRole: 'bebas', instrumentType: 'ruler' },
+      { key: 'bloodViscosity', label: 'Viskositas Darah (η)', unit: 'cP', min: 1.0, max: 5.0, step: 0.2, defaultValue: 3.5, variableRole: 'kontrol' },
+      { key: 'exerciseIntensity', label: 'Intensitas Aktivitas Fisik', unit: '%', min: 0, max: 100, step: 5, defaultValue: 20, variableRole: 'bebas' },
+    ],
+    outputs: [
+      { key: 'cardiacOutputLMin', label: 'Curah Jantung (CO)', unit: 'L/mnt', formulaLatex: 'CO = \\frac{HR \\cdot SV}{1000}', precision: 2 },
+      { key: 'strokeVolumeMl', label: 'Volume Sekuncup (SV)', unit: 'mL', formulaLatex: 'SV = EDV - ESV', precision: 1 },
+      { key: 'vascularResistance', label: 'Resistensi Vaskular (R)', unit: 'PRU', formulaLatex: 'R \\propto \\eta / r^4', precision: 2 },
+      { key: 'systolicMmHg', label: 'Tekanan Sistolik (SBP)', unit: 'mmHg', formulaLatex: 'P_{\\text{sys}}', precision: 1 },
+      { key: 'diastolicMmHg', label: 'Tekanan Diastolik (DBP)', unit: 'mmHg', formulaLatex: 'P_{\\text{dia}}', precision: 1 },
+      { key: 'meanArterialPressure', label: 'Tekanan Arteri Rata-Rata (MAP)', unit: 'mmHg', formulaLatex: 'DBP + \\frac{1}{3}PP', precision: 1 },
+    ],
+    defaultRegressionAxes: { xKey: 'heartRateBpm', yKey: 'cardiacOutputLMin', expectedSlopeMeaning: 'Volume Sekuncup Efektif (SV dalam L/detak)' },
+    preLabQuiz: [
+      {
+        id: 'cv-q1',
+        question: 'Berdasarkan Hukum Poiseuille (R ∝ η / r⁴), jika jari-jari pembuluh darah arteri menyempit menjadi setengahnya (r = 0.5 r₀) akibat plak kolesterol, berapa kali lipat kenaikan resistensi vaskularnya?',
+        options: ['Meningkat 2 kali lipat', 'Meningkat 4 kali lipat', 'Meningkat 8 kali lipat', 'Meningkat 16 kali lipat'],
+        correctIndex: 3,
+        explanation: 'Karena resistensi berbanding terbalik dengan pangkat empat jari-jari (1 / 0.5⁴ = 1 / 0.0625 = 16), penyempitan radius menjadi separuhnya melipatgandakan hambatan aliran darah sebesar 16 kali lipat.',
+      },
+      {
+        id: 'cv-q2',
+        question: 'Kompleks gelombang apakah pada rekaman EKG yang merepresentasikan depolarisasi listrik ventrikel kiri dan kanan tepat sebelum kontraksi sistolik?',
+        options: ['Gelombang P', 'Kompleks QRS', 'Gelombang T', 'Segmen PR'],
+        correctIndex: 1,
+        explanation: 'Kompleks QRS terjadi akibat depolarisasi cepat otot ventrikel kanan dan kiri yang memicu kontraksi pemompaan darah (sistolik), sedangkan gelombang P adalah depolarisasi atrium dan gelombang T adalah repolarisasi ventrikel.',
+      },
+    ],
+    computeStep: (params, timeSec = 0) => {
+      const cv = calculateCardiovascularHeart({
+        heartRateBpm: params.heartRateBpm ?? 72,
+        vesselRadiusRatio: params.vesselRadiusRatio ?? 1.0,
+        bloodViscosity: params.bloodViscosity ?? 3.5,
+        exerciseIntensity: params.exerciseIntensity ?? 20,
+        timeSec,
+      });
+      return {
+        cardiacOutputLMin: cv.cardiacOutputLMin,
+        strokeVolumeMl: cv.strokeVolumeMl,
+        vascularResistance: cv.vascularResistance,
+        systolicMmHg: cv.systolicMmHg,
+        diastolicMmHg: cv.diastolicMmHg,
+        meanArterialPressure: cv.meanArterialPressure,
+        ecgVoltageMv: cv.ecgVoltageMv,
+      };
+    },
+  },
+
+  {
+    id: 'anatomy-respiratory-lungs',
+    title: 'Mekanika Respirasi & Spirometri Paru-Paru 3D',
+    domain: 'biologi',
+    subCategory: 'Anatomi & Fisiologi Tubuh Manusia 3D',
+    supportedTiers: ['SMP', 'SMA', 'Mahasiswa'],
+    difficulty: 2,
+    estimatedMinutes: 40,
+    objectives: {
+      SMP: [
+        'Mengamati mekanisme pernapasan perut (otot diafragma mendatar saat inspirasi dan melengkung saat ekspirasi).',
+        'Mengenal jalur saluran pernapasan dari trakea, bronkus, bronkiolus, hingga pertukaran gas di alveolus.',
+      ],
+      SMA: [
+        'Menghitung Volume Tidal (TV) dan Ventilasi Semenit (V̇E = RR × TV) pada berbagai beban pernapasan.',
+        'Menganalisis dampak penyempitan jalan napas (bronkokonstriksi/asma) terhadap volume udara paru-paru.',
+      ],
+      Mahasiswa: [
+        'Menghitung tekanan parsial oksigen alveolus (PAO₂) sebagai fungsi ketinggian barometrik (0–8000 mdpl).',
+        'Memodelkan persentase saturasi oksihemoglobin darah (SpO₂) menggunakan kurva disosiasi sigmoid Hill.',
+      ],
+    },
+    theorySummary:
+      'Ventilasi paru-paru digerakkan oleh kontraksi otot diafragma dan interkostal yang menciptakan tekanan negatif intrapleura (Hukum Boyle). Jumlah udara yang keluar-masuk tiap menit adalah Ventilasi Semenit (V̇E = RR × TV). Di alveolus, difusi O₂ ke kapiler darah bergantung pada tekanan parsial oksigen alveolus (PAO₂) yang menurun secara eksponensial terhadap ketinggian (mdpl). Pengikatan O₂ oleh hemoglobin mengikuti kurva kooperatif sigmoid Hill dengan P₅₀ ≈ 26.6 mmHg.',
+    keyEquations: [
+      '\\dot{V}_E = \\frac{RR \\times TV}{1000} \\quad (\\text{L/menit})',
+      'P_B(h) = 760 \\cdot \\exp\\left(-\\frac{h}{7990}\\right) \\quad (\\text{mmHg})',
+      'P_{A\\text{O}_2} = F_{I\\text{O}_2}(P_B - 47) - \\frac{P_{A\\text{CO}_2}}{R}',
+      'S_{\\text{O}_2} = \\frac{P_{A\\text{O}_2}^n}{P_{50}^n + P_{A\\text{O}_2}^n} \\times 100\\% \\quad (n = 2.7, P_{50} = 26.6\\text{ mmHg})',
+    ],
+    apparatusList: [
+      'Model 3D Toraks, Cabang Trakea-Bronkiolus, Lobus Paru Transparan & Kubah Diafragma',
+      'Spirometer Digital Pencatat Volume Tidal (TV) dan Ventilasi Semenit',
+      'Pulse Oximeter (SpO₂) & Ruang Simulasi Hipobarik Ketinggian Ekstrem (0–8000 mdpl)',
+      'Sensor Aliran Udara Bronkial & Simulator Bronkokonstriksi',
+    ],
+    safetyNotes: [
+      'Amati gejala hipoksia hipobarik saat ketinggian dinaikkan di atas 4500 mdpl di mana SpO₂ turun di bawah 85%.',
+      'Saat resistensi jalan napas dinaikkan (simulasi serangan asma), perhatikan kompensasi usaha diafragma yang dibutuhkan untuk menjaga ventilasi.',
+    ],
+    parameters: [
+      { key: 'respirationRate', label: 'Frekuensi Napas (RR)', unit: '/menit', min: 6, max: 40, step: 1, defaultValue: 15, variableRole: 'bebas', instrumentType: 'stopwatch' },
+      { key: 'diaphragmEffort', label: 'Usaha Kontraksi Diafragma', unit: '%', min: 20, max: 100, step: 5, defaultValue: 50, variableRole: 'bebas' },
+      { key: 'airwayResistance', label: 'Resistensi Jalan Napas (Asma)', unit: 'rasio', min: 1.0, max: 4.0, step: 0.2, defaultValue: 1.0, variableRole: 'bebas' },
+      { key: 'altitudeMeters', label: 'Ketinggian Tempat (Alt)', unit: 'mdpl', min: 0, max: 8000, step: 250, defaultValue: 0, variableRole: 'bebas', instrumentType: 'ruler' },
+    ],
+    outputs: [
+      { key: 'tidalVolumeMl', label: 'Volume Tidal (TV)', unit: 'mL', formulaLatex: 'TV', precision: 1 },
+      { key: 'minuteVentilationLMin', label: 'Ventilasi Semenit (V̇E)', unit: 'L/mnt', formulaLatex: 'RR \\times TV', precision: 2 },
+      { key: 'alveolarPo2MmHg', label: 'Tekanan O₂ Alveolus (PAO₂)', unit: 'mmHg', formulaLatex: 'P_{I\\text{O}_2} - P_{A\\text{CO}_2}/R', precision: 1 },
+      { key: 'spo2Percent', label: 'Saturasi Oksigen Darah (SpO₂)', unit: '%', formulaLatex: '\\frac{P_{\\text{O}_2}^n}{P_{50}^n + P_{\\text{O}_2}^n}', precision: 1 },
+    ],
+    defaultRegressionAxes: { xKey: 'altitudeMeters', yKey: 'spo2Percent', expectedSlopeMeaning: 'Penurunan Saturasi Oksihemoglobin terhadap Ketinggian' },
+    preLabQuiz: [
+      {
+        id: 'resp-q1',
+        question: 'Mengapa pendaki gunung di ketinggian 6000–8000 mdpl mengalami penurunan saturasi oksigen darah (SpO₂) meskipun persentase oksigen di udara tetap ~21%?',
+        options: ['Karena oksigen berubah menjadi nitrogen di udara dingin', 'Karena tekanan barometrik total udara menurun drastis sehingga tekanan parsial oksigen alveolus (PAO₂) ikut anjlok', 'Karena paru-paru berhenti berkontraksi', 'Karena hemoglobin membeku'],
+        correctIndex: 1,
+        explanation: 'Fraksi oksigen tetap ~20.93%, tetapi tekanan atmosfer barometrik (PB) turun secara eksponensial terhadap ketinggian, sehingga tekanan parsial O₂ yang mendorong difusi ke kapiler alveolus menjadi sangat rendah.',
+      },
+    ],
+    computeStep: (params, timeSec = 0) => {
+      const resp = calculateRespiratoryLungs({
+        respirationRate: params.respirationRate ?? 15,
+        diaphragmEffort: params.diaphragmEffort ?? 50,
+        airwayResistance: params.airwayResistance ?? 1.0,
+        altitudeMeters: params.altitudeMeters ?? 0,
+        timeSec,
+      });
+      return {
+        tidalVolumeMl: resp.tidalVolumeMl,
+        minuteVentilationLMin: resp.minuteVentilationLMin,
+        alveolarPo2MmHg: resp.alveolarPo2MmHg,
+        spo2Percent: resp.spo2Percent,
+      };
+    },
+  },
+
+  {
+    id: 'anatomy-neural-synapse',
+    title: 'Neurofisiologi & Potensial Aksi Neuron 3D',
+    domain: 'biologi',
+    subCategory: 'Anatomi & Fisiologi Tubuh Manusia 3D',
+    supportedTiers: ['SMP', 'SMA', 'Mahasiswa'],
+    difficulty: 3,
+    estimatedMinutes: 45,
+    objectives: {
+      SMP: [
+        'Mengamati bagian-bagian sel saraf (neuron): dendrit, badan sel (soma), akson, selubung mielin, dan sinapsis.',
+        'Memahami bagaimana sinyal listrik merambat dari satu sel saraf ke sel lainnya.',
+      ],
+      SMA: [
+        'Membuktikan Hukum All-or-None (ambang batas potensial aksi -55 mV) pada perambatan impuls saraf.',
+        'Membandingkan kecepatan konduksi saltatorik pada akson bermielin tebal vs akson tanpa mielin.',
+      ],
+      Mahasiswa: [
+        'Menghitung potensial kesetimbangan ion Nernst (ENa dan EK) serta potensial istirahat Goldman-Hodgkin-Katz.',
+        'Menganalisis fase pembukaan kanal Na⁺/K⁺ berpintu tegangan (Depolarisasi, Repolarisasi, Hiperpolarisasi Refrakter) dan eksositosis neurotransmiter di celah sinapsis.',
+      ],
+    },
+    theorySummary:
+      'Neuron menghantarkan informasi melalui perubahan potensial listrik lintas membran (potensial aksi). Dalam keadaan istirahat (~-70 mV), membran terpolarisasi oleh gradien pompa Na⁺/K⁺-ATPase dan permeabilitas dominan ion K⁺. Jika tegangan stimulus melampaui ambang batas (-55 mV), kanal Na⁺ berpintu tegangan terbuka secara eksplosif (Hukum All-or-None) memicu depolarisasi hingga mendekati potensial Nernst ENa. Pada akson bermielin, impuls melompat antar-Nodus Ranvier (konduksi saltatorik) dengan kecepatan hingga >100 m/s dan memicu pelepasan vesikel neurotransmiter di terminal sinapsis.',
+    keyEquations: [
+      'E_{\\text{ion}} = \\frac{RT}{zF} \\ln\\left(\\frac{[\\text{Ion}]_{\\text{luar}}}{[\\text{Ion}]_{\\text{dalam}}}\\right) \\approx \\pm 61.5 \\log_{10}\\left(\\frac{[\\text{Ion}]_{\\text{luar}}}{[\\text{Ion}]_{\\text{dalam}}}\\right)',
+      'V_{\\text{rest}} = 61.5 \\log_{10}\\left(\\frac{P_K[\\text{K}^+]_o + P_{Na}[\\text{Na}^+]_o}{P_K[\\text{K}^+]_i + P_{Na}[\\text{Na}^+]_i}\\right)',
+      '\\text{Hukum All-or-None: } V_{\\text{stim}} \\ge -55\\text{ mV} \\implies \\text{Potensial Aksi Penuh}',
+      'v_{\\text{konduksi}} = v_0 + k_{\\text{saltatorik}} \\cdot d_{\\text{mielin}}',
+    ],
+    apparatusList: [
+      'Model 3D Neuron Multipolar (Soma, Dendrit, Akson Bermielin, Nodus Ranvier & Bonggol Sinapsis)',
+      'Elektroda Patch-Clamp Intraseluler & Stimulator Tegangan Mikrovolt',
+      'Osiloskop Potensial Membran Hodgkin-Huxley Real-Time',
+      'Kompartemen Perfusi Ion Ekstraseluler ([Na⁺]ₒ dan [K⁺]ₒ Variabel)',
+    ],
+    safetyNotes: [
+      'Perhatikan bahwa stimulus di bawah -55 mV (misal -62 mV) hanya menghasilkan potensial lokal sub-ambang yang padam dan tidak merambat ke terminal sinapsis.',
+      'Kenaikan konsentrasi kalium ekstraseluler [K⁺]ₒ di atas 8 mM (hiperkalemia) menggeser potensial istirahat menjadi kurang negatif.',
+    ],
+    parameters: [
+      { key: 'stimulusVoltageMv', label: 'Tegangan Stimulus (V_stim)', unit: 'mV', min: -70, max: 50, step: 5, defaultValue: -40, variableRole: 'bebas', instrumentType: 'voltmeter' },
+      { key: 'myelinThickness', label: 'Ketebalan Selubung Mielin', unit: '%', min: 0, max: 100, step: 5, defaultValue: 75, variableRole: 'bebas', instrumentType: 'ruler' },
+      { key: 'extracellularNaMm', label: 'Konsentrasi [Na⁺] Luar', unit: 'mM', min: 50, max: 200, step: 5, defaultValue: 145, variableRole: 'kontrol' },
+      { key: 'extracellularKMm', label: 'Konsentrasi [K⁺] Luar', unit: 'mM', min: 2, max: 15, step: 0.5, defaultValue: 4.5, variableRole: 'kontrol' },
+    ],
+    outputs: [
+      { key: 'nernstNaMv', label: 'Potensial Nernst Natrium (ENa)', unit: 'mV', formulaLatex: '61.5 \\log([\\text{Na}]_o/[\\text{Na}]_i)', precision: 1 },
+      { key: 'nernstKMv', label: 'Potensial Nernst Kalium (EK)', unit: 'mV', formulaLatex: '61.5 \\log([\\text{K}]_o/[\\text{K}]_i)', precision: 1 },
+      { key: 'conductionVelocityMs', label: 'Kecepatan Konduksi Impuls', unit: 'm/s', formulaLatex: 'v_{\\text{akson}}', precision: 1 },
+      { key: 'membranePotentialMv', label: 'Potensial Membran Puncak (Vm)', unit: 'mV', formulaLatex: 'V_m(t)', precision: 1 },
+      { key: 'allOrNoneCode', label: 'Status All-or-None (1:Terpicu, 0:Sub-Ambang)', unit: '', formulaLatex: 'V_{\\text{stim}} \\ge -55\\text{ mV}', precision: 0 },
+    ],
+    defaultRegressionAxes: { xKey: 'myelinThickness', yKey: 'conductionVelocityMs', expectedSlopeMeaning: 'Peningkatan Kecepatan Konduksi Saltatorik terhadap Ketebalan Mielin' },
+    preLabQuiz: [
+      {
+        id: 'neu-q1',
+        question: 'Apa yang dimaksud dengan prinsip "All-or-None" (Semua-atau-Tidak Sama Sekali) pada pembangkitan potensial aksi neuron?',
+        options: [
+          'Semakin besar tegangan stimulus, semakin tinggi kecepatan cahaya di sinapsis',
+          'Jika stimulus gagal mencapai ambang batas (-55 mV) potensial aksi tidak terbentuk; namun jika mencapai ambang batas, lonjakan potensial aksi terjadi secara penuh tanpa bergantung pada kuatnya stimulus tambahan',
+          'Seluruh neuron di otak menyala secara bersamaan',
+          'Selubung mielin menghambat seluruh aliran listrik',
+        ],
+        correctIndex: 1,
+        explanation: 'Ambang batas sekitar -55 mV adalah titik kritis pembukaan umpan-balik positif kanal Na⁺ berpintu tegangan. Di bawah nilai tersebut impuls gagal terbentuk, sedangkan di atas nilai tersebut amplitudo potensial aksi selalu penuh.',
+      },
+      {
+        id: 'neu-q2',
+        question: 'Mengapa akson yang dilapisi selubung mielin memiliki kecepatan rambat impuls jauh lebih cepat dibandingkan akson tanpa mielin?',
+        options: [
+          'Karena mielin terbuat dari logam tembaga',
+          'Karena mielin bertindak sebagai isolator listrik sehingga depolarisasi melompat dari satu Nodus Ranvier ke Nodus Ranvier berikutnya (konduksi saltatorik)',
+          'Karena mielin memperpendek jarak dendrit ke inti sel',
+          'Karena mielin memompa oksigen ke dalam sinapsis',
+        ],
+        correctIndex: 1,
+        explanation: 'Selubung mielin mencegah kebocoran muatan ion di sepanjang internodus, sehingga arus lokal mengalir cepat di dalam aksoplasma dan hanya perlu diregenerasi di celah Nodus Ranvier (konduksi saltatorik).',
+      },
+    ],
+    computeStep: (params, timeSec = 0.25) => {
+      const neu = calculateNeuralSynapse({
+        stimulusVoltageMv: params.stimulusVoltageMv ?? -40,
+        myelinThickness: params.myelinThickness ?? 75,
+        extracellularNaMm: params.extracellularNaMm ?? 145,
+        extracellularKMm: params.extracellularKMm ?? 4.5,
+        timeSec,
+      });
+      return {
+        nernstNaMv: neu.nernstNaMv,
+        nernstKMv: neu.nernstKMv,
+        conductionVelocityMs: neu.conductionVelocityMs,
+        membranePotentialMv: neu.membranePotentialMv,
+        allOrNoneCode: neu.actionPotentialTriggered ? 1 : 0,
+      };
     },
   },
 ];

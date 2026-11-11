@@ -33,6 +33,7 @@ import {
 } from './ui/HypothesisAndCompareDock';
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
+import { useLabStore } from '../stores/useLabStore';
 
 export interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -100,7 +101,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   const [hazardModalDismissed, setHazardModalDismissed] = useState<boolean>(false);
 
   const metrics = calculateChemistryMetrics(params);
-  const safetyHazard = evaluateSafetyHazard(params as any);
+  const safetyHazard = evaluateSafetyHazard('Kimia', undefined, params);
 
   // Reaction Preset lookup
   const currentPreset =
@@ -123,6 +124,15 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     onChangeParams({ ...params, ...patch });
   };
 
+  const modeToCatalogId: Record<string, string> = {
+    'thermo-calorimetry': 'thermo-calorimetry',
+    'acid-base-titration': 'acid-base-titration',
+    'electrochemistry-cell': 'redox-electrochemistry',
+    'ideal-gas-boyle': 'ideal-gas-boyle',
+    'reaction-kinetics-arrhenius': 'reaction-kinetics-arrhenius',
+    'spectrophotometry-beer': 'spectrophotometry-beer',
+  };
+
   const handleRecordTrial = () => {
     labSound.playRecordSuccess();
     const title =
@@ -132,18 +142,32 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         ? 'Uji Sel Galvani Volta'
         : params.mode === 'ideal-gas-boyle'
         ? 'Uji Kompresi Gas Boyle'
+        : params.mode === 'reaction-kinetics-arrhenius'
+        ? 'Uji Kinetika Reaksi Arrhenius'
+        : params.mode === 'spectrophotometry-beer'
+        ? 'Uji Spektrofotometri Beer-Lambert'
         : 'Uji Termokimia & Reaksi';
 
     const pSum =
       params.mode === 'acid-base-titration'
         ? `Vb=${params.titrantAddedMl}mL, Mb=${params.titrantBaseConc}M, Ma=${params.analyteAcidConc}M`
-        : `T=${params.initialTempC}°C, Preset=${currentPreset.name}`;
+        : params.mode === 'electrochemistry-cell'
+        ? `[Anoda]=${params.anodeConcM}M, [Katoda]=${params.cathodeConcM}M`
+        : params.mode === 'ideal-gas-boyle'
+        ? `V=${params.gasVolumeL ?? 10}L, T=${params.gasTemperatureK ?? 300}K`
+        : params.mode === 'spectrophotometry-beer'
+        ? `λ=${params.spectroWavelengthNm ?? 520}nm, C=${params.spectroConcMm ?? 0.1}mM`
+        : `T=${params.initialTempC}°C, [M]=${params.reactantConcentration}M`;
 
     const numX =
       params.mode === 'acid-base-titration'
         ? params.titrantAddedMl
         : params.mode === 'ideal-gas-boyle'
         ? params.gasVolumeL ?? 10
+        : params.mode === 'electrochemistry-cell'
+        ? params.anodeConcM
+        : params.mode === 'spectrophotometry-beer'
+        ? params.spectroConcMm ?? 0.1
         : params.initialTempC;
 
     const numY1 =
@@ -151,7 +175,11 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         ? metrics.currentPh
         : params.mode === 'ideal-gas-boyle'
         ? metrics.gasPressureAtm ?? 1.0
-        : metrics.nernstCellPotentialE ?? metrics.deltaTempC;
+        : params.mode === 'electrochemistry-cell'
+        ? metrics.nernstCellPotentialE
+        : params.mode === 'spectrophotometry-beer'
+        ? metrics.spectroAbsorbance ?? metrics.absorbanceA ?? 0.4
+        : metrics.deltaTempC;
 
     onRecordExperiment(
       title,
@@ -166,35 +194,36 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     );
   };
 
-  const telemetryMetrics = [
-    {
-      id: 'ph',
-      label: 'pH Larutan',
-      value: metrics.currentPh,
-      min: 0,
-      max: 14,
-      unit: 'pH',
-      color: '#14b8a6',
-    },
-    {
-      id: 'vol',
-      label: 'Vol Titran Vb',
-      value: params.titrantAddedMl,
-      min: 0,
-      max: 50,
-      unit: 'mL',
-      color: '#0ea5e9',
-    },
-    {
-      id: 'veq',
-      label: 'Titik Ekuivalen',
-      value: metrics.equivalenceVolumeMl,
-      min: 0,
-      max: 50,
-      unit: 'mL',
-      color: '#10b981',
-    },
-  ];
+  const telemetryMetrics =
+    params.mode === 'acid-base-titration'
+      ? [
+          { id: 'ph', label: 'pH Larutan', value: metrics.currentPh, min: 0, max: 14, unit: 'pH', color: '#14b8a6' },
+          { id: 'vol', label: 'Vol Titran Vb', value: params.titrantAddedMl, min: 0, max: 50, unit: 'mL', color: '#0ea5e9' },
+          { id: 'veq', label: 'Titik Ekuivalen', value: metrics.equivalenceVolumeMl, min: 0, max: 50, unit: 'mL', color: '#10b981' },
+        ]
+      : params.mode === 'electrochemistry-cell'
+      ? [
+          { id: 'enernst', label: 'Potensial E_sel', value: metrics.nernstCellPotentialE, min: 0, max: 2.5, unit: 'V', color: '#14b8a6' },
+          { id: 'e0', label: 'Potensial E°_sel', value: metrics.standardCellPotentialE0, min: 0, max: 2.5, unit: 'V', color: '#0ea5e9' },
+          { id: 'dg', label: 'Energi Bebas ΔG', value: metrics.electroFreeEnergyDeltaG, min: -500, max: 100, unit: 'kJ/mol', color: '#10b981' },
+        ]
+      : params.mode === 'ideal-gas-boyle'
+      ? [
+          { id: 'patm', label: 'Tekanan Gas (P)', value: metrics.gasPressureAtm ?? 2.4, min: 0, max: 15, unit: 'atm', color: '#14b8a6' },
+          { id: 'vgas', label: 'Volume Bejana (V)', value: params.gasVolumeL ?? 10, min: 2, max: 25, unit: 'L', color: '#0ea5e9' },
+          { id: 'tgas', label: 'Suhu Mutlak (T)', value: params.gasTemperatureK ?? 300, min: 200, max: 700, unit: 'K', color: '#10b981' },
+        ]
+      : params.mode === 'spectrophotometry-beer'
+      ? [
+          { id: 'abs', label: 'Absorbansi (A)', value: metrics.spectroAbsorbance ?? metrics.absorbanceA ?? 0.45, min: 0, max: 2.5, unit: 'A', color: '#14b8a6' },
+          { id: 'trans', label: 'Transmitansi (%T)', value: metrics.spectroTransmittancePct ?? metrics.transmittancePct ?? 35, min: 0, max: 100, unit: '%', color: '#0ea5e9' },
+          { id: 'wl', label: 'Panjang Gelombang', value: params.spectroWavelengthNm ?? 520, min: 400, max: 700, unit: 'nm', color: '#10b981' },
+        ]
+      : [
+          { id: 'tf', label: 'Suhu Akhir (Tf)', value: metrics.finalTempC, min: 0, max: 100, unit: '°C', color: '#14b8a6' },
+          { id: 'dt', label: 'Perubahan ΔT', value: metrics.deltaTempC, min: -30, max: 60, unit: '°C', color: '#0ea5e9' },
+          { id: 'rate', label: 'Laju Reaksi (v)', value: metrics.reactionRate, min: 0, max: 5, unit: 'M/s', color: '#10b981' },
+        ];
 
   return (
     <StandardLabViewShell
@@ -202,12 +231,12 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
       recordsCount={records.length}
       telemetryMetrics={telemetryMetrics}
       oscilloscope={{
-        primaryLabel: 'pH Indikator',
-        primaryValue: metrics.currentPh,
-        primaryUnit: 'pH',
-        secondaryLabel: 'Vol Titran',
-        secondaryValue: params.titrantAddedMl,
-        secondaryUnit: 'mL',
+        primaryLabel: telemetryMetrics[0].label,
+        primaryValue: telemetryMetrics[0].value,
+        primaryUnit: telemetryMetrics[0].unit,
+        secondaryLabel: telemetryMetrics[1].label,
+        secondaryValue: telemetryMetrics[1].value,
+        secondaryUnit: telemetryMetrics[1].unit,
         microscopicStateLabel: `Kesetimbangan Ion [H⁺] vs [OH⁻] (Veq = ${metrics.equivalenceVolumeMl} mL)`,
         microscopicDetail: `Warna indikator bereaksi transisi pada trayek pH ekuivalen.`,
         accentColor: '#14b8a6',
@@ -261,7 +290,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    handleParamChange({ initialTempC: 25, kineticsTempC: 25 });
+                    handleParamChange({ initialTempC: 25, kineticsTempC: 25, gasTemperatureK: 300, gasVolumeL: 10 });
                     setHazardModalDismissed(false);
                   }}
                   className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-extrabold text-xs cursor-pointer"
@@ -312,8 +341,12 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
             <select
               value={params.mode}
               onChange={(e) => {
+                const nextMode = e.target.value as ChemistryParams['mode'];
                 labSound.playClick();
-                handleParamChange({ mode: e.target.value as any });
+                handleParamChange({ mode: nextMode });
+                if (modeToCatalogId[nextMode]) {
+                  useLabStore.getState().setActiveModule(modeToCatalogId[nextMode]);
+                }
               }}
               className="w-full text-xs p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold"
             >
@@ -404,6 +437,96 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     onChange={(v) => handleParamChange({ analyteAcidConc: v })}
                   />
                 </>
+              ) : params.mode === 'electrochemistry-cell' ? (
+                <>
+                  <TactileParameterControl
+                    label="Konsentrasi Ion Anoda [Mⁿ⁺]"
+                    unit="M"
+                    value={params.anodeConcM}
+                    min={0.01}
+                    max={2.0}
+                    step={0.05}
+                    onChange={(v) => handleParamChange({ anodeConcM: v })}
+                  />
+                  <TactileParameterControl
+                    label="Konsentrasi Ion Katoda [Mⁿ⁺]"
+                    unit="M"
+                    value={params.cathodeConcM}
+                    min={0.01}
+                    max={2.0}
+                    step={0.05}
+                    onChange={(v) => handleParamChange({ cathodeConcM: v })}
+                  />
+                  <TactileParameterControl
+                    label="Suhu Sel Elektrokimia (T)"
+                    unit="°C"
+                    value={params.initialTempC}
+                    min={10}
+                    max={80}
+                    step={1}
+                    onChange={(v) => handleParamChange({ initialTempC: v })}
+                  />
+                </>
+              ) : params.mode === 'ideal-gas-boyle' ? (
+                <>
+                  <TactileParameterControl
+                    label="Volume Silinder Gas (V)"
+                    unit="L"
+                    value={params.gasVolumeL ?? 10}
+                    min={2.0}
+                    max={25.0}
+                    step={0.5}
+                    onChange={(v) => handleParamChange({ gasVolumeL: v })}
+                  />
+                  <TactileParameterControl
+                    label="Suhu Mutlak Gas (T)"
+                    unit="K"
+                    value={params.gasTemperatureK ?? 300}
+                    min={250}
+                    max={700}
+                    step={10}
+                    onChange={(v) => handleParamChange({ gasTemperatureK: v })}
+                  />
+                  <TactileParameterControl
+                    label="Jumlah Mol Gas (n)"
+                    unit="mol"
+                    value={params.gasMoles ?? 1.0}
+                    min={0.2}
+                    max={2.5}
+                    step={0.1}
+                    onChange={(v) => handleParamChange({ gasMoles: v })}
+                  />
+                </>
+              ) : params.mode === 'spectrophotometry-beer' ? (
+                <>
+                  <TactileParameterControl
+                    label="Panjang Gelombang Monokromator (λ)"
+                    unit="nm"
+                    value={params.spectroWavelengthNm ?? 520}
+                    min={400}
+                    max={700}
+                    step={10}
+                    onChange={(v) => handleParamChange({ spectroWavelengthNm: v })}
+                  />
+                  <TactileParameterControl
+                    label="Konsentrasi Sampel Kuvet (C)"
+                    unit="mM"
+                    value={params.spectroConcMm ?? 0.1}
+                    min={0.01}
+                    max={0.25}
+                    step={0.01}
+                    onChange={(v) => handleParamChange({ spectroConcMm: v })}
+                  />
+                  <TactileParameterControl
+                    label="Tebal Kuvet (l)"
+                    unit="cm"
+                    value={params.spectroPathLengthCm ?? 1.0}
+                    min={0.5}
+                    max={2.0}
+                    step={0.1}
+                    onChange={(v) => handleParamChange({ spectroPathLengthCm: v })}
+                  />
+                </>
               ) : (
                 <>
                   <TactileParameterControl
@@ -411,7 +534,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     unit="°C"
                     value={params.initialTempC}
                     min={10}
-                    max={90}
+                    max={95}
                     step={1}
                     onChange={(v) => handleParamChange({ initialTempC: v, kineticsTempC: v })}
                   />
@@ -422,7 +545,16 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.1}
                     max={3.0}
                     step={0.1}
-                    onChange={(v) => handleParamChange({ reactantConcentration: v })}
+                    onChange={(v) => handleParamChange({ reactantConcentration: v, kineticsConcA: v })}
+                  />
+                  <TactileParameterControl
+                    label="Kecepatan Pengaduk Magnetik"
+                    unit="RPM"
+                    value={params.stirringRpm}
+                    min={0}
+                    max={600}
+                    step={20}
+                    onChange={(v) => handleParamChange({ stirringRpm: v })}
                   />
                 </>
               )}
@@ -431,12 +563,13 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
 
           {/* Interactive Formula Card */}
           <InteractiveFormulaCard
-            title={params.mode === 'acid-base-titration' ? 'Persamaan Titrasi Asam-Basa' : 'Termokimia Gibbs'}
-            tokens={[
-              { symbol: 'pH', value: metrics.currentPh, unit: '', description: 'Derajat Keasaman' },
-              { symbol: 'Vb', value: params.titrantAddedMl, unit: 'mL', description: 'Volume Buret' },
-              { symbol: 'Veq', value: metrics.equivalenceVolumeMl, unit: 'mL', description: 'Titik Ekuivalen' },
-            ]}
+            title={params.mode === 'acid-base-titration' ? 'Persamaan Titrasi Asam-Basa' : 'Termokimia & Kinetika Reaksi'}
+            tokens={telemetryMetrics.map((tm) => ({
+              symbol: tm.id.slice(0, 3),
+              value: tm.value,
+              unit: tm.unit,
+              description: tm.label,
+            }))}
           />
         </>
       }

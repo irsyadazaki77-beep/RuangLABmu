@@ -91,7 +91,136 @@ export const BiologySchematics: React.FC<DomainSchematicProps> = ({
     );
   }
 
-  // 4. Cell Osmosis & Plasmolysis Membrane (osmosis-plasmolysis)
+  // 4. Kardiovaskular & Hemodinamika Jantung (anatomy-cardiovascular-heart)
+  if (
+    keyText.includes('cardiovascular') ||
+    keyText.includes('heart') ||
+    keyText.includes('jantung') ||
+    keyText.includes('hemodinamika')
+  ) {
+    return (
+      <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Stylized 4-Chamber Heart & Aortic Arch */}
+        <path
+          d="M 76 42 C 76 28, 56 26, 56 42 C 56 58, 76 74, 76 86 C 76 74, 96 58, 96 42 C 96 26, 76 28, 76 42 Z"
+          fill="#ef4444"
+          fillOpacity="0.18"
+          stroke="#ef4444"
+          strokeWidth="1.8"
+        />
+        {/* Interventricular & Atrioventricular Septum Cross */}
+        <line x1="76" y1="38" x2="76" y2="82" stroke="#f87171" strokeOpacity="0.7" strokeDasharray="2 2" />
+        <line x1="60" y1="52" x2="92" y2="52" stroke="#f87171" strokeOpacity="0.7" strokeDasharray="2 2" />
+        {/* Aortic Arch & Superior Vena Cava */}
+        <path d="M 76 34 C 76 18, 92 18, 94 30" stroke="#ef4444" strokeWidth="2.2" />
+        <path d="M 66 32 L 66 18" stroke="#38bdf8" strokeWidth="2.2" />
+        {/* Real-time P-Q-R-S-T ECG Waveform Trace */}
+        <path
+          d="M 114 62 L 130 62 Q 136 52 142 62 L 150 62 L 154 70 L 160 22 L 166 80 L 171 62 L 184 62 Q 194 46 204 62 L 236 62"
+          stroke="#10b981"
+          strokeWidth="1.8"
+          className="transition-all duration-500 group-hover:stroke-rose-400"
+        />
+        <circle cx="160" cy="22" r="2.5" fill="#ef4444" stroke="none" />
+        <text x="150" y="16" fill="#ef4444" fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          QRS (CO)
+        </text>
+        <text x="182" y="88" fill={accent} fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          EKG P-Q-R-S-T
+        </text>
+      </g>
+    );
+  }
+
+  // 5. Mekanika Respirasi & Spirometri Paru-Paru (anatomy-respiratory-lungs)
+  if (
+    keyText.includes('respiratory') ||
+    keyText.includes('lungs') ||
+    keyText.includes('paru') ||
+    keyText.includes('spirometri')
+  ) {
+    return (
+      <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Trachea & Primary Bronchi Bifurcation */}
+        <line x1="78" y1="16" x2="78" y2="42" stroke="#38bdf8" strokeWidth="2.5" />
+        <path d="M 78 42 L 62 56 M 78 42 L 94 56" stroke="#38bdf8" strokeWidth="2" />
+        {/* Bronchioles */}
+        <path d="M 62 56 L 54 66 M 62 56 L 66 68 M 94 56 L 88 68 M 94 56 L 102 66" stroke="#38bdf8" strokeOpacity="0.8" />
+        {/* Right & Left Lung Lobes */}
+        <path
+          d="M 72 34 C 52 34, 44 58, 46 78 C 48 86, 68 84, 72 76 Z"
+          fill="#38bdf8"
+          fillOpacity="0.16"
+          stroke="#38bdf8"
+        />
+        <path
+          d="M 84 34 C 104 34, 112 58, 110 78 C 108 86, 88 84, 84 76 Z"
+          fill="#38bdf8"
+          fillOpacity="0.16"
+          stroke="#38bdf8"
+        />
+        {/* Diaphragm Dome */}
+        <path d="M 42 88 Q 78 74 114 88" stroke="#f59e0b" strokeWidth="2" />
+        {/* Spirometry Tidal Volume & Hill SpO2 Curve */}
+        <path
+          d="M 132 64 Q 144 38, 156 64 T 180 64 Q 194 18, 208 64 T 236 64"
+          stroke={accent}
+          strokeWidth="1.8"
+        />
+        <text x="136" y="26" fill="#38bdf8" fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          TV &amp; SpO₂ (%)
+        </text>
+      </g>
+    );
+  }
+
+  // 6. Neurofisiologi & Potensial Aksi Neuron (anatomy-neural-synapse)
+  if (
+    keyText.includes('neural') ||
+    keyText.includes('synapse') ||
+    keyText.includes('neuron') ||
+    keyText.includes('saraf')
+  ) {
+    return (
+      <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Multipolar Soma & Dendrites */}
+        <circle cx="56" cy="54" r="11" fill="#a855f7" fillOpacity="0.22" stroke="#a855f7" strokeWidth="1.8" />
+        <circle cx="56" cy="54" r="3.5" fill="#e879f9" stroke="none" />
+        <path d="M 46 46 L 34 36 M 44 54 L 30 54 M 46 62 L 34 72 M 56 42 L 52 28 M 56 66 L 52 80" stroke="#a855f7" />
+        {/* Long Axon & Myelin Sheath Segments with Nodes of Ranvier */}
+        <line x1="67" y1="54" x2="148" y2="54" stroke="#38bdf8" strokeWidth="1.8" />
+        {[74, 98, 122].map((mx) => (
+          <rect
+            key={mx}
+            x={mx}
+            y="48"
+            width="16"
+            height="12"
+            rx="4"
+            fill="#f59e0b"
+            fillOpacity="0.28"
+            stroke="#f59e0b"
+          />
+        ))}
+        {/* Synaptic Boutons */}
+        <path d="M 148 54 L 160 44 M 148 54 L 160 64" stroke="#38bdf8" />
+        <circle cx="162" cy="43" r="3" fill="#38bdf8" />
+        <circle cx="162" cy="65" r="3" fill="#38bdf8" />
+        {/* Action Potential Spike Graph (+40 mV peak, -55 mV threshold) */}
+        <line x1="176" y1="70" x2="244" y2="70" stroke="#94a3b8" strokeDasharray="2 2" strokeOpacity="0.6" />
+        <path
+          d="M 178 76 L 192 76 Q 198 70 202 22 L 212 86 Q 220 76 240 76"
+          stroke="#22d3ee"
+          strokeWidth="1.8"
+        />
+        <text x="184" y="20" fill="#22d3ee" fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          +40 mV
+        </text>
+      </g>
+    );
+  }
+
+  // 7. Cell Osmosis & Plasmolysis Membrane (osmosis-plasmolysis)
   return (
     <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
       {/* Semipermeable phospholipid bilayer */}

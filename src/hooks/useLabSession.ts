@@ -333,6 +333,7 @@ export function useLabSession() {
     const physicsModeMap: Record<string, typeof physicsParams.mode> = {
       'newton-incline': 'newton-incline',
       'projectile-motion': 'projectile-gravity',
+      'projectile-gravity': 'projectile-gravity',
       'pendulum-harmonic': 'pendulum-harmonic',
       'spring-hooke': 'spring-hooke',
       'collision-momentum': 'collision-momentum',
@@ -341,11 +342,13 @@ export function useLabSession() {
       'optics-young-slit': 'optics-young-slit',
       'photoelectric-planck': 'photoelectric-planck',
       'gravity-orbital': 'orbital-gravity',
+      'orbital-gravity': 'orbital-gravity',
     };
     const chemistryModeMap: Record<string, typeof chemistryParams.mode> = {
       'thermo-calorimetry': 'thermo-calorimetry',
       'acid-base-titration': 'acid-base-titration',
       'redox-electrochemistry': 'electrochemistry-cell',
+      'electrochemistry-cell': 'electrochemistry-cell',
       'ideal-gas-boyle': 'ideal-gas-boyle',
       'reaction-kinetics-arrhenius': 'reaction-kinetics-arrhenius',
       'spectrophotometry-beer': 'spectrophotometry-beer',
@@ -359,10 +362,18 @@ export function useLabSession() {
     };
 
     if (physicsModeMap[activeModuleId]) {
+      const targetMode = physicsModeMap[activeModuleId];
       setPhysicsParams((prev) =>
-        prev.mode === physicsModeMap[activeModuleId]
+        prev.mode === targetMode
           ? prev
-          : { ...prev, mode: physicsModeMap[activeModuleId] }
+          : {
+              ...prev,
+              mode: targetMode,
+              initialVelocity:
+                targetMode === 'projectile-gravity' && prev.initialVelocity <= 0
+                  ? 22
+                  : prev.initialVelocity,
+            }
       );
     } else if (chemistryModeMap[activeModuleId]) {
       setChemistryParams((prev) =>

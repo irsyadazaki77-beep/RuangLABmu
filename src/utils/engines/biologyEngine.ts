@@ -4,7 +4,10 @@ export type BiologyMode =
   | 'enzyme-catalase'
   | 'predator-prey-dynamics'
   | 'cell-osmosis-tonicity'
-  | 'osmosis-plasmolysis';
+  | 'osmosis-plasmolysis'
+  | 'anatomy-cardiovascular-heart'
+  | 'anatomy-respiratory-lungs'
+  | 'anatomy-neural-synapse';
 
 export interface EnzymeKineticsParams {
   substrateConcMm: number; // [S] in mM (0.1 - 100)
@@ -81,6 +84,61 @@ export interface CellOsmosisMetrics {
   isLysed: boolean;
 }
 
+export interface CardiovascularHeartParams {
+  heartRateBpm: number; // 40 - 200 bpm
+  vesselRadiusRatio: number; // 0.4 - 1.2 (vasokonstriksi / plak aterosklerosis)
+  bloodViscosity: number; // 1.0 - 5.0 cP (normal ~3.5 cP)
+  exerciseIntensity: number; // 0 - 100 %
+  timeSec?: number; // t in seconds for real-time ECG P-Q-R-S-T
+}
+
+export interface CardiovascularHeartMetrics {
+  strokeVolumeMl: number; // SV (mL/detak)
+  cardiacOutputLMin: number; // CO = (HR * SV) / 1000 (L/menit)
+  vascularResistance: number; // Hukum Poiseuille R ~ eta / r^4 (PRU relatif)
+  systolicMmHg: number; // Tekanan darah sistolik (mmHg)
+  diastolicMmHg: number; // Tekanan darah diastolik (mmHg)
+  meanArterialPressure: number; // MAP = DBP + 1/3 (SBP - DBP) (mmHg)
+  pulsePressureMmHg: number; // SBP - DBP (mmHg)
+  ecgVoltageMv: number; // Gelombang P-Q-R-S-T real-time pada waktu t (mV)
+}
+
+export interface RespiratoryLungsParams {
+  respirationRate: number; // 6 - 40 napas/menit
+  diaphragmEffort: number; // 20 - 100 %
+  airwayResistance: number; // 1.0 - 4.0 (bronkokonstriksi / asma)
+  altitudeMeters: number; // 0 - 8000 mdpl
+  timeSec?: number; // t in seconds for breathing cycle
+}
+
+export interface RespiratoryLungsMetrics {
+  tidalVolumeMl: number; // TV (mL)
+  minuteVentilationLMin: number; // V_E = (RR * TV) / 1000 (L/menit)
+  barometricPressureMmHg: number; // P_B sesuai ketinggian mdpl (mmHg)
+  alveolarPo2MmHg: number; // P_AO2 tekanan parsial oksigen alveolus (mmHg)
+  spo2Percent: number; // Saturasi O2 kurva disosiasi Hill (%)
+  instantLungVolumeMl: number; // Volume paru sesaat V(t) (mL)
+}
+
+export interface NeuralSynapseParams {
+  stimulusVoltageMv: number; // -70 s.d. +50 mV
+  myelinThickness: number; // 0 - 100 %
+  extracellularNaMm: number; // 50 - 200 mM (normal ~145 mM)
+  extracellularKMm: number; // 2 - 15 mM (normal ~4.5 mM)
+  timeSec?: number; // t in seconds for membrane potential trace V_m(t)
+}
+
+export interface NeuralSynapseMetrics {
+  nernstNaMv: number; // E_Na (mV)
+  nernstKMv: number; // E_K (mV)
+  restingPotentialMv: number; // V_rest Goldman-Hodgkin-Katz (mV)
+  thresholdMv: number; // Ambang batas All-or-None (-55 mV)
+  actionPotentialTriggered: boolean; // true jika stimulus >= -55 mV
+  allOrNoneStatus: 'Potensial Aksi Terpicu (All-or-None)' | 'Gagal Mencapai Ambang (Sub-Threshold)';
+  conductionVelocityMs: number; // Kecepatan rambat impuls akson (m/s)
+  membranePotentialMv: number; // Kurva V_m(t) Depolarisasi -> Repolarisasi -> Refrakter (mV)
+}
+
 export interface BiologyParams {
   mode: BiologyMode;
   // Enzyme Kinetics
@@ -107,12 +165,31 @@ export interface BiologyParams {
   initialCellVolumeUm3?: number;
   currentCellVolumeUm3?: number;
   hasCellWall?: boolean;
+  // Anatomy 1: Cardiovascular & Heart Hemodynamics
+  heartRateBpm?: number;
+  vesselRadiusRatio?: number;
+  bloodViscosity?: number;
+  exerciseIntensity?: number;
+  // Anatomy 2: Respiratory & Lungs Spirometry
+  respirationRate?: number;
+  diaphragmEffort?: number;
+  airwayResistance?: number;
+  altitudeMeters?: number;
+  // Anatomy 3: Neural Action Potential & Synapse
+  stimulusVoltageMv?: number;
+  myelinThickness?: number;
+  extracellularNaMm?: number;
+  extracellularKMm?: number;
+  timeSec?: number;
 }
 
 export interface BiologyMetrics {
   enzymeKinetics: EnzymeKineticsMetrics;
   predatorPrey: LotkaVolterraMetrics;
   cellOsmosis: CellOsmosisMetrics;
+  cardiovascularHeart: CardiovascularHeartMetrics;
+  respiratoryLungs: RespiratoryLungsMetrics;
+  neuralSynapse: NeuralSynapseMetrics;
 }
 
 /**
@@ -314,6 +391,239 @@ export function calculateCellOsmosisTonicity(params: CellOsmosisParams): CellOsm
   };
 }
 
+/**
+ * 4. Kardiovaskular & Hemodinamika Jantung (anatomy-cardiovascular-heart):
+ * Menghitung gelombang P-Q-R-S-T periodik real-time pada waktu t (detik)
+ */
+export function evaluateEcgWaveformMv(timeSec: number, heartRateBpm: number): number {
+  const hr = Math.max(40, Math.min(200, heartRateBpm));
+  const cyclePeriod = 60.0 / hr;
+  const phase = (((timeSec % cyclePeriod) + cyclePeriod) % cyclePeriod) / cyclePeriod;
+
+  // Komponen Gaussian untuk gelombang P, Q, R, S, T
+  const gauss = (center: number, width: number, amp: number) =>
+    amp * Math.exp(-Math.pow((phase - center) / width, 2));
+
+  const pWave = gauss(0.16, 0.035, 0.18);
+  const qWave = gauss(0.27, 0.012, -0.15);
+  const rWave = gauss(0.30, 0.015, 1.20);
+  const sWave = gauss(0.33, 0.014, -0.28);
+  const tWave = gauss(0.52, 0.055, 0.30);
+
+  return Number((pWave + qWave + rWave + sWave + tWave).toFixed(4));
+}
+
+export function calculateCardiovascularHeart(
+  params: CardiovascularHeartParams
+): CardiovascularHeartMetrics {
+  const hr = Math.max(40, Math.min(200, params.heartRateBpm));
+  const rRatio = Math.max(0.4, Math.min(1.2, params.vesselRadiusRatio));
+  const viscosity = Math.max(1.0, Math.min(5.0, params.bloodViscosity));
+  const exercise = Math.max(0, Math.min(100, params.exerciseIntensity));
+  const t = params.timeSec ?? 0;
+
+  // Hukum Poiseuille: R sebanding dengan eta / r^4 (dinormalisasi pada eta_0 = 3.5 cP, r_0 = 1.0)
+  const vascularResistance = (viscosity / 3.5) / Math.pow(rRatio, 4);
+
+  // Stroke Volume (SV) dari kontraktilitas simpatis & waktu pengisian diastolik Frank-Starling
+  const contractilityFactor = 1.0 + 0.45 * (exercise / 100.0);
+  const fillingFactor = hr <= 130 ? 1.0 : Math.max(0.55, 1.0 - (hr - 130) * 0.006);
+  const afterloadPenalty = 1.0 / (1.0 + 0.045 * Math.max(0, vascularResistance - 1.0));
+  const strokeVolumeMl = Math.max(
+    25.0,
+    Math.min(135.0, 70.0 * contractilityFactor * fillingFactor * afterloadPenalty)
+  );
+
+  // Curah Jantung (Cardiac Output): CO = (HR * SV) / 1000 (L/menit)
+  const cardiacOutputLMin = (hr * strokeVolumeMl) / 1000.0;
+
+  // Tekanan Arteri Rata-Rata (MAP) & Tekanan Sistolik / Diastolik
+  const effectiveResistance = Math.pow(vascularResistance, 0.55);
+  const meanArterialPressure = 40.0 + cardiacOutputLMin * 10.5 * effectiveResistance;
+  const pulsePressureMmHg = 40.0 * (strokeVolumeMl / 70.0) * Math.pow(1.0 / rRatio, 0.45);
+  const diastolicMmHg = Math.max(40.0, meanArterialPressure - pulsePressureMmHg / 3.0);
+  const systolicMmHg = diastolicMmHg + pulsePressureMmHg;
+
+  const ecgVoltageMv = evaluateEcgWaveformMv(t, hr);
+
+  return {
+    strokeVolumeMl: Number(strokeVolumeMl.toFixed(2)),
+    cardiacOutputLMin: Number(cardiacOutputLMin.toFixed(2)),
+    vascularResistance: Number(vascularResistance.toFixed(3)),
+    systolicMmHg: Number(systolicMmHg.toFixed(1)),
+    diastolicMmHg: Number(diastolicMmHg.toFixed(1)),
+    meanArterialPressure: Number(meanArterialPressure.toFixed(1)),
+    pulsePressureMmHg: Number(pulsePressureMmHg.toFixed(1)),
+    ecgVoltageMv,
+  };
+}
+
+/**
+ * 5. Mekanika Respirasi & Spirometri Paru-Paru (anatomy-respiratory-lungs):
+ * Menghitung Volume Tidal (TV), Ventilasi Semenit (V_E), P_AO2 Barometrik,
+ * dan Saturasi Oksigen Darah (SpO2) menggunakan persamaan disosiasi Hill.
+ */
+export function calculateRespiratoryLungs(
+  params: RespiratoryLungsParams
+): RespiratoryLungsMetrics {
+  const rr = Math.max(6, Math.min(40, params.respirationRate));
+  const effort = Math.max(20, Math.min(100, params.diaphragmEffort));
+  const rAirway = Math.max(1.0, Math.min(4.0, params.airwayResistance));
+  const alt = Math.max(0, Math.min(8000, params.altitudeMeters));
+  const t = params.timeSec ?? 0;
+
+  // Volume Tidal (TV): usaha diafragma 50% & resistensi normal 1.0 menghasilkan 500 mL
+  const tidalVolumeMl = Math.max(
+    120.0,
+    Math.min(1200.0, (1000.0 * (effort / 100.0)) / Math.pow(rAirway, 0.7))
+  );
+
+  // Ventilasi Semenit: V_E = RR * TV / 1000 (L/menit)
+  const minuteVentilationLMin = (rr * tidalVolumeMl) / 1000.0;
+
+  // Tekanan Barometrik sesuai ketinggian (mdpl): P_B = 760 * exp(-h / 7990)
+  const barometricPressureMmHg = 760.0 * Math.exp(-alt / 7990.0);
+
+  // Persamaan Gas Alveolus: P_IO2 = F_IO2 * (P_B - P_H2O), F_IO2 = 0.2093, P_H2O = 47 mmHg
+  const pio2 = Math.max(25.0, 0.2093 * (barometricPressureMmHg - 47.0));
+  const deadSpaceMl = 150.0;
+  const alveolarVentilationLMin = Math.max(
+    1.2,
+    (rr * Math.max(40.0, tidalVolumeMl - deadSpaceMl)) / 1000.0
+  );
+  const paco2 = Math.max(
+    20.0,
+    Math.min(75.0, 40.0 * (4.2 / alveolarVentilationLMin) * Math.pow(rAirway, 0.3))
+  );
+  const respiratoryQuotientR = 0.8;
+  const alveolarPo2MmHg = Math.max(15.0, pio2 - paco2 / respiratoryQuotientR);
+
+  // Kurva Disosiasi Oksihemoglobin Hill: S_O2 = P_O2^n / (P_50^n + P_O2^n) * 100%
+  const hillN = 2.7;
+  const p50 = 26.6; // mmHg
+  const po2Pow = Math.pow(alveolarPo2MmHg, hillN);
+  const p50Pow = Math.pow(p50, hillN);
+  const spo2Percent = Math.min(100.0, Math.max(0.0, (po2Pow / (p50Pow + po2Pow)) * 100.0));
+
+  // Volume paru sesaat V(t) di atas FRC (2400 mL)
+  const frcMl = 2400.0;
+  const omega = (2.0 * Math.PI * rr) / 60.0;
+  const instantLungVolumeMl = frcMl + 0.5 * tidalVolumeMl * (1.0 - Math.cos(omega * t));
+
+  return {
+    tidalVolumeMl: Number(tidalVolumeMl.toFixed(1)),
+    minuteVentilationLMin: Number(minuteVentilationLMin.toFixed(2)),
+    barometricPressureMmHg: Number(barometricPressureMmHg.toFixed(1)),
+    alveolarPo2MmHg: Number(alveolarPo2MmHg.toFixed(1)),
+    spo2Percent: Number(spo2Percent.toFixed(2)),
+    instantLungVolumeMl: Number(instantLungVolumeMl.toFixed(1)),
+  };
+}
+
+/**
+ * 6. Neurofisiologi & Potensial Aksi Neuron (anatomy-neural-synapse):
+ * Menghitung Potensial Kesetimbangan Nernst (E_Na, E_K), Hukum All-or-None (ambang -55 mV),
+ * Kecepatan Konduksi Saltatorik Mielin, dan Kurva Potensial Membran V_m(t).
+ */
+export function evaluateActionPotentialMv(
+  timeSec: number,
+  params: {
+    stimulusVoltageMv: number;
+    restingPotentialMv: number;
+    nernstNaMv: number;
+    nernstKMv: number;
+  }
+): number {
+  const thresholdMv = -55.0;
+  const vRest = params.restingPotentialMv;
+  const vStim = params.stimulusVoltageMv;
+  const cyclePeriod = 1.0; // siklus 1 detik
+  const phase = (((timeSec % cyclePeriod) + cyclePeriod) % cyclePeriod) / cyclePeriod;
+
+  // Sub-threshold: tidak melampaui -55 mV -> hanya depolarisasi lokal pasif yang meluruh
+  if (vStim < thresholdMv) {
+    if (phase < 0.15 || phase > 0.65) return Number(vRest.toFixed(2));
+    const localProgress = (phase - 0.15) / 0.5;
+    const subPeak = vRest + (vStim - vRest) * Math.sin(localProgress * Math.PI) * Math.exp(-localProgress * 2.2);
+    return Number(subPeak.toFixed(2));
+  }
+
+  // All-or-None Terpicu (vStim >= -55 mV): Depolarisasi -> Puncak (+35..+40 mV) -> Repolarisasi -> Hiperpolarisasi Refrakter
+  const vPeak = Math.min(50.0, params.nernstNaMv - 22.0);
+  const vUndershoot = Math.max(-95.0, params.nernstKMv + 6.0);
+
+  if (phase < 0.15) {
+    return Number(vRest.toFixed(2));
+  } else if (phase < 0.25) {
+    // Fase Depolarisasi Cepat (kanal Na+ terbuka)
+    const u = (phase - 0.15) / 0.10;
+    const smooth = u * u * (3 - 2 * u);
+    return Number((vRest + (vPeak - vRest) * smooth).toFixed(2));
+  } else if (phase < 0.45) {
+    // Fase Repolarisasi (inaktivasi Na+, pembukaan kanal K+)
+    const u = (phase - 0.25) / 0.20;
+    const smooth = u * u * (3 - 2 * u);
+    return Number((vPeak + (vUndershoot - vPeak) * smooth).toFixed(2));
+  } else if (phase < 0.72) {
+    // Periode Refrakter / Hiperpolarisasi kembali ke potensial istirahat oleh pompa Na+/K+-ATPase
+    const u = (phase - 0.45) / 0.27;
+    const smooth = u * u * (3 - 2 * u);
+    return Number((vUndershoot + (vRest - vUndershoot) * smooth).toFixed(2));
+  }
+  return Number(vRest.toFixed(2));
+}
+
+export function calculateNeuralSynapse(params: NeuralSynapseParams): NeuralSynapseMetrics {
+  const stimMv = Math.max(-70, Math.min(50, params.stimulusVoltageMv));
+  const myelin = Math.max(0, Math.min(100, params.myelinThickness));
+  const naOut = Math.max(50, Math.min(200, params.extracellularNaMm));
+  const kOut = Math.max(2, Math.min(15, params.extracellularKMm));
+  const t = params.timeSec ?? 0.25; // default near peak for static snapshot evaluation
+
+  // Konsentrasi intraseluler fisiologis mamalia
+  const naIn = 15.0; // mM
+  const kIn = 140.0; // mM
+  const nernstFactor37C = 61.54; // (RT/zF)*ln(10) dalam mV pada 37°C
+
+  const nernstNaMv = nernstFactor37C * Math.log10(naOut / naIn);
+  const nernstKMv = nernstFactor37C * Math.log10(kOut / kIn);
+
+  // Potensial Istirahat Goldman-Hodgkin-Katz (P_K : P_Na = 1.0 : 0.04)
+  const restingPotentialMv =
+    nernstFactor37C * Math.log10((1.0 * kOut + 0.04 * naOut) / (1.0 * kIn + 0.04 * naIn));
+
+  const thresholdMv = -55.0;
+  const actionPotentialTriggered = stimMv >= thresholdMv;
+  const allOrNoneStatus: NeuralSynapseMetrics['allOrNoneStatus'] = actionPotentialTriggered
+    ? 'Potensial Aksi Terpicu (All-or-None)'
+    : 'Gagal Mencapai Ambang (Sub-Threshold)';
+
+  // Kecepatan Konduksi Saltatorik: akson tanpa mielin ~2 m/s, mielin penuh ~110 m/s
+  const baseVelocity = 2.0 + 1.08 * myelin;
+  const naDrivingFactor = Math.max(0.5, Math.min(1.25, nernstNaMv / 60.7));
+  const conductionVelocityMs = actionPotentialTriggered
+    ? baseVelocity * naDrivingFactor
+    : 0.0;
+
+  const membranePotentialMv = evaluateActionPotentialMv(t, {
+    stimulusVoltageMv: stimMv,
+    restingPotentialMv,
+    nernstNaMv,
+    nernstKMv,
+  });
+
+  return {
+    nernstNaMv: Number(nernstNaMv.toFixed(2)),
+    nernstKMv: Number(nernstKMv.toFixed(2)),
+    restingPotentialMv: Number(restingPotentialMv.toFixed(2)),
+    thresholdMv,
+    actionPotentialTriggered,
+    allOrNoneStatus,
+    conductionVelocityMs: Number(conductionVelocityMs.toFixed(2)),
+    membranePotentialMv,
+  };
+}
+
 export function calculateBiologyMetrics(params: BiologyParams): BiologyMetrics {
   const enzymeKinetics = calculateEnzymeKinetics({
     substrateConcMm: params.substrateConcMm ?? 10,
@@ -346,9 +656,36 @@ export function calculateBiologyMetrics(params: BiologyParams): BiologyMetrics {
     hasCellWall: params.hasCellWall ?? true,
   });
 
+  const cardiovascularHeart = calculateCardiovascularHeart({
+    heartRateBpm: params.heartRateBpm ?? 72,
+    vesselRadiusRatio: params.vesselRadiusRatio ?? 1.0,
+    bloodViscosity: params.bloodViscosity ?? 3.5,
+    exerciseIntensity: params.exerciseIntensity ?? 20,
+    timeSec: params.timeSec ?? 0,
+  });
+
+  const respiratoryLungs = calculateRespiratoryLungs({
+    respirationRate: params.respirationRate ?? 15,
+    diaphragmEffort: params.diaphragmEffort ?? 50,
+    airwayResistance: params.airwayResistance ?? 1.0,
+    altitudeMeters: params.altitudeMeters ?? 0,
+    timeSec: params.timeSec ?? 0,
+  });
+
+  const neuralSynapse = calculateNeuralSynapse({
+    stimulusVoltageMv: params.stimulusVoltageMv ?? -40,
+    myelinThickness: params.myelinThickness ?? 75,
+    extracellularNaMm: params.extracellularNaMm ?? 145,
+    extracellularKMm: params.extracellularKMm ?? 4.5,
+    timeSec: params.timeSec ?? 0.25,
+  });
+
   return {
     enzymeKinetics,
     predatorPrey,
     cellOsmosis,
+    cardiovascularHeart,
+    respiratoryLungs,
+    neuralSynapse,
   };
 }

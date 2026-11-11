@@ -2,6 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import {
   PhysicsParams,
   PhysicsMetrics,
@@ -46,7 +51,7 @@ function createArrowGroup(colorHex: number): THREE.Group {
     roughness: 0.25,
     metalness: 0.2,
     emissive: colorHex,
-    emissiveIntensity: 0.22,
+    emissiveIntensity: 0.28,
   });
   const shaftGeo = new THREE.CylinderGeometry(0.055, 0.055, 1, 12);
   shaftGeo.translate(0, 0.5, 0);
@@ -120,6 +125,96 @@ function wavelengthToHex(wavelengthNm: number): number {
   return (ir << 16) | (ig << 8) | ib;
 }
 
+interface MotionTrailSystem {
+  group: THREE.Group;
+  pushSample: (pos: THREE.Vector3) => void;
+  reset: (pos: THREE.Vector3) => void;
+}
+
+function createMotionTrailSystem(maxPoints: number, baseHex: number): MotionTrailSystem {
+  const group = new THREE.Group();
+  const positions = new Float32Array(maxPoints * 3);
+  const colors = new Float32Array(maxPoints * 3);
+  const baseColor = new THREE.Color(baseHex);
+
+  for (let i = 0; i < maxPoints; i++) {
+    const fade = Math.pow(1 - i / maxPoints, 1.4);
+    colors[i * 3] = baseColor.r * fade * 1.4;
+    colors[i * 3 + 1] = baseColor.g * fade * 1.4;
+    colors[i * 3 + 2] = baseColor.b * fade * 1.4;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const lineMat = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.92,
+    blending: THREE.AdditiveBlending,
+  });
+  const ribbonLine = new THREE.Line(geo, lineMat);
+
+  const pointsMat = new THREE.PointsMaterial({
+    size: 0.14,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const neonDots = new THREE.Points(geo, pointsMat);
+
+  group.add(ribbonLine, neonDots);
+
+  let initialized = false;
+
+  const reset = (pos: THREE.Vector3) => {
+    const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < maxPoints; i++) {
+      posAttr.setXYZ(i, pos.x, pos.y, pos.z);
+    }
+    posAttr.needsUpdate = true;
+    initialized = true;
+  };
+
+  const pushSample = (pos: THREE.Vector3) => {
+    if (!initialized) {
+      reset(pos);
+      return;
+    }
+    const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
+    const headX = posAttr.getX(0);
+    const headY = posAttr.getY(0);
+    const headZ = posAttr.getZ(0);
+    const distSq =
+      (pos.x - headX) * (pos.x - headX) +
+      (pos.y - headY) * (pos.y - headY) +
+      (pos.z - headZ) * (pos.z - headZ);
+
+    // If projectile teleported back to cannon origin, reset trail cleanly
+    if (distSq > 9.0) {
+      reset(pos);
+      return;
+    }
+    if (distSq < 0.0004) return;
+
+    for (let i = maxPoints - 1; i > 0; i--) {
+      posAttr.setXYZ(
+        i,
+        posAttr.getX(i - 1),
+        posAttr.getY(i - 1),
+        posAttr.getZ(i - 1)
+      );
+    }
+    posAttr.setXYZ(0, pos.x, pos.y, pos.z);
+    posAttr.needsUpdate = true;
+  };
+
+  return { group, pushSample, reset };
+}
+
 export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   params,
   metrics,
@@ -144,7 +239,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [hudCollapsed] = useState(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
-  const [isOrbiting, setIsOrbiting] = useState<boolean>(false);
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
 
   const latestRef = useRef({
@@ -206,7 +300,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       preserveDrawingBuffer: true,
     });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(pixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.1;
     renderer.shadowMap.enabled = true;
@@ -217,8 +313,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     const gl = renderer.getContext() as WebGL2RenderingContext;
     const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-    const glRenderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : '';
-    const isSoftwareGl = /swiftshader|llvmpipe|software/i.test(glRenderer);
+    const glRenderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+    const isSoftwareGl = /swiftshader|llvmpipe|softpipe|software/i.test(glRenderer);
 
     const initialThemeColors = getSceneThemeColors(activeComfortTheme, 'Fisika');
     const scene = new THREE.Scene();
@@ -233,14 +329,35 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 250);
     camera.position.set(4.8, 6.2, 12.8);
 
+    // Post-Processing Pipeline: RenderPass + UnrealBloomPass + FXAAShader
+    const composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(width, height),
+      0.45, // strength
+      0.4,  // radius
+      0.85  // threshold
+    );
+    composer.addPass(bloomPass);
+
+    const fxaaPass = new ShaderPass(FXAAShader);
+    fxaaPass.material.uniforms['resolution'].value.set(
+      1 / (width * pixelRatio),
+      1 / (height * pixelRatio)
+    );
+    composer.addPass(fxaaPass);
+
+    // Bounded OrbitControls (Tahap 4)
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
     controls.autoRotateSpeed = 1.4;
     controls.target.set(0, 1.4, 0);
-    controls.maxPolarAngle = Math.PI * 0.49;
-    controls.minDistance = 4;
-    controls.maxDistance = 38;
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.minDistance = 1.2;
+    controls.maxDistance = 18;
 
     let camTransitionActive = false;
     const desiredCamPos = new THREE.Vector3(4.8, 6.2, 12.8);
@@ -267,7 +384,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       camTransitionActive = true;
     };
 
-    // Studio 3-Point Lighting
+    // Studio 3-Point Lighting with Soft Contact Shadows (2048x2048, bias -0.0001)
     const hemiLight = new THREE.HemisphereLight(
       initialThemeColors.ambientSkyHex,
       initialThemeColors.ambientGroundHex,
@@ -277,8 +394,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     const keyLight = new THREE.DirectionalLight(0xfff7ed, 2.2);
     keyLight.position.set(8, 14, 9);
-    keyLight.castShadow = !isSoftwareGl;
-    keyLight.shadow.mapSize.set(1024, 1024);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
     keyLight.shadow.camera.near = 1;
     keyLight.shadow.camera.far = 35;
     const d = 12;
@@ -286,7 +404,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     keyLight.shadow.camera.right = d;
     keyLight.shadow.camera.top = d;
     keyLight.shadow.camera.bottom = -d;
-    keyLight.shadow.bias = -0.0005;
+    keyLight.shadow.bias = -0.0001;
+    keyLight.shadow.normalBias = 0.02;
     scene.add(keyLight);
 
     const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.1);
@@ -321,7 +440,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         controls.autoRotate = orbit;
       },
       captureCanvas: () => {
-        renderer.render(scene, camera);
+        composer.render();
         return renderer.domElement.toDataURL('image/png');
       },
       applyTheme: (colors) => {
@@ -360,6 +479,33 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     });
 
     // =========================================================
+    // FLOATING ACCENT GLOW RING GIZMO FOR HOVER & DRAG (TAHAP 4)
+    // =========================================================
+    const hoverGizmoGroup = new THREE.Group();
+    hoverGizmoGroup.visible = false;
+    const outerGizmoRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.75, 0.032, 16, 48),
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.92,
+      })
+    );
+    outerGizmoRing.rotation.x = Math.PI / 2;
+    const innerGizmoRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.55, 0.68, 36),
+      new THREE.MeshBasicMaterial({
+        color: 0x22d3ee,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.32,
+      })
+    );
+    innerGizmoRing.rotation.x = Math.PI / 2;
+    hoverGizmoGroup.add(outerGizmoRing, innerGizmoRing);
+    scene.add(hoverGizmoGroup);
+
+    // =========================================================
     // 1. NEWTON INCLINE 3D GROUP
     // =========================================================
     const inclineGroup = new THREE.Group();
@@ -370,6 +516,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       darkFrameMat
     );
     basePedestal.position.set(0, 0.12, 0);
+    basePedestal.receiveShadow = true;
     inclineGroup.add(basePedestal);
 
     const pivotGroup = new THREE.Group();
@@ -402,6 +549,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     );
     massBox.position.set(0, 0.39, 0);
     massBox.castShadow = true;
+    massBox.receiveShadow = true;
     massBox.userData = { draggableParam: 'appliedForce', min: -100, max: 200, step: 5, label: 'Gaya Dorong F' };
     blockGroup.add(massBox);
 
@@ -416,10 +564,11 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       brushedSteelMat
     );
     supportPillar.position.set(3.2, 0.5, 0);
+    supportPillar.castShadow = true;
     inclineGroup.add(supportPillar);
 
     // =========================================================
-    // 2. PROJECTILE GRAVITY 3D GROUP
+    // 2. PROJECTILE GRAVITY 3D GROUP + REALTIME MOTION TRAIL
     // =========================================================
     const projectileGroup = new THREE.Group();
     scene.add(projectileGroup);
@@ -429,6 +578,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       darkFrameMat
     );
     launchTower.position.set(-5.2, 0.5, 0);
+    launchTower.castShadow = true;
+    launchTower.receiveShadow = true;
     projectileGroup.add(launchTower);
 
     const cannonPivot = new THREE.Group();
@@ -441,15 +592,27 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     );
     cannonBarrel.rotation.z = -Math.PI / 2;
     cannonBarrel.position.set(0.8, 0, 0);
+    cannonBarrel.castShadow = true;
     cannonBarrel.userData = { draggableParam: 'launchAngle', min: 10, max: 85, step: 1, label: 'Sudut Elevasi θ' };
     cannonPivot.add(cannonBarrel);
 
     const projectileBall = new THREE.Mesh(
       new THREE.SphereGeometry(0.28, 24, 24),
-      new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.8, roughness: 0.2 })
+      new THREE.MeshStandardMaterial({
+        color: 0xef4444,
+        metalness: 0.7,
+        roughness: 0.2,
+        emissive: 0xef4444,
+        emissiveIntensity: 0.55,
+      })
     );
+    projectileBall.castShadow = true;
     projectileBall.userData = { draggableParam: 'initialVelocity', min: 5, max: 50, step: 1, label: 'Kecepatan Awal v₀' };
     projectileGroup.add(projectileBall);
+
+    // Real-time Neon Motion Trail for Projectile
+    const projectileMotionTrail = createMotionTrailSystem(54, 0x38bdf8);
+    projectileGroup.add(projectileMotionTrail.group);
 
     const trajGeo = new THREE.BufferGeometry();
     const trajPositions = new Float32Array(61 * 3);
@@ -479,6 +642,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       darkFrameMat
     );
     springWall.position.set(-5.2, 1.25, 0);
+    springWall.castShadow = true;
     springGroup.add(springWall);
 
     const COIL_POINTS = 96;
@@ -493,6 +657,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     springRingGeo.rotateY(Math.PI / 2);
     for (let i = 0; i < 12; i++) {
       const rMesh = new THREE.Mesh(springRingGeo, brushedSteelMat);
+      rMesh.castShadow = true;
       springRings.push(rMesh);
       springGroup.add(rMesh);
     }
@@ -501,11 +666,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       new THREE.BoxGeometry(1.3, 1.3, 1.3),
       primaryMassMat
     );
+    springMassBlock.castShadow = true;
     springMassBlock.userData = { draggableParam: 'springDisplacement', min: -2.0, max: 2.0, step: 0.1, label: 'Simpangan x' };
     springGroup.add(springMassBlock);
 
     // =========================================================
-    // 4. PENDULUM HARMONIC 3D GROUP
+    // 4. PENDULUM HARMONIC 3D GROUP + REALTIME MOTION TRAIL
     // =========================================================
     const pendulumGroup = new THREE.Group();
     scene.add(pendulumGroup);
@@ -515,6 +681,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       darkFrameMat
     );
     pendStandBase.position.set(0, 0.1, 0);
+    pendStandBase.receiveShadow = true;
     pendulumGroup.add(pendStandBase);
 
     const pendVerticalPillar = new THREE.Mesh(
@@ -522,6 +689,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       brushedSteelMat
     );
     pendVerticalPillar.position.set(-0.8, 2.2, 0);
+    pendVerticalPillar.castShadow = true;
     pendulumGroup.add(pendVerticalPillar);
 
     const pendHorizontalArm = new THREE.Mesh(
@@ -553,6 +721,10 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     pendBob.userData = { draggableParam: 'pendulumAngle', min: 5, max: 75, step: 1, label: 'Sudut Awal θ₀' };
     pendPivotGroup.add(pendBob);
 
+    // Real-time Neon Motion Trail for Pendulum Bob
+    const pendulumMotionTrail = createMotionTrailSystem(48, 0xf59e0b);
+    pendulumGroup.add(pendulumMotionTrail.group);
+
     // Semicircular protractor degree scale
     const protractorGeo = new THREE.RingGeometry(0.5, 0.7, 32, 1, 0, Math.PI);
     protractorGeo.rotateZ(Math.PI);
@@ -581,6 +753,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       darkFrameMat
     );
     stokesStand.position.set(0, 0.125, 0);
+    stokesStand.receiveShadow = true;
     stokesGroup.add(stokesStand);
 
     const stokesPillar = new THREE.Mesh(
@@ -588,16 +761,19 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       brushedSteelMat
     );
     stokesPillar.position.set(-1.4, 3.1, 0);
+    stokesPillar.castShadow = true;
     stokesGroup.add(stokesPillar);
 
     // Glass cylinder
     const glassCylMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.32,
+      opacity: 1,
       roughness: 0.05,
-      metalness: 0.1,
-      transmission: 0.9,
+      transmission: 0.96,
+      thickness: 0.8,
+      ior: 1.52,
+      reflectivity: 0.5,
     });
     const stokesGlassCyl = new THREE.Mesh(
       new THREE.CylinderGeometry(0.85, 0.85, 5.2, 32, 1, true),
@@ -661,6 +837,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 })
     );
     circuitTable.position.set(0, 0.1, 0);
+    circuitTable.receiveShadow = true;
     wheatstoneGroup.add(circuitTable);
 
     // DC Power Supply
@@ -669,6 +846,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       darkFrameMat
     );
     powerSupplyBox.position.set(-3.2, 0.8, -1.8);
+    powerSupplyBox.castShadow = true;
     powerSupplyBox.userData = { draggableParam: 'circuitVoltage', min: 1, max: 24, step: 1, label: 'Tegangan Sumber V' };
     wheatstoneGroup.add(powerSupplyBox);
 
@@ -689,6 +867,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     );
     rxMesh.rotation.z = Math.PI / 4;
     rxMesh.position.set(1.4, 0.35, -0.8);
+    rxMesh.castShadow = true;
     rxMesh.userData = { draggableParam: 'resistorRx', min: 10, max: 1000, step: 10, label: 'Resistor Rx (Ohm)' };
     wheatstoneGroup.add(r1Mesh, r2Mesh, r3Mesh, rxMesh);
 
@@ -698,6 +877,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       brushedSteelMat
     );
     galvoBox.position.set(0, 0.3, 0);
+    galvoBox.castShadow = true;
     wheatstoneGroup.add(galvoBox);
 
     const galvoNeedle = new THREE.Mesh(
@@ -718,6 +898,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       darkFrameMat
     );
     optBenchRail.position.set(0, 0.09, 0);
+    optBenchRail.receiveShadow = true;
     youngSlitGroup.add(optBenchRail);
 
     // Laser Emitter Housing at left
@@ -726,11 +907,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       brushedSteelMat
     );
     laserEmitter.position.set(-4.8, 1.2, 0);
+    laserEmitter.castShadow = true;
     laserEmitter.userData = { draggableParam: 'lightWavelength', min: 400, max: 700, step: 10, label: 'Panjang Gelombang λ' };
     youngSlitGroup.add(laserEmitter);
 
     const laserBeamLine = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.03, 0.03, 3.2, 12),
+      new THREE.CylinderGeometry(0.035, 0.035, 3.2, 12),
       new THREE.MeshBasicMaterial({ color: 0x10b981 })
     );
     laserBeamLine.rotation.z = Math.PI / 2;
@@ -746,6 +928,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       new THREE.BoxGeometry(0.08, 1.8, 1.4),
       darkFrameMat
     );
+    slitPlate.castShadow = true;
     slitPlate.userData = { draggableParam: 'slitDistance', min: 0.05, max: 0.8, step: 0.02, label: 'Jarak Celah d' };
     slitPlateGroup.add(slitPlate);
 
@@ -759,6 +942,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     fringeCanvas.width = 512;
     fringeCanvas.height = 256;
     const fringeTexture = new THREE.CanvasTexture(fringeCanvas);
+    fringeTexture.colorSpace = THREE.SRGBColorSpace;
 
     const projScreen = new THREE.Mesh(
       new THREE.PlaneGeometry(0.1, 2.6),
@@ -779,6 +963,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       darkFrameMat
     );
     peBase.position.set(0, 0.1, 0);
+    peBase.receiveShadow = true;
     photoelectricGroup.add(peBase);
 
     // Glass Phototube bulb
@@ -820,6 +1005,78 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       peParticles.push(pMesh);
       photoelectricGroup.add(pMesh);
     }
+
+    // =========================================================
+    // 8b. 1D COLLISION MOMENTUM 3D GROUP
+    // =========================================================
+    const collisionGroup = new THREE.Group();
+    scene.add(collisionGroup);
+
+    const airTrackRail = new THREE.Mesh(
+      new THREE.BoxGeometry(11.4, 0.24, 1.8),
+      darkFrameMat
+    );
+    airTrackRail.position.set(0, 0.12, 0);
+    airTrackRail.receiveShadow = true;
+    collisionGroup.add(airTrackRail);
+
+    const cart1Mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.55, 28, 28),
+      primaryMassMat
+    );
+    cart1Mesh.position.set(-3.2, 0.79, 0);
+    cart1Mesh.castShadow = true;
+    cart1Mesh.userData = { draggableParam: 'initialVelocity', min: 1, max: 30, step: 1, label: 'Kecepatan Awal v₁' };
+    collisionGroup.add(cart1Mesh);
+
+    const cart2Mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.55, 28, 28),
+      brassMat
+    );
+    cart2Mesh.position.set(2.4, 0.79, 0);
+    cart2Mesh.castShadow = true;
+    cart2Mesh.userData = { draggableParam: 'collisionMass2', min: 0.5, max: 25, step: 0.5, label: 'Massa Benda m₂' };
+    collisionGroup.add(cart2Mesh);
+
+    const collVec1 = createArrowGroup(0x38bdf8);
+    const collVec2 = createArrowGroup(0xf59e0b);
+    collisionGroup.add(collVec1, collVec2);
+
+    // =========================================================
+    // 8c. UNIVERSAL GRAVITY & ORBITAL 3D GROUP
+    // =========================================================
+    const orbitalGroup = new THREE.Group();
+    scene.add(orbitalGroup);
+
+    const centralPlanetBody = new THREE.Mesh(
+      new THREE.SphereGeometry(1.15, 32, 32),
+      primaryMassMat
+    );
+    centralPlanetBody.position.set(0, 2.2, 0);
+    centralPlanetBody.castShadow = true;
+    centralPlanetBody.userData = { draggableParam: 'mass', min: 1, max: 50, step: 1, label: 'Massa Primer M₁' };
+    orbitalGroup.add(centralPlanetBody);
+
+    const satelliteBody = new THREE.Mesh(
+      new THREE.SphereGeometry(0.42, 24, 24),
+      brassMat
+    );
+    satelliteBody.position.set(3.8, 2.2, 0);
+    satelliteBody.castShadow = true;
+    satelliteBody.userData = { draggableParam: 'separationDistance', min: 2, max: 30, step: 0.5, label: 'Jarak Pisah r' };
+    orbitalGroup.add(satelliteBody);
+
+    const orbitRingMesh = new THREE.Mesh(
+      new THREE.RingGeometry(3.75, 3.83, 64),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.45 })
+    );
+    orbitRingMesh.rotation.x = -Math.PI / 2;
+    orbitRingMesh.position.set(0, 2.2, 0);
+    orbitalGroup.add(orbitRingMesh);
+
+    const gravVec1 = createArrowGroup(0x10b981);
+    const gravVec2 = createArrowGroup(0xf43f5e);
+    orbitalGroup.add(gravVec1, gravVec2);
 
     // =========================================================
     // 9. SAFETY HAZARD 3D SMOKE & ALARM LIGHT GROUP (FITUR 5)
@@ -864,12 +1121,23 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const dragMouse = new THREE.Vector2();
     let hoveredMesh: THREE.Mesh | null = null;
     const origEmissive = new THREE.Color();
+    const gizmoWorldPos = new THREE.Vector3();
+    const pendBobWorldPos = new THREE.Vector3();
 
     const getInteractiveMeshes = (): THREE.Object3D[] => {
       const list: THREE.Object3D[] = [];
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh && obj.visible && obj.userData?.draggableParam) {
-          list.push(obj);
+          let parentVisible = true;
+          let cur: THREE.Object3D | null = obj.parent;
+          while (cur) {
+            if (!cur.visible) {
+              parentVisible = false;
+              break;
+            }
+            cur = cur.parent;
+          }
+          if (parentVisible) list.push(obj);
         }
       });
       return list;
@@ -912,7 +1180,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         activeDragMesh = null;
         dragParamKey = '';
         controls.enabled = true;
-        renderer.domElement.style.cursor = 'grab';
+        renderer.domElement.style.cursor = hoveredMesh ? 'grab' : 'default';
         setTimeout(() => setDragToast(null), 1200);
       }
     };
@@ -920,6 +1188,23 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     // Main Tick Loop
     let disposed = false;
     let rafId = 0;
+    let timeoutId = 0;
+
+    const afterDraw = (cb: () => void) => {
+      const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+      gl.flush();
+      const poll = () => {
+        if (disposed) return;
+        const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
+        if (state === gl.UNSIGNALED) {
+          timeoutId = window.setTimeout(poll, 5);
+        } else {
+          if (sync) gl.deleteSync(sync);
+          timeoutId = window.setTimeout(cb, 80);
+        }
+      };
+      timeoutId = window.setTimeout(poll, 5);
+    };
 
     const tick = () => {
       if (disposed) return;
@@ -927,22 +1212,21 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       const {
         params: p,
         metrics: m,
-        instant: baseInst,
         simTime: baseTime,
         showVectorOverlay: showVec,
       } = latestRef.current;
 
       const nowSec = performance.now() / 1000;
       const t = simTimeRef && typeof simTimeRef.current === 'number' ? simTimeRef.current : baseTime;
-      const inst = simTimeRef && typeof simTimeRef.current === 'number'
-        ? evaluateKinematicsAtTime(p, t)
-        : baseInst;
 
       const isKnownSpecialMode =
         p.mode === 'projectile-gravity' ||
         (p.mode as string) === 'projectile-motion' ||
         p.mode === 'spring-hooke' ||
         p.mode === 'pendulum-harmonic' ||
+        p.mode === 'collision-momentum' ||
+        p.mode === 'orbital-gravity' ||
+        (p.mode as string) === 'gravity-orbital' ||
         p.mode === 'stokes-viscosity' ||
         p.mode === 'ohm-wheatstone' ||
         p.mode === 'optics-young-slit' ||
@@ -952,12 +1236,14 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       projectileGroup.visible = p.mode === 'projectile-gravity' || (p.mode as string) === 'projectile-motion';
       springGroup.visible = p.mode === 'spring-hooke';
       pendulumGroup.visible = p.mode === 'pendulum-harmonic';
+      collisionGroup.visible = p.mode === 'collision-momentum';
+      orbitalGroup.visible = p.mode === 'orbital-gravity' || (p.mode as string) === 'gravity-orbital';
       stokesGroup.visible = p.mode === 'stokes-viscosity';
       wheatstoneGroup.visible = p.mode === 'ohm-wheatstone';
       youngSlitGroup.visible = p.mode === 'optics-young-slit';
       photoelectricGroup.visible = p.mode === 'photoelectric-planck';
 
-      // Safety Hazard 3D Smoke & Pulsing Red Light (Fitur 5)
+      // Safety Hazard 3D Smoke & Pulsing Red Light
       const isHazardous =
         (p.mode === 'pendulum-harmonic' && Math.abs(p.pendulumAngle ?? 0) > 80) ||
         (p.mass >= 24 && Math.abs(p.appliedForce) >= 180) ||
@@ -991,7 +1277,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         const rampPos = 1.6 + Math.max(-1.0, Math.min(26, Math.abs(m.acceleration) > 0.05 ? wrappedDisp : rawDisp)) * 0.22;
         blockGroup.position.set(rampPos, 0, 0);
 
-        // Update 3D Force Vectors on Block
         if (showVec) {
           const origin = new THREE.Vector3(0, 0.45, 0);
           orientAndScaleArrow(
@@ -1026,14 +1311,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         }
       }
 
-      // 2. Projectile update
+      // 2. Projectile update + Real-time Motion Trail
       else if (p.mode === 'projectile-gravity' || (p.mode as string) === 'projectile-motion') {
         const maxRange = Math.max(35, m.projectileRange * 1.1);
         const scaleX = 10.4 / maxRange;
         const scaleY = 4.8 / Math.max(18, m.maxProjectileHeight * 1.15);
         cannonPivot.rotation.z = (p.launchAngle * Math.PI) / 180;
 
-        // Update parabolic trajectory curve points dynamically
         const flightT = Math.max(0.5, m.timeOfFlight);
         const posAttr = trajGeo.getAttribute('position') as THREE.BufferAttribute;
         for (let i = 0; i <= 60; i++) {
@@ -1051,6 +1335,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         const curX = -5.2 + loopInst.positionX * scaleX;
         const curY = 0.25 + loopInst.positionY * scaleY;
         projectileBall.position.set(curX, curY, 0);
+        projectileMotionTrail.pushSample(projectileBall.position);
         targetRing.position.set(-5.2 + m.projectileRange * scaleX, 0.03, 0);
       }
 
@@ -1068,7 +1353,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         });
       }
 
-      // 4. Pendulum update
+      // 4. Pendulum update + Real-time Motion Trail
       else if (p.mode === 'pendulum-harmonic') {
         const L = Math.max(0.3, p.pendulumLength ?? 1.2);
         const omegaP = Math.sqrt(Math.max(1.0, p.gravity) / L);
@@ -1078,6 +1363,79 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         pendRod.scale.set(1, L * 1.5, 1);
         pendRod.position.set(0, -L * 0.75, 0);
         pendBob.position.set(0, -L * 1.5, 0);
+        pendBob.getWorldPosition(pendBobWorldPos);
+        pendulumMotionTrail.pushSample(pendBobWorldPos);
+      }
+
+      // 4b. 1D Collision Momentum update
+      else if (p.mode === 'collision-momentum') {
+        const cycle = (t % 3.4);
+        const r1 = 0.42 + Math.min(0.35, p.mass * 0.015);
+        const r2 = 0.42 + Math.min(0.35, (p.collisionMass2 || 2) * 0.015);
+        cart1Mesh.scale.setScalar(r1 / 0.55);
+        cart2Mesh.scale.setScalar(r2 / 0.55);
+
+        const v1Init = p.initialVelocity !== 0 ? p.initialVelocity : 8;
+        const v2Init = p.velocity2Initial ?? -4;
+        const impactT = 1.4;
+        let x1 = 0;
+        let x2 = 0;
+        let curV1 = v1Init;
+        let curV2 = v2Init;
+
+        if (cycle < impactT) {
+          const dtToImpact = impactT - cycle;
+          x1 = -r1 - Math.max(0.5, Math.abs(v1Init) * 0.22) * dtToImpact;
+          x2 = r2 + Math.max(0.5, Math.abs(v2Init) * 0.22) * dtToImpact;
+        } else {
+          const postT = cycle - impactT;
+          curV1 = m.v1Final;
+          curV2 = m.v2Final;
+          x1 = Math.max(-5.0, Math.min(5.0, -r1 + curV1 * 0.22 * postT));
+          x2 = Math.max(-5.0, Math.min(5.0, r2 + curV2 * 0.22 * postT));
+        }
+
+        cart1Mesh.position.set(x1, 0.24 + r1, 0);
+        cart2Mesh.position.set(x2, 0.24 + r2, 0);
+
+        if (showVec) {
+          orientAndScaleArrow(
+            collVec1,
+            new THREE.Vector3(x1, 0.24 + r1 * 2.1, 0),
+            new THREE.Vector3(curV1 >= 0 ? 1 : -1, 0, 0),
+            Math.min(2.2, Math.abs(curV1) * 0.14)
+          );
+          orientAndScaleArrow(
+            collVec2,
+            new THREE.Vector3(x2, 0.24 + r2 * 2.1, 0),
+            new THREE.Vector3(curV2 >= 0 ? 1 : -1, 0, 0),
+            Math.min(2.2, Math.abs(curV2) * 0.14)
+          );
+        } else {
+          collVec1.visible = false;
+          collVec2.visible = false;
+        }
+      }
+
+      // 4c. Universal Gravity & Orbital update
+      else if (p.mode === 'orbital-gravity' || (p.mode as string) === 'gravity-orbital') {
+        const orbitRadius = Math.max(2.0, Math.min(5.2, (p.separationDistance || 5) * 0.35));
+        const angle = nowSec * 1.15;
+        const sx = Math.cos(angle) * orbitRadius;
+        const sz = Math.sin(angle) * orbitRadius;
+        satelliteBody.position.set(sx, 2.2, sz);
+        orbitRingMesh.scale.setScalar(orbitRadius / 3.79);
+
+        if (showVec) {
+          const dirToSat = new THREE.Vector3(sx, 0, sz).normalize();
+          const dirToCenter = dirToSat.clone().negate();
+          const arrowLen = Math.max(0.6, Math.min(2.0, Math.log10(Math.max(10, m.universalGravityForce * 1e4)) * 0.45));
+          orientAndScaleArrow(gravVec1, new THREE.Vector3(0, 2.2, 0), dirToSat, arrowLen);
+          orientAndScaleArrow(gravVec2, new THREE.Vector3(sx, 2.2, sz), dirToCenter, arrowLen);
+        } else {
+          gravVec1.visible = false;
+          gravVec2.visible = false;
+        }
       }
 
       // 5. Stokes update
@@ -1132,7 +1490,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
             return;
           }
           particle.visible = true;
-          const pFrac = ((nowSec * 0.85 + idx / PE_PARTICLES_COUNT) % 1.0);
+          const pFrac = (nowSec * 0.85 + idx / PE_PARTICLES_COUNT) % 1.0;
           const stopV = p.stoppingPotential ?? 1.5;
           const maxKe = m.photoelectricMaxKe ?? 1.2;
           if (stopV > maxKe) {
@@ -1143,6 +1501,22 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
             particle.position.set(-1.1 + pFrac * 2.2, 1.6 + Math.sin(idx) * 0.3, Math.cos(idx) * 0.3);
           }
         });
+      }
+
+      // Update Floating Accent Glow Ring Gizmo on Hovered / Active Drag Object
+      const gizmoTarget = activeDragMesh || hoveredMesh;
+      if (gizmoTarget) {
+        gizmoTarget.getWorldPosition(gizmoWorldPos);
+        hoverGizmoGroup.visible = true;
+        hoverGizmoGroup.position.copy(gizmoWorldPos);
+        hoverGizmoGroup.rotation.y = nowSec * 2.2;
+        const pulseScale = (isDragging ? 1.18 : 1.0) + Math.sin(nowSec * 6.0) * 0.08;
+        hoverGizmoGroup.scale.setScalar(pulseScale);
+        (outerGizmoRing.material as THREE.MeshBasicMaterial).color.setHex(
+          isDragging ? 0x10b981 : 0x38bdf8
+        );
+      } else {
+        hoverGizmoGroup.visible = false;
       }
 
       // Update cursors
@@ -1164,8 +1538,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       }
 
       controls.update();
-      renderer.render(scene, camera);
-      rafId = requestAnimationFrame(tick);
+      composer.render();
+
+      if (isSoftwareGl) {
+        afterDraw(tick);
+      } else {
+        rafId = requestAnimationFrame(tick);
+      }
     };
 
     rafId = requestAnimationFrame(tick);
@@ -1194,7 +1573,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         return;
       }
 
-      // Hover check for pointer cursor & emissive glow
+      // Hover check for pointer cursor, emissive glow & floating accent gizmo ring
       dragMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       dragRaycaster.setFromCamera(dragMouse, camera);
@@ -1241,13 +1620,23 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     window.addEventListener('pointerup', handlePointerUp);
     renderer.domElement.addEventListener('pointermove', handlePointerMove);
 
+    let lastW = width;
+    let lastH = height;
     const handleResize = () => {
-      if (!container) return;
+      if (!container || disposed) return;
       const w = container.clientWidth || 960;
       const h = container.clientHeight || 500;
+      if (w === lastW && h === lastH) return;
+      lastW = w;
+      lastH = h;
+      const pr = renderer.getPixelRatio();
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      composer.setSize(w, h);
+      bloomPass.resolution.set(w, h);
+      fxaaPass.material.uniforms['resolution'].value.set(1 / (w * pr), 1 / (h * pr));
+      composer.render();
     };
     const resizeObserver = new ResizeObserver(() => handleResize());
     resizeObserver.observe(container);
@@ -1255,6 +1644,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     return () => {
       disposed = true;
       cancelAnimationFrame(rafId);
+      clearTimeout(timeoutId);
       resizeObserver.disconnect();
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', handlePointerUp);
@@ -1262,9 +1652,16 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       cursorManager.dispose();
       controls.dispose();
 
+      // Dispose Post-Processing & Textures
+      renderPass.dispose?.();
+      bloomPass.dispose();
+      fxaaPass.dispose?.();
+      composer.dispose();
+      fringeTexture.dispose();
+
       // Deep Three.js GPU resource disposal
       scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.Points || obj instanceof THREE.Line) {
           obj.geometry?.dispose();
           if (Array.isArray(obj.material)) {
             obj.material.forEach((m) => m?.dispose());
@@ -1320,14 +1717,14 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
       {/* Interactive Raycaster Drag Toast */}
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full backdrop-blur-xl bg-sky-950/90 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 animate-pulse text-xs font-mono text-sky-200">
+        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
           <span className="h-2 w-2 rounded-full bg-sky-400" />
           <span>Menyetel 3D: {dragToast.label} = <b className="text-white">{dragToast.value}</b></span>
         </div>
       )}
 
       {/* Top Camera Controls */}
-      <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full backdrop-blur-xl bg-slate-900/75 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
+      <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1.5 rounded-full bg-slate-900/90 border border-white/15 px-3 py-1.5 shadow-2xl z-20">
         <span className="text-[10px] font-mono uppercase tracking-wider text-sky-400 font-semibold mr-1">
           Kamera 3D:
         </span>
@@ -1362,8 +1759,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         )}
       </div>
 
-      {/* Top-Right Fullscreen Toggle Button (Mobile & Desktop) */}
-      <div className="pointer-events-auto absolute top-4 right-4 z-30">
+      {/* Bottom-Right Fullscreen Toggle Button (Mobile & Desktop) */}
+      <div className="pointer-events-auto absolute bottom-4 right-4 z-30">
         <button
           type="button"
           onClick={handleToggleFullscreen}

@@ -13,7 +13,10 @@ export type SimulationMode =
   | 'photoelectric-planck'
   | 'enzyme-kinetics'
   | 'predator-prey-dynamics'
-  | 'cell-osmosis-tonicity';
+  | 'cell-osmosis-tonicity'
+  | 'anatomy-cardiovascular-heart'
+  | 'anatomy-respiratory-lungs'
+  | 'anatomy-neural-synapse';
 
 export type WorkerInboundMessage =
   | { type: 'INIT'; mode: SimulationMode; params: Record<string, number> }
@@ -30,7 +33,9 @@ export type SimulationEventType =
   | 'orbit-complete'
   | 'substrate-depleted'
   | 'cell-lysis'
-  | 'cell-plasmolysis';
+  | 'cell-plasmolysis'
+  | 'action-potential-fired'
+  | 'hypoxia-alert';
 
 export type WorkerOutboundMessage =
   | {
