@@ -372,17 +372,185 @@ async function startServer() {
     });
   });
 
-  app.get('/api/rooms', (_req, res) => {
-    const roomList = Array.from(activeLabRooms.values()).map((r) => ({
-      roomId: r.roomId,
-      domain: r.domain,
-      moduleId: r.moduleId,
-      teacherName: r.teacherName,
-      isFrozenByTeacher: r.isFrozenByTeacher,
-      clientCount: Object.keys(r.clients).length,
-      createdAt: r.createdAt,
-    }));
-    res.json({ rooms: roomList });
+  // Skema & Penyimpanan Persisten Laporan Praktikum (Tahap 1: data/submissions.json)
+  const DATA_DIR = path.join(ROOT_DIR, 'data');
+  const SUBMISSIONS_FILE = path.join(DATA_DIR, 'submissions.json');
+
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+
+  interface LabSubmissionRecord {
+    id: string;
+    studentName: string;
+    studentId?: string;
+    roomId?: string;
+    domain: string;
+    moduleId: string;
+    submittedAt: string;
+    hypothesisText: string;
+    observationData: Array<Record<string, number | string>>;
+    regressionMetrics: { rSquared: number; slope: number; equation: string };
+    quizAnswers: Array<{ questionId: string; selectedAnswer: number | string; isCorrect: boolean }>;
+    quizScore: number;
+    conclusionText: string;
+    teacherGrade?: { score: number; feedback: string; gradedAt: string };
+  }
+
+  const loadSubmissions = (): LabSubmissionRecord[] => {
+    try {
+      if (fs.existsSync(SUBMISSIONS_FILE)) {
+        const raw = fs.readFileSync(SUBMISSIONS_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to read submissions.json, using fallback:', e);
+    }
+    // Seed initial demo submission so teacher gradebook has realistic pedagogical data immediately
+    const initialSeed: LabSubmissionRecord[] = [
+      {
+        id: 'SUB-2026-001',
+        studentName: 'Alya Pratama',
+        studentId: 'stu-1',
+        roomId: 'LAB-ALPHA',
+        domain: 'Fisika',
+        moduleId: 'newton-incline',
+        submittedAt: new Date(Date.now() - 3600000).toISOString(),
+        hypothesisText: 'Percepatan benda berbanding lurus dengan resultan gaya dan berbanding terbalik dengan massa total.',
+        observationData: [
+          { 'No / ID': '1', 'F (N)': 15, 'a (m/s²)': 2.45, 'Status': 'Valid' },
+          { 'No / ID': '2', 'F (N)': 30, 'a (m/s²)': 4.90, 'Status': 'Valid' },
+          { 'No / ID': '3', 'F (N)': 45, 'a (m/s²)': 7.30, 'Status': 'Valid' },
+        ],
+        regressionMetrics: {
+          rSquared: 0.998,
+          slope: 0.162,
+          equation: 'y = 0.162x + 0.015',
+        },
+        quizAnswers: [
+          { questionId: 'q-newton-1', selectedAnswer: '9.0', isCorrect: true },
+          { questionId: 'q-collision-2', selectedAnswer: '4.0', isCorrect: true },
+        ],
+        quizScore: 95,
+        conclusionText: 'Data hasil percobaan membuktikan keabsahan Hukum II Newton secara empiris dengan korelasi R² = 0.998.',
+        teacherGrade: {
+          score: 96,
+          feedback: 'Analisis regresi luar biasa teliti, penarikan kesimpulan ilmiah sangat komprehensif!',
+          gradedAt: new Date(Date.now() - 1800000).toISOString(),
+        },
+      },
+    ];
+    try {
+      fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(initialSeed, null, 2), 'utf-8');
+    } catch {
+      // ignore
+    }
+    return initialSeed;
+  };
+
+  const submissionsList: LabSubmissionRecord[] = loadSubmissions();
+
+  const persistSubmissions = () => {
+    try {
+      fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(submissionsList, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Failed to write submissions.json:', err);
+    }
+  };
+
+  // REST API Endpoints: Submissions Pipeline (Tahap 1)
+  app.post('/api/submissions', (req, res) => {
+    try {
+      const payload = req.body;
+      if (!payload || !payload.studentName || !payload.moduleId) {
+        res.status(400).json({ error: 'Data laporan praktikum tidak lengkap (studentName & moduleId required)' });
+        return;
+      }
+
+      const id = payload.id || `SUB-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+      const newSubmission: LabSubmissionRecord = {
+        id,
+        studentName: payload.studentName,
+        studentId: payload.studentId,
+        roomId: payload.roomId || 'LAB-ALPHA',
+        domain: payload.domain || 'Fisika',
+        moduleId: payload.moduleId,
+        submittedAt: payload.submittedAt || new Date().toISOString(),
+        hypothesisText: payload.hypothesisText || '',
+        observationData: Array.isArray(payload.observationData) ? payload.observationData : [],
+        regressionMetrics: payload.regressionMetrics || { rSquared: 0.98, slope: 1.0, equation: 'y = mx + c' },
+        quizAnswers: Array.isArray(payload.quizAnswers) ? payload.quizAnswers : [],
+        quizScore: Number(payload.quizScore ?? 100),
+        conclusionText: payload.conclusionText || '',
+        teacherGrade: payload.teacherGrade,
+      };
+
+      submissionsList.unshift(newSubmission);
+      persistSubmissions();
+
+      // Buat notifikasi guru di sistem
+      const notif: ServerNotification = {
+        id: `notif-sub-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        severity: 'nominal',
+        domain: 'Pengajar',
+        title: `Laporan Dikumpulkan: ${newSubmission.studentName}`,
+        message: `${newSubmission.studentName} mengumpulkan laporan [${newSubmission.moduleId}] (Tiket: ${newSubmission.id}).`,
+      };
+      notifications.unshift(notif);
+      persistServerState();
+      broadcastAll({ type: 'submission:created', payload: { submission: newSubmission, notification: notif } });
+
+      res.status(201).json({
+        success: true,
+        ticketCode: newSubmission.id,
+        submission: newSubmission,
+      });
+    } catch (err) {
+      console.error('Error saving submission:', err);
+      res.status(500).json({ error: 'Gagal menyimpan laporan praktikum' });
+    }
+  });
+
+  app.get('/api/submissions', (_req, res) => {
+    res.json({ submissions: submissionsList });
+  });
+
+  app.patch('/api/submissions/:id/grade', (req, res) => {
+    try {
+      const { id } = req.params;
+      const { score, feedback } = req.body || {};
+      const numScore = Number(score);
+
+      if (Number.isNaN(numScore) || numScore < 0 || numScore > 100) {
+        res.status(400).json({ error: 'Nilai harus berupa angka antara 0 dan 100' });
+        return;
+      }
+
+      const item = submissionsList.find((s) => s.id === id);
+      if (!item) {
+        res.status(404).json({ error: 'Laporan tidak ditemukan' });
+        return;
+      }
+
+      item.teacherGrade = {
+        score: numScore,
+        feedback: String(feedback || '').trim(),
+        gradedAt: new Date().toISOString(),
+      };
+      persistSubmissions();
+
+      broadcastAll({
+        type: 'submission:graded',
+        payload: { submission: item },
+      });
+
+      res.json({ success: true, submission: item });
+    } catch (err) {
+      console.error('Error grading submission:', err);
+      res.status(500).json({ error: 'Gagal memperbarui nilai laporan' });
+    }
   });
 
   // Structured Socratic AI endpoint for Dr. LabMu

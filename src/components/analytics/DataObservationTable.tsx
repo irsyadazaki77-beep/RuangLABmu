@@ -8,18 +8,38 @@ import {
 } from 'lucide-react';
 import { ExperimentRecord } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
+import { exportTableToCSV, CSVColumnDef } from '../../utils/csvExporter';
 
 export interface DataObservationTableProps {
   records: ExperimentRecord[];
   onDeleteRecord?: (id: string) => void;
   onExportCSV?: () => void;
+  moduleTitle?: string;
 }
 
 export const DataObservationTable: React.FC<DataObservationTableProps> = ({
   records,
   onDeleteRecord,
   onExportCSV,
+  moduleTitle,
 }) => {
+  const handleDownloadCSV = () => {
+    labSound.playClick();
+    if (onExportCSV) {
+      onExportCSV();
+      return;
+    }
+    const columns: CSVColumnDef[] = [
+      { key: 'id', label: 'ID Percobaan' },
+      { key: 'timestamp', label: 'Waktu Pengambilan' },
+      { key: 'experimentTitle', label: 'Judul Modul' },
+      { key: 'numericX', label: 'Variabel Bebas (X)' },
+      { key: 'numericY1', label: 'Variabel Terikat (Y1)' },
+      { key: 'parametersSummary', label: 'Parameter' },
+      { key: 'notes', label: 'Catatan Observasi' },
+    ];
+    exportTableToCSV(moduleTitle || records[0]?.experimentTitle || 'Observasi-Lab', columns, records as unknown as Array<Record<string, any>>);
+  };
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-sm space-y-4">
       {/* Header Bar */}
@@ -38,17 +58,14 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
           </div>
         </div>
 
-        {onExportCSV && records.length > 0 && (
+        {records.length > 0 && (
           <button
             type="button"
-            onClick={() => {
-              labSound.playClick();
-              onExportCSV();
-            }}
+            onClick={handleDownloadCSV}
             className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Ekspor CSV</span>
+            <span>Unduh CSV (.csv)</span>
           </button>
         )}
       </div>

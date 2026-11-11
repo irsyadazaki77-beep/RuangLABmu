@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Atom,
   CheckCircle2,
@@ -14,6 +14,7 @@ import { useLabStore, WorkflowStep } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCollabStore } from '../../stores/useCollabStore';
 import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
+import { TeacherGradebookHub } from '../teacher/TeacherGradebookHub';
 
 export interface TopNavigationHeaderProps {
   experimentModule: ExperimentModule;
@@ -41,6 +42,8 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     userRole,
     setUserRole,
   } = useLabStore();
+
+  const [isGradebookOpen, setIsGradebookOpen] = useState(false);
 
   const {
     drawerOpen,
@@ -222,7 +225,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           </span>
         </div>
 
-        {/* 2. Role Switcher (Siswa / Guru) */}
+        {/* 2. Role Switcher (Siswa / Guru) & Gradebook Trigger */}
         <div
           role="group"
           aria-label="Pilih Peran Pengguna"
@@ -258,6 +261,22 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             <span>Guru</span>
           </button>
         </div>
+
+        {/* Gradebook Button (Hanya tampil / aktif saat role Guru aktif) */}
+        {userRole === 'pengajar' && (
+          <button
+            type="button"
+            onClick={() => {
+              labSound.playClick();
+              setIsGradebookOpen(true);
+            }}
+            title="Buka Buku Nilai & Rekap Laporan Guru"
+            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Buku Nilai</span>
+          </button>
+        )}
 
         {/* Command Palette Trigger Button */}
         <button
@@ -341,6 +360,9 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           )}
         </button>
       </div>
+
+      {/* Teacher Gradebook Hub Modal */}
+      <TeacherGradebookHub isOpen={isGradebookOpen} onClose={() => setIsGradebookOpen(false)} />
     </header>
   );
 };

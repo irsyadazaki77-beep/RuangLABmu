@@ -6,6 +6,7 @@ import { TopNavigationHeader } from './components/layout/TopNavigationHeader';
 import { MainLabWorkspace } from './components/layout/MainLabWorkspace';
 import { GlobalModalPortal } from './components/layout/GlobalModalPortal';
 import { CommandPaletteModal } from './components/ui/CommandPaletteModal';
+import { PWAInstallBanner } from './components/ui/PWAInstallBanner';
 import { useLabSession } from './hooks/useLabSession';
 
 /**
@@ -171,6 +172,9 @@ export default function App() {
 
       {/* 4. Global Spotlight Command Palette (Ctrl+K / Cmd+K) */}
       <CommandPaletteModal onSelectModule={handleSelectCatalogModule} />
+
+      {/* 5. In-App PWA Offline Install Banner */}
+      <PWAInstallBanner />
     </div>
   );
 }

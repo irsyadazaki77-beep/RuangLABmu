@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#0369a1" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="liquid512" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <linearGradient id="glow512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg512)" />
+  <!-- Atomic Orbitals -->
+  <ellipse cx="256" cy="256" rx="180" ry="68" fill="none" stroke="url(#glow512)" stroke-width="8" opacity="0.45" transform="rotate(35 256 256)" />
+  <ellipse cx="256" cy="256" rx="180" ry="68" fill="none" stroke="url(#glow512)" stroke-width="8" opacity="0.45" transform="rotate(-35 256 256)" />
+  <ellipse cx="256" cy="256" rx="180" ry="68" fill="none" stroke="url(#glow512)" stroke-width="8" opacity="0.45" transform="rotate(90 256 256)" />
+  <!-- Lab Flask Contour -->
+  <path d="M224 128 L288 128 L288 192 L352 332 C364 354 348 380 324 380 L188 380 C164 380 148 354 160 332 L224 192 Z" fill="none" stroke="#ffffff" stroke-width="18" stroke-linejoin="round" />
+  <!-- Liquid in Flask -->
+  <path d="M182 312 L330 312 L320 366 L192 366 Z" fill="url(#liquid512)" opacity="0.88" />
+  <!-- Bubbles -->
+  <circle cx="230" cy="336" r="10" fill="#ffffff" opacity="0.85" />
+  <circle cx="282" cy="326" r="8" fill="#ffffff" opacity="0.85" />
+  <circle cx="256" cy="280" r="6" fill="#38bdf8" />
+  <!-- Atom core / Spark -->
+  <circle cx="256" cy="256" r="22" fill="#38bdf8" />
+</svg>

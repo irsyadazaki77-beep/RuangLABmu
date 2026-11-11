@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#0369a1" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="flask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="liquid" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="url(#bg)" />
+  <!-- Atom ring -->
+  <ellipse cx="96" cy="96" rx="64" ry="24" fill="none" stroke="#38bdf8" stroke-width="3" opacity="0.4" transform="rotate(30 96 96)" />
+  <ellipse cx="96" cy="96" rx="64" ry="24" fill="none" stroke="#38bdf8" stroke-width="3" opacity="0.4" transform="rotate(-30 96 96)" />
+  <!-- Lab Flask -->
+  <path d="M84 48 L108 48 L108 72 L132 124 C136 132 130 142 120 142 L72 142 C62 142 56 132 60 124 L84 72 Z" fill="none" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" />
+  <!-- Liquid in Flask -->
+  <path d="M68 116 L124 116 L120 136 L72 136 Z" fill="url(#liquid)" opacity="0.85" />
+  <!-- Bubbles -->
+  <circle cx="86" cy="126" r="4" fill="#ffffff" opacity="0.8" />
+  <circle cx="106" cy="122" r="3" fill="#ffffff" opacity="0.8" />
+  <circle cx="96" cy="106" r="2.5" fill="#38bdf8" />
+  <!-- Atom core -->
+  <circle cx="96" cy="96" r="8" fill="#38bdf8" filter="drop-shadow(0 0 6px #38bdf8)" />
+</svg>

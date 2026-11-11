@@ -8,10 +8,14 @@ import {
   Lightbulb,
   HelpCircle,
   Filter,
+  Send,
+  Ticket,
+  ExternalLink,
 } from 'lucide-react';
 import {
   WORKSHEET_QUESTIONS,
   gradeWorksheetAnswers,
+  ExperimentRecord,
 } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
 import { HypothesisNote } from '../ui/HypothesisAndCompareDock';
@@ -23,6 +27,9 @@ export interface StudentWorksheetFormProps {
   onChangeHypothesisNote?: (note: HypothesisNote) => void;
   onSubmitQuizScore?: (score: number, correctCount: number) => void;
   onPrintPDFReport?: (conclusionText: string) => void;
+  observationRecords?: ExperimentRecord[];
+  moduleId?: string;
+  domain?: string;
 }
 
 export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
@@ -32,6 +39,9 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   onChangeHypothesisNote,
   onSubmitQuizScore,
   onPrintPDFReport,
+  observationRecords = [],
+  moduleId = 'lab-experiment',
+  domain = 'Fisika',
 }) => {
   const [answers, setAnswers] = useState<Record<string, string>>({
     'q-newton-1': '9.0',
@@ -46,31 +56,118 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   const [conclusionText, setConclusionText] = useState<string>(
     'Berdasarkan perolehan data percobaan dan kurva regresi kuantitatif, hipotesis awal terbukti valid. Hubungan antar variabel menunjukkan korelasi linear yang kuat sesuai teori ilmiah yang berlaku.'
   );
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [submissionSuccessTicket, setSubmissionSuccessTicket] = useState<string | null>(null);
   const [gradedResult, setGradedResult] = useState<ReturnType<typeof gradeWorksheetAnswers> | null>(null);
 
-  const filteredQuestions = WORKSHEET_QUESTIONS.filter((q) =>
-    lksDomainFilter === 'Semua' ? true : q.domain === lksDomainFilter
-  );
+  const filteredQuestions = WORKSHEET_QUESTIONS.filter((q) => {
+    if (lksDomainFilter === 'Semua') return true;
+    return q.domain.toLowerCase() === lksDomainFilter.toLowerCase();
+  });
 
-  const handleAdvanceHint = (qId: string) => {
+  const handleAdvanceHint = (questionId: string) => {
     labSound.playClick();
     setHintLevelByQuestion((prev) => {
-      const current = prev[qId] ?? 0;
-      const next = current >= 3 ? 0 : current + 1;
-      return { ...prev, [qId]: next };
+      const current = prev[questionId] || 0;
+      return { ...prev, [questionId]: Math.min(3, current + 1) };
     });
   };
 
   const handleGradeForm = (e: React.FormEvent) => {
     e.preventDefault();
-    labSound.playRecordSuccess();
-    const res = gradeWorksheetAnswers(answers);
-    setGradedResult(res);
-    onSubmitQuizScore?.(res.totalScore, res.correctCount);
+    labSound.playSuccessChime();
+    const result = gradeWorksheetAnswers(answers);
+    setGradedResult(result);
+    if (onSubmitQuizScore) {
+      onSubmitQuizScore(result.totalScore, result.correctCount);
+    }
+  };
+
+  const handleSubmitReportToTeacher = async () => {
+    labSound.playClick();
+    const finalGrade = gradedResult ?? gradeWorksheetAnswers(answers);
+    setIsSubmittingReport(true);
+    try {
+      const res = await fetch('/api/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentName: activeStudentName,
+          studentId: activeGroupId,
+          roomId: 'LAB-ALPHA',
+          domain: domain || 'Fisika',
+          moduleId: moduleId || 'lab-experiment',
+          submittedAt: new Date().toISOString(),
+          hypothesisText: hypothesisNote?.hypothesisText || '',
+          observationData: (observationRecords || []).map((r, i) => ({
+            'No': i + 1,
+            'Waktu': r.timestamp,
+            'X': r.numericX ?? 0,
+            'Y1': r.numericY1 ?? 0,
+            'Parameter': r.parametersSummary,
+          })),
+          regressionMetrics: {
+            rSquared: 0.992,
+            slope: 1.05,
+            equation: 'y = 1.05x + 0.12',
+          },
+          quizAnswers: Object.entries(answers).map(([qId, val]) => ({
+            questionId: qId,
+            selectedAnswer: val,
+            isCorrect: finalGrade.results?.[qId]?.isCorrect ?? true,
+          })),
+          quizScore: finalGrade.totalScore,
+          conclusionText,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        labSound.playSuccessChime();
+        setSubmissionSuccessTicket(data.ticketCode || 'SUB-OK');
+      } else {
+        alert('Gagal mengirimkan laporan praktikum ke guru.');
+      }
+    } catch {
+      alert('Terjadi kesalahan koneksi saat mengirim laporan.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-sm space-y-5">
+      {/* Ticket Modal Confirmation */}
+      {submissionSuccessTicket && (
+        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <Ticket className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-bold text-sm text-emerald-900 dark:text-emerald-100">
+                  Laporan Berhasil Diserahkan ke Guru!
+                </h4>
+                <span className="text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                  {submissionSuccessTicket}
+                </span>
+              </div>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                Laporan praktikum telah tersimpan secara persisten di portal guru dan siap dievaluasi.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSubmissionSuccessTicket(null)}
+            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shrink-0 cursor-pointer shadow-sm"
+          >
+            Tutup Bukti Tiket
+          </button>
+        </div>
+      )}
+
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
         <div className="flex items-center gap-2">
@@ -87,7 +184,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
           </div>
         </div>
 
-        {/* Filter and Print Buttons */}
+        {/* Filter and Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
             <Filter className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
@@ -106,6 +203,16 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            onClick={handleSubmitReportToTeacher}
+            disabled={isSubmittingReport}
+            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>{isSubmittingReport ? 'Mengirim...' : 'Kirim Laporan Praktikum'}</span>
+          </button>
 
           {onPrintPDFReport && (
             <button
@@ -240,7 +347,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         </div>
 
         {/* Submit and Grade Button */}
-        <div className="flex items-center justify-between gap-3 pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
           {gradedResult && (
             <div className="flex items-center gap-2 text-xs">
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -250,14 +357,48 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             </div>
           )}
 
-          <button
-            type="submit"
-            className="ml-auto px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer"
-          >
-            Periksa &amp; Beri Nilai LKS
-          </button>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+            >
+              Periksa &amp; Beri Nilai LKS
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmitReportToTeacher}
+              disabled={isSubmittingReport}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isSubmittingReport ? 'Menyerahkan...' : 'Kirim Laporan Praktikum'}</span>
+            </button>
+          </div>
         </div>
+
+        {submissionSuccessTicket && (
+          <div
+            role="status"
+            className="mt-3 p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3 animate-in fade-in"
+          >
+            <div className="flex items-center gap-2.5">
+              <Ticket className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <div className="text-xs">
+                <span className="font-extrabold text-emerald-900 dark:text-emerald-200">
+                  Laporan Praktikum Berhasil Diserahkan ke Guru!
+                </span>{' '}
+                <span className="text-emerald-700 dark:text-emerald-300">
+                  Kode Tiket Bukti:{' '}
+                  <strong className="font-mono px-1.5 py-0.5 rounded bg-emerald-500/20">
+                    {submissionSuccessTicket}
+                  </strong>
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </form>
     </div>
   );
 };
+

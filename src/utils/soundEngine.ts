@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 // Procedural Web Audio API Laboratory Sound Synthesizer
 // Zero external asset dependencies; safe for hermetic sandboxes and instant low-latency feedback.
 
@@ -194,6 +196,88 @@ class LabSoundEngine {
     } catch {
       // Ignore
     }
+  }
+
+  /**
+   * Helper Spasial Audio 3D (Tahap 4):
+   * Mengikat THREE.AudioListener ke kamera 3D aktif dan membuat instance THREE.PositionalAudio
+   * dengan sintetis audio buffer prosedural (tetesan larutan, dentuman tumbukan, gesekan).
+   */
+  public createPositionalSoundEmitter(
+    camera: THREE.Camera,
+    audioType: 'titration-drop' | 'collision-thud' | 'friction-slide' | 'electric-pulse'
+  ): {
+    sound: THREE.PositionalAudio;
+    play: () => void;
+    dispose: () => void;
+  } {
+    let listener = camera.children.find((c) => (c as THREE.AudioListener).type === 'AudioListener') as THREE.AudioListener | undefined;
+    if (!listener) {
+      listener = new THREE.AudioListener();
+      camera.add(listener);
+    }
+
+    const sound = new THREE.PositionalAudio(listener);
+    sound.setRefDistance(1.8);
+    sound.setMaxDistance(18.0);
+    sound.setRolloffFactor(1.5);
+    sound.setDistanceModel('exponential');
+
+    const audioCtx = listener.context;
+    const sampleRate = audioCtx.sampleRate || 44100;
+    const duration = audioType === 'titration-drop' ? 0.08 : audioType === 'collision-thud' ? 0.18 : 0.14;
+    const frameCount = Math.floor(sampleRate * duration);
+    const buffer = audioCtx.createBuffer(1, frameCount, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < frameCount; i++) {
+      const t = i / sampleRate;
+      const progress = i / frameCount;
+      const decay = Math.exp(-progress * 8.5);
+
+      if (audioType === 'titration-drop') {
+        const freq = 680 + 350 * progress;
+        data[i] = Math.sin(2 * Math.PI * freq * t) * decay * 0.45;
+      } else if (audioType === 'collision-thud') {
+        const freq = 180 * (1 - progress * 0.7);
+        const noise = (Math.random() * 2 - 1) * 0.15;
+        data[i] = (Math.sin(2 * Math.PI * freq * t) + noise) * decay * 0.65;
+      } else if (audioType === 'friction-slide') {
+        const noise = (Math.random() * 2 - 1) * 0.4;
+        data[i] = noise * decay * 0.35;
+      } else {
+        const freq = 1200 - 600 * progress;
+        data[i] = Math.sin(2 * Math.PI * freq * t) * decay * 0.4;
+      }
+    }
+
+    sound.setBuffer(buffer);
+
+    const play = () => {
+      if (!this.enabled) return;
+      try {
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
+        if (sound.isPlaying) {
+          sound.stop();
+        }
+        sound.play();
+      } catch {
+        // audio policy fallback
+      }
+    };
+
+    const dispose = () => {
+      try {
+        if (sound.isPlaying) sound.stop();
+        sound.disconnect();
+      } catch {
+        // ignore
+      }
+    };
+
+    return { sound, play, dispose };
   }
 }
 

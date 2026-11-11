@@ -469,13 +469,16 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     buretteLiquid.position.set(0, 4.4, 0);
     titrationGroup.add(buretteLiquid);
 
-    // Stopcock valve tap
+    // Stopcock valve tap with 3D Positional Audio Emitter (Tahap 4)
     const stopcock = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.8, 16), brassMat);
     stopcock.rotation.z = Math.PI / 2;
     stopcock.position.set(0, 2.2, 0);
     stopcock.castShadow = true;
     stopcock.userData = { draggableParam: 'titrantAddedMl', min: 0, max: 50, step: 0.5, label: 'Volume Titran Vb' };
     titrationGroup.add(stopcock);
+
+    const buretSoundEmitter = labSound.createPositionalSoundEmitter(camera, 'titration-drop');
+    stopcock.add(buretSoundEmitter.sound);
 
     // Erlenmeyer Flask at bottom (Refractive MeshPhysicalMaterial)
     const flaskGeo = new THREE.CylinderGeometry(0.4, 1.4, 1.8, 32);
@@ -808,6 +811,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           if (paramKey === 'titrantAddedMl') {
             const nextVal = Math.min(50, Number((curVal + 1.0).toFixed(1)));
             latestRef.current.onUpdateParam(paramKey, nextVal);
+            buretSoundEmitter.play();
             setDragToast({ label: 'Kran Buret Diteteskan (+1 mL)', value: `${nextVal} mL` });
           } else if (paramKey === 'kineticsTempC') {
             const nextVal = Math.min(90, Number((curVal + 5).toFixed(1)));

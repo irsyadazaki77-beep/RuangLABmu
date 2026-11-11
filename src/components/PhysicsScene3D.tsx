@@ -596,6 +596,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     cannonBarrel.userData = { draggableParam: 'launchAngle', min: 10, max: 85, step: 1, label: 'Sudut Elevasi θ' };
     cannonPivot.add(cannonBarrel);
 
+    const cannonSoundEmitter = labSound.createPositionalSoundEmitter(camera, 'collision-thud');
+    cannonBarrel.add(cannonSoundEmitter.sound);
+
     const projectileBall = new THREE.Mesh(
       new THREE.SphereGeometry(0.28, 24, 24),
       new THREE.MeshStandardMaterial({
@@ -1168,7 +1171,11 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           dragStartVal = curVal;
           controls.enabled = false;
           renderer.domElement.style.cursor = 'grabbing';
-          labSound.playClick(600);
+          if (paramKey === 'launchAngle' || paramKey === 'initialVelocity') {
+            cannonSoundEmitter.play();
+          } else {
+            labSound.playClick(600);
+          }
           setDragToast({ label: dragConfig.label, value: `${curVal}` });
         }
       }
