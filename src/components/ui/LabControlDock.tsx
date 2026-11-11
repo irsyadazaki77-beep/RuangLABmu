@@ -14,6 +14,7 @@ import {
 import { useLabStore } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { labSound } from '../../utils/soundEngine';
+import { useTranslation } from 'react-i18next';
 
 export interface LabControlDockProps {
   notificationsCount?: number;
@@ -28,6 +29,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
   hasLowR2Alert = false,
   snapshotCount = 0,
 }) => {
+  const { t } = useTranslation();
   const {
     soundEnabled,
     toggleSound,
@@ -152,7 +154,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         }`}
       >
         {isSimulating ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-        <span>{isSimulating ? 'Jeda' : 'Play'}</span>
+        <span>{isSimulating ? t('controls.pause') : t('controls.play')}</span>
         <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-900/15 dark:bg-slate-950/60 text-[9px] font-mono">
           Space
         </kbd>
@@ -167,7 +169,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         className="px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800/80 transition-all cursor-pointer"
       >
         <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
-        <span className="hidden sm:inline">Reset</span>
+        <span className="hidden sm:inline">{t('controls.reset')}</span>
         <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
           R
         </kbd>
@@ -179,7 +181,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       <div
         className="flex items-center gap-0.5 bg-slate-200/60 dark:bg-slate-900/70 p-0.5 rounded-xl border border-slate-300/60 dark:border-slate-700/60"
         role="group"
-        aria-label="Kecepatan Simulasi"
+        aria-label={t('controls.speed')}
       >
         <Gauge className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 ml-1 mr-0.5 hidden md:inline" />
         {SPEED_OPTIONS.map((spd) => {
@@ -197,7 +199,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
                   ? 'bg-sky-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-300/50 dark:hover:bg-slate-800'
               }`}
-              title={`Kecepatan Simulasi ${spd}x`}
+              title={`${t('controls.speed')} ${spd}x`}
             >
               {spd}x
             </button>
@@ -214,7 +216,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           toggleSound();
           labSound.setEnabled(!soundEnabled);
         }}
-        title={`[M] Mute · ${soundEnabled ? 'Bisukan Suara Lab' : 'Nyalakan Suara Lab'}`}
+        title={`[M] Mute · ${soundEnabled ? t('controls.mute') : t('controls.unmute')}`}
         aria-label={soundEnabled ? 'Bisukan suara laboratorium (Shortcut M)' : 'Nyalakan suara laboratorium (Shortcut M)'}
         className={`group relative px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
           soundEnabled
@@ -241,7 +243,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         }`}
       >
         <Camera className="w-4 h-4 text-sky-500 dark:text-sky-400" />
-        <span className="hidden lg:inline">Snapshot</span>
+        <span className="hidden lg:inline">{t('controls.snapshot')}</span>
         {snapshotCount > 0 && (
           <span className="px-1.5 py-0.2 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-300 font-mono text-[10px] tabular-nums">
             {snapshotCount}
@@ -268,7 +270,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         }`}
       >
         {zenMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-        <span className="hidden lg:inline">{zenMode ? 'Normal' : 'Zen'}</span>
+        <span className="hidden lg:inline">{zenMode ? t('controls.normal') : t('controls.zen')}</span>
         <kbd className="hidden 2xl:inline-block px-1 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400">
           Z
         </kbd>

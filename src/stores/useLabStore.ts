@@ -40,6 +40,7 @@ export interface LabState {
   workflowStep: WorkflowStep;
   userRole: UserRole;
   isLobbyMode: boolean;
+  isSubmissionLocked: boolean;
 
   // Actions
   setActiveDomain: (domain: AnyLabDomain) => void;
@@ -55,12 +56,13 @@ export interface LabState {
   setWorkflowStep: (step: WorkflowStep) => void;
   setUserRole: (role: UserRole) => void;
   setIsLobbyMode: (isLobby: boolean) => void;
+  setSubmissionLocked: (locked: boolean) => void;
   getIndonesianDomain: () => IndonesianDomain;
 }
 
 const initialUrlParams =
   typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-const isAutoStart = initialUrlParams?.get('autostart') === '1';
+const isAutoStart = initialUrlParams?.get('autostart') === '1' || initialUrlParams?.get('mode') === 'exam';
 const urlDomainParam = initialUrlParams?.get('domain') as AnyLabDomain | null;
 const urlModuleParam = initialUrlParams?.get('module');
 
@@ -74,6 +76,7 @@ export const useLabStore = create<LabState>((set, get) => ({
   workflowStep: isAutoStart ? 2 : 1,
   userRole: 'siswa',
   isLobbyMode: !isAutoStart,
+  isSubmissionLocked: false,
 
   setActiveDomain: (domain: AnyLabDomain) => {
     const canonical = DOMAIN_TO_EN[domain] || 'physics';
@@ -134,6 +137,10 @@ export const useLabStore = create<LabState>((set, get) => ({
 
   setIsLobbyMode: (isLobbyMode: boolean) => {
     set({ isLobbyMode });
+  },
+
+  setSubmissionLocked: (isSubmissionLocked: boolean) => {
+    set({ isSubmissionLocked });
   },
 
   getIndonesianDomain: () => {

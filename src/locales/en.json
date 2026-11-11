@@ -1,0 +1,86 @@
+{
+  "nav": {
+    "backToCatalog": "← Catalog",
+    "virtualScienceLab": "Virtual Science Lab",
+    "step1": "1. Safety & Hypothesis",
+    "step2": "2. 3D Simulation",
+    "step3": "3. Charts & Worksheet",
+    "step4": "4. Lab Report",
+    "syncActive": "Sync",
+    "syncLocal": "Local",
+    "roleStudent": "Student",
+    "roleTeacher": "Teacher",
+    "gradebook": "Gradebook",
+    "search": "Search",
+    "themeLight": "Light",
+    "themeSepia": "Sepia",
+    "themeDark": "Dark",
+    "level": "Lv.",
+    "badges": "Badges"
+  },
+  "controls": {
+    "play": "Play",
+    "pause": "Pause",
+    "reset": "Reset",
+    "snapshot": "Snapshot",
+    "zen": "Zen",
+    "normal": "Normal",
+    "speed": "Simulation Speed",
+    "mute": "Mute Lab Audio",
+    "unmute": "Unmute Lab Audio",
+    "openSimulation": "Open 3D Simulation Bench",
+    "changeModule": "← Switch Module",
+    "readyOpen3D": "I'm Ready, Launch 3D Simulation"
+  },
+  "apparatus": {
+    "header": "3D Bench Instruments & Apparatus List",
+    "inclinedPlane": "3D Calibrated Aluminum Inclined Plane",
+    "dynamometer": "Digital Dynamometer & Precision Force Sensor",
+    "burette": "50 mL Volumetric Burette & Stopcock",
+    "erlenmeyer": "250 mL Erlenmeyer Flask & Magnetic Stirrer",
+    "calorimeter": "Insulated Calorimeter & Digital Thermometer",
+    "microscope": "Binocular Microscope & 3D Anatomy Slides",
+    "respirometer": "Ingenhousz Tube & Dissolved Oxygen Sensor",
+    "orrery": "3D Keplerian Orbital Telescope & Orrery"
+  },
+  "safety": {
+    "sectionTitle": "Lab Safety Protocol (K3) & 3D Apparatus",
+    "listenNarration": "Listen to Safety Briefing",
+    "stopNarration": "Stop Voice Narration",
+    "complyButton": "I Understand & Comply with Lab Safety (+100 XP)",
+    "compliedBadge": "Safety Verified (+100 XP · K3 Guardian)",
+    "generalWarning": "Ensure all personal protective equipment (lab coat, safety goggles, and gloves) is worn and instrument calibration remains within safe limits before starting the experiment."
+  },
+  "lks": {
+    "title": "Student Worksheet (LKS) & Analytical Questions",
+    "studentLabel": "Practitioner",
+    "filterAll": "All",
+    "submitReport": "Submit Lab Report",
+    "submitting": "Submitting...",
+    "printPdf": "Print PDF Report",
+    "initialHypothesis": "Initial Lab Hypothesis:",
+    "hypothesisPlaceholder": "Write your scientific hypothesis before observation...",
+    "finalConclusion": "Scientific Conclusion & Reflection:",
+    "conclusionPlaceholder": "Write a comprehensive conclusion based on your data...",
+    "checkGrade": "Check & Grade Worksheet",
+    "lockedNotice": "Worksheet Locked — Your report has been submitted and can no longer be modified.",
+    "hint": "Hint",
+    "weight": "Weight",
+    "points": "Pts",
+    "answerPlaceholder": "Type numerical value or answer..."
+  },
+  "exam": {
+    "bannerTitle": "CONTROLLED LAB EXAM MODE",
+    "timeLeft": "Time Remaining",
+    "antiCheatWarning": "Peringatan: Tetap berada di halaman praktikum selama ujian!",
+    "tabSwitchCount": "Tab Alerts",
+    "lockedStatus": "Locked (Submitted)",
+    "activeStatus": "Proctoring Active",
+    "autoSubmitted": "Exam time is up! Your lab report has been automatically submitted."
+  },
+  "gradebook": {
+    "title": "Teacher Gradebook & Lab Submissions",
+    "exportClassroom": "Ekspor Format Rekap LMS / Google Classroom",
+    "watchReplay": "Lihat Replay Praktikum"
+  }
+}

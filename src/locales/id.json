@@ -1,0 +1,86 @@
+{
+  "nav": {
+    "backToCatalog": "← Katalog",
+    "virtualScienceLab": "Laboratorium Sains Virtual",
+    "step1": "1. K3 & Hipotesis",
+    "step2": "2. Simulasi 3D",
+    "step3": "3. Grafik & LKS",
+    "step4": "4. Laporan",
+    "syncActive": "Sync",
+    "syncLocal": "Lokal",
+    "roleStudent": "Siswa",
+    "roleTeacher": "Guru",
+    "gradebook": "Buku Nilai",
+    "search": "Cari",
+    "themeLight": "Terang",
+    "themeSepia": "Sepia",
+    "themeDark": "Gelap",
+    "level": "Lv.",
+    "badges": "Lencana"
+  },
+  "controls": {
+    "play": "Play",
+    "pause": "Jeda",
+    "reset": "Reset",
+    "snapshot": "Snapshot",
+    "zen": "Zen",
+    "normal": "Normal",
+    "speed": "Kecepatan Simulasi",
+    "mute": "Bisukan Suara Lab",
+    "unmute": "Nyalakan Suara Lab",
+    "openSimulation": "Buka Meja Simulasi 3D",
+    "changeModule": "← Ganti Modul",
+    "readyOpen3D": "Saya Siap, Buka Meja Simulasi 3D"
+  },
+  "apparatus": {
+    "header": "Daftar Instrumen & Bahan Meja 3D",
+    "inclinedPlane": "Bidang Miring Kalibrasi Aluminium 3D",
+    "dynamometer": "Dinamometer Digital & Sensor Gaya Presisi",
+    "burette": "Buret Volumetrik 50 mL & Keran Titrasi",
+    "erlenmeyer": "Labu Erlenmeyer 250 mL & Pengaduk Magnetik",
+    "calorimeter": "Kalorimeter Isolasi & Termometer Digital",
+    "microscope": "Mikroskop Binokuler & Preparat Anatomi 3D",
+    "respirometer": "Tabung Ingenhousz & Sensor Oksigen Terlarut",
+    "orrery": "Teleskop & Simulator Orbit Kepler 3D"
+  },
+  "safety": {
+    "sectionTitle": "Prosedur Keselamatan Kerja (K3) & Alat 3D",
+    "listenNarration": "Dengarkan Pengarahan K3",
+    "stopNarration": "Hentikan Narasi Suara",
+    "complyButton": "Saya Memahami & Mematuhi Aturan K3 (+100 XP)",
+    "compliedBadge": "K3 Dipatuhi (+100 XP · K3 Guardian)",
+    "generalWarning": "Pastikan seluruh alat pelindung diri (jas lab, kacamata pelindung, dan sarung tangan) dikenakan serta kalibrasi instrumen berada pada batas aman sebelum memulai percobaan."
+  },
+  "lks": {
+    "title": "Lembar Kerja Siswa (LKS) & Pertanyaan Analisis",
+    "studentLabel": "Praktikan",
+    "filterAll": "Semua",
+    "submitReport": "Kirim Laporan Praktikum",
+    "submitting": "Mengirim...",
+    "printPdf": "Cetak Laporan PDF",
+    "initialHypothesis": "Hipotesis Awal Praktikum:",
+    "hypothesisPlaceholder": "Tuliskan dugaan ilmiah Anda sebelum pengamatan...",
+    "finalConclusion": "Kesimpulan & Refleksi Ilmiah:",
+    "conclusionPlaceholder": "Tuliskan kesimpulan komprehensif berdasarkan data...",
+    "checkGrade": "Periksa & Beri Nilai LKS",
+    "lockedNotice": "Formulir LKS Terkunci — Laporan telah dikirimkan dan tidak dapat dimodifikasi kembali.",
+    "hint": "Petunjuk",
+    "weight": "Bobot",
+    "points": "Poin",
+    "answerPlaceholder": "Ketikkan nilai numerik atau jawaban..."
+  },
+  "exam": {
+    "bannerTitle": "MODE UJIAN PRAKTIKUM TERKONTROL",
+    "timeLeft": "Sisa Waktu",
+    "antiCheatWarning": "Peringatan: Tetap berada di halaman praktikum selama ujian!",
+    "tabSwitchCount": "Pelanggaran Tab",
+    "lockedStatus": "Terkunci (Sudah Dikumpulkan)",
+    "activeStatus": "Pengawasan Aktif",
+    "autoSubmitted": "Waktu ujian habis! Laporan praktikum Anda telah dikumpulkan secara otomatis."
+  },
+  "gradebook": {
+    "title": "Buku Nilai & Rekap Laporan Guru",
+    "exportClassroom": "Ekspor Format Rekap LMS / Google Classroom",
+    "watchReplay": "Lihat Replay Praktikum"
+  }
+}

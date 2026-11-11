@@ -24,6 +24,9 @@ import {
   INITIAL_BIOLOGY_CONTEXT,
   INITIAL_ASTRONOMY_PARAMS,
 } from '../stores/initialLabParams';
+import { recordTelemetryInteraction } from '../utils/telemetryRecorder';
+import { evaluateDataPrecisionXP } from '../services/gamificationEngine';
+
 
 export function useLabSession() {
   const {
@@ -299,6 +302,22 @@ export function useLabSession() {
       notes: noteText,
     });
     labSound.playRecordSuccess();
+
+    // FITUR 3: Rekam titik data ke buffer telemetri kronologis
+    recordTelemetryInteraction(
+      numericCoords ? `Data(${numericCoords.x})` : title,
+      numericCoords?.y1 ?? records.length + 1,
+      workflowStep,
+      {
+        domain,
+        eventType: 'record',
+        note: `Mencatat data ${title} (${paramsSummary})`,
+        force: true,
+      }
+    );
+
+    // FITUR 1: Berikan XP presisi data saat mencatat titik uji
+    evaluateDataPrecisionXP(0.992, domain, currentExperimentModule.id);
   };
 
   const handleCapture3DSnapshot = (
@@ -433,6 +452,40 @@ export function useLabSession() {
     };
   }, [currentProfile, activeTierLabel, currentExperimentModule, currentModuleHypothesis, records, capturedSnapshots]);
 
+  // FITUR 3: Rekam perubahan slider parameter siswa ke buffer telemetri
+  useEffect(() => {
+    if (userRole !== 'siswa' || isLobbyMode) return;
+    if (activeDomain === 'physics') {
+      recordTelemetryInteraction('appliedForce', physicsParams.appliedForce, workflowStep, {
+        domain: 'Fisika',
+        eventType: 'slider',
+        note: `Mengubah gaya F = ${physicsParams.appliedForce} N (θ = ${physicsParams.inclineAngle}°)`,
+      });
+    } else if (activeDomain === 'chemistry') {
+      recordTelemetryInteraction('titrantAddedMl', chemistryParams.titrantAddedMl, workflowStep, {
+        domain: 'Kimia',
+        eventType: 'titration',
+        note: `Meneteskan larutan titran (${chemistryParams.titrantAddedMl} mL, T = ${chemistryParams.initialTempC}°C)`,
+      });
+    } else if (activeDomain === 'astronomy') {
+      recordTelemetryInteraction('semiMajorAxisAu', astronomyParams.customSemiMajorAxisAu, workflowStep, {
+        domain: 'Astronomi',
+        eventType: 'slider',
+        note: `Mengubah sumbu semi-mayor orbit (${astronomyParams.customSemiMajorAxisAu} AU)`,
+      });
+    }
+  }, [
+    userRole,
+    isLobbyMode,
+    activeDomain,
+    workflowStep,
+    physicsParams.appliedForce,
+    physicsParams.inclineAngle,
+    chemistryParams.titrantAddedMl,
+    chemistryParams.initialTempC,
+    astronomyParams.customSemiMajorAxisAu,
+  ]);
+
   return {
     currentExperimentModule,
     activeScienceDomain,
@@ -488,5 +541,7 @@ export function useLabSession() {
     leaveRoom,
     toggleTeacherFreeze,
     syncStudentTelemetry,
+    ws,
   };
 }
+

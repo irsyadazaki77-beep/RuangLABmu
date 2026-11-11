@@ -7,7 +7,9 @@ import {
   Sun,
   BookOpen,
   Moon,
+  Trophy,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { ExperimentModule } from '../../registry/experimentRegistry';
 import { labSound } from '../../utils/soundEngine';
 import { useLabStore, WorkflowStep } from '../../stores/useLabStore';
@@ -15,6 +17,14 @@ import { useUIStore } from '../../stores/useUIStore';
 import { useCollabStore } from '../../stores/useCollabStore';
 import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
 import { TeacherGradebookHub } from '../teacher/TeacherGradebookHub';
+import {
+  GamificationProfile,
+  ScientificBadge,
+  loadGamificationProfile,
+  subscribeGamification,
+} from '../../services/gamificationEngine';
+import { BadgeNotificationModal } from '../ui/BadgeNotificationModal';
+import { setAppLanguage } from '../../i18n';
 
 export interface TopNavigationHeaderProps {
   experimentModule: ExperimentModule;
@@ -34,6 +44,9 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
   notificationsCount,
   hasLowR2Alert,
 }) => {
+  const { t, i18n } = useTranslation();
+  const activeLang: 'id' | 'en' = i18n.language?.startsWith('en') ? 'en' : 'id';
+
   const {
     isLobbyMode,
     setIsLobbyMode,
@@ -44,6 +57,27 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
   } = useLabStore();
 
   const [isGradebookOpen, setIsGradebookOpen] = useState(false);
+
+  // Gamification state & celebration modal
+  const [gamificationProfile, setGamificationProfile] = useState<GamificationProfile>(() =>
+    loadGamificationProfile()
+  );
+  const [isBadgeModalOpen, setIsBadgeModalOpen] = useState(false);
+  const [newlyUnlockedBadge, setNewlyUnlockedBadge] = useState<ScientificBadge | null>(null);
+  const [recentXpDelta, setRecentXpDelta] = useState<number>(0);
+
+  useEffect(() => {
+    setGamificationProfile(loadGamificationProfile());
+    const unsubscribe = subscribeGamification((updatedProfile, latestBadge, xpDelta) => {
+      setGamificationProfile(updatedProfile);
+      if (latestBadge) {
+        setNewlyUnlockedBadge(latestBadge);
+        setRecentXpDelta(xpDelta);
+        setIsBadgeModalOpen(true);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   const {
     drawerOpen,
@@ -79,9 +113,14 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     setComfortPrefs({ theme });
   };
 
+  const handleLanguageSwitch = (lang: 'id' | 'en') => {
+    labSound.playClick();
+    setAppLanguage(lang);
+  };
+
   return (
     <header className="sticky top-0 h-14 shrink-0 flex items-center justify-between gap-2 px-3 sm:px-5 bg-white/85 dark:bg-slate-950/85 backdrop-blur-md border-b border-stone-200/80 dark:border-slate-800 text-slate-900 dark:text-slate-100 z-40 select-none transition-colors duration-200">
-      {/* Zone 1: Brand Identity ("RuangLABmu" + "Virtual Science Lab") & Back to Catalog */}
+      {/* Zone 1: Brand Identity ("RuangLABmu") & Back to Catalog */}
       <div className="flex items-center gap-2 shrink-0 min-w-0">
         <button
           type="button"
@@ -99,8 +138,8 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             RuangLABmu
           </span>
           {isLobbyMode && (
-            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 whitespace-nowrap">
-              Virtual Science Lab
+            <span className="hidden xl:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 whitespace-nowrap">
+              {t('nav.virtualScienceLab')}
             </span>
           )}
         </button>
@@ -116,9 +155,9 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
               aria-label="Kembali ke Katalog Laboratorium"
               className="text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-sky-600 dark:hover:text-white bg-stone-100 dark:bg-slate-900 border border-stone-200 dark:border-slate-800 hover:border-stone-300 dark:hover:border-slate-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0"
             >
-              <span>← Katalog</span>
+              <span>{t('nav.backToCatalog')}</span>
             </button>
-            <div className="hidden xl:flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[145px] 2xl:max-w-[240px] pl-1.5 border-l border-stone-200 dark:border-slate-800">
+            <div className="hidden 2xl:flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px] pl-1.5 border-l border-stone-200 dark:border-slate-800">
               <span className="font-mono text-[10px] font-bold uppercase text-sky-600 dark:text-sky-400 shrink-0">
                 {experimentModule.domain}
               </span>
@@ -143,21 +182,21 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           >
             {(
               [
-                { step: 1 as WorkflowStep, label: '1. K3 & Hipotesis', done: workflowStep > 1 },
+                { step: 1 as WorkflowStep, label: t('nav.step1'), done: workflowStep > 1 },
                 {
                   step: 2 as WorkflowStep,
-                  label: '2. Simulasi 3D',
+                  label: t('nav.step2'),
                   done: recordsCount >= 3 || workflowStep > 2,
                   badge: `${recordsCount}/3`,
                 },
                 {
                   step: 3 as WorkflowStep,
-                  label: '3. Grafik & LKS',
+                  label: t('nav.step3'),
                   done: lksGraded || workflowStep > 3,
                 },
                 {
                   step: 4 as WorkflowStep,
-                  label: '4. Laporan',
+                  label: t('nav.step4'),
                   done: workflowStep === 4 && recordsCount >= 3 && lksGraded,
                 },
               ] as const
@@ -204,14 +243,72 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         )}
       </div>
 
-      {/* Zone 3: Streamlined Right Utilities (Sync Dot, Role Switcher, Theme Switcher, Dr. LabMu) */}
+      {/* Zone 3: Right Utilities (Gamification XP/Level, [ID|EN] Switcher, Sync, Role, Theme, Dr. LabMu) */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* 1. Status Sync (Thin Green Dot) */}
+        {/* FITUR 1: Compact Level / XP & Badges Trigger */}
+        <button
+          type="button"
+          onClick={() => {
+            labSound.playClick();
+            setNewlyUnlockedBadge(null);
+            setIsBadgeModalOpen(true);
+          }}
+          aria-label={`Profil Gamifikasi Siswa Level ${gamificationProfile.level} (${gamificationProfile.xp} XP)`}
+          title="Lihat Level, XP & Koleksi Lencana Saintifik"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
+        >
+          <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <span className="font-mono text-[11px] font-bold tabular-nums">
+            {t('nav.level')}{gamificationProfile.level} · {gamificationProfile.xp} XP
+          </span>
+          {gamificationProfile.unlockedBadges.length > 0 && (
+            <span className="hidden xl:inline text-[10px] font-mono text-amber-600 dark:text-amber-400 tabular-nums">
+              ({gamificationProfile.unlockedBadges.length}/5)
+            </span>
+          )}
+        </button>
+
+        {/* FITUR 4: Multi-Language Switcher [ID | EN] */}
+        <div
+          role="group"
+          aria-label="Pilih Bahasa Antarmuka (ID / EN)"
+          className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 text-[11px] font-mono font-bold shrink-0"
+        >
+          <button
+            type="button"
+            onClick={() => handleLanguageSwitch('id')}
+            aria-label="Bahasa Indonesia (ID)"
+            className={`px-1.5 py-0.5 rounded-md transition-colors cursor-pointer ${
+              activeLang === 'id'
+                ? 'bg-sky-600 text-white shadow-xs'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            ID
+          </button>
+          <span className="text-slate-300 dark:text-slate-700 px-0.5" aria-hidden="true">
+            |
+          </span>
+          <button
+            type="button"
+            onClick={() => handleLanguageSwitch('en')}
+            aria-label="English Language (EN)"
+            className={`px-1.5 py-0.5 rounded-md transition-colors cursor-pointer ${
+              activeLang === 'en'
+                ? 'bg-sky-600 text-white shadow-xs'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            EN
+          </button>
+        </div>
+
+        {/* 1. Status Sync (Real WebSocket Connection Indicator) */}
         <div
           role="status"
           aria-label={wsConnected ? 'Tersambung ke Lab Sync Server' : 'Mode Sinkronisasi Lokal'}
           title={wsConnected ? 'Real-Time Sync Aktif' : 'Sinkronisasi Lokal'}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-stone-100/80 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800"
+          className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-stone-100/80 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800"
         >
           <span
             className={`w-2 h-2 rounded-full shrink-0 ${
@@ -220,8 +317,8 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                 : 'bg-amber-500 animate-pulse'
             }`}
           />
-          <span className="hidden lg:inline text-[11px] font-mono">
-            {wsConnected ? 'Sync' : 'Lokal'}
+          <span className="hidden xl:inline text-[11px] font-mono">
+            {wsConnected ? t('nav.syncActive') : t('nav.syncLocal')}
           </span>
         </div>
 
@@ -229,7 +326,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         <div
           role="group"
           aria-label="Pilih Peran Pengguna"
-          className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 text-xs font-semibold"
+          className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 text-xs font-semibold shrink-0"
         >
           <button
             type="button"
@@ -237,13 +334,13 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
               labSound.playClick();
               setUserRole('siswa');
             }}
-            className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+            className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
               userRole === 'siswa'
                 ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <span>Siswa</span>
+            <span>{t('nav.roleStudent')}</span>
           </button>
           <button
             type="button"
@@ -251,14 +348,14 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
               labSound.playClick();
               setUserRole('pengajar');
             }}
-            className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+            className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
               userRole === 'pengajar'
                 ? 'bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-300 shadow-xs'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <GraduationCap className="w-3.5 h-3.5 hidden sm:inline" />
-            <span>Guru</span>
+            <span>{t('nav.roleTeacher')}</span>
           </button>
         </div>
 
@@ -271,10 +368,10 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
               setIsGradebookOpen(true);
             }}
             title="Buka Buku Nilai & Rekap Laporan Guru"
-            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
           >
             <GraduationCap className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Buku Nilai</span>
+            <span className="hidden sm:inline">{t('nav.gradebook')}</span>
           </button>
         )}
 
@@ -287,10 +384,9 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           }}
           title="Buka Menu Pencarian & Aksi Cepat (Ctrl+K / ⌘K)"
           aria-label="Buka Pencarian & Perintah Cepat"
-          className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-600 dark:text-slate-300 text-xs font-semibold cursor-pointer transition-colors"
+          className="hidden lg:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-600 dark:text-slate-300 text-xs font-semibold cursor-pointer transition-colors shrink-0"
         >
-          <span>🔍</span>
-          <span className="hidden xl:inline">Cari</span>
+          <span className="hidden xl:inline">{t('nav.search')}</span>
           <kbd className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-stone-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
             Ctrl+K
           </kbd>
@@ -300,13 +396,13 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         <div
           role="group"
           aria-label="Pilih Tema Tampilan"
-          className="hidden sm:flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 text-xs font-semibold"
+          className="hidden sm:flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 text-xs font-semibold shrink-0"
         >
           {(
             [
-              { id: 'light' as ComfortThemeMode, label: 'Terang', Icon: Sun },
-              { id: 'sepia' as ComfortThemeMode, label: 'Sepia', Icon: BookOpen },
-              { id: 'dark' as ComfortThemeMode, label: 'Gelap', Icon: Moon },
+              { id: 'light' as ComfortThemeMode, label: t('nav.themeLight'), Icon: Sun },
+              { id: 'sepia' as ComfortThemeMode, label: t('nav.themeSepia'), Icon: BookOpen },
+              { id: 'dark' as ComfortThemeMode, label: t('nav.themeDark'), Icon: Moon },
             ] as const
           ).map(({ id, label, Icon }) => {
             const active = comfortPrefs.theme === id;
@@ -316,14 +412,14 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                 type="button"
                 onClick={() => handleThemeSwitch(id)}
                 title={`Tema ${label}`}
-                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                   active
                     ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0 text-amber-500 dark:text-sky-400" />
-                <span className="hidden lg:inline">{label}</span>
+                <span className="hidden 2xl:inline">{label}</span>
               </button>
             );
           })}
@@ -337,7 +433,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             toggleDrawer();
           }}
           aria-label={drawerOpen ? 'Tutup Asisten Dr. LabMu' : 'Buka Asisten Dr. LabMu'}
-          className={`relative px-2.5 py-1 flex items-center gap-1.5 rounded-lg border font-semibold text-xs transition-colors cursor-pointer shrink-0 ${
+          className={`relative px-2.5 py-1 flex items-center gap-1.5 rounded-lg border font-semibold text-xs transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
             drawerOpen
               ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
               : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-stone-200 dark:border-slate-800 hover:border-sky-500/50 dark:hover:border-slate-700'
@@ -354,7 +450,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             />
           )}
           {notificationsCount > 0 && !hasLowR2Alert && (
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-stone-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-stone-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tabular-nums">
               {notificationsCount}
             </span>
           )}
@@ -363,6 +459,19 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
 
       {/* Teacher Gradebook Hub Modal */}
       <TeacherGradebookHub isOpen={isGradebookOpen} onClose={() => setIsGradebookOpen(false)} />
+
+      {/* Student Gamification & Badges Celebration Modal */}
+      <BadgeNotificationModal
+        isOpen={isBadgeModalOpen}
+        onClose={() => {
+          setIsBadgeModalOpen(false);
+          setNewlyUnlockedBadge(null);
+        }}
+        profile={gamificationProfile}
+        newlyUnlockedBadge={newlyUnlockedBadge}
+        recentXpDelta={recentXpDelta}
+      />
     </header>
   );
 };
+

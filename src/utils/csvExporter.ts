@@ -60,3 +60,52 @@ export function exportTableToCSV(
 
   return csvContent;
 }
+
+export interface ClassroomExportSubmission {
+  studentName: string;
+  studentId?: string;
+  moduleId: string;
+  domain: string;
+  quizScore: number;
+  teacherGrade?: {
+    score: number;
+    feedback: string;
+  };
+}
+
+/**
+ * Ekspor Rekap Nilai Format Standar LMS / Google Classroom (FITUR 5)
+ * Kolom standar: Student Name, Email/ID, Assignment Title, Score, Teacher Feedback
+ */
+export function exportGoogleClassroomCSV(
+  submissions: ClassroomExportSubmission[]
+): string {
+  const columns: CSVColumnDef[] = [
+    { key: 'studentName', label: 'Student Name' },
+    { key: 'emailOrId', label: 'Email/ID' },
+    { key: 'assignmentTitle', label: 'Assignment Title' },
+    { key: 'score', label: 'Score' },
+    { key: 'teacherFeedback', label: 'Teacher Feedback' },
+  ];
+
+  const rows = submissions.map((sub) => {
+    const cleanId =
+      sub.studentId ||
+      `${sub.studentName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@siswa.ruanglab.id`;
+    const finalScore = sub.teacherGrade?.score ?? sub.quizScore ?? 0;
+    const feedback =
+      sub.teacherGrade?.feedback ||
+      `Kuis LKS: ${sub.quizScore}/100 (Menunggu umpan balik tambahan pengajar)`;
+
+    return {
+      studentName: sub.studentName,
+      emailOrId: cleanId,
+      assignmentTitle: `${sub.moduleId} (${sub.domain})`,
+      score: finalScore,
+      teacherFeedback: feedback,
+    };
+  });
+
+  return exportTableToCSV('Google-Classroom-Grades', columns, rows);
+}
+

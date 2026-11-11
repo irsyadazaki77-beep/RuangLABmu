@@ -1,3 +1,5 @@
+import { TelemetryReplayEvent } from '../utils/telemetryRecorder';
+
 export interface LabSubmission {
   id: string;
   studentName: string;
@@ -20,9 +22,11 @@ export interface LabSubmission {
   }>;
   quizScore: number;
   conclusionText: string;
+  telemetryLog?: TelemetryReplayEvent[];
   teacherGrade?: {
     score: number;
     feedback: string;
     gradedAt: string;
   };
 }
+

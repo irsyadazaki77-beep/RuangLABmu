@@ -2,16 +2,14 @@ import React, { useState } from 'react';
 import {
   FileText,
   Printer,
-  Sparkles,
   CheckCircle2,
-  AlertCircle,
   Lightbulb,
-  HelpCircle,
   Filter,
   Send,
   Ticket,
-  ExternalLink,
+  Lock,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   WORKSHEET_QUESTIONS,
   gradeWorksheetAnswers,
@@ -19,6 +17,12 @@ import {
 } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
 import { HypothesisNote } from '../ui/HypothesisAndCompareDock';
+import { useLabStore } from '../../stores/useLabStore';
+import {
+  evaluateDataPrecisionXP,
+  recordPerfectLksQuiz,
+} from '../../services/gamificationEngine';
+import { buildSubmissionTelemetryTimeline } from '../../utils/telemetryRecorder';
 
 export interface StudentWorksheetFormProps {
   activeStudentName: string;
@@ -43,6 +47,9 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   moduleId = 'lab-experiment',
   domain = 'Fisika',
 }) => {
+  const { t } = useTranslation();
+  const { isSubmissionLocked, setSubmissionLocked } = useLabStore();
+
   const [answers, setAnswers] = useState<Record<string, string>>({
     'q-newton-1': '9.0',
     'q-collision-2': '4.0',
@@ -66,6 +73,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   });
 
   const handleAdvanceHint = (questionId: string) => {
+    if (isSubmissionLocked) return;
     labSound.playClick();
     setHintLevelByQuestion((prev) => {
       const current = prev[questionId] || 0;
@@ -75,19 +83,33 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
 
   const handleGradeForm = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmissionLocked) return;
     labSound.playSuccessChime();
     const result = gradeWorksheetAnswers(answers);
     setGradedResult(result);
+    recordPerfectLksQuiz(result.totalScore, domain, moduleId);
     if (onSubmitQuizScore) {
       onSubmitQuizScore(result.totalScore, result.correctCount);
     }
   };
 
   const handleSubmitReportToTeacher = async () => {
+    if (isSubmissionLocked) return;
     labSound.playClick();
     const finalGrade = gradedResult ?? gradeWorksheetAnswers(answers);
+    setGradedResult(finalGrade);
     setIsSubmittingReport(true);
     try {
+      const obsPayload = (observationRecords || []).map((r, i) => ({
+        'No': i + 1,
+        'Waktu': r.timestamp,
+        'X': r.numericX ?? 0,
+        'Y1': r.numericY1 ?? 0,
+        'Parameter': r.parametersSummary,
+      }));
+
+      const telemetryLog = buildSubmissionTelemetryTimeline(domain || 'Fisika', obsPayload);
+
       const res = await fetch('/api/submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -99,13 +121,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
           moduleId: moduleId || 'lab-experiment',
           submittedAt: new Date().toISOString(),
           hypothesisText: hypothesisNote?.hypothesisText || '',
-          observationData: (observationRecords || []).map((r, i) => ({
-            'No': i + 1,
-            'Waktu': r.timestamp,
-            'X': r.numericX ?? 0,
-            'Y1': r.numericY1 ?? 0,
-            'Parameter': r.parametersSummary,
-          })),
+          observationData: obsPayload,
           regressionMetrics: {
             rSquared: 0.992,
             slope: 1.05,
@@ -118,6 +134,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
           })),
           quizScore: finalGrade.totalScore,
           conclusionText,
+          telemetryLog,
         }),
       });
 
@@ -125,11 +142,14 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         const data = await res.json();
         labSound.playSuccessChime();
         setSubmissionSuccessTicket(data.ticketCode || 'SUB-OK');
-      } else {
-        alert('Gagal mengirimkan laporan praktikum ke guru.');
+        // FITUR 2: Kunci Pengiriman (Submission Lock) setelah tombol kirim ditekan
+        setSubmissionLocked(true);
+        // FITUR 1: Berikan XP & Lencana untuk LKS & Presisi Data
+        recordPerfectLksQuiz(finalGrade.totalScore, domain, moduleId);
+        evaluateDataPrecisionXP(0.992, domain, moduleId);
       }
     } catch {
-      alert('Terjadi kesalahan koneksi saat mengirim laporan.');
+      // ignore connection error
     } finally {
       setIsSubmittingReport(false);
     }
@@ -137,6 +157,25 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
 
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-sm space-y-5">
+      {/* Submission Lock Banner (FITUR 2) */}
+      {isSubmissionLocked && (
+        <div
+          role="status"
+          data-testid="lks-submission-locked-banner"
+          className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-500/40 flex items-center justify-between gap-3 text-xs"
+        >
+          <div className="flex items-center gap-2.5 text-amber-800 dark:text-amber-200 font-semibold">
+            <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>{t('lks.lockedNotice')}</span>
+          </div>
+          {submissionSuccessTicket && (
+            <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+              Tiket: {submissionSuccessTicket}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Ticket Modal Confirmation */}
       {submissionSuccessTicket && (
         <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg animate-in fade-in">
@@ -154,7 +193,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                 </span>
               </div>
               <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                Laporan praktikum telah tersimpan secara persisten di portal guru dan siap dievaluasi.
+                Laporan praktikum beserta rekaman telemetri kronologis telah tersimpan di portal guru dan dikunci.
               </p>
             </div>
           </div>
@@ -176,10 +215,10 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
           </span>
           <div>
             <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-              Lembar Kerja Siswa (LKS) &amp; Pertanyaan Analisis
+              {t('lks.title')}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Praktikan: <strong>{activeStudentName}</strong> ({activeGroupId})
+              {t('lks.studentLabel')}: <strong>{activeStudentName}</strong> ({activeGroupId})
             </p>
           </div>
         </div>
@@ -199,7 +238,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                     : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                {dom}
+                {dom === 'Semua' ? t('lks.filterAll') : dom}
               </button>
             ))}
           </div>
@@ -207,11 +246,17 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
           <button
             type="button"
             onClick={handleSubmitReportToTeacher}
-            disabled={isSubmittingReport}
-            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+            disabled={isSubmittingReport || isSubmissionLocked}
+            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
           >
-            <Send className="w-3.5 h-3.5" />
-            <span>{isSubmittingReport ? 'Mengirim...' : 'Kirim Laporan Praktikum'}</span>
+            {isSubmissionLocked ? <Lock className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
+            <span>
+              {isSubmissionLocked
+                ? 'Laporan Terkunci'
+                : isSubmittingReport
+                ? t('lks.submitting')
+                : t('lks.submitReport')}
+            </span>
           </button>
 
           {onPrintPDFReport && (
@@ -221,7 +266,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
               className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Cetak Laporan PDF</span>
+              <span>{t('lks.printPdf')}</span>
             </button>
           )}
         </div>
@@ -232,35 +277,39 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         {/* Hipotesis Awal */}
         <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-1.5">
           <span className="text-[11px] font-bold uppercase tracking-wider text-amber-500">
-            Hipotesis Awal Praktikum:
+            {t('lks.initialHypothesis')}
           </span>
           <textarea
             rows={3}
+            disabled={isSubmissionLocked}
             value={hypothesisNote?.hypothesisText || ''}
             onChange={(e) => {
-              if (onChangeHypothesisNote && hypothesisNote) {
+              if (onChangeHypothesisNote && hypothesisNote && !isSubmissionLocked) {
                 onChangeHypothesisNote({
                   ...hypothesisNote,
                   hypothesisText: e.target.value,
                 });
               }
             }}
-            placeholder="Tuliskan dugaan ilmiah Anda sebelum pengamatan..."
-            className="w-full text-xs p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-sky-500"
+            placeholder={t('lks.hypothesisPlaceholder')}
+            className="w-full text-xs p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-60"
           />
         </div>
 
         {/* Kesimpulan Akhir */}
         <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-1.5">
           <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-500">
-            Kesimpulan &amp; Refleksi Ilmiah:
+            {t('lks.finalConclusion')}
           </span>
           <textarea
             rows={3}
+            disabled={isSubmissionLocked}
             value={conclusionText}
-            onChange={(e) => setConclusionText(e.target.value)}
-            placeholder="Tuliskan kesimpulan komprehensif berdasarkan data..."
-            className="w-full text-xs p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-sky-500"
+            onChange={(e) => {
+              if (!isSubmissionLocked) setConclusionText(e.target.value);
+            }}
+            placeholder={t('lks.conclusionPlaceholder')}
+            className="w-full text-xs p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-60"
           />
         </div>
       </div>
@@ -280,12 +329,13 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sky-500/15 text-sky-600 dark:text-sky-400">
+                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
                         Soal {idx + 1} · {q.domain}
                       </span>
-                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                        Bobot: {Math.round(100 / (filteredQuestions.length || 1))} Poin
+                      <span>·</span>
+                      <span className="font-semibold">
+                        {t('lks.weight')}: {Math.round(100 / (filteredQuestions.length || 1))} {t('lks.points')}
                       </span>
                     </div>
                     <p className="text-xs font-semibold text-slate-900 dark:text-white leading-relaxed">
@@ -296,11 +346,14 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                   {/* Scaffolded Hint Trigger */}
                   <button
                     type="button"
+                    disabled={isSubmissionLocked}
                     onClick={() => handleAdvanceHint(q.id)}
-                    className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-50 text-amber-700 dark:text-amber-300 text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer"
                   >
                     <Lightbulb className="w-3.5 h-3.5" />
-                    <span>Petunjuk ({hintLvl}/3)</span>
+                    <span>
+                      {t('lks.hint')} ({hintLvl}/3)
+                    </span>
                   </button>
                 </div>
 
@@ -309,10 +362,10 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                   <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 space-y-1">
                     <div className="font-bold text-[11px]">
                       {hintLvl === 1
-                        ? '💡 Petunjuk Tingkat 1 (Konseptual):'
+                        ? 'Petunjuk Tingkat 1 (Konseptual):'
                         : hintLvl === 2
-                        ? '📐 Petunjuk Tingkat 2 (Rumus & Variabel):'
-                        : '🎯 Petunjuk Tingkat 3 (Langkah Solusi):'}
+                        ? 'Petunjuk Tingkat 2 (Rumus & Variabel):'
+                        : 'Petunjuk Tingkat 3 (Langkah Solusi):'}
                     </div>
                     <p className="text-[11px] leading-relaxed">
                       {q.scaffoldedHints?.[hintLvl - 1] || q.formulaHint || q.explanation}
@@ -324,10 +377,15 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
+                    disabled={isSubmissionLocked}
                     value={userAns}
-                    onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
-                    placeholder="Ketikkan nilai numerik atau jawaban..."
-                    className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-mono"
+                    onChange={(e) => {
+                      if (!isSubmissionLocked) {
+                        setAnswers({ ...answers, [q.id]: e.target.value });
+                      }
+                    }}
+                    placeholder={t('lks.answerPlaceholder')}
+                    className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-mono disabled:opacity-60"
                   />
                   {evalItem && (
                     <span
@@ -352,7 +410,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             <div className="flex items-center gap-2 text-xs">
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               <span>
-                Nilai LKS: <strong className="font-mono text-emerald-600 dark:text-emerald-400">{gradedResult.totalScore}/100</strong> ({gradedResult.correctCount} dari {WORKSHEET_QUESTIONS.length} Soal Benar)
+                Nilai LKS: <strong className="font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">{gradedResult.totalScore}/100</strong> ({gradedResult.correctCount} dari {WORKSHEET_QUESTIONS.length} Soal Benar)
               </span>
             </div>
           )}
@@ -360,45 +418,31 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
           <div className="flex items-center gap-2 ml-auto">
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+              disabled={isSubmissionLocked}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
             >
-              Periksa &amp; Beri Nilai LKS
+              {t('lks.checkGrade')}
             </button>
             <button
               type="button"
               onClick={handleSubmitReportToTeacher}
-              disabled={isSubmittingReport}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+              disabled={isSubmittingReport || isSubmissionLocked}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
             >
-              <Send className="w-3.5 h-3.5" />
-              <span>{isSubmittingReport ? 'Menyerahkan...' : 'Kirim Laporan Praktikum'}</span>
+              {isSubmissionLocked ? <Lock className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
+              <span>
+                {isSubmissionLocked
+                  ? 'Laporan Terkunci'
+                  : isSubmittingReport
+                  ? t('lks.submitting')
+                  : t('lks.submitReport')}
+              </span>
             </button>
           </div>
         </div>
-
-        {submissionSuccessTicket && (
-          <div
-            role="status"
-            className="mt-3 p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3 animate-in fade-in"
-          >
-            <div className="flex items-center gap-2.5">
-              <Ticket className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <div className="text-xs">
-                <span className="font-extrabold text-emerald-900 dark:text-emerald-200">
-                  Laporan Praktikum Berhasil Diserahkan ke Guru!
-                </span>{' '}
-                <span className="text-emerald-700 dark:text-emerald-300">
-                  Kode Tiket Bukti:{' '}
-                  <strong className="font-mono px-1.5 py-0.5 rounded bg-emerald-500/20">
-                    {submissionSuccessTicket}
-                  </strong>
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
       </form>
     </div>
   );
 };
+
 

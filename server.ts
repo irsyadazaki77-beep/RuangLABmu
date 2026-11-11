@@ -394,6 +394,15 @@ async function startServer() {
     quizAnswers: Array<{ questionId: string; selectedAnswer: number | string; isCorrect: boolean }>;
     quizScore: number;
     conclusionText: string;
+    telemetryLog?: Array<{
+      timestamp: number;
+      parameterName: string;
+      value: number;
+      stepIndex: number;
+      domain?: string;
+      eventType?: string;
+      note?: string;
+    }>;
     teacherGrade?: { score: number; feedback: string; gradedAt: string };
   }
 
@@ -434,6 +443,13 @@ async function startServer() {
         ],
         quizScore: 95,
         conclusionText: 'Data hasil percobaan membuktikan keabsahan Hukum II Newton secara empiris dengan korelasi R² = 0.998.',
+        telemetryLog: [
+          { timestamp: Date.now() - 3900000, parameterName: 'inclineAngle', value: 15, stepIndex: 1, domain: 'Fisika', eventType: 'slider', note: 'Mengatur sudut kemiringan bidang miring θ = 15°' },
+          { timestamp: Date.now() - 3840000, parameterName: 'appliedForce', value: 15, stepIndex: 2, domain: 'Fisika', eventType: 'record', note: 'Mencatat titik uji 1 (F = 15 N, a = 2.45 m/s²)' },
+          { timestamp: Date.now() - 3780000, parameterName: 'appliedForce', value: 30, stepIndex: 2, domain: 'Fisika', eventType: 'record', note: 'Mencatat titik uji 2 (F = 30 N, a = 4.90 m/s²)' },
+          { timestamp: Date.now() - 3720000, parameterName: 'appliedForce', value: 45, stepIndex: 2, domain: 'Fisika', eventType: 'record', note: 'Mencatat titik uji 3 (F = 45 N, a = 7.30 m/s²)' },
+          { timestamp: Date.now() - 3650000, parameterName: 'regressionR2', value: 0.998, stepIndex: 3, domain: 'Fisika', eventType: 'record', note: 'Menyelesaikan regresi OLS (R² = 0.998) & LKS' },
+        ],
         teacherGrade: {
           score: 96,
           feedback: 'Analisis regresi luar biasa teliti, penarikan kesimpulan ilmiah sangat komprehensif!',
@@ -483,6 +499,7 @@ async function startServer() {
         quizAnswers: Array.isArray(payload.quizAnswers) ? payload.quizAnswers : [],
         quizScore: Number(payload.quizScore ?? 100),
         conclusionText: payload.conclusionText || '',
+        telemetryLog: Array.isArray(payload.telemetryLog) ? payload.telemetryLog : undefined,
         teacherGrade: payload.teacherGrade,
       };
 

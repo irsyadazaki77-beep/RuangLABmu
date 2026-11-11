@@ -26,6 +26,11 @@ import {
   HypothesisScratchpadCard,
 } from './ui/HypothesisAndCompareDock';
 import { ExperimentRecord } from '../utils/scienceEngine';
+import { useTranslation } from 'react-i18next';
+import {
+  recordK3Compliance,
+  loadGamificationProfile,
+} from '../services/gamificationEngine';
 
 interface PreLabBriefingViewProps {
   experiment: ExperimentModule;
@@ -46,10 +51,14 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
   onChangeHypothesisNote,
   records = [],
 }) => {
+  const { t } = useTranslation();
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState<boolean>(false);
   const [isSpeakingK3, setIsSpeakingK3] = useState<boolean>(false);
   const [openedQuizHints, setOpenedQuizHints] = useState<Record<string, boolean>>({});
+  const [k3Complied, setK3Complied] = useState<boolean>(() =>
+    loadGamificationProfile().unlockedBadges.includes('K3 Guardian')
+  );
 
   useEffect(() => {
     const unsubscribe = voiceNarration.subscribe((speaking) => {
@@ -60,6 +69,12 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
       unsubscribe();
     };
   }, []);
+
+  const handleComplyK3 = () => {
+    labSound.playSuccessChime();
+    recordK3Compliance(experiment.id);
+    setK3Complied(true);
+  };
 
   const handleToggleK3Narration = () => {
     labSound.playClick();
@@ -140,18 +155,19 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
             }}
             className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
           >
-            ← Ganti Modul
+            {t('controls.changeModule')}
           </button>
 
           <button
             type="button"
             onClick={() => {
               labSound.playClick();
+              recordK3Compliance(experiment.id);
               onProceedToSimulation();
             }}
             className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap shadow-sm"
           >
-            <span>Buka Meja Simulasi 3D</span>
+            <span>{t('controls.openSimulation')}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -257,21 +273,36 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm">
                 <ShieldCheck className="w-4 h-4 text-amber-500" />
-                <h2>Prosedur Keselamatan Kerja (K3) &amp; Alat 3D</h2>
+                <h2>{t('safety.sectionTitle')}</h2>
               </div>
 
-              <button
-                type="button"
-                onClick={handleToggleK3Narration}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                  isSpeakingK3
-                    ? 'bg-amber-500 text-slate-950'
-                    : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 hover:bg-amber-100 dark:hover:bg-amber-900/40'
-                }`}
-              >
-                <Volume2 className="w-3.5 h-3.5" />
-                <span>{isSpeakingK3 ? 'Hentikan Narasi Suara' : 'Dengarkan Pengarahan K3'}</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleToggleK3Narration}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    isSpeakingK3
+                      ? 'bg-amber-500 text-slate-950'
+                      : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+                  }`}
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>{isSpeakingK3 ? t('safety.stopNarration') : t('safety.listenNarration')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleComplyK3}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                    k3Complied
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{k3Complied ? t('safety.compliedBadge') : t('safety.complyButton')}</span>
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -290,7 +321,7 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
               <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-xs">
                 <Atom className="w-4 h-4 text-sky-500" />
-                <h3>Daftar Instrumen &amp; Bahan Meja 3D</h3>
+                <h3>{t('apparatus.header')}</h3>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 {experiment.apparatusList.map((app, i) => (
@@ -447,11 +478,12 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
                 type="button"
                 onClick={() => {
                   labSound.playClick();
+                  recordK3Compliance(experiment.id);
                   onProceedToSimulation();
                 }}
                 className="w-full py-3 px-5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md"
               >
-                <span>Saya Siap, Buka Meja Simulasi 3D</span>
+                <span>{t('controls.readyOpen3D')}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
