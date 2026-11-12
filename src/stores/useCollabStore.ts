@@ -21,6 +21,7 @@ export interface CollabState {
   studentTelemetryMap: Record<string, StudentLiveTelemetry>;
   isRoomModalOpen: boolean;
   roomModalMode: 'create' | 'join';
+  prefilledRoomCode: string | null;
 
   // Actions
   setWsConnected: (wsConnected: boolean) => void;
@@ -39,6 +40,7 @@ export interface CollabState {
   setRoomModal: (open: boolean, mode?: 'create' | 'join') => void;
   openRoomModal: (mode?: 'create' | 'join') => void;
   closeRoomModal: () => void;
+  setPrefilledRoomCode: (code: string | null) => void;
   leaveRoom: () => void;
 }
 
@@ -56,6 +58,7 @@ export const useCollabStore = create<CollabState>((set) => ({
   studentTelemetryMap: {},
   isRoomModalOpen: false,
   roomModalMode: 'join',
+  prefilledRoomCode: null,
 
   setWsConnected: (wsConnected: boolean) => set({ wsConnected }),
 
@@ -124,6 +127,14 @@ export const useCollabStore = create<CollabState>((set) => ({
     set({ isRoomModalOpen: true, roomModalMode, roomError: null }),
 
   closeRoomModal: () => set({ isRoomModalOpen: false, roomError: null }),
+
+  setPrefilledRoomCode: (prefilledRoomCode: string | null) =>
+    set({
+      prefilledRoomCode,
+      activeRoomId: prefilledRoomCode || null,
+      isRoomModalOpen: Boolean(prefilledRoomCode),
+      roomModalMode: 'join',
+    }),
 
   leaveRoom: () =>
     set({

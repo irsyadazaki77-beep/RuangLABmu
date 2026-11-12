@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { VisualComfortPreferences } from '../components/ui/VisualComfortToolbar';
 
 export type DrawerTab = 'variables' | 'worksheet' | 'analytics' | 'ai';
-export type ActiveModal = null | 'safety' | 'quiz' | 'report' | 'mystery';
+export type ActiveModal = null | 'safety' | 'quiz' | 'report' | 'mystery' | 'portfolio' | 'gradebook';
 export type MobileTab = 'canvas' | 'variables' | 'worksheet' | 'ai';
 
 const DEFAULT_COMFORT_PREFS: VisualComfortPreferences = {
@@ -40,6 +40,8 @@ export interface UIState {
   activeModal: ActiveModal;
   comfortPrefs: VisualComfortPreferences;
   mobileTab: MobileTab;
+  onboardingTourOpen: boolean;
+  sidebarWidthPx: number;
 
   // Actions
   toggleZenMode: () => void;
@@ -53,6 +55,8 @@ export interface UIState {
     prefs: Partial<VisualComfortPreferences> | ((prev: VisualComfortPreferences) => VisualComfortPreferences)
   ) => void;
   setMobileTab: (tab: MobileTab) => void;
+  setOnboardingTourOpen: (open: boolean) => void;
+  setSidebarWidthPx: (widthPx: number) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -62,6 +66,8 @@ export const useUIStore = create<UIState>((set) => ({
   activeModal: null,
   comfortPrefs: loadStoredComfortPrefs(),
   mobileTab: 'canvas',
+  onboardingTourOpen: false,
+  sidebarWidthPx: 360,
 
   toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
 
@@ -92,4 +98,9 @@ export const useUIStore = create<UIState>((set) => ({
   },
 
   setMobileTab: (mobileTab: MobileTab) => set({ mobileTab }),
+
+  setOnboardingTourOpen: (onboardingTourOpen: boolean) => set({ onboardingTourOpen }),
+
+  setSidebarWidthPx: (sidebarWidthPx: number) => set({ sidebarWidthPx }),
 }));
+

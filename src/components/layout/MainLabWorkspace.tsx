@@ -231,6 +231,15 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
   const [queuedDrLabMuPrompt, setQueuedDrLabMuPrompt] = useState<{ id: number; prompt: string } | null>(
     externalDrLabMuPrompt
   );
+  const [pip3DMode, setPip3DMode] = useState<'pip' | 'split' | 'minimized'>('pip');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const t = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 50);
+    return () => clearTimeout(t);
+  }, [workflowStep, pip3DMode]);
 
   useEffect(() => {
     if (externalDrLabMuPrompt) {
@@ -514,234 +523,320 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
           </div>
         )}
 
-        {/* VIEW 4: Student Workflow Stage 2 (3D Simulation Cockpit & Docking Split-View) */}
-        {userRole === 'siswa' && !isLobbyMode && workflowStep === 2 && (
-          <div className="flex-1 min-h-0 flex overflow-hidden h-full w-full">
-            <div className="flex-1 min-h-0 flex overflow-hidden relative w-full h-full">
-              {activeDomain === 'physics' && (
-                <PhysicsLabView
-                  params={physicsParams}
-                  onChangeParams={onChangePhysicsParams}
-                  academicLevel={academicLevel}
-                  records={records}
-                  activeStudentName={currentProfile.name}
-                  activeGroupId={currentProfile.group}
-                  onDeleteRecord={onDeleteRecord}
-                  onExportCSV={onExportCSV}
-                  onSubmitQuizScore={onSubmitQuizScore}
-                  onProceedToAnalysis={() => setWorkflowStep(3)}
-                  onBackToCatalog={() => setIsLobbyMode(true)}
-                  onRecordExperiment={(title, summary, keyMetrics, noteText, numericCoords) =>
-                    onRecordExperiment('Fisika', title, summary, keyMetrics, noteText, numericCoords)
-                  }
-                  onPushNotification={onPushNotification}
-                  onSyncWithGroup={(summary) => onSyncWithGroup('Fisika', summary)}
-                  remoteCursors={remoteCursors}
-                  onEmitCursor={emitCursor3D}
-                  paramLocks={paramLocks}
-                  onAcquireLock={acquireParamLock}
-                  onReleaseLock={releaseParamLock}
-                  activeMysteryChallenge={activeMysteryChallenge}
-                  onSubmitMysteryExam={onSubmitMysteryExam}
-                  hypothesisNote={currentModuleHypothesis}
-                  onChangeHypothesisNote={onUpdateCurrentHypothesis}
-                  zenMode={zenMode}
-                  snapshotCount={capturedSnapshots.length}
-                  onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
-                    onCapture3DSnapshot('Fisika', dataUrl, modTitle, pSum, pMetric)
-                  }
-                  completedChallengeIds={completedChallengeIds}
-                  onCompleteChallenge={(ch) => onCompleteChallenge(ch.id)}
-                />
+        {/* VIEW 4, 5 & 6: Student Workflow Stages 2 (3D Cockpit), 3 (Grafik & LKS), and 4 (Laporan) with Persistent Live 3D / Mini-3D PiP / Split 45%-55% */}
+        {userRole === 'siswa' && !isLobbyMode && (workflowStep === 2 || workflowStep === 3 || workflowStep === 4) && (
+          <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden h-full w-full relative">
+            {/* Persistent 3D Viewport Container (Full Cockpit on Step 2, Split 45% or Floating Mini-3D PiP on Steps 3 & 4) */}
+            <div
+              data-testid={workflowStep === 2 ? 'main-3d-cockpit' : 'mini-3d-pip-viewport'}
+              data-pip-mode={workflowStep === 2 ? 'full' : pip3DMode}
+              className={
+                workflowStep === 2
+                  ? 'flex-1 min-h-0 flex overflow-hidden relative w-full h-full'
+                  : pip3DMode === 'split'
+                  ? 'w-full lg:w-[45%] h-[300px] lg:h-full shrink-0 flex flex-col overflow-hidden relative border-b lg:border-b-0 lg:border-r border-[var(--comfort-border)] bg-slate-950'
+                  : pip3DMode === 'pip'
+                  ? 'fixed bottom-4 right-4 w-[310px] sm:w-[360px] h-[235px] z-30 rounded-2xl border-2 border-sky-500/50 bg-slate-950 shadow-2xl overflow-hidden flex flex-col'
+                  : 'fixed bottom-4 right-4 w-auto h-auto z-30 rounded-xl border border-sky-500/40 bg-slate-900/95 shadow-xl overflow-hidden flex flex-col'
+              }
+            >
+              {/* Mini-3D PiP / Split Control Header Bar when in Step 3 or Step 4 */}
+              {workflowStep !== 2 && (
+                <div className="px-3 py-1.5 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between gap-2 text-[11px] text-slate-200 shrink-0 z-20">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                    <span className="font-mono font-bold text-sky-400 truncate">
+                      Live 3D PiP · {experimentModule.title}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      data-testid="pip-mode-split-btn"
+                      onClick={() => {
+                        labSound.playClick();
+                        setPip3DMode(pip3DMode === 'split' ? 'pip' : 'split');
+                        setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+                      }}
+                      className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold cursor-pointer transition-colors ${
+                        pip3DMode === 'split'
+                          ? 'bg-sky-600 text-white'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                      }`}
+                      title="Alihkan antara Split 45%/55% dan Jendela Melayang Mini-PiP"
+                    >
+                      {pip3DMode === 'split' ? 'Mini-PiP' : 'Split 45/55'}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="pip-toggle-minimize-btn"
+                      onClick={() => {
+                        labSound.playClick();
+                        setPip3DMode(pip3DMode === 'minimized' ? 'pip' : 'minimized');
+                        setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
+                    >
+                      {pip3DMode === 'minimized' ? 'Tampilkan 3D' : 'Kecilkan'}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="pip-return-to-3d-btn"
+                      onClick={() => {
+                        labSound.playClick();
+                        setWorkflowStep(2);
+                      }}
+                      className="px-2 py-0.5 rounded bg-emerald-600/90 hover:bg-emerald-500 text-white font-mono text-[10px] font-bold cursor-pointer"
+                    >
+                      Penuh
+                    </button>
+                  </div>
+                </div>
               )}
 
-              {activeDomain === 'chemistry' && (
-                <ChemistryLabView
-                  params={chemistryParams}
-                  onChangeParams={onChangeChemistryParams}
-                  academicLevel={academicLevel}
-                  records={records}
-                  activeStudentName={currentProfile.name}
-                  activeGroupId={currentProfile.group}
-                  onDeleteRecord={onDeleteRecord}
-                  onExportCSV={onExportCSV}
-                  onSubmitQuizScore={onSubmitQuizScore}
-                  onProceedToAnalysis={() => setWorkflowStep(3)}
-                  onBackToCatalog={() => setIsLobbyMode(true)}
-                  onRecordExperiment={(title, summary, keyMetrics, noteText, numericCoords) =>
-                    onRecordExperiment('Kimia', title, summary, keyMetrics, noteText, numericCoords)
-                  }
-                  onPushNotification={onPushNotification}
-                  onSyncWithGroup={(summary) => onSyncWithGroup('Kimia', summary)}
-                  remoteCursors={remoteCursors}
-                  onEmitCursor={emitCursor3D}
-                  activeMysteryChallenge={activeMysteryChallenge}
-                  onSubmitMysteryExam={onSubmitMysteryExam}
-                  hypothesisNote={currentModuleHypothesis}
-                  onChangeHypothesisNote={onUpdateCurrentHypothesis}
-                  zenMode={zenMode}
-                  snapshotCount={capturedSnapshots.length}
-                  onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
-                    onCapture3DSnapshot('Kimia', dataUrl, modTitle, pSum, pMetric)
-                  }
-                  completedChallengeIds={completedChallengeIds}
-                  onCompleteChallenge={(ch) => onCompleteChallenge(ch.id)}
-                />
-              )}
+              {/* 3D Scene Inner Viewport */}
+              <div
+                className={
+                  workflowStep !== 2 && pip3DMode === 'minimized'
+                    ? 'hidden'
+                    : 'flex-1 min-h-0 flex overflow-hidden relative w-full h-full'
+                }
+              >
+                {activeDomain === 'physics' && (
+                  <PhysicsLabView
+                    params={physicsParams}
+                    onChangeParams={onChangePhysicsParams}
+                    academicLevel={academicLevel}
+                    records={records}
+                    activeStudentName={currentProfile.name}
+                    activeGroupId={currentProfile.group}
+                    onDeleteRecord={onDeleteRecord}
+                    onExportCSV={onExportCSV}
+                    onSubmitQuizScore={onSubmitQuizScore}
+                    onProceedToAnalysis={() => setWorkflowStep(3)}
+                    onBackToCatalog={() => setIsLobbyMode(true)}
+                    onRecordExperiment={(title, summary, keyMetrics, noteText, numericCoords) =>
+                      onRecordExperiment('Fisika', title, summary, keyMetrics, noteText, numericCoords)
+                    }
+                    onPushNotification={onPushNotification}
+                    onSyncWithGroup={(summary) => onSyncWithGroup('Fisika', summary)}
+                    remoteCursors={remoteCursors}
+                    onEmitCursor={emitCursor3D}
+                    paramLocks={paramLocks}
+                    onAcquireLock={acquireParamLock}
+                    onReleaseLock={releaseParamLock}
+                    activeMysteryChallenge={activeMysteryChallenge}
+                    onSubmitMysteryExam={onSubmitMysteryExam}
+                    hypothesisNote={currentModuleHypothesis}
+                    onChangeHypothesisNote={onUpdateCurrentHypothesis}
+                    zenMode={workflowStep === 2 ? zenMode : true}
+                    snapshotCount={capturedSnapshots.length}
+                    onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
+                      onCapture3DSnapshot('Fisika', dataUrl, modTitle, pSum, pMetric)
+                    }
+                    completedChallengeIds={completedChallengeIds}
+                    onCompleteChallenge={(ch) => onCompleteChallenge(ch.id)}
+                  />
+                )}
 
-              {activeDomain === 'biology' && (
-                <BiologyLabView
-                  activeStudentName={currentProfile.name}
-                  activeGroupId={currentProfile.group}
-                  activeTier={activeTierLabel}
-                  selectedModuleId={selectedBioModuleId}
-                  onSelectModuleId={onSelectBioModuleId}
-                  records={records}
-                  onDeleteRecord={onDeleteRecord}
-                  onExportCSV={onExportCSV}
-                  onSubmitQuizScore={onSubmitQuizScore}
-                  onProceedToAnalysis={() => setWorkflowStep(3)}
-                  onBackToCatalog={() => setIsLobbyMode(true)}
-                  onBiologyContextChange={onChangeBiologyContext}
-                  onRecordExperiment={(_d, title, summary, keyMetrics, noteText, numericCoords) =>
-                    onRecordExperiment('Biologi', title, summary, keyMetrics, noteText, numericCoords)
-                  }
-                  remoteCursors={remoteCursors}
-                  onEmitCursor={emitCursor3D}
-                  paramLocks={paramLocks}
-                  onAcquireLock={acquireParamLock}
-                  onReleaseLock={releaseParamLock}
-                  onTierChange={(newTier) => {
-                    setAcademicLevel(newTier.toLowerCase() as AcademicLevel);
-                  }}
-                  hypothesisNote={currentModuleHypothesis}
-                  onChangeHypothesisNote={onUpdateCurrentHypothesis}
-                  zenMode={zenMode}
-                  snapshotCount={capturedSnapshots.length}
-                  onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
-                    onCapture3DSnapshot('Biologi', dataUrl, modTitle, pSum, pMetric)
-                  }
-                  completedChallengeIds={completedChallengeIds}
-                  onCompleteChallenge={(ch) => onCompleteChallenge(ch.id)}
-                />
-              )}
+                {activeDomain === 'chemistry' && (
+                  <ChemistryLabView
+                    params={chemistryParams}
+                    onChangeParams={onChangeChemistryParams}
+                    academicLevel={academicLevel}
+                    records={records}
+                    activeStudentName={currentProfile.name}
+                    activeGroupId={currentProfile.group}
+                    onDeleteRecord={onDeleteRecord}
+                    onExportCSV={onExportCSV}
+                    onSubmitQuizScore={onSubmitQuizScore}
+                    onProceedToAnalysis={() => setWorkflowStep(3)}
+                    onBackToCatalog={() => setIsLobbyMode(true)}
+                    onRecordExperiment={(title, summary, keyMetrics, noteText, numericCoords) =>
+                      onRecordExperiment('Kimia', title, summary, keyMetrics, noteText, numericCoords)
+                    }
+                    onPushNotification={onPushNotification}
+                    onSyncWithGroup={(summary) => onSyncWithGroup('Kimia', summary)}
+                    remoteCursors={remoteCursors}
+                    onEmitCursor={emitCursor3D}
+                    activeMysteryChallenge={activeMysteryChallenge}
+                    onSubmitMysteryExam={onSubmitMysteryExam}
+                    hypothesisNote={currentModuleHypothesis}
+                    onChangeHypothesisNote={onUpdateCurrentHypothesis}
+                    zenMode={workflowStep === 2 ? zenMode : true}
+                    snapshotCount={capturedSnapshots.length}
+                    onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
+                      onCapture3DSnapshot('Kimia', dataUrl, modTitle, pSum, pMetric)
+                    }
+                    completedChallengeIds={completedChallengeIds}
+                    onCompleteChallenge={(ch) => onCompleteChallenge(ch.id)}
+                  />
+                )}
 
-              {activeDomain === 'astronomy' && (
-                <AstronomyLabView
-                  params={astronomyParams}
-                  onChangeParams={onChangeAstronomyParams}
-                  academicLevel={academicLevel}
-                  records={records}
-                  activeStudentName={currentProfile.name}
-                  activeGroupId={currentProfile.group}
-                  onDeleteRecord={onDeleteRecord}
-                  onExportCSV={onExportCSV}
-                  onSubmitQuizScore={onSubmitQuizScore}
-                  onProceedToAnalysis={() => setWorkflowStep(3)}
-                  onBackToCatalog={() => setIsLobbyMode(true)}
-                  onRecordExperiment={(title, summary, keyMetrics, noteText, numericCoords) =>
-                    onRecordExperiment('Astronomi', title, summary, keyMetrics, noteText, numericCoords)
-                  }
-                  onPushNotification={onPushNotification}
-                  onSyncWithGroup={(summary) => onSyncWithGroup('Astronomi', summary)}
-                  remoteCursors={remoteCursors}
-                  onEmitCursor={emitCursor3D}
-                  activeMysteryChallenge={activeMysteryChallenge}
-                  onSubmitMysteryExam={onSubmitMysteryExam}
-                  hypothesisNote={currentModuleHypothesis}
-                  onChangeHypothesisNote={onUpdateCurrentHypothesis}
-                  zenMode={zenMode}
-                  snapshotCount={capturedSnapshots.length}
-                  onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
-                    onCapture3DSnapshot('Astronomi', dataUrl, modTitle, pSum, pMetric)
-                  }
-                  completedChallengeIds={completedChallengeIds}
-                  onCompleteChallenge={(ch) => onCompleteChallenge(ch.id)}
-                />
-              )}
+                {activeDomain === 'biology' && (
+                  <BiologyLabView
+                    activeStudentName={currentProfile.name}
+                    activeGroupId={currentProfile.group}
+                    activeTier={activeTierLabel}
+                    selectedModuleId={selectedBioModuleId}
+                    onSelectModuleId={onSelectBioModuleId}
+                    records={records}
+                    onDeleteRecord={onDeleteRecord}
+                    onExportCSV={onExportCSV}
+                    onSubmitQuizScore={onSubmitQuizScore}
+                    onProceedToAnalysis={() => setWorkflowStep(3)}
+                    onBackToCatalog={() => setIsLobbyMode(true)}
+                    onBiologyContextChange={onChangeBiologyContext}
+                    onRecordExperiment={(_d, title, summary, keyMetrics, noteText, numericCoords) =>
+                      onRecordExperiment('Biologi', title, summary, keyMetrics, noteText, numericCoords)
+                    }
+                    remoteCursors={remoteCursors}
+                    onEmitCursor={emitCursor3D}
+                    paramLocks={paramLocks}
+                    onAcquireLock={acquireParamLock}
+                    onReleaseLock={releaseParamLock}
+                    onTierChange={(newTier) => {
+                      setAcademicLevel(newTier.toLowerCase() as AcademicLevel);
+                    }}
+                    hypothesisNote={currentModuleHypothesis}
+                    onChangeHypothesisNote={onUpdateCurrentHypothesis}
+                    zenMode={workflowStep === 2 ? zenMode : true}
+                    snapshotCount={capturedSnapshots.length}
+                    onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
+                      onCapture3DSnapshot('Biologi', dataUrl, modTitle, pSum, pMetric)
+                    }
+                    completedChallengeIds={completedChallengeIds}
+                    onCompleteChallenge={(ch) => onCompleteChallenge(ch.id)}
+                  />
+                )}
+
+                {activeDomain === 'astronomy' && (
+                  <AstronomyLabView
+                    params={astronomyParams}
+                    onChangeParams={onChangeAstronomyParams}
+                    academicLevel={academicLevel}
+                    records={records}
+                    activeStudentName={currentProfile.name}
+                    activeGroupId={currentProfile.group}
+                    onDeleteRecord={onDeleteRecord}
+                    onExportCSV={onExportCSV}
+                    onSubmitQuizScore={onSubmitQuizScore}
+                    onProceedToAnalysis={() => setWorkflowStep(3)}
+                    onBackToCatalog={() => setIsLobbyMode(true)}
+                    onRecordExperiment={(title, summary, keyMetrics, noteText, numericCoords) =>
+                      onRecordExperiment('Astronomi', title, summary, keyMetrics, noteText, numericCoords)
+                    }
+                    onPushNotification={onPushNotification}
+                    onSyncWithGroup={(summary) => onSyncWithGroup('Astronomi', summary)}
+                    remoteCursors={remoteCursors}
+                    onEmitCursor={emitCursor3D}
+                    activeMysteryChallenge={activeMysteryChallenge}
+                    onSubmitMysteryExam={onSubmitMysteryExam}
+                    hypothesisNote={currentModuleHypothesis}
+                    onChangeHypothesisNote={onUpdateCurrentHypothesis}
+                    zenMode={workflowStep === 2 ? zenMode : true}
+                    snapshotCount={capturedSnapshots.length}
+                    onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
+                      onCapture3DSnapshot('Astronomi', dataUrl, modTitle, pSum, pMetric)
+                    }
+                    completedChallengeIds={completedChallengeIds}
+                    onCompleteChallenge={(ch) => onCompleteChallenge(ch.id)}
+                  />
+                )}
+              </div>
             </div>
 
+            {/* VIEW 5: Student Workflow Stage 3 (Analytics, OLS Regression, LKS) */}
+            {workflowStep === 3 && (
+              <div
+                className={`flex-1 overflow-y-auto px-4 py-6 ${
+                  pip3DMode === 'split' ? 'lg:w-[55%]' : 'max-w-[1380px] w-full mx-auto'
+                }`}
+              >
+                <AnalyticsAndWorksheetPanel
+                  records={records}
+                  activeStudentName={currentProfile.name}
+                  activeGroupId={currentProfile.group}
+                  onSubmitQuizScore={onSubmitQuizScore}
+                  onDeleteRecord={onDeleteRecord}
+                  onExportCSV={onExportCSV}
+                  hypothesisNote={currentModuleHypothesis}
+                  onChangeHypothesisNote={onUpdateCurrentHypothesis}
+                  snapshots3D={capturedSnapshots}
+                  moduleId={experimentModule.id}
+                  domain={activeScienceDomain}
+                  onAskDrLabMu={(prompt) => {
+                    setDrawerTab('ai');
+                    setDrawerOpen(true);
+                    setQueuedDrLabMuPrompt({ id: Date.now(), prompt });
+                  }}
+                  onBackToLab={() => setWorkflowStep(2)}
+                  onProceedToReport={() => setWorkflowStep(4)}
+                  onExportChartNotification={(fmt: 'PNG' | 'PDF') =>
+                    onPushNotification({
+                      id: `notif-exp-${Date.now()}`,
+                      timestamp: new Date().toLocaleTimeString('id-ID', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      }),
+                      severity: 'nominal',
+                      domain: 'Kolaborasi',
+                      title: `Ekspor Grafik & Laporan (${fmt}) Selesai`,
+                      message: `Grafik regresi multi-sumbu dan hasil analisis telah diekspor ke ${fmt}.`,
+                    })
+                  }
+                />
+              </div>
+            )}
+
+            {/* VIEW 6: Student Workflow Stage 4 (Collaboration, Report & Group Tasks) */}
+            {workflowStep === 4 && (
+              <div
+                className={`flex-1 overflow-y-auto px-4 py-6 ${
+                  pip3DMode === 'split' ? 'lg:w-[55%]' : 'max-w-[1380px] w-full mx-auto'
+                }`}
+              >
+                <CollaborationAndDataSection
+                  records={records}
+                  tasks={tasks}
+                  notes={notes}
+                  activeGroupId={currentProfile.group}
+                  activeStudentName={currentProfile.name}
+                  onDeleteRecord={onDeleteRecord}
+                  onToggleTask={onToggleTask}
+                  onCreateTask={onCreateTask}
+                  onCreateNote={onCreateNote}
+                  onBackToAnalysis={() => setWorkflowStep(3)}
+                  onBackToCatalog={() => setIsLobbyMode(true)}
+                  hypothesisNote={currentModuleHypothesis}
+                  onChangeHypothesisNote={onUpdateCurrentHypothesis}
+                  snapshots3D={capturedSnapshots}
+                  onDeleteSnapshot={onDeleteSnapshot}
+                  onReplayRecord={onReplayRecord}
+                  students={students}
+                  onCSVExported={(count) =>
+                    onPushNotification({
+                      id: `notif-csv-${Date.now()}`,
+                      timestamp: new Date().toLocaleTimeString('id-ID', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      }),
+                      severity: 'nominal',
+                      domain: 'Kolaborasi',
+                      title: 'Berkas CSV Kelompok Diunduh',
+                      message: `${count} baris data eksperimen siap diolah di spreadsheet.`,
+                    })
+                  }
+                />
+              </div>
+            )}
+
             {/* Mobile Bottom Navigation Bar (<1024px) */}
-            <BottomNavigationBar recordsCount={records.length} hasLowR2Alert={hasLowR2Alert} />
-          </div>
-        )}
-
-        {/* VIEW 5: Student Workflow Stage 3 (Analytics, OLS Regression, LKS) */}
-        {userRole === 'siswa' && !isLobbyMode && workflowStep === 3 && (
-          <div className="flex-1 overflow-y-auto max-w-[1380px] w-full mx-auto px-4 py-6">
-            <AnalyticsAndWorksheetPanel
-              records={records}
-              activeStudentName={currentProfile.name}
-              activeGroupId={currentProfile.group}
-              onSubmitQuizScore={onSubmitQuizScore}
-              onDeleteRecord={onDeleteRecord}
-              onExportCSV={onExportCSV}
-              hypothesisNote={currentModuleHypothesis}
-              onChangeHypothesisNote={onUpdateCurrentHypothesis}
-              snapshots3D={capturedSnapshots}
-              moduleId={experimentModule.id}
-              domain={activeScienceDomain}
-              onAskDrLabMu={(prompt) => {
-                setDrawerTab('ai');
-                setDrawerOpen(true);
-                setQueuedDrLabMuPrompt({ id: Date.now(), prompt });
-              }}
-              onBackToLab={() => setWorkflowStep(2)}
-              onProceedToReport={() => setWorkflowStep(4)}
-              onExportChartNotification={(fmt: 'PNG' | 'PDF') =>
-                onPushNotification({
-                  id: `notif-exp-${Date.now()}`,
-                  timestamp: new Date().toLocaleTimeString('id-ID', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  }),
-                  severity: 'nominal',
-                  domain: 'Kolaborasi',
-                  title: `Ekspor Grafik & Laporan (${fmt}) Selesai`,
-                  message: `Grafik regresi multi-sumbu dan hasil analisis telah diekspor ke ${fmt}.`,
-                })
-              }
-            />
-          </div>
-        )}
-
-        {/* VIEW 6: Student Workflow Stage 4 (Collaboration, Report & Group Tasks) */}
-        {userRole === 'siswa' && !isLobbyMode && workflowStep === 4 && (
-          <div className="flex-1 overflow-y-auto max-w-[1380px] w-full mx-auto px-4 py-6">
-            <CollaborationAndDataSection
-              records={records}
-              tasks={tasks}
-              notes={notes}
-              activeGroupId={currentProfile.group}
-              activeStudentName={currentProfile.name}
-              onDeleteRecord={onDeleteRecord}
-              onToggleTask={onToggleTask}
-              onCreateTask={onCreateTask}
-              onCreateNote={onCreateNote}
-              onBackToAnalysis={() => setWorkflowStep(3)}
-              onBackToCatalog={() => setIsLobbyMode(true)}
-              hypothesisNote={currentModuleHypothesis}
-              onChangeHypothesisNote={onUpdateCurrentHypothesis}
-              snapshots3D={capturedSnapshots}
-              onDeleteSnapshot={onDeleteSnapshot}
-              onReplayRecord={onReplayRecord}
-              students={students}
-              onCSVExported={(count) =>
-                onPushNotification({
-                  id: `notif-csv-${Date.now()}`,
-                  timestamp: new Date().toLocaleTimeString('id-ID', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  }),
-                  severity: 'nominal',
-                  domain: 'Kolaborasi',
-                  title: 'Berkas CSV Kelompok Diunduh',
-                  message: `${count} baris data eksperimen siap diolah di spreadsheet.`,
-                })
-              }
-            />
+            {workflowStep === 2 && (
+              <BottomNavigationBar recordsCount={records.length} hasLowR2Alert={hasLowR2Alert} />
+            )}
           </div>
         )}
       </Suspense>

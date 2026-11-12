@@ -9,6 +9,7 @@ import {
   getExperimentsByDomain,
 } from '../registry/experimentRegistry';
 import { BiologyScene3D } from './BiologyScene3D';
+import { LabErrorBoundary } from './common/LabErrorBoundary';
 import { SpatialCursorPayload, ParameterLockPayload } from '../utils/collabProtocol';
 import { labSound } from '../utils/soundEngine';
 import {
@@ -210,24 +211,26 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
       activeCameraPreset={activeCameraPreset}
       onSelectCameraPreset={setActiveCameraPreset}
       canvas={
-        <BiologyScene3D
-          mode={currentModule.id as any}
-          params={paramsState}
-          remoteCursors={remoteCursors}
-          onEmitCursor={onEmitCursor}
-          isPlaying={isPlaying}
-          snapshotCount={snapshotCount}
-          onCaptureSnapshot={(dataUrl) => {
-            setShutterFlash(true);
-            setTimeout(() => setShutterFlash(false), 240);
-            onCapture3DSnapshot?.(
-              dataUrl,
-              currentModule.title,
-              'Eksplorasi Biologi Sel 3D',
-              `${currentModule.outputs[0]?.label} = ${currentOutputs[currentModule.outputs[0]?.key]}`
-            );
-          }}
-        />
+        <LabErrorBoundary domain="Biologi" sceneName="BiologyScene3D">
+          <BiologyScene3D
+            mode={currentModule.id as any}
+            params={paramsState}
+            remoteCursors={remoteCursors}
+            onEmitCursor={onEmitCursor}
+            isPlaying={isPlaying}
+            snapshotCount={snapshotCount}
+            onCaptureSnapshot={(dataUrl) => {
+              setShutterFlash(true);
+              setTimeout(() => setShutterFlash(false), 240);
+              onCapture3DSnapshot?.(
+                dataUrl,
+                currentModule.title,
+                'Eksplorasi Biologi Sel 3D',
+                `${currentModule.outputs[0]?.label} = ${currentOutputs[currentModule.outputs[0]?.key]}`
+              );
+            }}
+          />
+        </LabErrorBoundary>
       }
       sidebar={
         <>

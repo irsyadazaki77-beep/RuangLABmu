@@ -151,6 +151,7 @@ export function useSpatialCollab({
             role,
             groupId,
             domain,
+            teacherPin: role === 'Pengajar' ? '1234' : undefined,
           },
         })
       );

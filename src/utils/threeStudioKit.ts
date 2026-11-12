@@ -559,9 +559,9 @@ export function createStudioWorkbenchGroup(
 
   const floorGeo = new THREE.PlaneGeometry(46, 46);
   const floorMat = new THREE.MeshStandardMaterial({
-    color: colors.floorHex,
-    roughness: 0.92,
-    metalness: 0.04,
+    color: 0x0f172a,
+    roughness: 0.85,
+    metalness: 0.08,
   });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
@@ -572,25 +572,25 @@ export function createStudioWorkbenchGroup(
   const gridHelper = new THREE.GridHelper(
     options?.gridSize ?? 28,
     options?.gridDivisions ?? 28,
-    colors.gridPrimaryHex,
-    colors.gridSecondaryHex
+    0x334155,
+    0x1e293b
   );
   gridHelper.position.y = floorY + 0.01;
   (gridHelper.material as THREE.Material).transparent = true;
-  (gridHelper.material as THREE.Material).opacity = 0.32;
+  (gridHelper.material as THREE.Material).opacity = 0.35;
   group.add(gridHelper);
 
   // Beveled phenolic laboratory benchtop
   const benchGeo = new RoundedBoxGeometry(width, thickness, depth, 4, 0.04);
   const benchTopMat = new THREE.MeshStandardMaterial({
-    color: colors.tableHex,
+    color: 0x1e293b,
     map: benchTex?.map ?? null,
     roughnessMap: benchTex?.roughnessMap ?? null,
     bumpMap: benchTex?.bumpMap ?? null,
     bumpScale: 0.008,
-    roughness: 0.56,
-    metalness: 0.08,
-    envMapIntensity: 0.9,
+    roughness: 0.65,
+    metalness: 0.12,
+    envMapIntensity: 0.35,
   });
   const benchMesh = new THREE.Mesh(benchGeo, benchTopMat);
   benchMesh.position.y = benchY;
@@ -607,7 +607,7 @@ export function createStudioWorkbenchGroup(
     bumpScale: 0.004,
     metalness: 0.82,
     roughness: 0.34,
-    envMapIntensity: 1.15,
+    envMapIntensity: 0.45,
   });
   const trimMesh = new THREE.Mesh(trimGeo, trimMat);
   trimMesh.position.y = benchY - thickness * 0.25;
@@ -616,8 +616,8 @@ export function createStudioWorkbenchGroup(
   group.add(trimMesh);
 
   const updateTheme = (nextColors: SceneThemeColors) => {
-    benchTopMat.color.setHex(nextColors.tableHex);
-    floorMat.color.setHex(nextColors.floorHex);
+    benchTopMat.color.setHex(nextColors.tableHex ?? 0x1e293b);
+    floorMat.color.setHex(nextColors.floorHex ?? 0x0f172a);
   };
 
   const dispose = () => {
@@ -740,9 +740,9 @@ export function createStudioComposer(
 
   const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(Math.max(1, width), Math.max(1, height)),
-    bloomOptions?.strength ?? 0.24,
-    bloomOptions?.radius ?? 0.35,
-    bloomOptions?.threshold ?? 0.90
+    bloomOptions?.strength ?? 0.14,
+    bloomOptions?.radius ?? 0.25,
+    bloomOptions?.threshold ?? 1.15
   );
   composer.addPass(bloomPass);
 
@@ -798,3 +798,84 @@ export function createStudioComposer(
     },
   };
 }
+
+export interface DisposalStats {
+  geometriesDisposed: number;
+  materialsDisposed: number;
+  texturesDisposed: number;
+}
+
+const MATERIAL_TEXTURE_SLOTS = [
+  'map',
+  'normalMap',
+  'roughnessMap',
+  'metalnessMap',
+  'emissiveMap',
+  'alphaMap',
+  'aoMap',
+  'bumpMap',
+  'displacementMap',
+  'envMap',
+  'lightMap',
+  'specularMap',
+] as const;
+
+/**
+ * Consistently traverses a Three.js Scene, disposes all geometries, materials,
+ * material texture maps, environment map, render lists, and WebGLRenderer context resources.
+ */
+export function disposeThreeSceneResources(
+  scene: THREE.Scene,
+  renderer?: THREE.WebGLRenderer | null,
+  envTexture?: THREE.Texture | null
+): DisposalStats {
+  let geometriesDisposed = 0;
+  let materialsDisposed = 0;
+  let texturesDisposed = 0;
+
+  const disposeMaterialInstance = (mat: any) => {
+    if (!mat || typeof mat !== 'object') return;
+    for (const slot of MATERIAL_TEXTURE_SLOTS) {
+      const tex = mat[slot];
+      if (tex && typeof tex.dispose === 'function') {
+        tex.dispose();
+        texturesDisposed += 1;
+      }
+    }
+    if (typeof mat.dispose === 'function') {
+      mat.dispose();
+      materialsDisposed += 1;
+    }
+  };
+
+  scene.traverse((obj: any) => {
+    if (obj?.geometry && typeof obj.geometry.dispose === 'function') {
+      obj.geometry.dispose();
+      geometriesDisposed += 1;
+    }
+    if (Array.isArray(obj?.material)) {
+      obj.material.forEach((m: any) => disposeMaterialInstance(m));
+    } else if (obj?.material) {
+      disposeMaterialInstance(obj.material);
+    }
+  });
+
+  if (envTexture && typeof envTexture.dispose === 'function') {
+    envTexture.dispose();
+    texturesDisposed += 1;
+  }
+
+  scene.clear();
+
+  if (renderer) {
+    renderer.renderLists?.dispose?.();
+    renderer.dispose();
+  }
+
+  return {
+    geometriesDisposed,
+    materialsDisposed,
+    texturesDisposed,
+  };
+}
+

@@ -10,6 +10,8 @@ import {
   Trophy,
   Search,
   SlidersHorizontal,
+  Link2,
+  HelpCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ExperimentModule } from '../../registry/experimentRegistry';
@@ -17,6 +19,7 @@ import { labSound } from '../../utils/soundEngine';
 import { useLabStore, WorkflowStep } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCollabStore } from '../../stores/useCollabStore';
+import { buildShareableModuleUrl } from '../../hooks/useUrlRouterSync';
 import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
 const TeacherGradebookHub = lazy(() => import('../teacher/TeacherGradebookHub'));
 import {
@@ -50,6 +53,8 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
   const activeLang: 'id' | 'en' = i18n.language?.startsWith('en') ? 'en' : 'id';
 
   const {
+    activeDomain,
+    activeModuleId,
     isLobbyMode,
     setIsLobbyMode,
     workflowStep,
@@ -60,6 +65,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
 
   const [isGradebookOpen, setIsGradebookOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [shareToastVisible, setShareToastVisible] = useState(false);
 
   // Gamification state & celebration modal
   const [gamificationProfile, setGamificationProfile] = useState<GamificationProfile>(() =>
@@ -87,9 +93,42 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     toggleDrawer,
     comfortPrefs,
     setComfortPrefs,
+    activeModal,
+    openModal,
+    closeModal,
+    setOnboardingTourOpen,
   } = useUIStore();
 
   const { wsConnected, activeRoomId } = useCollabStore();
+
+  useEffect(() => {
+    if (activeModal === 'gradebook') {
+      setIsGradebookOpen(true);
+    }
+  }, [activeModal]);
+
+  const handleShareModuleLink = async () => {
+    labSound.playClick(680);
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ruanglabmu.app';
+    const shareUrl = buildShareableModuleUrl(
+      origin,
+      activeDomain,
+      activeModuleId || experimentModule.id,
+      workflowStep,
+      activeRoomId
+    );
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+    } catch {
+      // fallback if clipboard permission denied in iframe
+    }
+    setShareToastVisible(true);
+    setTimeout(() => {
+      setShareToastVisible(false);
+    }, 2800);
+  };
 
   // Keep root HTML attributes synchronized with active comfort preferences at all times
   useEffect(() => {
@@ -181,6 +220,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         {userRole === 'siswa' && !isLobbyMode && (
           <nav
             aria-label="Tahapan Alur Praktikum"
+            data-onboarding="workflow-stepper"
             className="flex items-center gap-0.5 bg-stone-100/90 dark:bg-slate-900/90 border border-stone-200/80 dark:border-slate-800 p-1 rounded-xl shrink-0"
           >
             {(
@@ -246,18 +286,43 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         )}
       </div>
 
-      {/* Zone 3: Calm Right Utilities (XP, Quick Search, Unified Settings Popover, Dr. LabMu) */}
+      {/* Zone 3: Calm Right Utilities (Share Link, XP Portfolio, Onboarding Tour, Search, Unified Settings Popover, Dr. LabMu) */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 relative">
-        {/* Compact Level / XP Pill */}
+        {/* PILAR 1: Bagikan Link Modul Button */}
         <button
           type="button"
+          onClick={handleShareModuleLink}
+          data-testid="share-module-link-btn"
+          aria-label="Bagikan Link Modul Praktikum"
+          title="🔗 Bagikan Link Modul (Salin URL Deep-Link ke Clipboard)"
+          className="px-2 sm:px-2.5 py-1 flex items-center gap-1.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0"
+        >
+          <Link2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+          <span className="hidden lg:inline">🔗 Bagikan Link Modul</span>
+        </button>
+
+        {/* Share Link Confirmation Toast */}
+        {shareToastVisible && (
+          <div
+            role="status"
+            data-testid="share-link-toast"
+            className="fixed top-16 right-4 z-50 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-xl flex items-center gap-2 animate-fade-in"
+          >
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>Tautan praktikum berhasil disalin!</span>
+          </div>
+        )}
+
+        {/* PILAR 4: Compact Level / XP Pill -> Opens Student Portfolio & STEM Radar */}
+        <button
+          type="button"
+          data-testid="open-portfolio-btn"
           onClick={() => {
             labSound.playClick();
-            setNewlyUnlockedBadge(null);
-            setIsBadgeModalOpen(true);
+            openModal('portfolio');
           }}
-          aria-label={`Profil Gamifikasi Siswa Level ${gamificationProfile.level} (${gamificationProfile.xp} XP)`}
-          title="Lihat Level, XP & Koleksi Lencana Saintifik"
+          aria-label={`Portofolio Sains & Profil Siswa Level ${gamificationProfile.level} (${gamificationProfile.xp} XP)`}
+          title="Buka Portofolio Sains, Radar Kompetensi STEM & Koleksi Lencana"
           className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
         >
           <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
@@ -269,6 +334,22 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           </span>
         </button>
 
+        {/* PILAR 5: [? Panduan UI] Spotlight Onboarding Tour Button */}
+        <button
+          type="button"
+          data-testid="open-onboarding-tour-btn"
+          onClick={() => {
+            labSound.playClick();
+            setOnboardingTourOpen(true);
+          }}
+          aria-label="Buka Panduan UI Interaktif"
+          title="[? Panduan UI] Tur Interaktif RuangLABmu"
+          className="px-2 py-1 flex items-center gap-1 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-600 dark:text-slate-300 text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0"
+        >
+          <HelpCircle className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+          <span className="hidden xl:inline text-[11px]">? Panduan UI</span>
+        </button>
+
         {/* Gradebook Button (Only active when role Guru is selected) */}
         {userRole === 'pengajar' && (
           <button
@@ -276,6 +357,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             onClick={() => {
               labSound.playClick();
               setIsGradebookOpen(true);
+              openModal('gradebook');
             }}
             title="Buka Buku Nilai & Rekap Laporan Guru"
             className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
@@ -445,6 +527,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         {/* Single Clear Dr. LabMu Assistant Button */}
         <button
           type="button"
+          data-onboarding="dr-labmu-trigger"
           onClick={() => {
             labSound.playClick();
             toggleDrawer();
@@ -480,7 +563,10 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         <Suspense fallback={null}>
           <TeacherGradebookHub
             isOpen={isGradebookOpen}
-            onClose={() => setIsGradebookOpen(false)}
+            onClose={() => {
+              setIsGradebookOpen(false);
+              if (activeModal === 'gradebook') closeModal();
+            }}
             activeRoomId={activeRoomId || undefined}
           />
         </Suspense>

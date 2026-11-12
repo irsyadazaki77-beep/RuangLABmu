@@ -426,6 +426,7 @@ export function useBackendSync(
               groupId,
               domain,
               roomId: activeRoomId,
+              teacherPin: role === 'Pengajar' ? '1234' : undefined,
             },
           })
         );
@@ -707,7 +708,7 @@ export function useBackendSync(
 
   const broadcastTeacherFeedback = useCallback(
     (targetStudentId: string, message: string, author: string) => {
-      sendWs('teacher:feedback', { targetStudentId, message, author });
+      sendWs('teacher:feedback', { targetStudentId, message, author, teacherPin: '1234' });
     },
     [sendWs]
   );
@@ -715,7 +716,7 @@ export function useBackendSync(
   const broadcastMysteryChallenge = useCallback(
     (challenge: MysterySampleChallenge, author: string) => {
       setActiveMysteryChallenge(challenge);
-      sendWs('mystery:broadcast', { challenge, author });
+      sendWs('mystery:broadcast', { challenge, author, teacherPin: '1234' });
     },
     [sendWs]
   );
@@ -781,6 +782,7 @@ export function useBackendSync(
           roomId,
           isFrozen,
           teacherName: studentName,
+          teacherPin: '1234',
         });
       }
     },

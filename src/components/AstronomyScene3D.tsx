@@ -5,6 +5,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   createPlanetSurfaceTexture,
   createStudioComposer,
+  disposeThreeSceneResources,
 } from '../utils/threeStudioKit';
 import {
   AstronomyParams,
@@ -259,7 +260,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     renderer.setPixelRatio(pixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.06;
+    renderer.toneMappingExposure = 0.85;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
@@ -273,12 +274,13 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
     const initialColors = getSceneThemeColors(activeComfortTheme, 'Astronomi');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(initialColors.backgroundHex);
-    scene.fog = new THREE.FogExp2(initialColors.fogHex, 0.008);
+    scene.background = new THREE.Color(0x0b0f17);
+    scene.fog = new THREE.FogExp2(0x0b0f17, 0.008);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTexture;
+    scene.environmentIntensity = 0.35;
     pmrem.dispose();
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 400);
@@ -292,7 +294,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       width,
       height,
       isSoftwareGl,
-      { strength: 0.34, radius: 0.42, threshold: 0.85 }
+      { strength: 0.14, radius: 0.25, threshold: 1.15 }
     );
     const { composer } = studioComposer;
 
@@ -367,10 +369,10 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         return renderer.domElement.toDataURL('image/png');
       },
       applyTheme: (colors) => {
-        scene.background = new THREE.Color(colors.backgroundHex);
-        scene.fog = new THREE.FogExp2(colors.fogHex, 0.008);
+        scene.background = new THREE.Color(0x0b0f17);
+        scene.fog = new THREE.FogExp2(0x0b0f17, 0.008);
         ambientLight.color.setHex(colors.ambientSkyHex);
-        ambientLight.intensity = colors.ambientIntensity;
+        ambientLight.intensity = Math.min(0.45, colors.ambientIntensity);
       },
     };
 
@@ -681,8 +683,10 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     scene.add(hubbleGroup);
 
     // Expanding Cosmic Web grid
-    const cosmicGrid = new THREE.GridHelper(30, 20, 0x1e293b, 0x0f172a);
+    const cosmicGrid = new THREE.GridHelper(30, 20, 0x334155, 0x1e293b);
     cosmicGrid.position.y = -2.5;
+    (cosmicGrid.material as THREE.Material).transparent = true;
+    (cosmicGrid.material as THREE.Material).opacity = 0.35;
     hubbleGroup.add(cosmicGrid);
 
     // Milky Way Observer at center
@@ -1048,12 +1052,14 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     };
     const resizeObserver = new ResizeObserver(() => handleResize());
     resizeObserver.observe(container);
+    window.addEventListener('resize', handleResize);
 
     return () => {
       disposed = true;
       cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
       resizeObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', handlePointerUp);
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
@@ -1066,26 +1072,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       sunPhotosphereTex.dispose();
       spectrumTexture.dispose();
 
-      // Deep Three.js GPU resource disposal
-      scene.traverse((obj) => {
-        if (
-          obj instanceof THREE.Mesh ||
-          obj instanceof THREE.Points ||
-          obj instanceof THREE.Line ||
-          obj instanceof THREE.InstancedMesh
-        ) {
-          obj.geometry?.dispose();
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach((m) => m?.dispose());
-          } else if (obj.material) {
-            obj.material.dispose();
-          }
-        }
-      });
-      if (envTexture) {
-        envTexture.dispose();
-      }
-      renderer.dispose();
+      // Deep Three.js GPU resource disposal (geometries, materials, textures, renderer)
+      disposeThreeSceneResources(scene, renderer, envTexture);
       if (renderer.domElement.parentElement) {
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }

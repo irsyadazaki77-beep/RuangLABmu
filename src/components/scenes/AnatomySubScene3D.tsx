@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Eye, Layers, Sparkles, X } from 'lucide-react';
-import { createStudioComposer } from '../../utils/threeStudioKit';
+import { createStudioComposer, disposeThreeSceneResources } from '../../utils/threeStudioKit';
 import {
   calculateCardiovascularHeart,
   calculateRespiratoryLungs,
@@ -222,8 +222,8 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     const width = container.clientWidth || 720;
     const height = container.clientHeight || 460;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050914);
-    scene.fog = new THREE.FogExp2(0x050914, 0.045);
+    scene.background = new THREE.Color(0x0b0f17);
+    scene.fog = new THREE.FogExp2(0x0b0f17, 0.045);
 
     const camera = new THREE.PerspectiveCamera(44, width / height, 0.1, 100);
     camera.position.set(0, 1.3, 5.2);
@@ -243,7 +243,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     renderer.setPixelRatio(pixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
+    renderer.toneMappingExposure = 0.85;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
@@ -257,6 +257,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTexture;
+    scene.environmentIntensity = 0.35;
     pmrem.dispose();
 
     const studioComposer = createStudioComposer(
@@ -266,7 +267,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       width,
       height,
       isSoftwareGl,
-      { strength: 0.22, radius: 0.35, threshold: 0.90 }
+      { strength: 0.14, radius: 0.25, threshold: 1.15 }
     );
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -274,17 +275,17 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     controls.dampingFactor = 0.06;
     controls.target.set(0, 0.1, 0);
 
-    scene.add(new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 0.72));
-    const keyLight = new THREE.DirectionalLight(0xfff7ed, 2.1);
+    scene.add(new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 0.45));
+    const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
     keyLight.position.set(5, 8, 6);
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.set(1024, 1024);
     keyLight.shadow.bias = -0.0002;
     scene.add(keyLight);
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.05);
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.4);
     rimLight.position.set(-6, 4, -5);
     scene.add(rimLight);
-    const subLight = new THREE.PointLight(0xf43f5e, 1.0, 12);
+    const subLight = new THREE.PointLight(0xf43f5e, 0.8, 12);
     subLight.position.set(0, -2.1, 2.5);
     scene.add(subLight);
 
@@ -292,9 +293,9 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     const pedestalGeo = new THREE.CylinderGeometry(2.6, 2.9, 0.16, 48);
     const pedestalMat = new THREE.MeshStandardMaterial({
       color: 0x0f172a,
-      roughness: 0.55,
-      metalness: 0.45,
-      envMapIntensity: 1.0,
+      roughness: 0.85,
+      metalness: 0.08,
+      envMapIntensity: 0.35,
     });
     const pedestal = new THREE.Mesh(pedestalGeo, pedestalMat);
     pedestal.position.y = -2.28;
@@ -768,18 +769,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       renderer.domElement.removeEventListener('mousedown', onPointerDown);
       controls.dispose();
       studioComposer.dispose();
-      scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
-          obj.geometry?.dispose();
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach((m) => m?.dispose());
-          } else if (obj.material) {
-            obj.material.dispose();
-          }
-        }
-      });
-      envTexture.dispose();
-      renderer.dispose();
+      disposeThreeSceneResources(scene, renderer, envTexture);
       if (renderer.domElement.parentElement) {
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }

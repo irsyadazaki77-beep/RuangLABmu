@@ -17,6 +17,7 @@ import {
   ExperimentRecord,
 } from '../utils/scienceEngine';
 import { PhysicsScene3D } from './PhysicsScene3D';
+import { LabErrorBoundary } from './common/LabErrorBoundary';
 import { labSound } from '../utils/soundEngine';
 import { useSimulationWorker } from '../hooks/useSimulationWorker';
 import { SpatialCursorPayload, ParameterLockPayload } from '../utils/collabProtocol';
@@ -354,29 +355,31 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
         </button>
       }
       canvas={
-        <PhysicsScene3D
-          params={params}
-          metrics={metrics}
-          instant={instant}
-          simTime={simTime}
-          simTimeRef={simTimeRef}
-          showVectorOverlay={showVectorOverlay}
-          simFrame={simWorker.currentFrame}
-          remoteCursors={remoteCursors}
-          onEmitCursor={onEmitCursor}
-          onUpdateParam={(key, val) => handleParamUpdate({ [key]: val })}
-          snapshotCount={snapshotCount}
-          onCaptureSnapshot={(dataUrl) => {
-            setShutterFlash(true);
-            setTimeout(() => setShutterFlash(false), 240);
-            onCapture3DSnapshot?.(
-              dataUrl,
-              'Hukum Newton & Mekanika 3D',
-              `m=${params.mass}kg, F=${params.appliedForce}N`,
-              `a = ${metrics.acceleration} m/s²`
-            );
-          }}
-        />
+        <LabErrorBoundary domain="Fisika" sceneName="PhysicsScene3D">
+          <PhysicsScene3D
+            params={params}
+            metrics={metrics}
+            instant={instant}
+            simTime={simTime}
+            simTimeRef={simTimeRef}
+            showVectorOverlay={showVectorOverlay}
+            simFrame={simWorker.currentFrame}
+            remoteCursors={remoteCursors}
+            onEmitCursor={onEmitCursor}
+            onUpdateParam={(key, val) => handleParamUpdate({ [key]: val })}
+            snapshotCount={snapshotCount}
+            onCaptureSnapshot={(dataUrl) => {
+              setShutterFlash(true);
+              setTimeout(() => setShutterFlash(false), 240);
+              onCapture3DSnapshot?.(
+                dataUrl,
+                'Hukum Newton & Mekanika 3D',
+                `m=${params.mass}kg, F=${params.appliedForce}N`,
+                `a = ${metrics.acceleration} m/s²`
+              );
+            }}
+          />
+        </LabErrorBoundary>
       }
       safetyModal={
         safetyHazard.isHazardous && !hazardModalDismissed ? (

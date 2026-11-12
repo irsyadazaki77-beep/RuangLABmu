@@ -14,6 +14,7 @@ import {
   ExperimentRecord,
 } from '../utils/scienceEngine';
 import { AstronomyScene3D } from './AstronomyScene3D';
+import { LabErrorBoundary } from './common/LabErrorBoundary';
 import { labSound } from '../utils/soundEngine';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import {
@@ -229,28 +230,30 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
         ) : null
       }
       canvas={
-        <AstronomyScene3D
-          params={params}
-          metrics={metrics}
-          remoteCursors={remoteCursors}
-          onEmitCursor={onEmitCursor}
-          onUpdateParam={(key, val) => handleParamPatch({ [key]: val })}
-          onPlanetClick={(planetName) => {
-            setFocusedPlanetBadge(planetName);
-            labSound.playClick(720);
-          }}
-          snapshotCount={snapshotCount}
-          onCaptureSnapshot={(dataUrl) => {
-            setShutterFlash(true);
-            setTimeout(() => setShutterFlash(false), 240);
-            onCapture3DSnapshot?.(
-              dataUrl,
-              'Orbit Tata Surya & Kepler 3D',
-              `Planet: ${params.selectedPlanetId || 'Bumi'}`,
-              `v = ${metrics.meanOrbitalVelocityKms} km/s`
-            );
-          }}
-        />
+        <LabErrorBoundary domain="Astronomi" sceneName="AstronomyScene3D">
+          <AstronomyScene3D
+            params={params}
+            metrics={metrics}
+            remoteCursors={remoteCursors}
+            onEmitCursor={onEmitCursor}
+            onUpdateParam={(key, val) => handleParamPatch({ [key]: val })}
+            onPlanetClick={(planetName) => {
+              setFocusedPlanetBadge(planetName);
+              labSound.playClick(720);
+            }}
+            snapshotCount={snapshotCount}
+            onCaptureSnapshot={(dataUrl) => {
+              setShutterFlash(true);
+              setTimeout(() => setShutterFlash(false), 240);
+              onCapture3DSnapshot?.(
+                dataUrl,
+                'Orbit Tata Surya & Kepler 3D',
+                `Planet: ${params.selectedPlanetId || 'Bumi'}`,
+                `v = ${metrics.meanOrbitalVelocityKms} km/s`
+              );
+            }}
+          />
+        </LabErrorBoundary>
       }
       sidebar={
         <>

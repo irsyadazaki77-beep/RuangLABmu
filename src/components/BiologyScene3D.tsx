@@ -6,6 +6,7 @@ import {
   createBrushedMetalTextures,
   createLabBenchTextures,
   createStudioComposer,
+  disposeThreeSceneResources,
 } from '../utils/threeStudioKit';
 import { Maximize2, Minimize2, Focus } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
@@ -175,8 +176,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     // Three.js Scene, Camera, Renderer
     const initialColors = getSceneThemeColors(activeComfortTheme, 'Biologi');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(initialColors.backgroundHex);
-    scene.fog = new THREE.FogExp2(initialColors.fogHex, 0.02);
+    scene.background = new THREE.Color(0x0b0f17);
+    scene.fog = new THREE.FogExp2(0x0b0f17, 0.02);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
     camera.position.set(2.8, 3.8, 7.2);
@@ -193,7 +194,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     renderer.setPixelRatio(pixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 0.85;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
@@ -208,6 +209,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTexture;
+    scene.environmentIntensity = 0.35;
     pmrem.dispose();
 
     // Post-Processing Pipeline: Hardware MSAA RenderTarget + RenderPass + Subtle Bloom + ACES OutputPass
@@ -218,7 +220,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       width,
       height,
       isSoftwareGl,
-      { strength: 0.25, radius: 0.36, threshold: 0.88 }
+      { strength: 0.14, radius: 0.25, threshold: 1.15 }
     );
     const { composer } = studioComposer;
 
@@ -266,11 +268,11 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const hemiLight = new THREE.HemisphereLight(
       initialColors.ambientSkyHex,
       initialColors.ambientGroundHex,
-      initialColors.ambientIntensity
+      0.45
     );
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.6);
+    const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
     dirLight.position.set(5, 8, 4);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048;
@@ -309,19 +311,31 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     stageCondenserLight.shadow.bias = -0.0001;
     scene.add(stageCondenserLight);
 
-    // Laboratory Table Surface with Phenolic PBR Texture & Optical Condenser Collar
-    const bioBenchTex = createLabBenchTextures(initialColors.tableHex, 3, 3);
+    // Laboratory Floor & Table Surface with Phenolic PBR Texture & Optical Condenser Collar
+    const floorGeo = new THREE.PlaneGeometry(36, 36);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.85,
+      metalness: 0.08,
+    });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.y = -0.08;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
+
+    const bioBenchTex = createLabBenchTextures(0x1e293b, 3, 3);
     const bioMetalTex = createBrushedMetalTextures();
     const tableGeo = new THREE.RingGeometry(0.95, 5.2, 48);
     tableGeo.rotateX(-Math.PI / 2);
     const tableMat = new THREE.MeshStandardMaterial({
-      color: initialColors.tableHex,
+      color: 0x1e293b,
       map: bioBenchTex?.map ?? null,
       roughnessMap: bioBenchTex?.roughnessMap ?? null,
       bumpMap: bioBenchTex?.bumpMap ?? null,
       bumpScale: 0.008,
-      roughness: 0.52,
-      metalness: 0.08,
+      roughness: 0.65,
+      metalness: 0.12,
       side: THREE.DoubleSide,
     });
     const tableMesh = new THREE.Mesh(tableGeo, tableMat);
@@ -337,7 +351,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         roughnessMap: bioMetalTex?.roughnessMap ?? null,
         metalness: 0.85,
         roughness: 0.24,
-        envMapIntensity: 1.25,
+        envMapIntensity: 0.45,
       })
     );
     condenserBezel.rotation.x = Math.PI / 2;
@@ -350,11 +364,14 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       new THREE.MeshPhysicalMaterial({
         color: 0xe0f2fe,
         roughness: 0.05,
-        transmission: 0.94,
-        thickness: 0.6,
-        ior: 1.52,
+        transmission: 0.92,
+        thickness: 0.2,
+        ior: 1.48,
         transparent: true,
-        opacity: 1,
+        opacity: 0.30,
+        envMapIntensity: 0.35,
+        reflectivity: 0.25,
+        depthWrite: false,
         emissive: 0x0284c7,
         emissiveIntensity: 0.45,
       })
@@ -366,13 +383,16 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     // Translucent Glass Microscope Slide (Kaca Preparat) above condenser
     const slideGlassMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
+      metalness: 0.0,
       roughness: 0.05,
-      transmission: 0.96,
-      thickness: 0.4,
-      ior: 1.52,
+      transmission: 0.92,
       transparent: true,
-      opacity: 1,
-      reflectivity: 0.5,
+      opacity: 0.30,
+      ior: 1.48,
+      thickness: 0.2,
+      envMapIntensity: 0.35,
+      reflectivity: 0.25,
+      depthWrite: false,
     });
     const microscopeSlide = new THREE.Mesh(
       new THREE.BoxGeometry(3.8, 0.06, 1.8),
@@ -392,18 +412,21 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         return renderer.domElement.toDataURL('image/png');
       },
       applyTheme: (colors) => {
-        scene.background = new THREE.Color(colors.backgroundHex);
-        scene.fog = new THREE.FogExp2(colors.fogHex, 0.02);
-        tableMat.color.setHex(colors.tableHex);
+        scene.background = new THREE.Color(0x0b0f17);
+        scene.fog = new THREE.FogExp2(0x0b0f17, 0.02);
+        tableMat.color.setHex(colors.tableHex ?? 0x1e293b);
+        floorMat.color.setHex(colors.floorHex ?? 0x0f172a);
         hemiLight.color.setHex(colors.ambientSkyHex);
         hemiLight.groundColor.setHex(colors.ambientGroundHex);
-        hemiLight.intensity = colors.ambientIntensity;
+        hemiLight.intensity = Math.min(0.45, colors.ambientIntensity);
       },
     };
 
     // Grid Floor
-    const grid = new THREE.GridHelper(9, 18, 0x38bdf8, 0x334155);
+    const grid = new THREE.GridHelper(9, 18, 0x334155, 0x1e293b);
     grid.position.y = 0.01;
+    (grid.material as THREE.Material).transparent = true;
+    (grid.material as THREE.Material).opacity = 0.35;
     scene.add(grid);
 
     // Container for dynamic apparatus meshes
@@ -1006,19 +1029,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       mitoTex.dispose();
       chloroTex.dispose();
 
-      // Deep Three.js disposal
-      scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh || obj instanceof THREE.Points || obj instanceof THREE.Line) {
-          obj.geometry?.dispose();
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach((m) => m?.dispose());
-          } else if (obj.material) {
-            obj.material.dispose();
-          }
-        }
-      });
-      if (envTexture) envTexture.dispose();
-      renderer.dispose();
+      // Deep Three.js GPU resource disposal (geometries, materials, textures, renderer)
+      disposeThreeSceneResources(scene, renderer, envTexture);
       if (renderer.domElement.parentElement) {
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }

@@ -8,6 +8,7 @@ import {
   createGraduationScaleTexture,
   createStudioComposer,
   createStudioWorkbenchGroup,
+  disposeThreeSceneResources,
 } from '../utils/threeStudioKit';
 import {
   PhysicsParams,
@@ -306,7 +307,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     renderer.setPixelRatio(pixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 0.85;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
@@ -320,12 +321,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     const initialThemeColors = getSceneThemeColors(activeComfortTheme, 'Fisika');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(initialThemeColors.backgroundHex);
-    scene.fog = new THREE.FogExp2(initialThemeColors.fogHex, 0.014);
+    scene.background = new THREE.Color(0x0b0f17);
+    scene.fog = new THREE.FogExp2(0x0b0f17, 0.014);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTexture;
+    scene.environmentIntensity = 0.35;
     pmrem.dispose();
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 250);
@@ -339,7 +341,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       width,
       height,
       isSoftwareGl,
-      { strength: 0.24, radius: 0.35, threshold: 0.90 }
+      { strength: 0.14, radius: 0.25, threshold: 1.15 }
     );
     const { composer } = studioComposer;
 
@@ -382,11 +384,11 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const hemiLight = new THREE.HemisphereLight(
       initialThemeColors.ambientSkyHex,
       initialThemeColors.ambientGroundHex,
-      initialThemeColors.ambientIntensity
+      0.45
     );
     scene.add(hemiLight);
 
-    const keyLight = new THREE.DirectionalLight(0xfff7ed, 2.2);
+    const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
     keyLight.position.set(8, 14, 9);
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.width = 2048;
@@ -402,7 +404,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     keyLight.shadow.normalBias = 0.02;
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.1);
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.4);
     rimLight.position.set(-9, 6, -8);
     scene.add(rimLight);
 
@@ -429,12 +431,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         return renderer.domElement.toDataURL('image/png');
       },
       applyTheme: (colors) => {
-        scene.background = new THREE.Color(colors.backgroundHex);
-        scene.fog = new THREE.FogExp2(colors.fogHex, 0.014);
+        scene.background = new THREE.Color(0x0b0f17);
+        scene.fog = new THREE.FogExp2(0x0b0f17, 0.014);
         workbench.updateTheme(colors);
         hemiLight.color.setHex(colors.ambientSkyHex);
         hemiLight.groundColor.setHex(colors.ambientGroundHex);
-        hemiLight.intensity = colors.ambientIntensity;
+        hemiLight.intensity = Math.min(0.45, colors.ambientIntensity);
       },
     };
 
@@ -1681,12 +1683,14 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     };
     const resizeObserver = new ResizeObserver(() => handleResize());
     resizeObserver.observe(container);
+    window.addEventListener('resize', handleResize);
 
     return () => {
       disposed = true;
       cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
       resizeObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', handlePointerUp);
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
@@ -1700,21 +1704,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       rampScaleTex?.dispose();
       fringeTexture.dispose();
 
-      // Deep Three.js GPU resource disposal
-      scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh || obj instanceof THREE.Points || obj instanceof THREE.Line) {
-          obj.geometry?.dispose();
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach((m) => m?.dispose());
-          } else if (obj.material) {
-            obj.material.dispose();
-          }
-        }
-      });
-      if (envTexture) {
-        envTexture.dispose();
-      }
-      renderer.dispose();
+      // Deep Three.js GPU resource disposal (geometries, materials, textures, renderer)
+      disposeThreeSceneResources(scene, renderer, envTexture);
       if (renderer.domElement.parentElement) {
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }

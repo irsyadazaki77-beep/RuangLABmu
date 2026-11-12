@@ -47,16 +47,16 @@ export function getSceneThemeColors(
     if (comfortTheme === 'light') {
       return {
         theme: 'light',
-        backgroundHex: 0x0f172a,
-        fogHex: 0x0f172a,
-        floorHex: 0x1e293b,
+        backgroundHex: 0x0b0f17,
+        fogHex: 0x0b0f17,
+        floorHex: 0x0f172a,
         tableHex: 0x1e293b,
-        gridPrimaryHex: 0x475569,
+        gridPrimaryHex: 0x334155,
         gridSecondaryHex: 0x1e293b,
         ambientSkyHex: 0xe2e8f0,
         ambientGroundHex: 0x1e293b,
-        ambientIntensity: 0.6,
-        containerBgClass: 'bg-[#0F172A]',
+        ambientIntensity: 0.45,
+        containerBgClass: 'bg-[#0B0F17]',
       };
     }
     if (comfortTheme === 'sepia') {
@@ -64,44 +64,44 @@ export function getSceneThemeColors(
         theme: 'sepia',
         backgroundHex: 0x14110f,
         fogHex: 0x14110f,
-        floorHex: 0x26201a,
-        tableHex: 0x26201a,
-        gridPrimaryHex: 0x5c5346,
-        gridSecondaryHex: 0x2a241e,
+        floorHex: 0x0f172a,
+        tableHex: 0x1e293b,
+        gridPrimaryHex: 0x334155,
+        gridSecondaryHex: 0x1e293b,
         ambientSkyHex: 0xfef3c7,
         ambientGroundHex: 0x26201a,
-        ambientIntensity: 0.55,
+        ambientIntensity: 0.45,
         containerBgClass: 'bg-[#14110F]',
       };
     }
     return {
       theme: 'dark',
-      backgroundHex: 0x050811,
-      fogHex: 0x050811,
+      backgroundHex: 0x0b0f17,
+      fogHex: 0x0b0f17,
       floorHex: 0x0f172a,
       tableHex: 0x1e293b,
       gridPrimaryHex: 0x334155,
-      gridSecondaryHex: 0x0f172a,
+      gridSecondaryHex: 0x1e293b,
       ambientSkyHex: 0x94a3b8,
       ambientGroundHex: 0x090d16,
       ambientIntensity: 0.45,
-      containerBgClass: 'bg-[#050811]',
+      containerBgClass: 'bg-[#0B0F17]',
     };
   }
 
   if (comfortTheme === 'light') {
     return {
       theme: 'light',
-      backgroundHex: 0x0f172a,
-      fogHex: 0x0f172a,
-      floorHex: 0x1e293b,
-      tableHex: 0x334155,
-      gridPrimaryHex: 0x475569,
+      backgroundHex: 0x0b0f17,
+      fogHex: 0x0b0f17,
+      floorHex: 0x0f172a,
+      tableHex: 0x1e293b,
+      gridPrimaryHex: 0x334155,
       gridSecondaryHex: 0x1e293b,
       ambientSkyHex: 0xe2e8f0,
       ambientGroundHex: 0x1e293b,
-      ambientIntensity: 0.68,
-      containerBgClass: 'bg-[#0F172A]',
+      ambientIntensity: 0.45,
+      containerBgClass: 'bg-[#0B0F17]',
     };
   }
 
@@ -110,29 +110,29 @@ export function getSceneThemeColors(
       theme: 'sepia',
       backgroundHex: 0x171412,
       fogHex: 0x171412,
-      floorHex: 0x26211d,
-      tableHex: 0x362f29,
-      gridPrimaryHex: 0x5c5346,
-      gridSecondaryHex: 0x2a241e,
+      floorHex: 0x0f172a,
+      tableHex: 0x1e293b,
+      gridPrimaryHex: 0x334155,
+      gridSecondaryHex: 0x1e293b,
       ambientSkyHex: 0xfef3c7,
       ambientGroundHex: 0x26201a,
-      ambientIntensity: 0.65,
+      ambientIntensity: 0.45,
       containerBgClass: 'bg-[#171412]',
     };
   }
 
   return {
     theme: 'dark',
-    backgroundHex: 0x0b1120,
-    fogHex: 0x0b1120,
+    backgroundHex: 0x0b0f17,
+    fogHex: 0x0b0f17,
     floorHex: 0x0f172a,
     tableHex: 0x1e293b,
     gridPrimaryHex: 0x334155,
     gridSecondaryHex: 0x1e293b,
     ambientSkyHex: 0xe0f2fe,
     ambientGroundHex: 0x1e293b,
-    ambientIntensity: 0.65,
-    containerBgClass: 'bg-[#0B1120]',
+    ambientIntensity: 0.45,
+    containerBgClass: 'bg-[#0B0F17]',
   };
 }
 

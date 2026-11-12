@@ -2,9 +2,15 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import helmet from 'helmet';
+import { rateLimit } from 'express-rate-limit';
 import { WebSocketServer, WebSocket } from 'ws';
 import { GoogleGenAI, Type } from '@google/genai';
 import { loadPersistedState, scheduleSaveState } from './src/utils/statePersistence';
+import {
+  AsyncSubmissionStore,
+  verifyTeacherAuthorization,
+} from './src/utils/submissionPersistence';
 import { generateSocraticDrLabMuResponse } from './src/utils/scienceEngine';
 import {
   formatDrLabMuAskPayload,
@@ -315,12 +321,44 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // Cross-Origin Isolation headers required for SharedArrayBuffer in SimulationRingBuffer
-  app.use((_req, res, next) => {
-    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-    next();
+  // Security headers via Helmet + Cross-Origin Isolation required for SharedArrayBuffer in SimulationRingBuffer
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      frameguard: false,
+      crossOriginEmbedderPolicy: { policy: 'require-corp' },
+      crossOriginOpenerPolicy: { policy: 'same-origin' },
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+  );
+
+  // Rate Limiting: AI Dr. LabMu endpoints (max 20 req / min per IP)
+  const aiAssistantLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      error: 'Batas kuota permintaan AI Dr. LabMu tercapai (maksimal 20 permintaan/menit). Silakan tunggu sebentar.',
+    },
   });
+
+  // Rate Limiting: Submissions pipeline (max 30 req / min per IP)
+  const submissionsLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      error: 'Terlalu banyak pengiriman laporan dalam 1 menit (maksimal 30 permintaan/menit).',
+    },
+  });
+
+  app.use('/api/assistant', aiAssistantLimiter);
+  app.use('/api/dr-labmu/ask', aiAssistantLimiter);
+  app.use('/api/ai/dr-labmu', aiAssistantLimiter);
+  app.use('/api/ai/vision-diagnose', aiAssistantLimiter);
+  app.use('/api/submissions', submissionsLimiter);
 
   app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
@@ -398,13 +436,9 @@ async function startServer() {
     });
   });
 
-  // Skema & Penyimpanan Persisten Laporan Praktikum (Tahap 1: data/submissions.json)
+  // Skema & Penyimpanan Persisten Laporan Praktikum (Async Atomic Write Queue)
   const DATA_DIR = path.join(ROOT_DIR, 'data');
   const SUBMISSIONS_FILE = path.join(DATA_DIR, 'submissions.json');
-
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
 
   interface LabSubmissionRecord {
     id: string;
@@ -432,74 +466,55 @@ async function startServer() {
     teacherGrade?: { score: number; feedback: string; gradedAt: string };
   }
 
-  const loadSubmissions = (): LabSubmissionRecord[] => {
-    try {
-      if (fs.existsSync(SUBMISSIONS_FILE)) {
-        const raw = fs.readFileSync(SUBMISSIONS_FILE, 'utf-8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.warn('Failed to read submissions.json, using fallback:', e);
-    }
-    // Seed initial demo submission so teacher gradebook has realistic pedagogical data immediately
-    const initialSeed: LabSubmissionRecord[] = [
-      {
-        id: 'SUB-2026-001',
-        studentName: 'Alya Pratama',
-        studentId: 'stu-1',
-        roomId: 'LAB-ALPHA',
-        domain: 'Fisika',
-        moduleId: 'newton-incline',
-        submittedAt: new Date(Date.now() - 3600000).toISOString(),
-        hypothesisText: 'Percepatan benda berbanding lurus dengan resultan gaya dan berbanding terbalik dengan massa total.',
-        observationData: [
-          { 'No / ID': '1', 'F (N)': 15, 'a (m/s²)': 2.45, 'Status': 'Valid' },
-          { 'No / ID': '2', 'F (N)': 30, 'a (m/s²)': 4.90, 'Status': 'Valid' },
-          { 'No / ID': '3', 'F (N)': 45, 'a (m/s²)': 7.30, 'Status': 'Valid' },
-        ],
-        regressionMetrics: {
-          rSquared: 0.998,
-          slope: 0.162,
-          equation: 'y = 0.162x + 0.015',
-        },
-        quizAnswers: [
-          { questionId: 'q-newton-1', selectedAnswer: '9.0', isCorrect: true },
-          { questionId: 'q-collision-2', selectedAnswer: '4.0', isCorrect: true },
-        ],
-        quizScore: 95,
-        conclusionText: 'Data hasil percobaan membuktikan keabsahan Hukum II Newton secara empiris dengan korelasi R² = 0.998.',
-        telemetryLog: [
-          { timestamp: Date.now() - 3900000, parameterName: 'inclineAngle', value: 15, stepIndex: 1, domain: 'Fisika', eventType: 'slider', note: 'Mengatur sudut kemiringan bidang miring θ = 15°' },
-          { timestamp: Date.now() - 3840000, parameterName: 'appliedForce', value: 15, stepIndex: 2, domain: 'Fisika', eventType: 'record', note: 'Mencatat titik uji 1 (F = 15 N, a = 2.45 m/s²)' },
-          { timestamp: Date.now() - 3780000, parameterName: 'appliedForce', value: 30, stepIndex: 2, domain: 'Fisika', eventType: 'record', note: 'Mencatat titik uji 2 (F = 30 N, a = 4.90 m/s²)' },
-          { timestamp: Date.now() - 3720000, parameterName: 'appliedForce', value: 45, stepIndex: 2, domain: 'Fisika', eventType: 'record', note: 'Mencatat titik uji 3 (F = 45 N, a = 7.30 m/s²)' },
-          { timestamp: Date.now() - 3650000, parameterName: 'regressionR2', value: 0.998, stepIndex: 3, domain: 'Fisika', eventType: 'record', note: 'Menyelesaikan regresi OLS (R² = 0.998) & LKS' },
-        ],
-        teacherGrade: {
-          score: 96,
-          feedback: 'Analisis regresi luar biasa teliti, penarikan kesimpulan ilmiah sangat komprehensif!',
-          gradedAt: new Date(Date.now() - 1800000).toISOString(),
-        },
+  // Seed initial demo submission so teacher gradebook has realistic pedagogical data immediately
+  const initialSubmissionsSeed: LabSubmissionRecord[] = [
+    {
+      id: 'SUB-2026-001',
+      studentName: 'Alya Pratama',
+      studentId: 'stu-1',
+      roomId: 'LAB-ALPHA',
+      domain: 'Fisika',
+      moduleId: 'newton-incline',
+      submittedAt: new Date(Date.now() - 3600000).toISOString(),
+      hypothesisText: 'Percepatan benda berbanding lurus dengan resultan gaya dan berbanding terbalik dengan massa total.',
+      observationData: [
+        { 'No / ID': '1', 'F (N)': 15, 'a (m/s²)': 2.45, 'Status': 'Valid' },
+        { 'No / ID': '2', 'F (N)': 30, 'a (m/s²)': 4.90, 'Status': 'Valid' },
+        { 'No / ID': '3', 'F (N)': 45, 'a (m/s²)': 7.30, 'Status': 'Valid' },
+      ],
+      regressionMetrics: {
+        rSquared: 0.998,
+        slope: 0.162,
+        equation: 'y = 0.162x + 0.015',
       },
-    ];
-    try {
-      fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(initialSeed, null, 2), 'utf-8');
-    } catch {
-      // ignore
-    }
-    return initialSeed;
-  };
+      quizAnswers: [
+        { questionId: 'q-newton-1', selectedAnswer: '9.0', isCorrect: true },
+        { questionId: 'q-collision-2', selectedAnswer: '4.0', isCorrect: true },
+      ],
+      quizScore: 95,
+      conclusionText: 'Data hasil percobaan membuktikan keabsahan Hukum II Newton secara empiris dengan korelasi R² = 0.998.',
+      telemetryLog: [
+        { timestamp: Date.now() - 3900000, parameterName: 'inclineAngle', value: 15, stepIndex: 1, domain: 'Fisika', eventType: 'slider', note: 'Mengatur sudut kemiringan bidang miring θ = 15°' },
+        { timestamp: Date.now() - 3840000, parameterName: 'appliedForce', value: 15, stepIndex: 2, domain: 'Fisika', eventType: 'record', note: 'Mencatat titik uji 1 (F = 15 N, a = 2.45 m/s²)' },
+        { timestamp: Date.now() - 3780000, parameterName: 'appliedForce', value: 30, stepIndex: 2, domain: 'Fisika', eventType: 'record', note: 'Mencatat titik uji 2 (F = 30 N, a = 4.90 m/s²)' },
+        { timestamp: Date.now() - 3720000, parameterName: 'appliedForce', value: 45, stepIndex: 2, domain: 'Fisika', eventType: 'record', note: 'Mencatat titik uji 3 (F = 45 N, a = 7.30 m/s²)' },
+        { timestamp: Date.now() - 3650000, parameterName: 'regressionR2', value: 0.998, stepIndex: 3, domain: 'Fisika', eventType: 'record', note: 'Menyelesaikan regresi OLS (R² = 0.998) & LKS' },
+      ],
+      teacherGrade: {
+        score: 96,
+        feedback: 'Analisis regresi luar biasa teliti, penarikan kesimpulan ilmiah sangat komprehensif!',
+        gradedAt: new Date(Date.now() - 1800000).toISOString(),
+      },
+    },
+  ];
 
-  const submissionsList: LabSubmissionRecord[] = loadSubmissions();
+  const submissionStore = new AsyncSubmissionStore<LabSubmissionRecord>(
+    SUBMISSIONS_FILE,
+    initialSubmissionsSeed
+  );
+  const submissionsList: LabSubmissionRecord[] = await submissionStore.init();
 
-  const persistSubmissions = () => {
-    try {
-      fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(submissionsList, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Failed to write submissions.json:', err);
-    }
-  };
+  const persistSubmissions = (): Promise<void> => submissionStore.enqueuePersist();
 
   // REST API Endpoints: Submissions Pipeline (Tahap 1)
   app.post('/api/submissions', (req, res) => {
@@ -596,8 +611,8 @@ async function startServer() {
     }
   });
 
-  // Structured Socratic AI endpoint for Dr. LabMu
-  app.post('/api/dr-labmu/ask', async (req, res) => {
+  // Structured Socratic AI endpoint for Dr. LabMu (accessible via /api/dr-labmu/ask and /api/assistant)
+  app.post(['/api/dr-labmu/ask', '/api/assistant'], async (req, res) => {
     try {
       const telemetry = normalizeDrLabMuRequest(req.body);
       if (!telemetry) {
@@ -852,12 +867,22 @@ Berikan bimbingan Sokratik cerdas:
         if (msg.type === 'client:identify' && msg.payload) {
           ws.userId = msg.payload.userId;
           ws.userName = msg.payload.userName;
-          ws.role = msg.payload.role;
           ws.groupId = msg.payload.groupId;
           ws.domain = msg.payload.domain;
           if (msg.payload.roomId) {
             ws.roomId = msg.payload.roomId.toUpperCase().trim();
           }
+          const activeRoom = ws.roomId ? activeLabRooms.get(ws.roomId) : undefined;
+          const authCheck = verifyTeacherAuthorization({
+            socketId: ws.socketId,
+            claimedRole: msg.payload.role,
+            providedPin: msg.payload.teacherPin || msg.payload.pin,
+            providedToken: msg.payload.teacherToken,
+            roomPin: activeRoom?.pin,
+            roomTeacherSocketId: activeRoom?.teacherSocketId,
+            isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
+          });
+          ws.role = authCheck.authorized ? 'Pengajar' : 'Siswa';
         } else if (msg.type === 'ROOM_CREATE' && msg.payload) {
           const { pin, domain, moduleId, teacherName, teacherUserId, roomId: customId } = msg.payload;
           const roomId = (customId || generateRandomRoomId()).toUpperCase().trim();
@@ -956,10 +981,27 @@ Berikan bimbingan Sokratik cerdas:
             broadcastRoom(oldId, { type: 'ROOM_STATE_SYNC', payload: { room } });
           }
         } else if (msg.type === 'TEACHER_FREEZE_TOGGLE' && msg.payload) {
-          const { roomId, isFrozen, teacherName } = msg.payload;
+          const { roomId, isFrozen, teacherName, teacherPin, pin } = msg.payload;
           const targetRoomId = (roomId || ws.roomId || '').toUpperCase().trim();
           const room = activeLabRooms.get(targetRoomId);
           if (room) {
+            const authCheck = verifyTeacherAuthorization({
+              socketId: ws.socketId,
+              claimedRole: 'Pengajar',
+              providedPin: teacherPin || pin,
+              roomPin: room.pin,
+              roomTeacherSocketId: room.teacherSocketId,
+              isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
+            });
+            if (!authCheck.authorized) {
+              ws.send(
+                JSON.stringify({
+                  type: 'ROOM_ERROR',
+                  payload: { message: authCheck.reason || 'Akses Pengajar ditolak.', code: 'UNAUTHORIZED_TEACHER' },
+                })
+              );
+              return;
+            }
             room.isFrozenByTeacher = Boolean(isFrozen);
             broadcastRoom(targetRoomId, {
               type: 'TEACHER_FREEZE_TOGGLE',
@@ -1126,6 +1168,15 @@ Berikan bimbingan Sokratik cerdas:
             broadcastAll({ type: 'notification:pushed', payload: { notification: notif } });
           }
         } else if (msg.type === 'teacher:feedback' && msg.payload) {
+          const authCheck = verifyTeacherAuthorization({
+            socketId: ws.socketId,
+            claimedRole: 'Pengajar',
+            providedPin: msg.payload.teacherPin || msg.payload.pin,
+            isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
+          });
+          if (!authCheck.authorized) {
+            return;
+          }
           const { targetStudentId, message, author } = msg.payload;
           const targetStu = studentRoster.find((s) => s.id === targetStudentId);
           const notif: ServerNotification = {
@@ -1155,6 +1206,15 @@ Berikan bimbingan Sokratik cerdas:
             payload: { notification: notif, note, students: studentRoster },
           });
         } else if (msg.type === 'mystery:broadcast' && msg.payload) {
+          const authCheck = verifyTeacherAuthorization({
+            socketId: ws.socketId,
+            claimedRole: 'Pengajar',
+            providedPin: msg.payload.teacherPin || msg.payload.pin,
+            isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
+          });
+          if (!authCheck.authorized) {
+            return;
+          }
           const { challenge, author } = msg.payload;
           const codename = challenge.codename || challenge.codeName || challenge.id || 'MISTERI';
           const notif: ServerNotification = {

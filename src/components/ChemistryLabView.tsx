@@ -15,6 +15,7 @@ import {
   ExperimentRecord,
 } from '../utils/scienceEngine';
 import { ChemistryScene3D } from './ChemistryScene3D';
+import { LabErrorBoundary } from './common/LabErrorBoundary';
 import { labSound } from '../utils/soundEngine';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import {
@@ -247,28 +248,30 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
       activeCameraPreset={activeCameraPreset}
       onSelectCameraPreset={setActiveCameraPreset}
       canvas={
-        <ChemistryScene3D
-          params={params}
-          metrics={metrics}
-          preset={currentPreset}
-          redoxPreset={currentRedoxPreset}
-          reactionProgress={Math.min(1, params.titrantAddedMl / Math.max(1, metrics.equivalenceVolumeMl))}
-          isReacting={params.initialTempC > 25}
-          remoteCursors={remoteCursors}
-          onEmitCursor={onEmitCursor}
-          onUpdateParam={(key, val) => handleParamChange({ [key]: val } as any)}
-          snapshotCount={snapshotCount}
-          onCaptureSnapshot={(dataUrl) => {
-            setShutterFlash(true);
-            setTimeout(() => setShutterFlash(false), 240);
-            onCapture3DSnapshot?.(
-              dataUrl,
-              'Titrasi & Reaksi Kimia 3D',
-              `Vb=${params.titrantAddedMl}mL, T=${params.initialTempC}°C`,
-              `pH = ${metrics.currentPh}`
-            );
-          }}
-        />
+        <LabErrorBoundary domain="Kimia" sceneName="ChemistryScene3D">
+          <ChemistryScene3D
+            params={params}
+            metrics={metrics}
+            preset={currentPreset}
+            redoxPreset={currentRedoxPreset}
+            reactionProgress={Math.min(1, params.titrantAddedMl / Math.max(1, metrics.equivalenceVolumeMl))}
+            isReacting={params.initialTempC > 25}
+            remoteCursors={remoteCursors}
+            onEmitCursor={onEmitCursor}
+            onUpdateParam={(key, val) => handleParamChange({ [key]: val } as any)}
+            snapshotCount={snapshotCount}
+            onCaptureSnapshot={(dataUrl) => {
+              setShutterFlash(true);
+              setTimeout(() => setShutterFlash(false), 240);
+              onCapture3DSnapshot?.(
+                dataUrl,
+                'Titrasi & Reaksi Kimia 3D',
+                `Vb=${params.titrantAddedMl}mL, T=${params.initialTempC}°C`,
+                `pH = ${metrics.currentPh}`
+              );
+            }}
+          />
+        </LabErrorBoundary>
       }
       safetyModal={
         safetyHazard.isHazardous && !hazardModalDismissed ? (

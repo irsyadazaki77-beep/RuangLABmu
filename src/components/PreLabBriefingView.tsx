@@ -31,6 +31,7 @@ import {
   recordK3Compliance,
   loadGamificationProfile,
 } from '../services/gamificationEngine';
+import { InteractiveFormulaPrimer } from './ui/InteractiveFormulaPrimer';
 
 interface PreLabBriefingViewProps {
   experiment: ExperimentModule;
@@ -236,6 +237,13 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
                 </div>
               </div>
             )}
+
+            {/* PILAR 3: Interactive Formula Concept Primer ala Brilliant.org */}
+            <InteractiveFormulaPrimer
+              moduleId={experiment.id}
+              domain={experiment.domain}
+              defaultExpanded={true}
+            />
 
             {/* Learning Objectives */}
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
