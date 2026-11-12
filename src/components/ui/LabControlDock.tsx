@@ -9,22 +9,31 @@ import {
   Pause,
   RotateCcw,
   Gauge,
+  Compass,
+  Mic,
+  MicOff,
+  CheckCircle2,
+  Circle,
+  X,
 } from 'lucide-react';
 import { useLabStore } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { labSound } from '../../utils/soundEngine';
 import { useTranslation } from 'react-i18next';
+import { aiVoiceAssistant, VoiceAssistantState } from '../../services/aiVoiceAssistant';
 
 export interface LabControlDockProps {
   notificationsCount?: number;
   hasLowR2Alert?: boolean;
   snapshotCount?: number;
+  recordsCount?: number;
 }
 
 const SPEED_OPTIONS = [0.5, 1, 2] as const;
 
 export const LabControlDock: React.FC<LabControlDockProps> = ({
   snapshotCount = 0,
+  recordsCount = 0,
 }) => {
   const { t } = useTranslation();
   const {
@@ -47,6 +56,15 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
   } = useUIStore();
 
   const [snapshotPulse, setSnapshotPulse] = useState<boolean>(false);
+  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
+  const [voiceState, setVoiceState] = useState<VoiceAssistantState>(() =>
+    aiVoiceAssistant.getState()
+  );
+
+  useEffect(() => {
+    const unsub = aiVoiceAssistant.subscribe((next) => setVoiceState(next));
+    return unsub;
+  }, []);
 
   const is3DStageActive = userRole === 'siswa' && !isLobbyMode && workflowStep === 2;
 
@@ -216,6 +234,114 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
       </button>
 
+      {/* 4.5. 🧭 Panduan (X/3) Trigger & Popover */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => {
+            labSound.playClick(620);
+            setIsGuideOpen((prev) => !prev);
+          }}
+          aria-expanded={isGuideOpen}
+          aria-label="Panduan Praktikum 3D"
+          title="🧭 Panduan Praktikum 3D & Checklist Langkah"
+          className={`px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+            isGuideOpen
+              ? 'bg-sky-600 text-white shadow-2xs'
+              : 'text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800/80'
+          }`}
+        >
+          <Compass className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+          <span className="hidden sm:inline">Panduan</span>
+          <span className="px-1.5 py-0.2 rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 font-mono text-[10px] font-bold tabular-nums">
+            {recordsCount >= 3 ? (workflowStep >= 3 ? '3/3' : '2/3') : '1/3'}
+          </span>
+        </button>
+
+        {isGuideOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setIsGuideOpen(false)} />
+            <div
+              data-testid="lab-guide-popover"
+              className="absolute bottom-11 left-1/2 -translate-x-1/2 w-72 sm:w-80 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-2xl p-3.5 z-50 text-xs space-y-2.5 animate-fade-in"
+            >
+              <div className="flex items-center justify-between border-b border-stone-200/80 dark:border-slate-800 pb-2">
+                <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
+                  <Compass className="w-4 h-4 text-sky-500" />
+                  <span>Panduan Praktikum 3D</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsGuideOpen(false)}
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-start gap-2 p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-[11px]">1. Eksplorasi Variabel 3D</div>
+                    <div className="text-[10px] text-slate-600 dark:text-slate-300">
+                      Ubah nilai variabel bebas dan amati respon aparatus.
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className={`flex items-start gap-2 p-1.5 rounded-lg border text-xs ${
+                    recordsCount >= 3
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-300'
+                      : 'bg-stone-50 dark:bg-slate-950 border-stone-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {recordsCount >= 3 ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <Circle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <div className="font-bold text-[11px] flex items-center justify-between">
+                      <span>2. Catat Data Tabel</span>
+                      <span className="font-mono text-[10px] tabular-nums font-semibold">
+                        {recordsCount}/3 data
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Ambil minimal 3 data pengamatan variatif untuk analisis regresi linier.
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className={`flex items-start gap-2 p-1.5 rounded-lg border text-xs ${
+                    workflowStep >= 3
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-300'
+                      : 'bg-stone-50 dark:bg-slate-950 border-stone-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {workflowStep >= 3 ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <Circle className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <div className="font-bold text-[11px]">3. Lembar Kerja Siswa (LKS)</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Uji hipotesis & jawab pertanyaan analisis sains untuk klaim XP.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/80 mx-0.5" aria-hidden="true" />
+
       {/* 5. Snapshot */}
       <button
         type="button"
@@ -254,6 +380,45 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       >
         {zenMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         <span className="hidden lg:inline">{zenMode ? t('controls.normal') : t('controls.zen')}</span>
+      </button>
+
+      <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/80 mx-0.5" aria-hidden="true" />
+
+      {/* 7. Round Microphone Button for Dr. LabMu Voice Assistant */}
+      <button
+        type="button"
+        data-testid="voice-lab-mentor-dock"
+        onClick={() => {
+          labSound.playClick(voiceState.fullDuplexEnabled ? 440 : 720);
+          aiVoiceAssistant.toggleFullDuplexSession();
+        }}
+        aria-label={
+          voiceState.fullDuplexEnabled
+            ? 'Matikan Suara Dr. LabMu'
+            : 'Tanya Dr. LabMu via Suara (Full-Duplex)'
+        }
+        title={
+          voiceState.fullDuplexEnabled
+            ? 'Suara Dr. LabMu Aktif (Klik untuk matikan)'
+            : 'Tanya Dr. LabMu via Suara Interaktif'
+        }
+        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer relative shrink-0 ${
+          voiceState.fullDuplexEnabled
+            ? 'bg-rose-500 text-white shadow-sm ring-2 ring-rose-400/50 animate-pulse'
+            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800/80 hover:text-rose-500'
+        }`}
+      >
+        {voiceState.fullDuplexEnabled ? (
+          <Mic className="w-4 h-4" />
+        ) : (
+          <MicOff className="w-4 h-4 opacity-70" />
+        )}
+        {voiceState.fullDuplexEnabled && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
+          </span>
+        )}
       </button>
     </div>
   );

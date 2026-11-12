@@ -26,6 +26,40 @@ export interface OfflineSocraticInsight {
   analogyDomain: string;
 }
 
+export function extractIndependentValues(records: Array<any>): number[] {
+  if (!Array.isArray(records)) return [];
+  const xs: number[] = [];
+  for (const r of records) {
+    if (!r || typeof r !== 'object') continue;
+    if (typeof r.x === 'number' && Number.isFinite(r.x)) {
+      xs.push(r.x);
+    } else if (typeof r.numericX === 'number' && Number.isFinite(r.numericX)) {
+      xs.push(r.numericX);
+    } else if (typeof r.x1 === 'number' && Number.isFinite(r.x1)) {
+      xs.push(r.x1);
+    } else {
+      for (const [key, val] of Object.entries(r)) {
+        const lk = key.toLowerCase();
+        if (
+          lk === 'run' ||
+          lk === 'no' ||
+          lk === 'no / id' ||
+          lk.includes('id') ||
+          lk === 'timestamp' ||
+          lk === 'status'
+        ) {
+          continue;
+        }
+        if (typeof val === 'number' && Number.isFinite(val)) {
+          xs.push(val);
+          break;
+        }
+      }
+    }
+  }
+  return xs;
+}
+
 /**
  * Checks if a telemetry payload has regression anomalies or outlier data points.
  */
@@ -52,7 +86,8 @@ export function detectOfflineAnomalies(telemetry: DrLabMuTelemetryContext): {
     };
   }
 
-  const r2 = telemetry.analytics?.rSquared ?? 1;
+  const rawR2 = telemetry.analytics?.rSquared;
+  const r2 = Number.isFinite(rawR2) ? rawR2! : 1;
   if (r2 < 0.85) {
     // Attempt to locate potential outlier
     let maxDeviationIndex = -1;
@@ -97,9 +132,42 @@ export function generateOfflineSocraticMentorResponse(
   const { domain, topic, educationLevel, currentParameters, recordedData, analytics, studentQuery } = telemetry;
   const anomaly = detectOfflineAnomalies(telemetry);
   const qLower = (studentQuery || '').toLowerCase();
-  const r2Str = (analytics?.rSquared ?? 0).toFixed(3);
-  const slopeVal = analytics?.slope ?? 0;
-  const recCount = (recordedData || []).length;
+
+  const records = recordedData || [];
+  const recCount = records.length;
+  const xs = extractIndependentValues(records);
+  const deltaXZero = xs.length >= 2 && Math.abs(Math.max(...xs) - Math.min(...xs)) < 1e-9;
+  const rawR2 = analytics?.rSquared;
+  const rawSlope = analytics?.slope;
+  const r2IsInvalid = rawR2 !== undefined && !Number.isFinite(rawR2);
+  const slopeIsInvalid = rawSlope !== undefined && !Number.isFinite(rawSlope);
+  const hasInsufficientData = recCount < 2;
+
+  // --- EDGE-CASE SHIELD: < 2 Data Rows, Zero Variance Delta X === 0, or NaN / Infinity ---
+  if (hasInsufficientData || deltaXZero || r2IsInvalid || slopeIsInvalid) {
+    const reasonDetail = hasInsufficientData
+      ? `Tabel observasi Anda saat ini baru memiliki ${recCount} titik data.`
+      : deltaXZero
+      ? `Nilai variabel bebas yang Anda catat sama berulang kali (${xs[0] ?? '-'}), sehingga tidak memiliki rentang variasi (ΔX = 0).`
+      : `Indikator statistik garis regresi belum dapat dihitung secara numerik.`;
+
+    const observation = `Halo peneliti muda! Saya mengamati tabel eksperimen ${topic} Anda (${domain}). ${reasonDetail}`;
+    const dataHighlight = `Dalam metode ilmiah, sebuah pola kurva atau hukum korelasi antar-variabel hanya dapat terbentuk jika kita menguji variabel bebas pada beberapa kondisi yang bervariasi. Jika nilai variabel bebas tetap bernilai sama atau data kurang dari 2 titik, garis regresi tidak memiliki kemiringan terdefinisi dan nilai koefisien korelasi tidak dapat dihitung.`;
+    const socraticQuestion = `Bagaimana jika Anda mencoba memvariasikan nilai variabel bebas ke minimal 3 titik berbeda (misalnya setelan nilai rendah, sedang, dan tinggi), lalu amati perubahan respon variabel terikatnya pada grafik?`;
+
+    return {
+      observation,
+      dataHighlight,
+      socraticQuestion,
+      detectedTrigger: 'concept-analogy',
+      formattedText: `${observation}\n\n${dataHighlight}\n\n💡 Pertanyaan Pemantik Reflektif:\n${socraticQuestion}`,
+    };
+  }
+
+  const safeR2 = Number.isFinite(analytics?.rSquared) ? analytics!.rSquared : 1.0;
+  const safeSlope = Number.isFinite(analytics?.slope) ? analytics!.slope! : 0.0;
+  const r2Str = safeR2.toFixed(3);
+  const slopeVal = safeSlope;
 
   let observation = '';
   let dataHighlight = '';

@@ -14,6 +14,12 @@ import {
   HelpCircle,
   Sparkles,
   Zap,
+  Wifi,
+  Globe,
+  HardDrive,
+  X,
+  Monitor,
+  Printer,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ExperimentModule } from '../../registry/experimentRegistry';
@@ -23,6 +29,7 @@ import { useUIStore } from '../../stores/useUIStore';
 import { useCollabStore } from '../../stores/useCollabStore';
 import { buildShareableModuleUrl } from '../../hooks/useUrlRouterSync';
 import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
+import { printBlankStudentWorksheet } from '../../utils/academicReportExporter';
 const TeacherGradebookHub = lazy(() => import('../teacher/TeacherGradebookHub'));
 import {
   GamificationProfile,
@@ -103,9 +110,44 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     toggleLiteDeviceMode,
     liteModeNotification,
     setLiteModeNotification,
+    projectorMode,
+    toggleProjectorMode,
   } = useUIStore();
 
   const { wsConnected, activeRoomId } = useCollabStore();
+
+  // 3-State Connectivity Status for 3T Areas
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [isConnectivityTooltipOpen, setIsConnectivityTooltipOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+  const isLocalLanHost =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('10.') ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+    hostname.endsWith('.local');
+
+  const connectivityMode: 'online-cloud' | 'lan-hotspot' | 'offline-standalone' =
+    wsConnected && isLocalLanHost
+      ? 'lan-hotspot'
+      : wsConnected && isOnline && !isLocalLanHost
+      ? 'online-cloud'
+      : 'offline-standalone';
 
   useEffect(() => {
     if (activeModal === 'gradebook') {
@@ -292,168 +334,207 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         )}
       </div>
 
-      {/* Zone 3: Calm Right Utilities (Share Link, XP Portfolio, Onboarding Tour, Search, Unified Settings Popover, Dr. LabMu) */}
+      {/* Zone 3: Consolidated Minimalist Utilities (Strictly 4 Clean Groups: Connection Pill, Profile Pill, Settings Popover, Dr. LabMu) */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 relative">
-        {/* FITUR 2: Tombol "✨ Buat Misi Praktikum AI" untuk Guru */}
-        {userRole === 'pengajar' && (
+        {/* GRUP 1: Pill Status Koneksi Ringkas (3-State Connectivity Badge) */}
+        <div className="relative">
           <button
             type="button"
-            data-testid="header-open-ai-mission-builder-btn"
+            data-testid="tri-state-connectivity-badge"
             onClick={() => {
-              labSound.playClick(620);
-              openModal('ai-mission-builder');
+              labSound.playClick();
+              setIsConnectivityTooltipOpen((prev) => !prev);
             }}
-            aria-label="Buat Misi Praktikum AI untuk Room Kelas"
-            title="✨ Buat Misi Praktikum AI & Studi Kasus untuk Room PIN Kelas"
-            className="px-2.5 sm:px-3 py-1 flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white text-xs font-extrabold shadow-sm cursor-pointer transition-all whitespace-nowrap shrink-0"
+            aria-expanded={isConnectivityTooltipOpen}
+            aria-label={`Status Konektivitas: ${
+              connectivityMode === 'online-cloud'
+                ? 'Online Cloud'
+                : connectivityMode === 'lan-hotspot'
+                ? 'LAN Kelas (Tanpa Kuota)'
+                : 'Mode Luring Mandiri'
+            }`}
+            title="Klik untuk detail koneksi & status penyimpanan data"
+            className={`px-2.5 py-1 flex items-center gap-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all whitespace-nowrap shrink-0 shadow-2xs ${
+              connectivityMode === 'online-cloud'
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/35 hover:bg-emerald-500/20'
+                : connectivityMode === 'lan-hotspot'
+                ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/35 hover:bg-sky-500/20'
+                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/35 hover:bg-amber-500/20'
+            }`}
           >
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>✨ Buat Misi Praktikum AI</span>
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                connectivityMode === 'online-cloud'
+                  ? 'bg-emerald-500 animate-pulse'
+                  : connectivityMode === 'lan-hotspot'
+                  ? 'bg-sky-500 animate-pulse'
+                  : 'bg-amber-500'
+              }`}
+            />
+            <span className="font-bold">
+              {connectivityMode === 'online-cloud'
+                ? 'Online'
+                : connectivityMode === 'lan-hotspot'
+                ? 'LAN Kelas'
+                : 'Luring'}
+            </span>
           </button>
-        )}
 
-        {/* PILAR 1: Bagikan Link Modul Button */}
-        <button
-          type="button"
-          onClick={handleShareModuleLink}
-          data-testid="share-module-link-btn"
-          aria-label="Bagikan Link Modul Praktikum"
-          title="🔗 Bagikan Link Modul (Salin URL Deep-Link ke Clipboard)"
-          className="px-2 sm:px-2.5 py-1 flex items-center gap-1.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0"
-        >
-          <Link2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-          <span className="hidden lg:inline">🔗 Bagikan Link Modul</span>
-        </button>
+          {/* Tooltip Dialog Ringkas Status Penyimpanan Data Siswa */}
+          {isConnectivityTooltipOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setIsConnectivityTooltipOpen(false)}
+              />
+              <div
+                data-testid="connectivity-status-tooltip"
+                className="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-2xl p-4 z-50 text-xs space-y-3 animate-fade-in"
+              >
+                <div className="flex items-start justify-between gap-2 border-b border-stone-200/80 dark:border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
+                        connectivityMode === 'online-cloud'
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                          : connectivityMode === 'lan-hotspot'
+                          ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400'
+                          : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                      }`}
+                    >
+                      {connectivityMode === 'online-cloud' && <Globe className="w-4 h-4" />}
+                      {connectivityMode === 'lan-hotspot' && <Wifi className="w-4 h-4" />}
+                      {connectivityMode === 'offline-standalone' && <HardDrive className="w-4 h-4" />}
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 dark:text-white text-xs">
+                        {connectivityMode === 'online-cloud'
+                          ? '🟢 Mode Online Cloud'
+                          : connectivityMode === 'lan-hotspot'
+                          ? '🔵 Mode LAN Kelas (Tanpa Kuota)'
+                          : '🟠 Mode Luring Mandiri'}
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                        Host: {hostname || 'localhost'}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsConnectivityTooltipOpen(false)}
+                    aria-label="Tutup Detail Konektivitas"
+                    className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
 
-        {/* Share Link Confirmation Toast */}
-        {shareToastVisible && (
-          <div
-            role="status"
-            data-testid="share-link-toast"
-            className="fixed top-16 right-4 z-50 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-xl flex items-center gap-2 animate-fade-in"
-          >
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>Tautan praktikum berhasil disalin!</span>
-          </div>
-        )}
+                <div className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                  {connectivityMode === 'online-cloud' && (
+                    <p>
+                      Terhubung ke server cloud RuangLABmu dengan internet aktif. Data percobaan, telemetri, dan progres tersinkronisasi otomatis.
+                    </p>
+                  )}
+                  {connectivityMode === 'lan-hotspot' && (
+                    <p>
+                      Terhubung langsung ke server laptop Guru via Hotspot Wi-Fi lokal kelas tanpa mengonsumsi kuota internet. Nilai dan data pengamatan Anda langsung diterima buku nilai guru!
+                    </p>
+                  )}
+                  {connectivityMode === 'offline-standalone' && (
+                    <p>
+                      Berjalan 100% di memori lokal perangkat (PWA + Offline Dr. LabMu). Data observasi, regresi, dan kuis Anda tersimpan aman secara luring tanpa memerlukan sinyal internet.
+                    </p>
+                  )}
+                </div>
 
-        {/* PILAR 4: Compact Level / XP Pill -> Opens Student Portfolio & STEM Radar */}
+                {/* Status Penyimpanan Data Siswa */}
+                <div className="p-2.5 rounded-xl bg-stone-100 dark:bg-slate-950 border border-stone-200/90 dark:border-slate-800 space-y-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Status Penyimpanan Data:
+                  </div>
+                  <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">
+                    {connectivityMode === 'online-cloud'
+                      ? '✓ Database Cloud + Cache PWA Lokal'
+                      : connectivityMode === 'lan-hotspot'
+                      ? '✓ Buku Nilai Laptop Guru (LAN) + Backup Lokal'
+                      : '✓ Memori Lokal (IndexedDB & LocalStorage)'}
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {connectivityMode === 'offline-standalone'
+                      ? 'Tip 3T: Anda dapat mengunduh berkas (.rlab) di lembar kerja untuk dikumpulkan ke guru lewat Bluetooth atau flashdisk.'
+                      : 'Data aman dari risiko kehilangan koneksi sewaktu-waktu.'}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* GRUP 2: Pill Profil & Peran (Lv.X · Siswa/Guru + Akses Portofolio/Gradebook) */}
         <button
           type="button"
           data-testid="open-portfolio-btn"
           onClick={() => {
             labSound.playClick();
-            openModal('portfolio');
-          }}
-          aria-label={`Portofolio Sains & Profil Siswa Level ${gamificationProfile.level} (${gamificationProfile.xp} XP)`}
-          title="Buka Portofolio Sains, Radar Kompetensi STEM & Koleksi Lencana"
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
-        >
-          <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-          <span className="font-mono text-[11px] font-bold tabular-nums">
-            {t('nav.level')}{gamificationProfile.level}
-          </span>
-          <span className="hidden xl:inline font-mono text-[11px] opacity-80 tabular-nums">
-            · {gamificationProfile.xp} XP
-          </span>
-        </button>
-
-        {/* PILAR 5: [? Panduan UI] Spotlight Onboarding Tour Button */}
-        <button
-          type="button"
-          data-testid="open-onboarding-tour-btn"
-          onClick={() => {
-            labSound.playClick();
-            setOnboardingTourOpen(true);
-          }}
-          aria-label="Buka Panduan UI Interaktif"
-          title="[? Panduan UI] Tur Interaktif RuangLABmu"
-          className="px-2 py-1 flex items-center gap-1 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-600 dark:text-slate-300 text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0"
-        >
-          <HelpCircle className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-          <span className="hidden xl:inline text-[11px]">? Panduan UI</span>
-        </button>
-
-        {/* 3T LITE GPU & BATTERY SAVER MODE TOGGLE */}
-        <button
-          type="button"
-          data-testid="lite-device-mode-toggle-btn"
-          onClick={() => {
-            labSound.playClick(liteDeviceMode ? 440 : 660);
-            toggleLiteDeviceMode();
-          }}
-          aria-label={liteDeviceMode ? 'Matikan Mode Hemat Daya 3T' : 'Aktifkan Mode Hemat Daya 3T (30 FPS & Tanpa Shader Berat)'}
-          title={liteDeviceMode ? 'Mode Hemat Daya 3T Aktif (30 FPS, Tanpa Bloom/Bayangan Berat)' : 'Aktifkan Mode Hemat Daya untuk Chromebook / HP RAM 2GB-4GB'}
-          className={`px-2 py-1 flex items-center gap-1 rounded-lg border text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
-            liteDeviceMode
-              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 shadow-xs'
-              : 'bg-stone-100 dark:bg-slate-900 border-stone-200/80 dark:border-slate-800 hover:border-amber-500/50 text-slate-600 dark:text-slate-300'
-          }`}
-        >
-          <Zap className={`w-3.5 h-3.5 ${liteDeviceMode ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
-          <span className="text-[11px] font-bold">{liteDeviceMode ? '⚡ Hemat Daya: Aktif' : '⚡ Mode Hemat'}</span>
-        </button>
-
-        {/* Gradebook Button (Only active when role Guru is selected) */}
-        {userRole === 'pengajar' && (
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
+            if (userRole === 'pengajar') {
               setIsGradebookOpen(true);
               openModal('gradebook');
-            }}
-            title="Buka Buku Nilai & Rekap Laporan Guru"
-            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
-          >
-            <GraduationCap className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{t('nav.gradebook')}</span>
-          </button>
-        )}
-
-        {/* Command Palette Trigger */}
-        <button
-          type="button"
-          onClick={() => {
-            labSound.playClick();
-            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+            } else {
+              openModal('portfolio');
+            }
           }}
-          title={`${t('nav.search')} (Ctrl+K)`}
-          aria-label="Buka Pencarian & Perintah Cepat"
-          className="p-1.5 sm:px-2 sm:py-1 flex items-center gap-1.5 rounded-lg bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-600 dark:text-slate-300 text-xs font-semibold cursor-pointer transition-colors shrink-0"
+          aria-label={`Profil ${userRole === 'pengajar' ? 'Guru' : 'Siswa'} Level ${gamificationProfile.level}`}
+          title={
+            userRole === 'pengajar'
+              ? 'Buka Buku Nilai & Rekap Laporan Guru'
+              : 'Buka Portofolio Sains, Radar Kompetensi STEM & Koleksi Lencana'
+          }
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
         >
-          <Search className="w-3.5 h-3.5" />
-          <span className="hidden xl:inline text-[11px] text-slate-400 font-mono">⌘K</span>
+          {userRole === 'pengajar' ? (
+            <GraduationCap className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          ) : (
+            <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          )}
+          <span className="font-mono text-[11px] font-bold tabular-nums">
+            Lv.{gamificationProfile.level}
+          </span>
+          <span className="text-slate-400 dark:text-slate-500">·</span>
+          <span className="font-bold">
+            {userRole === 'pengajar' ? 'Guru' : 'Siswa'}
+          </span>
         </button>
 
-        {/* Consolidated Preferences Popover (Theme, Language, Role, Sync Status) */}
+        {/* GRUP 3: Unified Popover Menu "⚙️ Pengaturan & Alat" (SettingsPopover) */}
         <div className="relative">
           <button
             type="button"
+            data-testid="settings-popover-trigger-btn"
             onClick={() => {
               labSound.playClick();
               setPrefsOpen((prev) => !prev);
             }}
             aria-expanded={prefsOpen}
-            aria-label="Pengaturan Tampilan, Bahasa, dan Peran"
-            title="Tema, Bahasa (ID/EN), Peran (Siswa/Guru) & Sync"
-            className={`relative p-1.5 sm:px-2 sm:py-1 flex items-center gap-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+            aria-label="Pengaturan & Alat"
+            title="⚙️ Pengaturan & Alat (Tema, Bahasa, Hemat Daya, Salin Link, Command Palette, Tur UI)"
+            className={`p-1.5 sm:px-2 sm:py-1 flex items-center gap-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
               prefsOpen
-                ? 'bg-sky-600 text-white border-sky-600'
+                ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
                 : 'bg-stone-100 dark:bg-slate-900 border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-700 dark:text-slate-300'
             }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-emerald-500' : 'bg-amber-400'}`}
-              title={wsConnected ? t('nav.syncActive') : t('nav.syncLocal')}
-            />
+            <span className="hidden md:inline text-[11px]">⚙️</span>
           </button>
 
           {prefsOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setPrefsOpen(false)} />
-              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-2xl p-3 space-y-3 z-50 text-xs">
+              <div
+                data-testid="settings-popover-menu"
+                className="absolute right-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-2xl p-3.5 space-y-3 z-50 text-xs animate-fade-in"
+              >
+                {/* 1. Pemilih Tema */}
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Tema Tampilan
@@ -486,89 +567,248 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Bahasa
-                  </span>
-                  <div className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 font-mono font-bold">
-                    <button
-                      type="button"
-                      onClick={() => handleLanguageSwitch('id')}
-                      className={`px-2 py-0.5 rounded-md cursor-pointer ${
-                        activeLang === 'id'
-                          ? 'bg-sky-600 text-white'
-                          : 'text-slate-500 dark:text-slate-400'
-                      }`}
-                    >
-                      ID
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleLanguageSwitch('en')}
-                      className={`px-2 py-0.5 rounded-md cursor-pointer ${
-                        activeLang === 'en'
-                          ? 'bg-sky-600 text-white'
-                          : 'text-slate-500 dark:text-slate-400'
-                      }`}
-                    >
-                      EN
-                    </button>
+                {/* 2. Saklar Bahasa & Mode Pengguna */}
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-stone-200/80 dark:border-slate-800">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Bahasa
+                    </span>
+                    <div className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 font-mono font-bold">
+                      <button
+                        type="button"
+                        onClick={() => handleLanguageSwitch('id')}
+                        className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
+                          activeLang === 'id'
+                            ? 'bg-sky-600 text-white'
+                            : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        ID
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleLanguageSwitch('en')}
+                        className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
+                          activeLang === 'en'
+                            ? 'bg-sky-600 text-white'
+                            : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        EN
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Peran
+                    </span>
+                    <div className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 font-semibold text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          labSound.playClick();
+                          setUserRole('siswa');
+                        }}
+                        className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
+                          userRole === 'siswa'
+                            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                            : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        Siswa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          labSound.playClick();
+                          setUserRole('pengajar');
+                        }}
+                        className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
+                          userRole === 'pengajar'
+                            ? 'bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-300 shadow-xs'
+                            : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        Guru
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-1">
+                {/* 3. Toggles: Mode Proyektor Kelas & Mode Hemat Daya 3T */}
+                <div className="pt-2 border-t border-stone-200/80 dark:border-slate-800 space-y-1.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Mode Pengguna
+                    Mode Visual Ruang Kelas 3T
                   </span>
-                  <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 font-semibold">
+
+                  {/* Toggle Mode Proyektor Kelas */}
+                  <button
+                    type="button"
+                    data-testid="projector-mode-toggle-btn"
+                    onClick={() => {
+                      labSound.playClick(projectorMode ? 480 : 720);
+                      toggleProjectorMode();
+                    }}
+                    title="Perbesar angka telemetri & indikator 1.5x dengan kontras tinggi untuk tayangan layar proyektor kelas"
+                    className={`w-full px-2.5 py-1.5 flex items-center justify-between rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                      projectorMode
+                        ? 'bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/70 shadow-xs ring-1 ring-amber-400/40'
+                        : 'bg-stone-100 dark:bg-slate-950 border-stone-200/80 dark:border-slate-800 hover:border-amber-500/40 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Monitor
+                        className={`w-4 h-4 ${
+                          projectorMode ? 'text-amber-500' : 'text-slate-400'
+                        }`}
+                      />
+                      <span>📽️ Mode Proyektor Kelas (1.5x)</span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        projectorMode
+                          ? 'bg-amber-500 text-slate-950'
+                          : 'bg-stone-200 dark:bg-slate-800 text-slate-500'
+                      }`}
+                    >
+                      {projectorMode ? 'AKTIF' : 'NONAKTIF'}
+                    </span>
+                  </button>
+
+                  {/* Toggle Mode Hemat Daya 3T */}
+                  <button
+                    type="button"
+                    data-testid="lite-device-mode-toggle-btn"
+                    onClick={() => {
+                      labSound.playClick(liteDeviceMode ? 440 : 660);
+                      toggleLiteDeviceMode();
+                    }}
+                    className={`w-full px-2.5 py-1.5 flex items-center justify-between rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                      liteDeviceMode
+                        ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40'
+                        : 'bg-stone-100 dark:bg-slate-950 border-stone-200/80 dark:border-slate-800 hover:border-amber-500/40 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Zap
+                        className={`w-4 h-4 ${
+                          liteDeviceMode ? 'text-amber-500 fill-amber-500' : 'text-slate-400'
+                        }`}
+                      />
+                      <span>Mode Hemat Daya 3T (30 FPS)</span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        liteDeviceMode
+                          ? 'bg-amber-500 text-slate-950'
+                          : 'bg-stone-200 dark:bg-slate-800 text-slate-500'
+                      }`}
+                    >
+                      {liteDeviceMode ? 'AKTIF' : 'NONAKTIF'}
+                    </span>
+                  </button>
+                </div>
+
+                {/* 4. Alat Praktikum: Cetak LKS Kosong, Salin Link, Command Palette & Tur Panduan */}
+                <div className="space-y-1.5 pt-2 border-t border-stone-200/80 dark:border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Alat Praktikum
+                  </span>
+                  <div className="grid grid-cols-1 gap-1 font-medium">
+                    <button
+                      type="button"
+                      data-testid="header-print-blank-worksheet-btn"
+                      onClick={() => {
+                        labSound.playClick();
+                        setPrefsOpen(false);
+                        printBlankStudentWorksheet(experimentModule, 'SMA');
+                      }}
+                      title="Cetak format LKS kosong hemat tinta untuk difotokopi bagi siswa kelas"
+                      className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-800 dark:text-sky-200 text-xs font-semibold cursor-pointer transition-colors"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                      <span>🖨️ Cetak LKS Kosong (Fotokopi Kelas)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      data-testid="share-module-link-btn"
+                      onClick={() => {
+                        void handleShareModuleLink();
+                        setPrefsOpen(false);
+                      }}
+                      className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs cursor-pointer transition-colors"
+                    >
+                      <Link2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                      <span>Salin Link Modul Praktikum</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => {
                         labSound.playClick();
-                        setUserRole('siswa');
                         setPrefsOpen(false);
+                        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
                       }}
-                      className={`py-1.5 rounded-lg cursor-pointer ${
-                        userRole === 'siswa'
-                          ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                          : 'text-slate-500 dark:text-slate-400'
-                      }`}
+                      className="w-full px-2.5 py-1.5 flex items-center justify-between rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs cursor-pointer transition-colors"
                     >
-                      {t('nav.roleStudent')}
+                      <div className="flex items-center gap-2">
+                        <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>Pencarian Cepat (Command Palette)</span>
+                      </div>
+                      <span className="font-mono text-[10px] text-slate-400">Ctrl+K</span>
                     </button>
+
                     <button
                       type="button"
+                      data-testid="open-onboarding-tour-btn"
                       onClick={() => {
                         labSound.playClick();
-                        setUserRole('pengajar');
-                        setIsLobbyMode(false);
                         setPrefsOpen(false);
+                        setOnboardingTourOpen(true);
                       }}
-                      className={`py-1.5 rounded-lg cursor-pointer flex items-center justify-center gap-1 ${
-                        userRole === 'pengajar'
-                          ? 'bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-300 shadow-xs'
-                          : 'text-slate-500 dark:text-slate-400'
-                      }`}
+                      className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs cursor-pointer transition-colors"
                     >
-                      <GraduationCap className="w-3.5 h-3.5" />
-                      <span>{t('nav.roleTeacher')}</span>
+                      <HelpCircle className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                      <span>Tur Panduan UI Interaktif</span>
                     </button>
-                  </div>
-                </div>
 
-                <div className="pt-2 border-t border-stone-200/80 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                  <span>Status Sync</span>
-                  <span className="flex items-center gap-1.5 font-mono font-semibold text-slate-700 dark:text-slate-200">
-                    <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                    {wsConnected ? t('nav.syncActive') : t('nav.syncLocal')}
-                  </span>
+                    {userRole === 'pengajar' && (
+                      <button
+                        type="button"
+                        data-testid="header-open-ai-mission-builder-btn"
+                        onClick={() => {
+                          labSound.playClick(620);
+                          setPrefsOpen(false);
+                          openModal('ai-mission-builder');
+                        }}
+                        className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 text-xs font-semibold cursor-pointer transition-colors"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                        <span>✨ Buat Misi Praktikum AI (Guru)</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </>
           )}
         </div>
 
-        {/* Single Clear Dr. LabMu Assistant Button */}
+        {/* Share Link Confirmation Toast */}
+        {shareToastVisible && (
+          <div
+            role="status"
+            data-testid="share-link-toast"
+            className="fixed top-16 right-4 z-50 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-xl flex items-center gap-2 animate-fade-in"
+          >
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>Tautan praktikum berhasil disalin!</span>
+          </div>
+        )}
+
+        {/* GRUP 4: Tombol Utama "💬 Dr. LabMu" */}
         <button
           type="button"
           data-onboarding="dr-labmu-trigger"
@@ -580,7 +820,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           title="[A] Tanya Dr. LabMu (Asisten Sokratik AI)"
           className={`relative px-2.5 py-1 flex items-center gap-1.5 rounded-lg border font-semibold text-xs transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
             drawerOpen
-              ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+              ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
               : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-stone-200 dark:border-slate-800 hover:border-sky-500/50 dark:hover:border-slate-700'
           }`}
         >

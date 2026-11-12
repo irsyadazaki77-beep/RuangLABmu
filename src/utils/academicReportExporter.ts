@@ -913,3 +913,424 @@ export async function exportOfficialLabReportPDF(sessionData: AcademicReportData
   doc.save(`Laporan_Resmi_RuangLABmu_${safeTitle}_${safeStudent}.pdf`);
 }
 
+/**
+ * FITUR 1 (3T FIELD ENGINE):
+ * GENERATOR CETAK "LKS KERTAS KOSONG (HEMAT TINTA FOTOKOPI KELAS)"
+ * Khusus dirancang hitam-putih murni (monochrome / ink-saving) tanpa blok warna pekat,
+ * agar dapat difotokopi dengan murah di sekolah-sekolah 3T.
+ * Berisi Kop LKS, Tujuan, Rumus, Prosedur K3, Kotak Titik Hipotesis,
+ * Tabel Pengamatan Kosong (7 baris) dengan variabel sesuai modul aktif,
+ * Area Kotak Grid Milimeter Blok SVG untuk siswa menggambar grafik dengan penggaris,
+ * 3 Pertanyaan Diskusi, Kotak Kesimpulan, dan Kolom Tanda Tangan Guru.
+ */
+export function generateBlankStudentWorksheetHTML(
+  moduleConfig?: ExperimentModule,
+  educationLevel: EducationTier = 'SMA'
+): string {
+  const modTitle = moduleConfig?.title || 'Eksperimen Laboratorium Sains Terpadu';
+  const domainLabel = (moduleConfig?.domain || 'Sains').toUpperCase();
+  const objectives =
+    moduleConfig?.objectives[educationLevel] ||
+    moduleConfig?.objectives.SMA ||
+    moduleConfig?.objectives.SMP || [
+      'Mengidentifikasi hubungan kuantitatif antara variabel bebas dan variabel terikat.',
+      'Mencatat data hasil pengamatan simulasi kelas ke dalam tabel pengamatan terstruktur.',
+      'Menggambar grafik hubungan antar variabel secara manual pada kertas milimeter blok.',
+      'Merumuskan kesimpulan ilmiah dan mengevaluasi kesesuaian hipotesis awal.',
+    ];
+
+  const equations = moduleConfig?.keyEquations || [
+    'Persamaan Dasar: Hubungan proporsionalitas empiris variabel praktikum',
+  ];
+  const safetyNotes = moduleConfig?.safetyNotes || [
+    'Perhatikan posisi duduk tegak dan fokus mengamati demonstrasi instrumen di depan kelas.',
+    'Catat data pengukuran secara cermat dan hindari kesalahan paralaks saat membaca angka.',
+    'Diskusikan setiap anomali data bersama anggota kelompok dengan tertib.',
+  ];
+
+  // Derive independent and dependent variable columns based on active module config
+  const indepVar =
+    moduleConfig?.parameters?.find((p) => p.variableRole === 'bebas') ||
+    moduleConfig?.parameters?.[0] || {
+      label: 'Variabel Bebas (X)',
+      unit: 'satuan',
+    };
+
+  const controlVar =
+    moduleConfig?.parameters?.find((p) => p.variableRole === 'kontrol') ||
+    moduleConfig?.parameters?.[1] || {
+      label: 'Parameter Kontrol',
+      unit: 'satuan',
+    };
+
+  const depVar1 = moduleConfig?.outputs?.[0] || {
+    label: 'Variabel Terikat (Y₁)',
+    unit: 'satuan',
+  };
+
+  const depVar2 = moduleConfig?.outputs?.[1] || {
+    label: 'Variabel Terikat (Y₂)',
+    unit: 'satuan',
+  };
+
+  // Generate 7 blank observation rows for manual pen recording
+  const blankRows = Array.from({ length: 7 }, (_, i) => `
+    <tr>
+      <td style="border: 1px solid #000; padding: 7px 4px; text-align: center; font-weight: bold; font-family: monospace;">${i + 1}</td>
+      <td style="border: 1px solid #000; padding: 7px 4px; text-align: center;">&nbsp;</td>
+      <td style="border: 1px solid #000; padding: 7px 4px; text-align: center;">&nbsp;</td>
+      <td style="border: 1px solid #000; padding: 7px 4px; text-align: center;">&nbsp;</td>
+      <td style="border: 1px solid #000; padding: 7px 4px; text-align: center;">&nbsp;</td>
+      <td style="border: 1px solid #000; padding: 7px 4px; text-align: center;">&nbsp;</td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>LKS Praktikum Kosong - ${modTitle}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 12mm 14mm;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 10.5pt;
+      line-height: 1.4;
+      color: #000000;
+      background: #ffffff;
+      margin: 0;
+      padding: 10px;
+    }
+    .no-print {
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      background: #f1f5f9;
+      border: 1px solid #94a3b8;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: sans-serif;
+    }
+    .print-btn {
+      background: #000000;
+      color: #ffffff;
+      border: none;
+      padding: 7px 18px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none !important; }
+      .page-break { page-break-before: always; }
+    }
+    .header-table {
+      width: 100%;
+      border-bottom: 2px solid #000;
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+    }
+    .kop-title {
+      font-size: 13pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+    .kop-sub {
+      font-size: 9.5pt;
+      text-align: center;
+      margin-top: 1px;
+    }
+    .kop-doc {
+      font-size: 12pt;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 6px;
+      text-decoration: underline;
+      letter-spacing: 0.5px;
+    }
+    .ident-table {
+      width: 100%;
+      border: 1px solid #000;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+      font-size: 9.5pt;
+    }
+    .ident-table td {
+      border: 1px solid #000;
+      padding: 4px 7px;
+      vertical-align: top;
+    }
+    .sec-head {
+      font-size: 10pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-top: 8px;
+      margin-bottom: 4px;
+      border-bottom: 1px solid #000;
+      padding-bottom: 1px;
+    }
+    .dotted-box {
+      border: 1px dashed #000;
+      padding: 6px 8px;
+      margin: 4px 0 8px;
+    }
+    .dotted-line {
+      height: 24px;
+      border-bottom: 1px dotted #555;
+      margin-bottom: 2px;
+    }
+    .table-data {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      margin: 6px 0 10px;
+    }
+    .table-data th {
+      border: 1px solid #000;
+      padding: 5px 4px;
+      background: #f4f4f4;
+      font-weight: bold;
+      text-align: center;
+    }
+    .table-data td {
+      border: 1px solid #000;
+    }
+    .sign-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      font-size: 9pt;
+    }
+    .sign-table td {
+      border: 1px solid #000;
+      padding: 6px;
+      text-align: center;
+      vertical-align: top;
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <div>
+      <strong>🖨️ Format Siap Fotokopi: LKS Kertas Kosong RuangLABmu</strong>
+      <div style="font-size: 11px; color: #475569;">
+        Desain hitam-putih murni tanpa tinta pekat (hemat toner/tinta sekolah 3T). Siswa mengisi dengan pulpen sambil mengamati layar laptop guru di depan kelas.
+      </div>
+    </div>
+    <button class="print-btn" onclick="window.print()">
+      Cetak / Simpan PDF (Ctrl+P)
+    </button>
+  </div>
+
+  <table class="header-table" style="border: none;">
+    <tr>
+      <td style="text-align: center;">
+        <div class="kop-title">RUANGLABMU · LABORATORIUM SAINS TERPADU</div>
+        <div class="kop-sub">Solusi Pembelajaran Sains Virtual Sekolah 3T (Tertinggal, Terdepan, dan Terluar)</div>
+        <div class="kop-doc">LEMBAR KERJA SISWA (LKS) PRAKTIKUM KELAS</div>
+      </td>
+    </tr>
+  </table>
+
+  <table class="ident-table">
+    <tr>
+      <td style="width: 18%; font-weight: bold;">Mata Pelajaran</td>
+      <td style="width: 32%;">: ${domainLabel} (Jenjang ${educationLevel})</td>
+      <td style="width: 18%; font-weight: bold;">Nama Kelompok</td>
+      <td style="width: 32%;">: .................................................</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">Judul Modul</td>
+      <td>: <strong>${modTitle}</strong></td>
+      <td style="font-weight: bold;">Kelas / Jurusan</td>
+      <td>: .................................................</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">Tanggal Praktikum</td>
+      <td>: .................................................</td>
+      <td style="font-weight: bold;">Nama Anggota</td>
+      <td>
+        1. .................................................<br/>
+        2. .................................................<br/>
+        3. .................................................<br/>
+        4. .................................................
+      </td>
+    </tr>
+  </table>
+
+  <div class="sec-head">I. TUJUAN PRAKTIKUM</div>
+  <ol style="margin: 2px 0 6px; padding-left: 20px; font-size: 9.5pt;">
+    ${objectives.map((o) => `<li style="margin-bottom: 2px;">${o}</li>`).join('')}
+  </ol>
+
+  <div class="sec-head">II. DASAR TEORI, RUMUS & KESELAMATAN KERJA (K3)</div>
+  <table style="width: 100%; border: none; font-size: 9pt; margin-bottom: 6px;">
+    <tr>
+      <td style="width: 52%; vertical-align: top; padding-right: 8px;">
+        <strong>Rumus Dasar & Persamaan Kunci:</strong>
+        <div style="border: 1px solid #000; padding: 4px 6px; font-family: 'Courier New', monospace; font-size: 8.5pt; margin-top: 3px; background: #fff;">
+          ${equations.map((eq) => `• ${eq}`).join('<br/>')}
+        </div>
+      </td>
+      <td style="width: 48%; vertical-align: top; padding-left: 8px;">
+        <strong>Petunjuk K3 & Pengamatan Kelas:</strong>
+        <ul style="margin: 3px 0; padding-left: 16px;">
+          ${safetyNotes.map((s) => `<li style="margin-bottom: 1px;">${s}</li>`).join('')}
+        </ul>
+      </td>
+    </tr>
+  </table>
+
+  <div class="sec-head">III. RUMUSAN HIPOTESIS AWAL KELOMPOK</div>
+  <div style="font-size: 9pt; margin-bottom: 2px;">
+    <em>Tuliskan dugaan/hipotesis kelompok Anda dengan pulpen sebelum simulasi dimulai:</em>
+  </div>
+  <div class="dotted-box">
+    <div class="dotted-line"><strong>Jika</strong> ...................................................................................................................................................................................</div>
+    <div class="dotted-line"><strong>maka</strong> .................................................................................................................................................................................</div>
+    <div class="dotted-line"><strong>karena</strong> ...............................................................................................................................................................................</div>
+  </div>
+
+  <div class="sec-head">IV. TABEL DATA PENGAMATAN KELAS (Catat dari Layar Laptop Guru)</div>
+  <table class="table-data">
+    <thead>
+      <tr>
+        <th style="width: 6%;">No</th>
+        <th style="width: 23%;">
+          Variabel Bebas (X)<br/>
+          <span style="font-weight: normal; font-size: 8pt;">${indepVar.label} (${indepVar.unit})</span>
+        </th>
+        <th style="width: 19%;">
+          Parameter Kontrol<br/>
+          <span style="font-weight: normal; font-size: 8pt;">${controlVar.label} (${controlVar.unit})</span>
+        </th>
+        <th style="width: 22%;">
+          Variabel Terikat (Y₁)<br/>
+          <span style="font-weight: normal; font-size: 8pt;">${depVar1.label} (${depVar1.unit})</span>
+        </th>
+        <th style="width: 18%;">
+          Respons Sekunder (Y₂)<br/>
+          <span style="font-weight: normal; font-size: 8pt;">${depVar2.label} (${depVar2.unit})</span>
+        </th>
+        <th style="width: 12%;">
+          Catatan / Ralat (Δx)
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      ${blankRows}
+    </tbody>
+  </table>
+
+  <div class="sec-head">V. LEMBAR PLOTTING GRAFIK MILIMETER BLOK (Gunakan Penggaris & Pensil)</div>
+  <div style="font-size: 8.5pt; margin-bottom: 3px; display: flex; justify-content: space-between;">
+    <span><strong>Sumbu Y:</strong> ........................................................ [Satuan: .........]</span>
+    <span><strong>Sumbu X:</strong> ........................................................ [Satuan: .........]</span>
+  </div>
+
+  <!-- SVG Millimeter Block Grid (Black & White, Zero Heavy Fills) -->
+  <div style="border: 1px solid #000; width: 100%; height: 230px; position: relative; background: #fff;">
+    <svg width="100%" height="230" xmlns="http://www.w3.org/2000/svg" style="display: block;">
+      <defs>
+        <!-- 5mm grid pattern -->
+        <pattern id="smallGrid" width="10" height="10" patternUnits="userSpaceOnUse">
+          <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#d4d4d8" stroke-width="0.5"/>
+        </pattern>
+        <!-- 20mm major grid pattern -->
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <rect width="40" height="40" fill="url(#smallGrid)"/>
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#71717a" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="230" fill="url(#grid)" />
+      <!-- X and Y coordinate main baseline axes -->
+      <line x1="30" y1="10" x2="30" y2="215" stroke="#000000" stroke-width="1.8" />
+      <line x1="25" y1="210" x2="98%" y2="210" stroke="#000000" stroke-width="1.8" />
+      <!-- Arrowheads -->
+      <polygon points="30,5 26,13 34,13" fill="#000000" />
+      <polygon points="98%,210 97%,206 97%,214" fill="#000000" />
+      <!-- Origin dot -->
+      <circle cx="30" cy="210" r="3" fill="#000000" />
+      <text x="18" y="222" font-family="sans-serif" font-size="9" font-weight="bold">0</text>
+      <!-- Axis guide labels -->
+      <text x="36" y="16" font-family="sans-serif" font-size="8.5" font-weight="bold">▲ Sumbu Y (Variabel Terikat)</text>
+      <text x="80%" y="204" font-family="sans-serif" font-size="8.5" font-weight="bold">Sumbu X (Variabel Bebas) ▶</text>
+    </svg>
+    <div style="position: absolute; bottom: 3px; left: 34px; font-size: 7.5pt; color: #444; font-family: sans-serif;">
+      *Petunjuk: Tandai setiap titik data percobaan dengan tanda silang (x), lalu gunakan penggaris untuk menarik garis tren (regresi) terbaik.
+    </div>
+  </div>
+
+  <div class="sec-head" style="margin-top: 10px;">VI. PERTANYAAN DISKUSI KELAS & KESIMPULAN</div>
+  <ol style="margin: 2px 0 6px; padding-left: 20px; font-size: 9pt;">
+    <li style="margin-bottom: 6px;">
+      Bagaimana hubungan antara nilai <strong>Variabel Bebas (X)</strong> dan <strong>Variabel Terikat (Y)</strong> berdasarkan data tabel dan grafik milimeter di atas? (Apakah sebanding, berbanding terbalik, atau konstan?)
+      <div class="dotted-line"></div>
+      <div class="dotted-line"></div>
+    </li>
+    <li style="margin-bottom: 6px;">
+      Hitung kemiringan grafik (Gradien $m = \Delta Y / \Delta X$) dari garis yang Anda buat! Apakah makna fisis dari nilai gradien tersebut sesuai rumus teori di bagian II?
+      <div class="dotted-line"></div>
+      <div class="dotted-line"></div>
+    </li>
+    <li style="margin-bottom: 6px;">
+      Apakah hipotesis awal kelompok Anda terbukti <strong>BENAR</strong> atau <strong>DITOLAK</strong>? Jelaskan faktor ralat atau batasan instrumen yang Anda amati:
+      <div class="dotted-line"></div>
+      <div class="dotted-line"></div>
+    </li>
+  </ol>
+
+  <div style="border: 1px solid #000; padding: 6px 8px; margin: 4px 0 6px; font-size: 9pt;">
+    <strong>KESIMPULAN AKHIR KELOMPOK:</strong>
+    <div class="dotted-line" style="margin-top: 3px;">Berdasarkan praktikum ini, dapat disimpulkan bahwa ....................................................................................................</div>
+    <div class="dotted-line">....................................................................................................................................................................................................</div>
+  </div>
+
+  <table class="sign-table">
+    <tr>
+      <td style="width: 35%;">
+        Ketua Kelompok Praktikan,<br/><br/><br/><br/>
+        ( ............................................................ )<br/>
+        NIS/NIM: ............................................
+      </td>
+      <td style="width: 35%;">
+        Mengetahui / Menyetujui,<br/>
+        Guru / Pengampu Praktikum Lab,<br/><br/><br/>
+        ( ............................................................ )<br/>
+        NIP. ....................................................
+      </td>
+      <td style="width: 30%; font-weight: bold; vertical-align: middle;">
+        NILAI AKHIR PRAKTIKUM:<br/><br/>
+        <div style="font-size: 16pt; font-family: monospace;">........ / 100</div><br/>
+        Status: LULUS / REMEDIAL
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function printBlankStudentWorksheet(
+  moduleConfig?: ExperimentModule,
+  educationLevel: EducationTier = 'SMA'
+): void {
+  const html = generateBlankStudentWorksheetHTML(moduleConfig, educationLevel);
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  }
+}
+

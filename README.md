@@ -17,6 +17,40 @@ Platform laboratorium sains virtual interaktif untuk jenjang **SMP, SMA, dan Per
 
 ---
 
+## ⚡ Peluncur Cepat Sekolah 3T (Sekali Klik Tanpa Kuota Internet)
+
+Bagi sekolah di daerah **3T (Tertinggal, Terdepan, dan Terluar)** atau laboratorium dengan keterbatasan perangkat dan jaringan internet:
+
+```bash
+# 🪟 Windows (Cukup Klik Ganda pada file ini di Windows Explorer):
+mulai-lab-sekolah.bat
+
+# 🐧 Linux / 🍎 macOS:
+./mulai-lab-sekolah.sh
+```
+
+### Apa yang Dilakukan Skrip Ini Secara Otomatis?
+1. **Pengecekan Otomatis**: Memastikan dependensi dan berkas build `dist/` sudah siap. Jika belum, skrip otomatis melakukan build pertama kali.
+2. **Jaringan Hotspot Lokal (Zero Data / Tanpa Kuota)**: Laptop guru cukup menyalakan *Mobile Hotspot* (tethering Wi-Fi tanpa kuota). Skrip mendeteksi dan menampilkan alamat IP lokal guru (misal: `http://192.168.137.1:3000`) di layar terminal.
+3. **Akses HP / Tablet Siswa**: Siswa di kelas menyambungkan perangkatnya ke Wi-Fi laptop guru dan membuka browser ke alamat IP tersebut untuk ikut praktikum real-time.
+4. **Membuka Otomatis**: Browser di laptop guru langsung terbuka ke `http://localhost:3000`.
+
+### 🎒 5 Fitur Khusus Lapangan 3T di RuangLABmu:
+1. **🖨️ Cetak LKS Kertas Kosong (Hemat Tinta)**:
+   - Didesain khusus untuk sekolah di mana siswa tidak memiliki gawai pribadi dan mengamati 1 laptop/proyektor guru.
+   - Menghasilkan lembar kerja hitam-putih ramah fotokopi: Kop LKS, Tujuan & K3, Kotak titik-titik hipotesis, **Tabel pengamatan kosong 7 baris** berparameter otomatis sesuai modul, **Area Grid Milimeter Blok SVG** untuk menggambar grafik manual dengan penggaris, serta pertanyaan diskusi dan kesimpulan.
+   - Tombol cetak tersedia langsung di panel Lembar Kerja Siswa dan Pengaturan Guru.
+2. **📽️ Mode Proyektor Kelas / Layar Besar**:
+   - Toggle di menu pengaturan `⚙️` yang memperbesar angka telemetri, HUD, dan label variabel simulasi 3D sebesar **1.5x dengan kontras tinggi** agar mudah dibaca siswa di barisan belakang kelas.
+3. **👥 Gilir Kelompok di 1 Komputer (Pass-and-Play Rotation)**:
+   - Tombol *"Simpan & Ganti Giliran Kelompok"* di form LKS menyimpan laporan Kelompok A ke penyimpanan aman, lalu mereset tabel observasi dan formulir menjadi bersih untuk Kelompok B tanpa menghapus rekam jejak kelompok sebelumnya.
+4. **🚀 Skrip Peluncur 1-Klik Guru Non-IT (`mulai-lab-sekolah.bat` & `.sh`)**:
+   - Guru tidak perlu mengetik perintah terminal yang rumit; cukup klik 2x file `.bat` untuk menyalakan laboratorium kelas.
+5. **📴 100% Offline & Non-Blocking Font Stack**:
+   - Sistem font fallbacks lokal memastikan aplikasi terbuka instan tanpa delay atau error saat komputer sama sekali tidak memiliki koneksi internet.
+
+---
+
 ## Fitur Utama
 
 ### 1. 28 Modul Eksperimen Terkurasi Across 4 Domain Sains

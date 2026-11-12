@@ -25,8 +25,10 @@ import {
 } from '../utils/scienceEngine';
 import { SpatialCursorManager } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, Link2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
+import { globalMultiApparatusEngine } from '../utils/engines/multiApparatusEngine';
+import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
@@ -258,6 +260,9 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const unsubLite = useUIStore.subscribe((state, prev) => {
       if (state.liteDeviceMode !== prev.liteDeviceMode) {
         configureRendererForLiteMode(renderer, state.liteDeviceMode);
+        if (!state.liteDeviceMode) {
+          fpsMonitor.resetMonitor();
+        }
       }
     });
 
@@ -1357,8 +1362,54 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         </div>
       )}
 
-      {/* Unified Camera & Fullscreen Toolbar (Top-Right, Uncluttered Canvas) */}
-      <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20">
+      {/* Consolidated Top-Right Capsule Bar: Snap-to-Port | 🥽 Mode VR | Presets (Iso | Depan | Atas | Fokus | ⛶) */}
+      <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20 opacity-80 hover:opacity-100 transition-opacity">
+        <button
+          type="button"
+          data-testid="snap-dock-apparatus-btn"
+          onClick={() => {
+            labSound.playClick(760);
+            const allNodes = globalMultiApparatusEngine.getAllNodes();
+            if (allNodes.length < 2) {
+              globalMultiApparatusEngine.seedDefaultDomainNodes('Kimia');
+            }
+            const nodes = globalMultiApparatusEngine.getAllNodes();
+            if (nodes.length >= 2) {
+              const src = nodes[0];
+              const tgt = nodes[1];
+              const srcPort = src.ports[0];
+              const tgtPort = tgt.ports[0];
+              if (srcPort && tgtPort) {
+                globalMultiApparatusEngine.moveNodeAndEvaluateSnap(src.id, {
+                  [srcPort.id]: [tgtPort.position[0] - 0.18, tgtPort.position[1] + 0.08, tgtPort.position[2]],
+                });
+                globalMultiApparatusEngine.commitActiveSnapOnRelease();
+                globalMultiApparatusEngine.stepTransfer(1.5);
+              }
+            }
+          }}
+          title="Snap-to-Port: Sambung & Transfer Reagen Kimia 3D"
+          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-white hover:bg-white/10 flex items-center gap-1 transition-colors cursor-pointer"
+        >
+          <Link2 className="w-3.5 h-3.5" />
+          <span className="hidden xl:inline">Snap</span>
+        </button>
+
+        <button
+          type="button"
+          data-testid="enter-vr-lab-btn"
+          onClick={() => {
+            labSound.playClick(700);
+            void toggleImmersiveVRSession();
+          }}
+          title="Mode VR Spasial 3D (WebXR Immersive-VR)"
+          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+        >
+          <span aria-hidden="true">🥽</span>
+        </button>
+
+        <span className="mx-0.5 h-3.5 w-px bg-white/15" aria-hidden="true" />
+
         <div className="hidden md:flex items-center gap-0.5">
           {(
             [
@@ -1381,12 +1432,13 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
               {p.label}
             </button>
           ))}
-          <span className="mx-1 h-4 w-px bg-white/15" aria-hidden="true" />
+          <span className="mx-1 h-3.5 w-px bg-white/15" aria-hidden="true" />
         </div>
+
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer"
+          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer"
           title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
         >
           {isFullscreen ? (
@@ -1394,7 +1446,6 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           ) : (
             <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
           )}
-          <span className="hidden sm:inline">{isFullscreen ? 'Kecilkan' : 'Layar Penuh'}</span>
         </button>
       </div>
     </div>

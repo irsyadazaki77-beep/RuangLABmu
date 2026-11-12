@@ -118,6 +118,7 @@ export function useLabSession() {
     ws,
     addRecord,
     deleteRecord,
+    clearRecords,
     toggleTask,
     createTask,
     createNote,
@@ -608,6 +609,20 @@ export function useLabSession() {
     setExternalDrLabMuPrompt,
     reportData,
     deleteRecord,
+    clearRecords,
+    handleRotateGroup: (nextStudentName: string, nextGroupId: string) => {
+      clearRecords();
+      setLksGraded(false);
+      setLatestLksScore(0);
+      const foundIdx = STUDENT_PROFILES.findIndex(
+        (p) =>
+          p.group.toLowerCase().includes(nextGroupId.toLowerCase()) ||
+          p.name.toLowerCase().includes(nextStudentName.toLowerCase())
+      );
+      if (foundIdx !== -1) {
+        setSelectedProfileIdx(foundIdx);
+      }
+    },
     exportRecordsToCSV,
     submitQuizScore: (studentName: string, score: number, correctCount: number) => {
       setLatestLksScore(score);

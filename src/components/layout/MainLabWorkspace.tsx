@@ -149,10 +149,11 @@ export interface MainLabWorkspaceProps {
     domain: 'physics' | 'chemistry' | 'biology' | 'astronomy',
     moduleId: string,
     customRoomId?: string
-  ) => void;
+  ) => Promise<string | null> | void;
   onJoinRoom?: (roomId: string, pin: string, joinAsRole?: 'teacher' | 'student') => void;
   onLeaveRoom?: () => void;
   onToggleTeacherFreeze?: (isFrozen: boolean) => void;
+  onRotateGroup?: (nextStudentName: string, nextGroupId: string) => void;
 }
 
 export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
@@ -209,6 +210,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
   onJoinRoom,
   onLeaveRoom,
   onToggleTeacherFreeze,
+  onRotateGroup,
 }) => {
   const {
     activeDomain,
@@ -282,11 +284,12 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     fetch('/api/lan-info')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && (data.primaryIp || data.ip)) {
+        if (data && (data.primaryLanIp || data.primaryIp || data.ip)) {
+          const ip = data.primaryLanIp || data.primaryIp || data.ip;
           setLanInfo({
-            ip: data.primaryIp || data.ip,
+            ip,
             port: data.port,
-            localUrl: data.lanUrl || data.localUrl || `http://${data.primaryIp || data.ip}:${data.port}`,
+            localUrl: data.lanUrl || data.localUrl || `http://${ip}:${data.port}`,
           });
         }
       })
@@ -803,6 +806,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
                   onSubmitQuizScore={onSubmitQuizScore}
                   onDeleteRecord={onDeleteRecord}
                   onExportCSV={onExportCSV}
+                  onRotateGroup={onRotateGroup}
                   hypothesisNote={currentModuleHypothesis}
                   onChangeHypothesisNote={onUpdateCurrentHypothesis}
                   snapshots3D={capturedSnapshots}
@@ -889,6 +893,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
         notificationsCount={notifications.length}
         hasLowR2Alert={hasLowR2Alert}
         snapshotCount={capturedSnapshots.length}
+        recordsCount={records.length}
       />
 
       {/* Socratic Dr. LabMu Slide-Over Drawer & Notification Center */}

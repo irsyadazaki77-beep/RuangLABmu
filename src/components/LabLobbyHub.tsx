@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import QRCode from 'qrcode';
 import {
   Search,
   Atom,
@@ -17,6 +18,7 @@ import {
   LogOut,
   X,
   Wifi,
+  QrCode as QrCodeIcon,
 } from 'lucide-react';
 import {
   ExperimentModule,
@@ -221,25 +223,53 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
     loadLastOpenedModuleId()
   );
   const [dailyChallengeToast, setDailyChallengeToast] = useState<string | null>(null);
-  const [lanInfo, setLanInfo] = useState<{ ip: string; port: number; localUrl: string } | null>(null);
+  const [lanInfo, setLanInfo] = useState<{
+    ip: string;
+    port: number;
+    localUrl: string;
+    allLanIps: string[];
+  } | null>(null);
+  const [selectedLanIp, setSelectedLanIp] = useState<string>('');
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
 
   useEffect(() => {
     setLastModuleId(loadLastOpenedModuleId());
     fetch('/api/lan-info')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && (data.primaryIp || data.ip)) {
+        if (data && (data.primaryLanIp || data.primaryIp || data.ip)) {
+          const primary = data.primaryLanIp || data.primaryIp || data.ip;
+          const port = data.port || 3000;
+          const allIps = Array.isArray(data.allLanIps) && data.allLanIps.length > 0
+            ? data.allLanIps
+            : [primary];
           setLanInfo({
-            ip: data.primaryIp || data.ip,
-            port: data.port,
-            localUrl: data.lanUrl || data.localUrl || `http://${data.primaryIp || data.ip}:${data.port}`,
+            ip: primary,
+            port,
+            localUrl: `http://${primary}:${port}`,
+            allLanIps: allIps,
           });
+          setSelectedLanIp(primary);
         }
       })
       .catch(() => {
         // Silently handle if offline
       });
   }, []);
+
+  useEffect(() => {
+    const ip = selectedLanIp || lanInfo?.ip;
+    if (!ip) return;
+    const port = lanInfo?.port || 3000;
+    const url = `http://${ip}:${port}`;
+    QRCode.toDataURL(url, {
+      width: 160,
+      margin: 1,
+      color: { dark: '#0f172a', light: '#ffffff' },
+    })
+      .then((dataUrl) => setQrCodeDataUrl(dataUrl))
+      .catch(() => {});
+  }, [selectedLanIp, lanInfo?.port]);
 
   const lastOpenedModule = useMemo(() => {
     if (!lastModuleId) return null;
@@ -344,7 +374,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8 space-y-6 select-text">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3.5 select-text">
       {/* ROOM PIN COLLABORATION MODAL */}
       {isRoomModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -505,24 +535,77 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                 </div>
               )}
 
-              {/* Tips Daerah 3T: Hotspot Wi-Fi LAN Tanpa Kuota */}
+              {/* Tips Daerah 3T: Hotspot Wi-Fi LAN Tanpa Kuota & QR Room */}
               <div
                 data-testid="lan-hotspot-info-card"
-                className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-2 text-slate-800 dark:text-amber-100"
+                className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-2.5 text-slate-800 dark:text-amber-100"
               >
-                <div className="flex items-center gap-2 font-bold text-amber-700 dark:text-amber-300">
-                  <Wifi className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span>Mode LAN Kelas 3T (Tanpa Kuota Internet)</span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 font-bold text-amber-700 dark:text-amber-300">
+                    <Wifi className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>Mode LAN Kelas 3T (Tanpa Kuota Internet)</span>
+                  </div>
+                  {lanInfo?.allLanIps && lanInfo.allLanIps.length > 1 && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200">
+                      {lanInfo.allLanIps.length} Adaptor IP
+                    </span>
+                  )}
                 </div>
+
                 <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
-                  <strong className="text-amber-700 dark:text-amber-300">Tips Daerah 3T:</strong> Nyalakan Hotspot Wi-Fi di laptop Guru (tanpa perlu paket data internet), lalu minta siswa membuka alamat IP lokal ini untuk praktikum bersama tanpa kuota:
+                  <strong className="text-amber-700 dark:text-amber-300">Tips Daerah 3T:</strong> Nyalakan Hotspot Wi-Fi di laptop Guru (tanpa perlu paket data internet), lalu minta siswa membuka alamat IP lokal ini atau memindai kode QR untuk praktikum bersama tanpa kuota:
                 </p>
+
+                {/* IP Adapter Selector if multiple interfaces detected */}
+                {lanInfo?.allLanIps && lanInfo.allLanIps.length > 1 && (
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 bg-stone-100 dark:bg-slate-950 p-2 rounded-lg border border-stone-200 dark:border-slate-800">
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 shrink-0">
+                      Ganti Antarmuka IP Guru:
+                    </label>
+                    <select
+                      value={selectedLanIp}
+                      onChange={(e) => {
+                        setSelectedLanIp(e.target.value);
+                        labSound.playClick();
+                      }}
+                      className="flex-1 text-xs font-mono font-bold bg-white dark:bg-slate-900 border border-stone-300 dark:border-slate-700 rounded-md px-2 py-1 text-sky-700 dark:text-sky-300 focus:outline-none focus:border-sky-500 cursor-pointer"
+                    >
+                      {lanInfo.allLanIps.map((ip) => (
+                        <option key={ip} value={ip}>
+                          {ip} {ip.startsWith('192.168.') || ip.startsWith('10.') ? '★ (Hotspot Disarankan)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between gap-2 bg-stone-100 dark:bg-slate-950 px-3 py-2 rounded-lg border border-stone-200 dark:border-slate-800 font-mono text-xs">
                   <span className="text-slate-500 dark:text-slate-400">URL Hotspot LAN:</span>
                   <span className="font-bold text-sky-600 dark:text-sky-400 select-all">
-                    {lanInfo?.localUrl || 'http://192.168.43.1:3000'}
+                    {`http://${selectedLanIp || lanInfo?.ip || '192.168.43.1'}:${lanInfo?.port || 3000}`}
                   </span>
                 </div>
+
+                {/* QR Code Quick Scan for Students */}
+                {qrCodeDataUrl && (
+                  <div className="flex items-center gap-3 p-2.5 bg-white dark:bg-slate-950/80 rounded-xl border border-stone-200 dark:border-slate-800">
+                    <img
+                      src={qrCodeDataUrl}
+                      alt="QR Code Meja Praktikum LAN"
+                      data-testid="lan-room-qr-code"
+                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg bg-white p-1 border border-stone-200 shadow-xs shrink-0"
+                    />
+                    <div className="space-y-1 min-w-0">
+                      <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <QrCodeIcon className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                        <span>Pindai Kode QR Meja Praktikum</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                        Siswa cukup mengarahkan kamera HP ke QR Code ini untuk langsung membuka meja lab tanpa perlu mengetik alamat IP secara manual.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2">
@@ -545,57 +628,130 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
         </div>
       )}
 
-      {/* 1. COMPACT SINGLE-ROW COLLABORATION BAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 shadow-2xs">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
-            <Users className="w-4 h-4" />
+      {/* 1. CONSOLIDATED ACTION STRIP: Room Collaboration + Quick-Start + Daily Challenge + AI Mission */}
+      <div
+        data-testid="quick-start-hero-bar"
+        className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 shadow-2xs text-xs"
+      >
+        {/* Left Section: Room Collaboration status & PIN buttons */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
+            <Users className="w-3.5 h-3.5" />
           </div>
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0">
-            <span className="text-xs font-bold text-slate-900 dark:text-white">
-              Meja Praktikum Bersama
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              — Kerjakan eksperimen bareng satu kelompok secara real-time.
-            </span>
-            {activeRoomId && (
-              <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+          <div className="flex items-center gap-2 truncate min-w-0">
+            <span className="font-bold text-slate-900 dark:text-white shrink-0">Meja Bersama</span>
+            {activeRoomId ? (
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-400 truncate">
                 Room: {activeRoomId} {roomPin ? `(PIN: ${roomPin})` : ''} · {Object.keys(roomMembers).length} Peserta
               </span>
+            ) : (
+              <span className="hidden xl:inline text-slate-500 dark:text-slate-400 text-[11px] truncate">
+                — Kolaborasi kelompok real-time
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0 ml-1">
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setFormRoomId('LAB-ALPHA');
+                setFormPin('1234');
+                openRoomModal('join');
+              }}
+              className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <KeyRound className="w-3 h-3 text-slate-500" />
+              <span>Masuk dengan PIN</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setFormRoomId(generateRandomRoomId());
+                setFormPin('1234');
+                openRoomModal('create');
+              }}
+              className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-semibold text-[11px] flex items-center gap-1 cursor-pointer shadow-2xs transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+              <span>+ Buat Room</span>
+            </button>
+
+            {activeRoomId && userRole === 'pengajar' && onToggleTeacherFreeze && (
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick(540);
+                  onToggleTeacherFreeze(!isFrozenByTeacher);
+                }}
+                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1 cursor-pointer ${
+                  isFrozenByTeacher
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                }`}
+              >
+                {isFrozenByTeacher ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                <span>{isFrozenByTeacher ? 'Buka' : 'Kunci'}</span>
+              </button>
+            )}
+
+            {activeRoomId && onLeaveRoom && (
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  onLeaveRoom();
+                }}
+                className="px-2 py-1 rounded-lg border border-stone-200 dark:border-slate-700 bg-stone-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-600 dark:text-slate-300 hover:text-rose-600 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                title="Keluar dari Meja Praktikum"
+              >
+                <LogOut className="w-3 h-3" />
+                <span>Keluar</span>
+              </button>
             )}
           </div>
         </div>
 
+        {/* Right Section: Resume Last Module + Daily Challenge + AI Mission Builder */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setFormRoomId('LAB-ALPHA');
-              setFormPin('1234');
-              openRoomModal('join');
-            }}
-            className="px-3.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-            <span>Masuk dengan PIN</span>
-          </button>
+          {dailyChallengeToast && (
+            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+              {dailyChallengeToast}
+            </span>
+          )}
+
+          {lastOpenedModule && (
+            <button
+              type="button"
+              data-testid="quick-start-resume-btn"
+              onClick={() => {
+                labSound.playClick();
+                handleSelectAndTrackExperiment(lastOpenedModule);
+              }}
+              title={`Lanjutkan eksperimen terakhir: ${lastOpenedModule.title}`}
+              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors max-w-[220px] truncate"
+            >
+              <span>▶️ Lanjut:</span>
+              <span className="truncate font-medium">{lastOpenedModule.title}</span>
+            </button>
+          )}
 
           <button
             type="button"
-            onClick={() => {
-              labSound.playClick();
-              setFormRoomId(generateRandomRoomId());
-              setFormPin('1234');
-              openRoomModal('create');
-            }}
-            className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+            data-testid="daily-lab-challenge-btn"
+            onClick={handleStartDailyLabChallenge}
+            title="Tantangan Sains Hari Ini (Dapatkan +250 XP)"
+            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>+ Buat Room</span>
+            <span>🎲 Tantangan Sains</span>
+            <span className="px-1 py-0.2 rounded bg-slate-950/20 font-mono text-[10px] font-black">
+              +250 XP
+            </span>
           </button>
 
-          {/* FITUR 2: Tombol "✨ Buat Misi Praktikum AI" untuk Guru di Lobby */}
           <button
             type="button"
             data-testid="lobby-open-ai-mission-builder-btn"
@@ -606,97 +762,11 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               }
               openModal('ai-mission-builder');
             }}
-            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-extrabold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
             title="Buat Skenario Misi Studi Kasus Praktikum AI untuk Room PIN Kelas"
+            className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-extrabold text-[11px] flex items-center gap-1 cursor-pointer shadow-2xs transition-all whitespace-nowrap"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>✨ Buat Misi Praktikum AI</span>
-          </button>
-
-          {activeRoomId && userRole === 'pengajar' && onToggleTeacherFreeze && (
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick(540);
-                onToggleTeacherFreeze(!isFrozenByTeacher);
-              }}
-              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 cursor-pointer ${
-                isFrozenByTeacher
-                  ? 'bg-rose-600 hover:bg-rose-500 text-white'
-                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
-              }`}
-            >
-              {isFrozenByTeacher ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-              <span>{isFrozenByTeacher ? 'Buka Kunci' : 'Kunci Layar'}</span>
-            </button>
-          )}
-
-          {activeRoomId && onLeaveRoom && (
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                onLeaveRoom();
-              }}
-              className="px-2.5 py-1.5 rounded-lg border border-stone-200 dark:border-slate-700 bg-stone-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-600 dark:text-slate-300 hover:text-rose-600 text-xs font-semibold flex items-center gap-1 cursor-pointer"
-              title="Keluar dari Meja Praktikum"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Keluar</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* FITUR 3: COMPACT HERO SHOWCASE & QUICK-START BAR */}
-      <div
-        data-testid="quick-start-hero-bar"
-        className="rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/90 to-slate-900 border border-indigo-500/30 px-5 py-4 shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4 text-white"
-      >
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2 py-0.5 rounded-md bg-sky-500/20 border border-sky-400/30 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-300">
-              QUICK START · AKSELERASI PRAKTIKUM
-            </span>
-            <span className="text-xs text-slate-300">
-              Lanjutkan eksperimen terakhir atau klaim bonus XP harian dalam 1 klik.
-            </span>
-          </div>
-          <h2 className="text-sm sm:text-base font-extrabold text-white">
-            Quick Start / Lanjutkan Eksperimen Terakhir
-          </h2>
-          {dailyChallengeToast && (
-            <div className="text-xs font-semibold text-emerald-300 pt-0.5">
-              {dailyChallengeToast}
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {lastOpenedModule && (
-            <button
-              type="button"
-              data-testid="quick-start-resume-btn"
-              onClick={() => {
-                labSound.playClick();
-                handleSelectAndTrackExperiment(lastOpenedModule);
-              }}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-2 shadow-sm cursor-pointer transition-all"
-            >
-              <span>▶️ Lanjutkan: {lastOpenedModule.title}</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            data-testid="daily-lab-challenge-btn"
-            onClick={handleStartDailyLabChallenge}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-sm cursor-pointer transition-all"
-          >
-            <span>🎲 Tantangan Sains Hari Ini (Daily Lab Challenge)</span>
-            <span className="px-1.5 py-0.5 rounded bg-slate-950/20 font-mono text-[10px] font-black">
-              +250 XP
-            </span>
+            <span>✨ Misi AI Guru</span>
           </button>
         </div>
       </div>
@@ -759,9 +829,9 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
         </div>
       )}
 
-      {/* 2. FULL-BLEED CATALOG HEADER & KPI SUMMARY */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pb-2 border-b border-stone-200/80 dark:border-slate-800/80">
-        <div className="space-y-1.5 max-w-2xl">
+      {/* 2. COMPACT CATALOG HEADER & KPI SUMMARY */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-2 border-b border-stone-200/80 dark:border-slate-800/80">
+        <div className="space-y-1 max-w-2xl">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
             <span className="font-semibold text-sky-600 dark:text-sky-400">{studentName}</span>
             <span aria-hidden="true">·</span>
@@ -771,43 +841,43 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
             <span aria-hidden="true">·</span>
             <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium">
               <Eye className="w-3.5 h-3.5" />
-              <span>Ergonomi Visual Aktif</span>
+              <span>Ergonomi Visual</span>
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white">
             Katalog Laboratorium Sains Interaktif 3D
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed comfort-prose">
-            Pilih modul eksperimen sesuai tingkat kenyamanan belajar Anda: dilengkapi Panduan Langkah Mikro 3D, Buku Catatan Hipotesis, Komparator Percobaan, dan Lembar Kerja Siswa (LKS).
+          <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-1 sm:line-clamp-none">
+            Dilengkapi Panduan Mikro 3D, Catatan Hipotesis, Komparator, dan Lembar Kerja Siswa (LKS).
           </p>
         </div>
 
         {/* Right KPI Strip & Mystery Exam CTA */}
-        <div className="flex flex-wrap items-center gap-4 shrink-0 bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 px-4 py-3 rounded-xl text-xs shadow-2xs">
-          <div className="text-center px-2">
-            <div className="text-lg font-bold font-mono text-slate-900 dark:text-white tabular-nums">
+        <div className="flex flex-wrap items-center gap-3 shrink-0 bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 px-3 py-1.5 rounded-xl text-xs shadow-2xs">
+          <div className="text-center px-1.5">
+            <div className="text-base font-bold font-mono text-slate-900 dark:text-white tabular-nums">
               {completedModuleIds.length}
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">
-              Modul Selesai
+            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+              Selesai
             </div>
           </div>
-          <div className="w-px h-7 bg-stone-200 dark:bg-slate-800" aria-hidden="true" />
-          <div className="text-center px-2">
-            <div className="text-lg font-bold font-mono text-sky-600 dark:text-sky-400 tabular-nums">
+          <div className="w-px h-6 bg-stone-200 dark:bg-slate-800" aria-hidden="true" />
+          <div className="text-center px-1.5">
+            <div className="text-base font-bold font-mono text-sky-600 dark:text-sky-400 tabular-nums">
               {recordsCount}
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+            <div className="text-[10px] text-slate-500 dark:text-slate-400">
               Data Tercatat
             </div>
           </div>
-          <div className="w-px h-7 bg-stone-200 dark:bg-slate-800" aria-hidden="true" />
-          <div className="text-center px-2">
-            <div className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">
+          <div className="w-px h-6 bg-stone-200 dark:bg-slate-800" aria-hidden="true" />
+          <div className="text-center px-1.5">
+            <div className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">
               {filteredModules.length}
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">
-              Modul Tersedia
+            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+              Modul
             </div>
           </div>
 
@@ -818,10 +888,10 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                 labSound.playClick();
                 onOpenMysteryExam();
               }}
-              className="ml-1 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+              className="ml-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Ujian Sampel Misterius →</span>
+              <span>Ujian Sampel →</span>
             </button>
           )}
         </div>

@@ -26,6 +26,7 @@ export interface UseBackendSyncReturn extends BackendSyncState {
   ws: WebSocket | null;
   addRecord: (record: ExperimentRecord) => void;
   deleteRecord: (id: string) => void;
+  clearRecords: () => void;
   toggleTask: (id: string, studentName?: string) => void;
   createTask: (title: string, groupId?: string, domain?: string) => void;
   createNote: (text: string, author: string, role: 'Siswa' | 'Pengajar', groupId?: string) => void;
@@ -679,6 +680,10 @@ export function useBackendSync(
     [sendWs]
   );
 
+  const clearRecords = useCallback(() => {
+    setRecords([]);
+  }, []);
+
   const toggleTask = useCallback(
     (id: string, name?: string) => {
       setTasks((prev) =>
@@ -875,6 +880,7 @@ export function useBackendSync(
     ws: wsRef.current,
     addRecord,
     deleteRecord,
+    clearRecords,
     toggleTask,
     createTask,
     createNote,

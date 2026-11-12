@@ -46,6 +46,7 @@ export interface AnalyticsAndWorksheetPanelProps {
   snapshots3D?: Lab3DSnapshot[];
   onDeleteRecord?: (id: string) => void;
   onExportCSV?: () => void;
+  onRotateGroup?: (nextStudentName: string, nextGroupId: string) => void;
   moduleId?: string;
   domain?: string;
 }
@@ -128,6 +129,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
   snapshots3D = [],
   onDeleteRecord,
   onExportCSV,
+  onRotateGroup,
   moduleId,
   domain,
 }) => {
@@ -350,6 +352,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
         onChangeHypothesisNote={onChangeHypothesisNote}
         onSubmitQuizScore={onSubmitQuizScore}
         onPrintPDFReport={handlePrintPDFReport}
+        onRotateGroup={onRotateGroup}
         observationRecords={records}
         moduleId={moduleId}
         domain={domain}

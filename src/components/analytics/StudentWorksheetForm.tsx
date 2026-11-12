@@ -10,6 +10,8 @@ import {
   Lock,
   AlertTriangle,
   Download,
+  Users,
+  RotateCcw,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -32,6 +34,9 @@ import {
   createOfflinePacket,
   downloadOfflineRlabPacket,
 } from '../../utils/offlinePacketProtocol';
+import { printBlankStudentWorksheet } from '../../utils/academicReportExporter';
+import { getExperimentById } from '../../registry/experimentRegistry';
+import { STUDENT_PROFILES } from '../../stores/initialLabParams';
 
 export interface StudentWorksheetFormProps {
   activeStudentName: string;
@@ -40,6 +45,7 @@ export interface StudentWorksheetFormProps {
   onChangeHypothesisNote?: (note: HypothesisNote) => void;
   onSubmitQuizScore?: (score: number, correctCount: number) => void;
   onPrintPDFReport?: (conclusionText: string) => void;
+  onRotateGroup?: (nextStudentName: string, nextGroupId: string) => void;
   observationRecords?: ExperimentRecord[];
   moduleId?: string;
   domain?: string;
@@ -52,6 +58,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   onChangeHypothesisNote,
   onSubmitQuizScore,
   onPrintPDFReport,
+  onRotateGroup,
   observationRecords = [],
   moduleId = 'lab-experiment',
   domain = 'Fisika',
@@ -80,6 +87,139 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
   const [rateLimitCountdown, setRateLimitCountdown] = useState<number>(0);
   const [offlinePacketNotice, setOfflinePacketNotice] = useState<string | null>(null);
+
+  // FITUR 3: Pass-and-Play Classroom Rotation States
+  const [isRotationModalOpen, setIsRotationModalOpen] = useState(false);
+  const [isRotatingGroup, setIsRotatingGroup] = useState(false);
+  const [rotationNotice, setRotationNotice] = useState<string | null>(null);
+
+  // Compute next suggested group & student name
+  const currentIdx = STUDENT_PROFILES.findIndex(
+    (p) => p.group === activeGroupId || p.name === activeStudentName
+  );
+  const nextProfile =
+    STUDENT_PROFILES[(currentIdx + 1) % STUDENT_PROFILES.length] || STUDENT_PROFILES[0];
+  const [nextStudentInput, setNextStudentInput] = useState<string>(nextProfile.name);
+  const [nextGroupInput, setNextGroupInput] = useState<string>(nextProfile.group);
+
+  useEffect(() => {
+    const nextIdx = (currentIdx + 1) % STUDENT_PROFILES.length;
+    const np = STUDENT_PROFILES[nextIdx] || STUDENT_PROFILES[0];
+    setNextStudentInput(np.name);
+    setNextGroupInput(np.group);
+  }, [activeGroupId, activeStudentName, currentIdx]);
+
+  const handlePrintBlankLks = () => {
+    labSound.playClick();
+    const modConfig = getExperimentById(moduleId);
+    printBlankStudentWorksheet(modConfig, 'SMA');
+  };
+
+  const handlePassAndPlayRotation = async () => {
+    labSound.playSuccessChime();
+    setIsRotatingGroup(true);
+    const finalGrade = gradedResult ?? gradeWorksheetAnswers(answers);
+    const activeRoomId = useCollabStore.getState().activeRoomId || 'LAB-3T';
+    const regSummary = computeRecordsRegressionSummary(observationRecords);
+
+    const obsPayload = (observationRecords || []).map((r, i) => ({
+      No: i + 1,
+      Waktu: r.timestamp,
+      X: r.numericX ?? 0,
+      Y1: r.numericY1 ?? 0,
+      Parameter: r.parametersSummary,
+    }));
+
+    const telemetryLog = buildSubmissionTelemetryTimeline(domain || 'Fisika', obsPayload);
+
+    const submissionRecord = {
+      id: `pnp-${Date.now()}`,
+      studentName: activeStudentName,
+      studentId: activeGroupId,
+      roomId: activeRoomId,
+      domain: domain || 'Fisika',
+      moduleId: moduleId || 'lab-experiment',
+      submittedAt: new Date().toISOString(),
+      hypothesisText: hypothesisNote?.hypothesisText || '',
+      observationData: obsPayload,
+      recordsCount: observationRecords.length,
+      regressionMetrics: {
+        rSquared: regSummary.rSquared,
+        slope: regSummary.slope,
+        equation: regSummary.equation,
+      },
+      quizAnswers: Object.entries(answers).map(([qId, val]) => ({
+        questionId: qId,
+        selectedAnswer: val,
+        isCorrect: finalGrade.results?.[qId]?.isCorrect ?? true,
+      })),
+      quizScore: finalGrade.totalScore,
+      conclusionText,
+      telemetryLog,
+    };
+
+    // 1. Permanently preserve in LocalStorage so Kelompok A's report is NEVER lost
+    try {
+      const storedKey = 'ruanglab_pass_and_play_submissions';
+      const prevSubmissions = JSON.parse(window.localStorage.getItem(storedKey) || '[]');
+      window.localStorage.setItem(
+        storedKey,
+        JSON.stringify([submissionRecord, ...prevSubmissions])
+      );
+    } catch {
+      // ignore storage error
+    }
+
+    // 2. Also attempt server persistence if backend is reachable
+    try {
+      await fetch('/api/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(submissionRecord),
+      });
+    } catch {
+      // ignore network errors in 3T mode
+    }
+
+    // 3. Clear LKS form inputs for the next group
+    const blankAnswers: Record<string, string> = {};
+    for (const q of WORKSHEET_QUESTIONS) {
+      blankAnswers[q.id] = '';
+    }
+    setAnswers(blankAnswers);
+    setConclusionText('Berdasarkan pengamatan kelompok kami, ');
+    setGradedResult(null);
+    setSubmissionSuccessTicket(null);
+    setSubmissionLocked(false);
+
+    // 4. Reset hypothesis note if callback available
+    if (onChangeHypothesisNote && hypothesisNote) {
+      onChangeHypothesisNote({
+        independentVar: '',
+        dependentVar: '',
+        hypothesisText: '',
+        reflectionText: '',
+        updatedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      });
+    }
+
+    const prevGroupName = activeGroupId;
+    const targetStudent = nextStudentInput.trim() || 'Siswa Kelompok Baru';
+    const targetGroup = nextGroupInput.trim() || 'Kelompok Berikutnya';
+
+    // 5. Notify parent to rotate student profile & clear active observation records table
+    if (onRotateGroup) {
+      onRotateGroup(targetStudent, targetGroup);
+    }
+
+    setIsRotationModalOpen(false);
+    setIsRotatingGroup(false);
+
+    setRotationNotice(
+      `✓ Laporan [${prevGroupName}] berhasil disimpan secara permanen! Meja praktikum & tabel pengamatan direset bersih untuk [${targetGroup}].`
+    );
+    setTimeout(() => setRotationNotice(null), 8000);
+  };
 
   useEffect(() => {
     if (rateLimitCountdown <= 0) {
@@ -263,6 +403,27 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         </div>
       )}
 
+      {/* Pass-and-Play Rotation Success Banner */}
+      {rotationNotice && (
+        <div
+          role="status"
+          data-testid="rotation-notice-banner"
+          className="p-3.5 rounded-xl bg-sky-50 dark:bg-sky-950/60 border border-sky-500/50 flex items-center justify-between gap-3 text-xs text-sky-900 dark:text-sky-100 font-bold shadow-md animate-fade-in"
+        >
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+            <span>{rotationNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRotationNotice(null)}
+            className="text-sky-500 hover:text-sky-700 dark:hover:text-sky-300 font-mono text-[11px] underline cursor-pointer"
+          >
+            Tutup
+          </button>
+        </div>
+      )}
+
       {/* Friendly HTTP 429 Rate Limit Banner */}
       {rateLimitMessage && (
         <div
@@ -367,6 +528,31 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            data-testid="print-blank-worksheet-btn"
+            onClick={handlePrintBlankLks}
+            title="Cetak Lembar Kerja Siswa (LKS) kosong hitam-putih hemat tinta untuk fotokopi siswa di kelas"
+            className="px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-stone-300 dark:border-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+          >
+            <Printer className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+            <span>🖨️ Cetak LKS Kosong (Untuk Fotokopi Kelas)</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="pass-and-play-rotation-btn"
+            onClick={() => {
+              labSound.playClick();
+              setIsRotationModalOpen(true);
+            }}
+            title="Simpan laporan kelompok aktif dan reset meja praktikum untuk giliran kelompok berikutnya (Pass-and-Play)"
+            className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>👥 Simpan & Ganti Giliran Kelompok</span>
+          </button>
 
           <button
             type="button"
@@ -606,6 +792,19 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             </button>
             <button
               type="button"
+              data-testid="bottom-pass-and-play-rotation-btn"
+              onClick={() => {
+                labSound.playClick();
+                setIsRotationModalOpen(true);
+              }}
+              title="Simpan laporan kelompok aktif dan reset meja praktikum untuk giliran kelompok berikutnya"
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>👥 Simpan & Ganti Giliran Kelompok</span>
+            </button>
+            <button
+              type="button"
               data-testid="download-offline-rlab-btn"
               onClick={handleDownloadOfflineRlab}
               title="Unduh paket tugas luring (.rlab) terenkapsulasi anti-tamper untuk dikumpulkan via Flashdisk/Bluetooth tanpa kuota"
@@ -632,6 +831,117 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
           </div>
         </div>
       </form>
+
+      {/* FITUR 3: Pass-and-Play Rotation Modal Dialog */}
+      {isRotationModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-testid="pass-and-play-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in"
+        >
+          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 p-5 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between gap-3 border-b border-stone-200/80 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                    Gilir Kelompok di 1 Komputer (Pass-and-Play)
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Solusi praktikum 3T saat 1 komputer digunakan bergantian oleh beberapa kelompok siswa.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRotationModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1 cursor-pointer"
+                title="Tutup dialog"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Current Group Summary */}
+            <div className="p-3.5 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 text-xs space-y-1.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Laporan Kelompok Selesai yang Disimpan Permanen:
+              </div>
+              <div className="font-bold text-slate-900 dark:text-white text-sm">
+                {activeGroupId} · {activeStudentName}
+              </div>
+              <div className="text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">
+                <div>✓ <strong>{observationRecords.length} Titik Data</strong> observasi terlampir & tersimpan</div>
+                <div>✓ <strong>Jawaban LKS & Kesimpulan</strong> aman tercatat di daftar laporan</div>
+                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+                  *Data kelompok ini TIDAK akan terhapus saat meja direset untuk kelompok berikutnya.
+                </div>
+              </div>
+            </div>
+
+            {/* Next Group Selection Form */}
+            <div className="space-y-3 text-xs">
+              <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200">
+                Tentukan Kelompok & Siswa Berikutnya:
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Nama Kelompok Berikutnya:
+                  </label>
+                  <input
+                    type="text"
+                    value={nextGroupInput}
+                    onChange={(e) => setNextGroupInput(e.target.value)}
+                    placeholder="Contoh: Kelompok 2 — Termokimia"
+                    className="w-full px-3 py-2 rounded-lg bg-stone-50 dark:bg-slate-950 border border-stone-300 dark:border-slate-700 font-semibold text-slate-900 dark:text-white text-xs focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Nama Siswa / Perwakilan:
+                  </label>
+                  <input
+                    type="text"
+                    value={nextStudentInput}
+                    onChange={(e) => setNextStudentInput(e.target.value)}
+                    placeholder="Contoh: Citra Lestari"
+                    className="w-full px-3 py-2 rounded-lg bg-stone-50 dark:bg-slate-950 border border-stone-300 dark:border-slate-700 font-semibold text-slate-900 dark:text-white text-xs focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-stone-200/80 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsRotationModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-stone-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs cursor-pointer hover:bg-stone-100 dark:hover:bg-slate-800"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                data-testid="confirm-pass-and-play-rotation-btn"
+                disabled={isRotatingGroup}
+                onClick={handlePassAndPlayRotation}
+                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>
+                  {isRotatingGroup
+                    ? 'Menyimpan & Menyiapkan Meja...'
+                    : `Simpan Laporan & Gilir ke [${nextGroupInput || 'Kelompok Berikutnya'}]`}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

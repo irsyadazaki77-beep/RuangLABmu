@@ -421,23 +421,45 @@ async function startServer() {
   // FITUR 5: Mode LAN Kelas Tanpa Kuota (Local Hotspot Info untuk Daerah 3T)
   app.get('/api/lan-info', (_req, res) => {
     const interfaces = os.networkInterfaces();
-    const localIps: string[] = [];
-    for (const ifaceName of Object.keys(interfaces)) {
-      const ifaceList = interfaces[ifaceName];
-      if (!ifaceList) continue;
+    const virtualPattern = /wsl|docker|vbox|vethernet|vmware|virtual/i;
+    const candidates: string[] = [];
+
+    for (const [ifaceName, ifaceList] of Object.entries(interfaces)) {
+      if (!ifaceList || virtualPattern.test(ifaceName)) {
+        continue;
+      }
       for (const iface of ifaceList) {
         if (iface.family === 'IPv4' && !iface.internal) {
-          localIps.push(iface.address);
+          // Exclude virtual host-only 192.168.56.x or docker default 172.17.x.x
+          if (iface.address.startsWith('192.168.56.') || iface.address.startsWith('172.17.')) {
+            continue;
+          }
+          candidates.push(iface.address);
         }
       }
     }
-    const primaryIp = localIps[0] || '127.0.0.1';
+
+    const uniqueIps = Array.from(new Set(candidates));
+    const getPriority = (ip: string): number => {
+      if (ip.startsWith('192.168.')) return 100;
+      if (ip.startsWith('10.')) return 90;
+      if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return 50;
+      return 10;
+    };
+
+    uniqueIps.sort((a, b) => getPriority(b) - getPriority(a));
+
+    const primaryLanIp = uniqueIps[0] || '127.0.0.1';
+    const allLanIps = uniqueIps.length > 0 ? uniqueIps : ['127.0.0.1'];
     const port = Number(process.env.PORT) || 3000;
+
     res.json({
-      primaryIp,
-      localIps,
+      primaryIp: primaryLanIp,
+      primaryLanIp,
+      localIps: allLanIps,
+      allLanIps,
       port,
-      lanUrl: `http://${primaryIp}:${port}`,
+      lanUrl: `http://${primaryLanIp}:${port}`,
       isLocalHotspotReady: true,
       tip3T:
         'Tips Daerah 3T: Nyalakan Hotspot Wi-Fi di laptop Guru (tanpa perlu paket data internet), lalu minta siswa membuka alamat IP lokal ini untuk praktikum bersama tanpa kuota!',

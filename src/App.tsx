@@ -204,6 +204,7 @@ export default function App() {
           releaseParamLock={releaseParamLock}
           onDeleteRecord={deleteRecord}
           onExportCSV={() => exportRecordsToCSV(records)}
+          onRotateGroup={session.handleRotateGroup}
           onSubmitQuizScore={(score, count) => {
             submitQuizScore(currentProfile.name, score, count);
             setLksGraded(true);

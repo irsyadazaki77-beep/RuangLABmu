@@ -60,6 +60,71 @@ describe('3T-Ready Architecture: Pillar 1 - Adaptive FPS Monitor & Lite Mode', (
     assert.equal(alertTriggered, true, 'Low FPS should trigger callback');
     assert.ok(reportedFps < 25, 'Reported FPS should be below threshold 25');
   });
+
+  it('ignores frame samples when deltaMs > 250 (tab switch or browser minimize) without triggering false-positive low FPS', () => {
+    let alertTriggered = false;
+
+    const monitor = createAdaptiveFpsMonitor(
+      () => {
+        alertTriggered = true;
+      },
+      25,
+      1000
+    );
+
+    let simTime = 1000;
+    // 30 normal 60fps frames (16.6ms intervals)
+    for (let i = 0; i < 30; i++) {
+      monitor.recordFrame(simTime);
+      simTime += 16.6;
+    }
+
+    // Student switches tab or minimizes browser: deltaMs = 3000ms!
+    simTime += 3000;
+    monitor.recordFrame(simTime);
+
+    // Frame after returning: 16.6ms intervals
+    for (let i = 0; i < 30; i++) {
+      simTime += 16.6;
+      monitor.recordFrame(simTime);
+    }
+
+    assert.equal(alertTriggered, false, 'Tab switch delta (> 250ms) must NOT trigger low-FPS false positive');
+  });
+
+  it('resetMonitor() successfully resets triggered state and accumulator', () => {
+    let triggeredCount = 0;
+
+    const monitor = createAdaptiveFpsMonitor(
+      () => {
+        triggeredCount += 1;
+      },
+      25,
+      500
+    );
+
+    let simTime = 1000;
+    // Simulate low FPS (80ms intervals = ~12.5 FPS)
+    for (let i = 0; i < 10; i++) {
+      monitor.recordFrame(simTime);
+      simTime += 80;
+    }
+
+    assert.equal(triggeredCount, 1, 'Should trigger once');
+    assert.equal(monitor.isTriggered(), true);
+
+    // Reset monitor manually (e.g. user toggles lite mode off)
+    monitor.resetMonitor();
+    assert.equal(monitor.isTriggered(), false);
+
+    // Simulate normal 60 FPS
+    simTime += 16.6;
+    for (let i = 0; i < 50; i++) {
+      monitor.recordFrame(simTime);
+      simTime += 16.6;
+    }
+    assert.equal(triggeredCount, 1, 'Normal FPS after reset should not trigger again');
+  });
 });
 
 describe('3T-Ready Architecture: Pillar 2 - Local Socratic Offline Dr. LabMu Engine', () => {
@@ -147,6 +212,90 @@ describe('3T-Ready Architecture: Pillar 2 - Local Socratic Offline Dr. LabMu Eng
     const response = generateOfflineSocraticMentorResponse(telemetryContext);
     assert.ok(response.formattedText.includes('Waluku') || response.formattedText.includes('Pari'));
     assert.ok(response.formattedText.includes('Pranata Mangsa') || response.formattedText.includes('selatan'));
+  });
+
+  it('protects against NaN / Infinity when data rows < 2 and guides student to record at least 3 points', () => {
+    const telemetryContext = {
+      domain: 'Fisika' as const,
+      topic: 'Hukum II Newton & Bidang Miring',
+      educationLevel: 'SMA',
+      currentParameters: { appliedForce: 15 },
+      recordedData: [
+        { run: 1, x: 15, y: 2.5 },
+      ],
+      analytics: {
+        rSquared: NaN,
+        slope: NaN,
+        intercept: NaN,
+      },
+      studentQuery: 'Bagaimana tren grafik saya?',
+    };
+
+    const response = generateOfflineSocraticMentorResponse(telemetryContext);
+    assert.equal(response.formattedText.includes('NaN'), false, 'Response must never contain string NaN');
+    assert.equal(response.formattedText.includes('Infinity'), false, 'Response must never contain string Infinity');
+    assert.ok(
+      response.socraticQuestion.toLowerCase().includes('3 titik') ||
+      response.socraticQuestion.toLowerCase().includes('minimal 3') ||
+      response.formattedText.toLowerCase().includes('variasikan'),
+      'Must guide student to record at least 3 points'
+    );
+  });
+
+  it('protects against NaN / Infinity when independent variable variance Delta X === 0', () => {
+    const telemetryContext = {
+      domain: 'Kimia' as const,
+      topic: 'Kinetika Reaksi & Suhu',
+      educationLevel: 'SMA',
+      currentParameters: { temperature: 300 },
+      recordedData: [
+        { run: 1, x: 25, y: 0.12 },
+        { run: 2, x: 25, y: 0.13 },
+        { run: 3, x: 25, y: 0.11 }, // All x are identical 25 (Delta X = 0)
+      ],
+      analytics: {
+        rSquared: NaN,
+        slope: Infinity,
+        intercept: -Infinity,
+      },
+      studentQuery: 'Kenapa grafik saya garis vertikal lurus?',
+    };
+
+    const response = generateOfflineSocraticMentorResponse(telemetryContext);
+    assert.equal(response.formattedText.includes('NaN'), false, 'Must not output NaN');
+    assert.equal(response.formattedText.includes('Infinity'), false, 'Must not output Infinity');
+    assert.ok(
+      response.formattedText.toLowerCase().includes('variabel bebas') ||
+      response.formattedText.toLowerCase().includes('variasi'),
+      'Must advise varying the independent variable'
+    );
+    assert.ok(
+      response.socraticQuestion.toLowerCase().includes('3 titik') ||
+      response.socraticQuestion.toLowerCase().includes('variasikan')
+    );
+  });
+
+  it('protects against non-finite analytics (slope Infinity / r2 NaN) even with multiple rows', () => {
+    const telemetryContext = {
+      domain: 'Biologi' as const,
+      topic: 'Laju Fotosintesis Ingenhousz',
+      educationLevel: 'SMA',
+      recordedData: [
+        { run: 1, x: 10, y: 5 },
+        { run: 2, x: 20, y: 15 },
+        { run: 3, x: 30, y: 25 },
+      ],
+      analytics: {
+        rSquared: NaN,
+        slope: Infinity,
+      },
+      studentQuery: 'Apakah laju fotosintesis sudah tepat?',
+    };
+
+    const response = generateOfflineSocraticMentorResponse(telemetryContext);
+    assert.equal(response.formattedText.includes('NaN'), false);
+    assert.equal(response.formattedText.includes('Infinity'), false);
+    assert.ok(response.observation.length > 0);
   });
 });
 
@@ -257,5 +406,57 @@ describe('3T-Ready Architecture: Pillar 5 - LAN Hotspot Network Interface Detect
     }
     assert.ok(typeof candidateIp === 'string', 'Candidate IP must be string');
     assert.ok(candidateIp.includes('.'), 'Candidate IP should be IPv4 dot notation');
+  });
+
+  it('filters out virtual interfaces (WSL, Docker, VirtualBox, vEthernet, VMware) and prioritizes 192.168. and 10.', () => {
+    const mockInterfaces = {
+      'docker0': [
+        { address: '172.17.0.1', family: 'IPv4', internal: false },
+      ],
+      'vboxnet0': [
+        { address: '192.168.56.1', family: 'IPv4', internal: false },
+      ],
+      'vEthernet (WSL)': [
+        { address: '172.28.16.1', family: 'IPv4', internal: false },
+      ],
+      'wlan0': [
+        { address: '192.168.43.1', family: 'IPv4', internal: false },
+      ],
+      'eth0': [
+        { address: '10.0.0.15', family: 'IPv4', internal: false },
+      ],
+    } as any;
+
+    const virtualPattern = /wsl|docker|vbox|vethernet|vmware|virtual/i;
+    const candidates: string[] = [];
+
+    for (const [ifaceName, ifaceList] of Object.entries(mockInterfaces as Record<string, any[]>)) {
+      if (!ifaceList || virtualPattern.test(ifaceName)) {
+        continue;
+      }
+      for (const iface of ifaceList) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          if (iface.address.startsWith('192.168.56.') || iface.address.startsWith('172.17.')) {
+            continue;
+          }
+          candidates.push(iface.address);
+        }
+      }
+    }
+
+    const uniqueIps = Array.from(new Set(candidates));
+    const getPriority = (ip: string): number => {
+      if (ip.startsWith('192.168.')) return 100;
+      if (ip.startsWith('10.')) return 90;
+      if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return 50;
+      return 10;
+    };
+    uniqueIps.sort((a, b) => getPriority(b) - getPriority(a));
+
+    assert.equal(uniqueIps[0], '192.168.43.1', 'Primary IP must be the Wi-Fi/Hotspot subnet 192.168.43.1');
+    assert.equal(uniqueIps[1], '10.0.0.15', 'Second priority IP must be 10.0.0.15');
+    assert.equal(uniqueIps.includes('172.17.0.1'), false, 'docker0 must be ignored');
+    assert.equal(uniqueIps.includes('192.168.56.1'), false, 'vboxnet0 must be ignored');
+    assert.equal(uniqueIps.includes('172.28.16.1'), false, 'vEthernet (WSL) must be ignored');
   });
 });

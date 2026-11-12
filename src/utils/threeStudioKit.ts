@@ -695,6 +695,7 @@ export function createBuretteClampAssembly(
 export interface AdaptiveFpsMonitor {
   recordFrame: (nowMs?: number) => void;
   reset: () => void;
+  resetMonitor: () => void;
   getAverageFps: () => number;
   isTriggered: () => boolean;
 }
@@ -702,6 +703,7 @@ export interface AdaptiveFpsMonitor {
 /**
  * Creates an adaptive FPS monitor to detect underperforming GPU hardware (e.g. low-end devices in 3T areas).
  * If average FPS during the initial sample period drops below targetFps, triggers onLowFpsTrigger.
+ * Ignores tab backgrounding and long frame deltas (> 250ms) to avoid false-positives.
  */
 export function createAdaptiveFpsMonitor(
   onLowFpsTrigger: (avgFps: number) => void,
@@ -709,18 +711,49 @@ export function createAdaptiveFpsMonitor(
   sampleDurationMs = 3000
 ): AdaptiveFpsMonitor {
   let startTime = 0;
+  let lastFrameTime = 0;
   let frameCount = 0;
   let triggered = false;
+
+  const reset = () => {
+    startTime = 0;
+    lastFrameTime = 0;
+    frameCount = 0;
+    triggered = false;
+  };
 
   return {
     recordFrame: (nowMs?: number) => {
       if (triggered) return;
+
+      // 1. Ignore frame sample if document is hidden (tab switch or browser minimize)
+      if (typeof document !== 'undefined' && document.hidden) {
+        startTime = 0;
+        lastFrameTime = 0;
+        frameCount = 0;
+        return;
+      }
+
       const now =
         typeof nowMs === 'number' && nowMs > 0
           ? nowMs
           : typeof performance !== 'undefined'
           ? performance.now()
           : Date.now();
+
+      // 2. Ignore frame if deltaMs > 250 (browser throttled or tab resumed)
+      if (lastFrameTime > 0) {
+        const deltaMs = now - lastFrameTime;
+        if (deltaMs > 250) {
+          startTime = 0;
+          lastFrameTime = now;
+          frameCount = 0;
+          return;
+        }
+      }
+
+      lastFrameTime = now;
+
       if (startTime === 0) {
         startTime = now;
         frameCount = 1;
@@ -736,11 +769,8 @@ export function createAdaptiveFpsMonitor(
         }
       }
     },
-    reset: () => {
-      startTime = 0;
-      frameCount = 0;
-      triggered = false;
-    },
+    reset,
+    resetMonitor: reset,
     getAverageFps: () => {
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const elapsed = startTime > 0 ? now - startTime : 0;

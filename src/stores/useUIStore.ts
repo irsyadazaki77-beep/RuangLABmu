@@ -50,6 +50,7 @@ export interface UIState {
   mobileTab: MobileTab;
   onboardingTourOpen: boolean;
   sidebarWidthPx: number;
+  projectorMode: boolean;
   liteDeviceMode: boolean;
   liteModeNotification: string | null;
 
@@ -70,11 +71,25 @@ export interface UIState {
   setLiteDeviceMode: (enabled: boolean) => void;
   toggleLiteDeviceMode: () => void;
   setLiteModeNotification: (msg: string | null) => void;
+  setProjectorMode: (enabled: boolean) => void;
+  toggleProjectorMode: () => void;
 }
 
 function loadInitialLiteMode(): boolean {
   try {
     const saved = window.localStorage.getItem('simulab-lite-device-mode');
+    if (saved !== null) {
+      return saved === 'true';
+    }
+  } catch {
+    // Ignore storage parse error
+  }
+  return false;
+}
+
+function loadInitialProjectorMode(): boolean {
+  try {
+    const saved = window.localStorage.getItem('simulab-projector-mode');
     if (saved !== null) {
       return saved === 'true';
     }
@@ -93,6 +108,7 @@ export const useUIStore = create<UIState>((set) => ({
   mobileTab: 'canvas',
   onboardingTourOpen: false,
   sidebarWidthPx: 360,
+  projectorMode: loadInitialProjectorMode(),
   liteDeviceMode: loadInitialLiteMode(),
   liteModeNotification: null,
 
@@ -152,6 +168,43 @@ export const useUIStore = create<UIState>((set) => ({
   },
 
   setLiteModeNotification: (liteModeNotification: string | null) => set({ liteModeNotification }),
+
+  setProjectorMode: (projectorMode: boolean) => {
+    try {
+      window.localStorage.setItem('simulab-projector-mode', String(projectorMode));
+      if (typeof document !== 'undefined') {
+        document.documentElement.setAttribute('data-projector-mode', String(projectorMode));
+        if (projectorMode) {
+          document.body.classList.add('projector-mode');
+        } else {
+          document.body.classList.remove('projector-mode');
+        }
+      }
+    } catch {
+      // Ignore storage error
+    }
+    set({ projectorMode });
+  },
+
+  toggleProjectorMode: () => {
+    set((state) => {
+      const next = !state.projectorMode;
+      try {
+        window.localStorage.setItem('simulab-projector-mode', String(next));
+        if (typeof document !== 'undefined') {
+          document.documentElement.setAttribute('data-projector-mode', String(next));
+          if (next) {
+            document.body.classList.add('projector-mode');
+          } else {
+            document.body.classList.remove('projector-mode');
+          }
+        }
+      } catch {
+        // Ignore storage error
+      }
+      return { projectorMode: next };
+    });
+  },
 }));
 
 
