@@ -81,24 +81,44 @@ export class AsyncSubmissionStore<T extends { id: string }> {
   }
 
   /**
-   * Initializes the store from disk asynchronously (or seeds it if missing).
+   * Initializes the store from disk asynchronously.
+   * Automatically creates an empty `[]` JSON file if `this.filePath` does not exist at startup.
    */
   async init(): Promise<T[]> {
     try {
       const dir = path.dirname(this.filePath);
       await fs.promises.mkdir(dir, { recursive: true });
+
+      let fileExists = false;
+      try {
+        await fs.promises.access(this.filePath, fs.constants.F_OK);
+        fileExists = true;
+      } catch {
+        fileExists = false;
+      }
+
+      if (!fileExists) {
+        await fs.promises.writeFile(this.filePath, '[]\n', 'utf-8');
+        this.items = [...this.seedData];
+        return this.items;
+      }
+
       try {
         const raw = await fs.promises.readFile(this.filePath, 'utf-8');
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          this.items = parsed;
+        if (Array.isArray(parsed)) {
+          if (parsed.length > 0 || this.seedData.length === 0) {
+            this.items = parsed;
+            return this.items;
+          }
+          this.items = [...this.seedData];
           return this.items;
         }
       } catch {
-        // File does not exist or is invalid JSON; seed below
+        // File is invalid JSON; recover with empty array [] on disk
+        await fs.promises.writeFile(this.filePath, '[]\n', 'utf-8');
       }
       this.items = [...this.seedData];
-      await this.enqueuePersist();
     } catch (err) {
       console.error('Failed to initialize AsyncSubmissionStore:', err);
     }

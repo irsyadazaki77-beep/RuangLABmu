@@ -692,12 +692,87 @@ export function createBuretteClampAssembly(
   return clampGroup;
 }
 
+export interface AdaptiveFpsMonitor {
+  recordFrame: (nowMs?: number) => void;
+  reset: () => void;
+  getAverageFps: () => number;
+  isTriggered: () => boolean;
+}
+
+/**
+ * Creates an adaptive FPS monitor to detect underperforming GPU hardware (e.g. low-end devices in 3T areas).
+ * If average FPS during the initial sample period drops below targetFps, triggers onLowFpsTrigger.
+ */
+export function createAdaptiveFpsMonitor(
+  onLowFpsTrigger: (avgFps: number) => void,
+  targetFps = 25,
+  sampleDurationMs = 3000
+): AdaptiveFpsMonitor {
+  let startTime = 0;
+  let frameCount = 0;
+  let triggered = false;
+
+  return {
+    recordFrame: (nowMs?: number) => {
+      if (triggered) return;
+      const now =
+        typeof nowMs === 'number' && nowMs > 0
+          ? nowMs
+          : typeof performance !== 'undefined'
+          ? performance.now()
+          : Date.now();
+      if (startTime === 0) {
+        startTime = now;
+        frameCount = 1;
+        return;
+      }
+      frameCount += 1;
+      const elapsed = now - startTime;
+      if (elapsed >= sampleDurationMs) {
+        const avgFps = (frameCount * 1000) / elapsed;
+        if (avgFps < targetFps) {
+          triggered = true;
+          onLowFpsTrigger(avgFps);
+        }
+      }
+    },
+    reset: () => {
+      startTime = 0;
+      frameCount = 0;
+      triggered = false;
+    },
+    getAverageFps: () => {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const elapsed = startTime > 0 ? now - startTime : 0;
+      return elapsed > 0 ? (frameCount * 1000) / elapsed : 60;
+    },
+    isTriggered: () => triggered,
+  };
+}
+
+/**
+ * Applies lightweight rendering properties for low-end hardware in 3T regions.
+ * Disables shadows, forces pixel ratio to 1, and limits memory pressure.
+ */
+export function configureRendererForLiteMode(renderer: THREE.WebGLRenderer, isLite: boolean): void {
+  if (!renderer) return;
+  if (isLite) {
+    renderer.setPixelRatio(1);
+    renderer.shadowMap.enabled = false;
+  } else {
+    renderer.setPixelRatio(
+      Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2)
+    );
+    renderer.shadowMap.enabled = true;
+  }
+}
+
 export interface StudioComposerHandle {
   composer: EffectComposer;
   renderTarget: THREE.WebGLRenderTarget;
   bloomPass: UnrealBloomPass;
   resize: (width: number, height: number, pixelRatio: number) => void;
-  render: () => void;
+  render: (liteDeviceMode?: boolean) => void;
   dispose: () => void;
 }
 
@@ -781,10 +856,10 @@ export function createStudioComposer(
     renderTarget,
     bloomPass,
     resize,
-    render: () => {
+    render: (liteDeviceMode?: boolean) => {
       xrRig.updateSpatialRaycasters();
       sandboxVisuals.updatePerFrame(0.016);
-      if (renderer.xr?.isPresenting) {
+      if (renderer.xr?.isPresenting || liteDeviceMode) {
         renderer.render(scene, camera);
       } else {
         composer.render();

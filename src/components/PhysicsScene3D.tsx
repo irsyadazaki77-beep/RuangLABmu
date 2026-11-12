@@ -9,6 +9,8 @@ import {
   createStudioComposer,
   createStudioWorkbenchGroup,
   disposeThreeSceneResources,
+  createAdaptiveFpsMonitor,
+  configureRendererForLiteMode,
 } from '../utils/threeStudioKit';
 import {
   PhysicsParams,
@@ -243,6 +245,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   const [hudCollapsed] = useState(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
+  const [sceneKey, setSceneKey] = useState<number>(0);
 
   const latestRef = useRef({
     params,
@@ -311,8 +314,34 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
+    const handleWebGLContextLost = (event: Event) => {
+      event.preventDefault();
+    };
+    const handleWebGLContextRestored = () => {
+      setSceneKey((prev) => prev + 1);
+    };
+    renderer.domElement.addEventListener('webglcontextlost', handleWebGLContextLost, false);
+    renderer.domElement.addEventListener('webglcontextrestored', handleWebGLContextRestored, false);
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
+
+    const initialLite = useUIStore.getState().liteDeviceMode;
+    configureRendererForLiteMode(renderer, initialLite);
+
+    const fpsMonitor = createAdaptiveFpsMonitor((avgFps) => {
+      if (!useUIStore.getState().liteDeviceMode) {
+        useUIStore.getState().setLiteDeviceMode(true);
+        useUIStore.getState().setLiteModeNotification(
+          'Mode Hemat Daya diaktifkan otomatis agar simulasi tetap lancar di perangkatmu.'
+        );
+      }
+    }, 25, 3000);
+
+    const unsubLite = useUIStore.subscribe((state, prev) => {
+      if (state.liteDeviceMode !== prev.liteDeviceMode) {
+        configureRendererForLiteMode(renderer, state.liteDeviceMode);
+      }
+    });
 
     const gl = renderer.getContext() as WebGL2RenderingContext;
     const dbg = gl.getExtension('WEBGL_debug_renderer_info');
@@ -427,7 +456,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         controls.autoRotate = orbit;
       },
       captureCanvas: () => {
-        composer.render();
+        const isLite = useUIStore.getState().liteDeviceMode;
+        studioComposer.render(isLite);
         return renderer.domElement.toDataURL('image/png');
       },
       applyTheme: (colors) => {
@@ -1251,8 +1281,23 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       timeoutId = window.setTimeout(poll, 5);
     };
 
-    const tick = () => {
+    let lastRenderTimestamp = 0;
+
+    const tick = (timestamp?: number) => {
       if (disposed) return;
+      const nowMs = typeof timestamp === 'number' && timestamp > 0 ? timestamp : performance.now();
+      fpsMonitor.recordFrame(nowMs);
+
+      const isLite = useUIStore.getState().liteDeviceMode;
+      if (isLite) {
+        const delta = nowMs - lastRenderTimestamp;
+        if (delta < 32) {
+          if (isSoftwareGl) afterDraw(tick);
+          else rafId = requestAnimationFrame(tick);
+          return;
+        }
+        lastRenderTimestamp = nowMs - (delta % 33.3);
+      }
 
       const {
         params: p,
@@ -1583,7 +1628,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       }
 
       controls.update();
-      composer.render();
+      studioComposer.render(isLite);
 
       if (isSoftwareGl) {
         afterDraw(tick);
@@ -1687,6 +1732,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     return () => {
       disposed = true;
+      unsubLite();
       cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
       resizeObserver.disconnect();
@@ -1694,6 +1740,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', handlePointerUp);
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
+      renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
+      renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
       cursorManager.dispose();
       controls.dispose();
 
@@ -1710,7 +1758,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }
     };
-  }, []);
+  }, [sceneKey]);
 
   const handleSelectCameraPreset = (preset: CameraPreset) => {
     setActivePreset(preset);

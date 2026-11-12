@@ -32,6 +32,7 @@ import {
   loadGamificationProfile,
 } from '../services/gamificationEngine';
 import { InteractiveFormulaPrimer } from './ui/InteractiveFormulaPrimer';
+import { DIYLocalWisdomCard } from './ui/DIYLocalWisdomCard';
 
 interface PreLabBriefingViewProps {
   experiment: ExperimentModule;
@@ -242,6 +243,13 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
             <InteractiveFormulaPrimer
               moduleId={experiment.id}
               domain={experiment.domain}
+              defaultExpanded={true}
+            />
+
+            {/* FITUR 4: Panduan Praktikum Alat Sekitar (DIY Kearifan Lokal 3T) */}
+            <DIYLocalWisdomCard
+              domain={experiment.domain}
+              moduleId={experiment.id}
               defaultExpanded={true}
             />
 

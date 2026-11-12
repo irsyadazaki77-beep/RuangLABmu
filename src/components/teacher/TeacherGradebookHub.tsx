@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   GraduationCap,
@@ -12,11 +12,17 @@ import {
   FileText,
   PlayCircle,
   Download,
+  FolderOpen,
+  Upload,
 } from 'lucide-react';
 import { LabSubmission } from '../../types/submissionTypes';
 import { labSound } from '../../utils/soundEngine';
 import { exportGoogleClassroomCSV } from '../../utils/csvExporter';
 import { SessionReplayPlayer } from './SessionReplayPlayer';
+import {
+  verifyAndParseRlabPacket,
+  convertPacketToSubmission,
+} from '../../utils/offlinePacketProtocol';
 
 export interface TeacherGradebookHubProps {
   isOpen: boolean;
@@ -42,6 +48,62 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
   const [gradingFeedback, setGradingFeedback] = useState<string>('');
   const [isSubmittingGrade, setIsSubmittingGrade] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const processRlabFiles = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    let importedCount = 0;
+    const newSubs: LabSubmission[] = [];
+
+    for (const file of fileArray) {
+      try {
+        const text = await file.text();
+        const verification = verifyAndParseRlabPacket(text);
+        if (verification.valid && verification.packet) {
+          const sub = convertPacketToSubmission(verification.packet);
+          newSubs.push(sub);
+          importedCount += 1;
+
+          // Attempt async persistence to backend if available
+          fetch('/api/submissions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sub),
+          }).catch(() => {});
+        }
+      } catch {
+        // Skip corrupted file
+      }
+    }
+
+    if (importedCount > 0) {
+      labSound.playSuccessChime();
+      setSubmissions((prev) => {
+        const existingIds = new Set(prev.map((s) => s.id));
+        const merged = [...newSubs.filter((s) => !existingIds.has(s.id)), ...prev];
+        return merged;
+      });
+      if (newSubs.length > 0 && !selectedSubmission) {
+        setSelectedSubmission(newSubs[0]);
+        setGradingScore(Math.min(100, Math.max(70, newSubs[0].quizScore)));
+      }
+      setToastMessage(`Berhasil mengimpor ${importedCount} berkas tugas siswa (.rlab)!`);
+      setTimeout(() => setToastMessage(null), 4000);
+    } else {
+      setToastMessage('Tidak ada berkas .rlab valid yang berhasil diimpor.');
+      setTimeout(() => setToastMessage(null), 3500);
+    }
+  };
+
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      processRlabFiles(e.target.files);
+      e.target.value = '';
+    }
+  };
 
   const fetchSubmissions = async () => {
     setIsLoading(true);
@@ -147,7 +209,36 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-5xl h-[90vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDraggingFiles(true);
+        }}
+        onDragLeave={() => setIsDraggingFiles(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDraggingFiles(false);
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            processRlabFiles(e.dataTransfer.files);
+          }
+        }}
+        className={`relative w-full max-w-5xl h-[90vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 border shadow-2xl overflow-hidden transition-all ${
+          isDraggingFiles
+            ? 'border-teal-400 ring-4 ring-teal-400/30'
+            : 'border-slate-200 dark:border-slate-800'
+        }`}
+      >
+        {/* Drag-and-drop overlay */}
+        {isDraggingFiles && (
+          <div className="absolute inset-0 z-50 bg-teal-950/85 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center text-white pointer-events-none space-y-2 animate-fade-in">
+            <Upload className="w-12 h-12 text-teal-400 animate-bounce" />
+            <h3 className="text-lg font-bold">Lepaskan File Tugas Luring (.rlab) di Sini</h3>
+            <p className="text-xs text-teal-200">
+              Sistem akan memverifikasi integritas checksum anti-tamper dan memuat nilai ke buku nilai guru secara instan.
+            </p>
+          </div>
+        )}
+
         {/* Header Bar */}
         <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-50/70 dark:bg-slate-950/40">
           <div className="flex items-center gap-3">
@@ -172,6 +263,28 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Hidden file input for .rlab */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".rlab,application/json"
+              className="hidden"
+              onChange={handleFilesSelected}
+            />
+
+            {/* FITUR 3: Tombol Impor File Tugas Siswa (.rlab) untuk Daerah 3T */}
+            <button
+              type="button"
+              data-testid="import-offline-rlab-btn"
+              onClick={() => fileInputRef.current?.click()}
+              title="Impor file tugas praktikum luring (.rlab) yang dikumpulkan siswa via Bluetooth / Flashdisk / Hotspot LAN lokal"
+              className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+              <span>📂 Impor File Tugas Siswa (.rlab)</span>
+            </button>
+
             {/* FITUR 5: Ekspor Google Classroom & Sync Nilai */}
             <button
               type="button"
@@ -280,10 +393,18 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
                             {sub.studentName}
                           </h4>
+                          {sub.id.startsWith('RLAB-') && (
+                            <span
+                              data-testid="offline-submission-badge"
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/30"
+                            >
+                              📦 Luring (.rlab)
+                            </span>
+                          )}
                           <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                             {sub.id}
                           </span>

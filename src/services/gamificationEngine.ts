@@ -44,12 +44,14 @@ export interface GamificationUpdateResult {
 }
 
 export const GAMIFICATION_STORAGE_KEY = 'ruanglab:gamification_profile';
+export const LAST_OPENED_MODULE_STORAGE_KEY = 'ruanglab:last_experiment_module_id';
 
 export const XP_REWARDS = {
   K3_COMPLIANCE: 100,
   PRECISION_R2_95: 150,
   PRECISION_R2_99: 300,
   PERFECT_LKS_QUIZ: 200,
+  DAILY_CHALLENGE_BONUS: 250,
 } as const;
 
 export const XP_PER_LEVEL = 300;
@@ -386,3 +388,58 @@ export function recordPerfectLksQuiz(
     newlyUnlockedBadges: [],
   };
 }
+
+let memoryLastOpenedModuleId: string | null = null;
+
+/**
+ * Simpan ID modul eksperimen terakhir yang dibuka siswa ke localStorage
+ * untuk fitur Quick Start / Lanjutkan Eksperimen Terakhir di LabLobbyHub.
+ */
+export function saveLastOpenedModuleId(moduleId: string): void {
+  const clean = (moduleId || '').trim();
+  if (!clean) return;
+  memoryLastOpenedModuleId = clean;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(LAST_OPENED_MODULE_STORAGE_KEY, clean);
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+/**
+ * Muat ID modul eksperimen terakhir yang dibuka siswa dari localStorage.
+ */
+export function loadLastOpenedModuleId(): string | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const saved = window.localStorage.getItem(LAST_OPENED_MODULE_STORAGE_KEY);
+      if (saved && saved.trim()) {
+        return saved.trim();
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return memoryLastOpenedModuleId;
+}
+
+/**
+ * 4. Tantangan Sains Hari Ini (Daily Lab Challenge): Bonus +250 XP
+ */
+export function claimDailyLabChallengeXP(
+  moduleId: string,
+  moduleTitle: string,
+  customActionSeed?: string
+): GamificationUpdateResult {
+  const dayKey =
+    customActionSeed ||
+    new Date().toISOString().slice(0, 10) + ':' + (moduleId || 'daily');
+  return awardStudentXP(
+    XP_REWARDS.DAILY_CHALLENGE_BONUS,
+    `Tantangan Sains Hari Ini: ${moduleTitle} (+250 XP)`,
+    `daily_challenge:${dayKey}`
+  );
+}
+

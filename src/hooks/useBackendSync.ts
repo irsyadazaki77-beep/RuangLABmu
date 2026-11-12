@@ -4,7 +4,11 @@ import { GroupTaskItem, CollabNoteItem } from '../components/CollaborationAndDat
 import { StudentProgressItem } from '../components/TeacherDashboardView';
 import { MysterySampleChallenge, MysterySubmissionResult } from '../utils/mysteryChallengeEngine';
 import { useCollabStore } from '../stores/useCollabStore';
-import { StudentLiveTelemetry, LabRoom } from '../utils/collabProtocol';
+import {
+  StudentLiveTelemetry,
+  LabRoom,
+  CustomAIMissionPayload,
+} from '../utils/collabProtocol';
 
 export interface BackendSyncState {
   records: ExperimentRecord[];
@@ -37,6 +41,7 @@ export interface UseBackendSyncReturn extends BackendSyncState {
   toggleTeacherFreeze: (isFrozen: boolean) => void;
   syncStudentTelemetry: (telemetry: Omit<StudentLiveTelemetry, 'studentName' | 'lastUpdated'>) => void;
   syncParameterChange: (paramKey: string, value: number, targetGroupId?: string, targetDomain?: string) => void;
+  publishCustomMission: (mission: CustomAIMissionPayload | null, targetRoomId?: string) => void;
 }
 
 const STORAGE_KEY = 'ruanglab_client_cache_v2';
@@ -180,6 +185,10 @@ export function isValidBackendWsMessage(candidate: unknown): candidate is Valida
     case 'ROOM_STATE_SYNC': {
       if (!isPlainObject(payload.room)) return false;
       return isNonEmptyString(payload.room.roomId) && typeof payload.room.pin === 'string';
+    }
+
+    case 'ROOM_MISSION_UPDATED': {
+      return isNonEmptyString(payload.roomId);
     }
 
     case 'ROOM_ERROR': {
@@ -500,6 +509,30 @@ export function useBackendSync(
           ]);
         } else if (type === 'ROOM_STATE_SYNC' && isPlainObject(payload.room)) {
           useCollabStore.getState().setActiveRoom(payload.room as unknown as LabRoom);
+        } else if (type === 'ROOM_MISSION_UPDATED') {
+          const store = useCollabStore.getState();
+          if (isPlainObject(payload.room)) {
+            store.setActiveRoom(payload.room as unknown as LabRoom);
+          }
+          const customMission = (payload.customMission as CustomAIMissionPayload | null) ?? null;
+          store.setActiveCustomMission(customMission);
+          if (customMission) {
+            setNotifications((prev) => [
+              {
+                id: `notif-aimission-${Date.now()}`,
+                timestamp: new Date().toLocaleTimeString('id-ID', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                }),
+                severity: 'nominal',
+                domain: 'Pengajar',
+                title: `Misi Praktikum AI Baru: ${customMission.title}`,
+                message: `Guru (${customMission.createdByTeacher}) menyiarkan studi kasus baru di meja [${customMission.roomId}].`,
+              },
+              ...prev.slice(0, 24),
+            ]);
+          }
         } else if (type === 'ROOM_ERROR' && typeof payload.message === 'string') {
           useCollabStore.getState().setRoomError(payload.message);
         } else if (type === 'TEACHER_FREEZE_TOGGLE') {
@@ -813,6 +846,22 @@ export function useBackendSync(
     [sendWs, studentName]
   );
 
+  const publishCustomMission = useCallback(
+    (mission: CustomAIMissionPayload | null, targetRoomId?: string) => {
+      const roomId = (targetRoomId || useCollabStore.getState().activeRoomId || 'LAB-ALPHA')
+        .toUpperCase()
+        .trim();
+      useCollabStore.getState().setActiveCustomMission(mission);
+      sendWs('ROOM_SET_CUSTOM_MISSION', {
+        roomId,
+        customMission: mission,
+        teacherName: studentName,
+        teacherPin: '1234',
+      });
+    },
+    [sendWs, studentName]
+  );
+
   return {
     records,
     tasks,
@@ -841,5 +890,6 @@ export function useBackendSync(
     toggleTeacherFreeze,
     syncStudentTelemetry,
     syncParameterChange,
+    publishCustomMission,
   };
 }

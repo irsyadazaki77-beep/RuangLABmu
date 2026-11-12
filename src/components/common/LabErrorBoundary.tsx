@@ -12,12 +12,13 @@ export interface LabErrorBoundaryState {
   hasError: boolean;
   errorMessage: string;
   retryCount: number;
+  sceneKey: number;
 }
 
 /**
  * Error Boundary khusus kanvas 3D WebGL (PhysicsScene3D, ChemistryScene3D, BiologyScene3D, AstronomyScene3D).
- * Menangkap runtime crash React/Three.js maupun event `webglcontextlost` dari GPU agar aplikasi
- * tidak pernah mengalami white-screen crash.
+ * Menangkap runtime crash React/Three.js maupun event `webglcontextlost` dan `webglcontextrestored` dari GPU
+ * agar aplikasi tidak pernah mengalami white-screen crash dan dapat memulihkan kanvas 3D secara otomatis.
  */
 export class LabErrorBoundary extends Component<LabErrorBoundaryProps, LabErrorBoundaryState> {
   private containerRef = createRef<HTMLDivElement>();
@@ -26,6 +27,7 @@ export class LabErrorBoundary extends Component<LabErrorBoundaryProps, LabErrorB
     hasError: false,
     errorMessage: '',
     retryCount: 0,
+    sceneKey: 0,
   };
 
   public static getDerivedStateFromError(error: Error): Partial<LabErrorBoundaryState> {
@@ -47,6 +49,10 @@ export class LabErrorBoundary extends Component<LabErrorBoundaryProps, LabErrorB
     const el = this.containerRef.current;
     if (el) {
       el.addEventListener('webglcontextlost', this.handleWebGLContextLost, true);
+      el.addEventListener('webglcontextrestored', this.handleWebGLContextRestored, true);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('webglcontextrestored', this.handleWebGLContextRestored, true);
     }
   }
 
@@ -54,6 +60,10 @@ export class LabErrorBoundary extends Component<LabErrorBoundaryProps, LabErrorB
     const el = this.containerRef.current;
     if (el) {
       el.removeEventListener('webglcontextlost', this.handleWebGLContextLost, true);
+      el.removeEventListener('webglcontextrestored', this.handleWebGLContextRestored, true);
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('webglcontextrestored', this.handleWebGLContextRestored, true);
     }
   }
 
@@ -65,13 +75,22 @@ export class LabErrorBoundary extends Component<LabErrorBoundaryProps, LabErrorB
     });
   };
 
-  private handleReloadScene = (): void => {
+  private handleWebGLContextRestored = (): void => {
+    this.resetErrorBoundary();
+  };
+
+  public resetErrorBoundary = (): void => {
     this.setState((prev) => ({
       hasError: false,
       errorMessage: '',
       retryCount: prev.retryCount + 1,
+      sceneKey: prev.sceneKey + 1,
     }));
     this.props.onRetry?.();
+  };
+
+  private handleReloadScene = (): void => {
+    this.resetErrorBoundary();
   };
 
   public render(): ReactNode {
@@ -144,7 +163,7 @@ export class LabErrorBoundary extends Component<LabErrorBoundaryProps, LabErrorB
     return (
       <div
         ref={this.containerRef}
-        key={this.state.retryCount}
+        key={this.state.sceneKey}
         className="w-full h-full relative"
       >
         {this.props.children}

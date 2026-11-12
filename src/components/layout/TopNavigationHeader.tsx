@@ -12,6 +12,8 @@ import {
   SlidersHorizontal,
   Link2,
   HelpCircle,
+  Sparkles,
+  Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ExperimentModule } from '../../registry/experimentRegistry';
@@ -97,6 +99,10 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     openModal,
     closeModal,
     setOnboardingTourOpen,
+    liteDeviceMode,
+    toggleLiteDeviceMode,
+    liteModeNotification,
+    setLiteModeNotification,
   } = useUIStore();
 
   const { wsConnected, activeRoomId } = useCollabStore();
@@ -288,6 +294,24 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
 
       {/* Zone 3: Calm Right Utilities (Share Link, XP Portfolio, Onboarding Tour, Search, Unified Settings Popover, Dr. LabMu) */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 relative">
+        {/* FITUR 2: Tombol "✨ Buat Misi Praktikum AI" untuk Guru */}
+        {userRole === 'pengajar' && (
+          <button
+            type="button"
+            data-testid="header-open-ai-mission-builder-btn"
+            onClick={() => {
+              labSound.playClick(620);
+              openModal('ai-mission-builder');
+            }}
+            aria-label="Buat Misi Praktikum AI untuk Room Kelas"
+            title="✨ Buat Misi Praktikum AI & Studi Kasus untuk Room PIN Kelas"
+            className="px-2.5 sm:px-3 py-1 flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white text-xs font-extrabold shadow-sm cursor-pointer transition-all whitespace-nowrap shrink-0"
+          >
+            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+            <span>✨ Buat Misi Praktikum AI</span>
+          </button>
+        )}
+
         {/* PILAR 1: Bagikan Link Modul Button */}
         <button
           type="button"
@@ -348,6 +372,26 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         >
           <HelpCircle className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
           <span className="hidden xl:inline text-[11px]">? Panduan UI</span>
+        </button>
+
+        {/* 3T LITE GPU & BATTERY SAVER MODE TOGGLE */}
+        <button
+          type="button"
+          data-testid="lite-device-mode-toggle-btn"
+          onClick={() => {
+            labSound.playClick(liteDeviceMode ? 440 : 660);
+            toggleLiteDeviceMode();
+          }}
+          aria-label={liteDeviceMode ? 'Matikan Mode Hemat Daya 3T' : 'Aktifkan Mode Hemat Daya 3T (30 FPS & Tanpa Shader Berat)'}
+          title={liteDeviceMode ? 'Mode Hemat Daya 3T Aktif (30 FPS, Tanpa Bloom/Bayangan Berat)' : 'Aktifkan Mode Hemat Daya untuk Chromebook / HP RAM 2GB-4GB'}
+          className={`px-2 py-1 flex items-center gap-1 rounded-lg border text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
+            liteDeviceMode
+              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 shadow-xs'
+              : 'bg-stone-100 dark:bg-slate-900 border-stone-200/80 dark:border-slate-800 hover:border-amber-500/50 text-slate-600 dark:text-slate-300'
+          }`}
+        >
+          <Zap className={`w-3.5 h-3.5 ${liteDeviceMode ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
+          <span className="text-[11px] font-bold">{liteDeviceMode ? '⚡ Hemat Daya: Aktif' : '⚡ Mode Hemat'}</span>
         </button>
 
         {/* Gradebook Button (Only active when role Guru is selected) */}
@@ -583,6 +627,20 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         newlyUnlockedBadge={newlyUnlockedBadge}
         recentXpDelta={recentXpDelta}
       />
+
+      {/* 3T Adaptive Lite Mode Notification Banner */}
+      {liteModeNotification && (
+        <div
+          role="status"
+          data-testid="lite-mode-notification-toast"
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs shadow-2xl flex items-center gap-2 border border-amber-300 animate-bounce cursor-pointer"
+          onClick={() => setLiteModeNotification(null)}
+        >
+          <Zap className="w-4 h-4 fill-slate-950 shrink-0" />
+          <span>{liteModeNotification}</span>
+          <span className="text-[10px] opacity-75 underline ml-1">(Tutup)</span>
+        </div>
+      )}
     </header>
   );
 };

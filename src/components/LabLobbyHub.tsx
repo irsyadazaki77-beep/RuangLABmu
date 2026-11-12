@@ -16,12 +16,14 @@ import {
   Unlock,
   LogOut,
   X,
+  Wifi,
 } from 'lucide-react';
 import {
   ExperimentModule,
   EducationTier,
   ScienceDomain,
   EXPERIMENT_CATALOG,
+  getExperimentById,
 } from '../registry/experimentRegistry';
 import { labSound } from '../utils/soundEngine';
 import { ComfortThemeMode } from './ui/VisualComfortToolbar';
@@ -31,9 +33,15 @@ import {
 } from './ui/ScientificEnhancementSuite';
 import { useCollabStore } from '../stores/useCollabStore';
 import { useLabStore } from '../stores/useLabStore';
+import { useUIStore } from '../stores/useUIStore';
 import { generateRandomRoomId } from '../utils/collabProtocol';
 import { ModuleSchematicIllustration } from './ui/ModuleSchematicIllustration';
 import { SciFormula } from './ui/ScientificNotation';
+import {
+  loadLastOpenedModuleId,
+  saveLastOpenedModuleId,
+  claimDailyLabChallengeXP,
+} from '../services/gamificationEngine';
 
 interface LabLobbyHubProps {
   activeTier: EducationTier;
@@ -194,10 +202,12 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const { userRole, setUserRole } = useLabStore();
+  const { openModal } = useUIStore();
   const {
     activeRoomId,
     roomPin,
     roomMembers,
+    activeCustomMission,
     isFrozenByTeacher,
     isRoomModalOpen,
     roomModalMode,
@@ -206,6 +216,63 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
     closeRoomModal,
     setRoomError,
   } = useCollabStore();
+
+  const [lastModuleId, setLastModuleId] = useState<string | null>(() =>
+    loadLastOpenedModuleId()
+  );
+  const [dailyChallengeToast, setDailyChallengeToast] = useState<string | null>(null);
+  const [lanInfo, setLanInfo] = useState<{ ip: string; port: number; localUrl: string } | null>(null);
+
+  useEffect(() => {
+    setLastModuleId(loadLastOpenedModuleId());
+    fetch('/api/lan-info')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && (data.primaryIp || data.ip)) {
+          setLanInfo({
+            ip: data.primaryIp || data.ip,
+            port: data.port,
+            localUrl: data.lanUrl || data.localUrl || `http://${data.primaryIp || data.ip}:${data.port}`,
+          });
+        }
+      })
+      .catch(() => {
+        // Silently handle if offline
+      });
+  }, []);
+
+  const lastOpenedModule = useMemo(() => {
+    if (!lastModuleId) return null;
+    return getExperimentById(lastModuleId) || null;
+  }, [lastModuleId]);
+
+  const handleSelectAndTrackExperiment = (exp: ExperimentModule) => {
+    saveLastOpenedModuleId(exp.id);
+    setLastModuleId(exp.id);
+    onSelectExperiment(exp);
+  };
+
+  const handleStartDailyLabChallenge = () => {
+    labSound.playSuccessChime();
+    const candidates =
+      EXPERIMENT_CATALOG.filter((m) => m.supportedTiers.includes(activeTier)) ||
+      EXPERIMENT_CATALOG;
+    const pool = candidates.length > 0 ? candidates : EXPERIMENT_CATALOG;
+    const randomIdx = Math.floor(Math.random() * pool.length);
+    const chosenModule = pool[randomIdx] || EXPERIMENT_CATALOG[0];
+
+    claimDailyLabChallengeXP(
+      chosenModule.id,
+      chosenModule.title,
+      `${new Date().toISOString().slice(0, 10)}:${chosenModule.id}`
+    );
+    saveLastOpenedModuleId(chosenModule.id);
+    setLastModuleId(chosenModule.id);
+    setDailyChallengeToast(
+      `🎉 Bonus +250 XP Diklaim! Membuka Tantangan Sains Hari Ini: ${chosenModule.title}`
+    );
+    onSelectExperiment(chosenModule);
+  };
 
   const [formRoomId, setFormRoomId] = useState<string>('LAB-ALPHA');
   const [formPin, setFormPin] = useState<string>('1234');
@@ -438,6 +505,26 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                 </div>
               )}
 
+              {/* Tips Daerah 3T: Hotspot Wi-Fi LAN Tanpa Kuota */}
+              <div
+                data-testid="lan-hotspot-info-card"
+                className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-2 text-slate-800 dark:text-amber-100"
+              >
+                <div className="flex items-center gap-2 font-bold text-amber-700 dark:text-amber-300">
+                  <Wifi className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>Mode LAN Kelas 3T (Tanpa Kuota Internet)</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                  <strong className="text-amber-700 dark:text-amber-300">Tips Daerah 3T:</strong> Nyalakan Hotspot Wi-Fi di laptop Guru (tanpa perlu paket data internet), lalu minta siswa membuka alamat IP lokal ini untuk praktikum bersama tanpa kuota:
+                </p>
+                <div className="flex items-center justify-between gap-2 bg-stone-100 dark:bg-slate-950 px-3 py-2 rounded-lg border border-stone-200 dark:border-slate-800 font-mono text-xs">
+                  <span className="text-slate-500 dark:text-slate-400">URL Hotspot LAN:</span>
+                  <span className="font-bold text-sky-600 dark:text-sky-400 select-all">
+                    {lanInfo?.localUrl || 'http://192.168.43.1:3000'}
+                  </span>
+                </div>
+              </div>
+
               <div className="pt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
@@ -508,6 +595,24 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
             <span>+ Buat Room</span>
           </button>
 
+          {/* FITUR 2: Tombol "✨ Buat Misi Praktikum AI" untuk Guru di Lobby */}
+          <button
+            type="button"
+            data-testid="lobby-open-ai-mission-builder-btn"
+            onClick={() => {
+              labSound.playClick(620);
+              if (userRole !== 'pengajar') {
+                setUserRole('pengajar');
+              }
+              openModal('ai-mission-builder');
+            }}
+            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-extrabold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+            title="Buat Skenario Misi Studi Kasus Praktikum AI untuk Room PIN Kelas"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>✨ Buat Misi Praktikum AI</span>
+          </button>
+
           {activeRoomId && userRole === 'pengajar' && onToggleTeacherFreeze && (
             <button
               type="button"
@@ -542,6 +647,117 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
           )}
         </div>
       </div>
+
+      {/* FITUR 3: COMPACT HERO SHOWCASE & QUICK-START BAR */}
+      <div
+        data-testid="quick-start-hero-bar"
+        className="rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/90 to-slate-900 border border-indigo-500/30 px-5 py-4 shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4 text-white"
+      >
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md bg-sky-500/20 border border-sky-400/30 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-300">
+              QUICK START · AKSELERASI PRAKTIKUM
+            </span>
+            <span className="text-xs text-slate-300">
+              Lanjutkan eksperimen terakhir atau klaim bonus XP harian dalam 1 klik.
+            </span>
+          </div>
+          <h2 className="text-sm sm:text-base font-extrabold text-white">
+            Quick Start / Lanjutkan Eksperimen Terakhir
+          </h2>
+          {dailyChallengeToast && (
+            <div className="text-xs font-semibold text-emerald-300 pt-0.5">
+              {dailyChallengeToast}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {lastOpenedModule && (
+            <button
+              type="button"
+              data-testid="quick-start-resume-btn"
+              onClick={() => {
+                labSound.playClick();
+                handleSelectAndTrackExperiment(lastOpenedModule);
+              }}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-2 shadow-sm cursor-pointer transition-all"
+            >
+              <span>▶️ Lanjutkan: {lastOpenedModule.title}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            data-testid="daily-lab-challenge-btn"
+            onClick={handleStartDailyLabChallenge}
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-sm cursor-pointer transition-all"
+          >
+            <span>🎲 Tantangan Sains Hari Ini (Daily Lab Challenge)</span>
+            <span className="px-1.5 py-0.5 rounded bg-slate-950/20 font-mono text-[10px] font-black">
+              +250 XP
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* FITUR 2: ACTIVE ROOM CUSTOM AI MISSION BANNER FOR STUDENTS & TEACHERS */}
+      {activeCustomMission && (
+        <div
+          data-testid="active-room-custom-mission-card"
+          className="rounded-2xl bg-gradient-to-br from-indigo-950 via-slate-900 to-sky-950 border-2 border-indigo-400/50 p-5 shadow-xl text-white space-y-3"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1 max-w-3xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-md bg-indigo-500/25 border border-indigo-400/40 font-mono text-[10px] font-bold uppercase text-indigo-200">
+                  ✨ MISI STUDI KASUS AI AKTIF · ROOM {activeCustomMission.roomId}
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/30 font-mono text-[10px] font-bold text-emerald-300">
+                  Target {activeCustomMission.targetVariable.variableLabel}:{' '}
+                  {activeCustomMission.targetVariable.minSuccessValue} –{' '}
+                  {activeCustomMission.targetVariable.maxSuccessValue}{' '}
+                  {activeCustomMission.targetVariable.unit}
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-extrabold text-white">
+                {activeCustomMission.title}
+              </h3>
+              <p className="text-xs text-slate-200 leading-relaxed">
+                {activeCustomMission.narrative}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              data-testid="start-room-custom-mission-btn"
+              onClick={() => {
+                labSound.playClick(640);
+                const targetMod =
+                  getExperimentById(activeCustomMission.moduleId) || EXPERIMENT_CATALOG[0];
+                handleSelectAndTrackExperiment(targetMod);
+              }}
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-lg cursor-pointer shrink-0 transition-all"
+            >
+              🚀 Kerjakan Misi Studi Kasus Ini →
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-2 border-t border-slate-800/80">
+            {activeCustomMission.contextualQuestions.slice(0, 3).map((q, idx) => (
+              <div
+                key={q.id || idx}
+                className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs space-y-1"
+              >
+                <span className="font-mono text-[10px] font-bold text-amber-300">
+                  Pertanyaan LKS #{idx + 1}
+                </span>
+                <p className="text-slate-200 font-medium leading-snug">{q.questionText}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 2. FULL-BLEED CATALOG HEADER & KPI SUMMARY */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pb-2 border-b border-stone-200/80 dark:border-slate-800/80">
@@ -732,7 +948,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                 key={exp.id}
                 onClick={() => {
                   labSound.playClick();
-                  onSelectExperiment(exp);
+                  handleSelectAndTrackExperiment(exp);
                 }}
                 className="bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 hover:border-sky-500/60 dark:hover:border-sky-500/60 rounded-2xl overflow-hidden transition-all duration-300 flex flex-col justify-between group shadow-xs hover:shadow-xl cursor-pointer"
               >
@@ -818,7 +1034,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       labSound.playClick();
-                      onSelectExperiment(exp);
+                      handleSelectAndTrackExperiment(exp);
                     }}
                     className="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-sky-600 hover:bg-sky-700 text-white shadow-2xs transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 group-hover:translate-x-0.5"
                   >

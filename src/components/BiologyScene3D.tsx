@@ -7,6 +7,8 @@ import {
   createLabBenchTextures,
   createStudioComposer,
   disposeThreeSceneResources,
+  createAdaptiveFpsMonitor,
+  configureRendererForLiteMode,
 } from '../utils/threeStudioKit';
 import { Maximize2, Minimize2, Focus } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
@@ -132,6 +134,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
 
   const [activePreset, setActivePreset] = useState<BioCameraPreset>('isometric');
   const [clickedBadge, setClickedBadge] = useState<string | null>(null);
+  const [sceneKey, setSceneKey] = useState<number>(0);
   const [lensFocus, setLensFocus] = useState<number>(75); // 0 to 100 (optimal crispness near 75-100)
   const lensFocusRef = useRef<number>(75);
   lensFocusRef.current = lensFocus;
@@ -198,8 +201,34 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
+    const handleWebGLContextLost = (event: Event) => {
+      event.preventDefault();
+    };
+    const handleWebGLContextRestored = () => {
+      setSceneKey((prev) => prev + 1);
+    };
+    renderer.domElement.addEventListener('webglcontextlost', handleWebGLContextLost, false);
+    renderer.domElement.addEventListener('webglcontextrestored', handleWebGLContextRestored, false);
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
+
+    const initialLite = useUIStore.getState().liteDeviceMode;
+    configureRendererForLiteMode(renderer, initialLite);
+
+    const fpsMonitor = createAdaptiveFpsMonitor((avgFps) => {
+      if (!useUIStore.getState().liteDeviceMode) {
+        useUIStore.getState().setLiteDeviceMode(true);
+        useUIStore.getState().setLiteModeNotification(
+          'Mode Hemat Daya diaktifkan otomatis agar simulasi tetap lancar di perangkatmu.'
+        );
+      }
+    }, 25, 3000);
+
+    const unsubLite = useUIStore.subscribe((state, prev) => {
+      if (state.liteDeviceMode !== prev.liteDeviceMode) {
+        configureRendererForLiteMode(renderer, state.liteDeviceMode);
+      }
+    });
 
     const gl = renderer.getContext() as WebGL2RenderingContext;
     const dbg = gl.getExtension('WEBGL_debug_renderer_info');
@@ -408,7 +437,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         controls.autoRotate = orbit;
       },
       captureCanvas: () => {
-        composer.render();
+        const isLite = useUIStore.getState().liteDeviceMode;
+        studioComposer.render(isLite);
         return renderer.domElement.toDataURL('image/png');
       },
       applyTheme: (colors) => {
@@ -884,10 +914,25 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       timeoutId = window.setTimeout(poll, 5);
     };
 
-    const animate = () => {
+    let lastRenderTimestamp = 0;
+
+    const animate = (timestamp?: number) => {
       if (disposed) return;
 
-      const nowMs = performance.now();
+      const nowMs = typeof timestamp === 'number' && timestamp > 0 ? timestamp : performance.now();
+      fpsMonitor.recordFrame(nowMs);
+
+      const isLite = useUIStore.getState().liteDeviceMode;
+      if (isLite) {
+        const deltaFps = nowMs - lastRenderTimestamp;
+        if (deltaFps < 32) {
+          if (isSoftwareGl) afterDraw(animate);
+          else animationFrameId = requestAnimationFrame(animate);
+          return;
+        }
+        lastRenderTimestamp = nowMs - (deltaFps % 33.3);
+      }
+
       const delta = Math.min((nowMs - lastTimeMs) / 1000, 0.05);
       lastTimeMs = nowMs;
       const elapsed = (nowMs - startTimeMs) / 1000;
@@ -974,7 +1019,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       }
 
       controls.update();
-      composer.render();
+      studioComposer.render(isLite);
 
       if (isSoftwareGl) {
         afterDraw(animate);
@@ -1009,6 +1054,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
 
     return () => {
       disposed = true;
+      unsubLite();
       cancelAnimationFrame(animationFrameId);
       clearTimeout(timeoutId);
       resizeObserver.disconnect();
@@ -1028,6 +1074,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       nucleusTex.dispose();
       mitoTex.dispose();
       chloroTex.dispose();
+      renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
+      renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
 
       // Deep Three.js GPU resource disposal (geometries, materials, textures, renderer)
       disposeThreeSceneResources(scene, renderer, envTexture);
@@ -1035,7 +1083,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }
     };
-  }, [mode]);
+  }, [mode, sceneKey]);
 
   // Sync Remote Cursors
   useEffect(() => {

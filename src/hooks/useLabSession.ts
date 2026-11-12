@@ -25,7 +25,10 @@ import {
   INITIAL_ASTRONOMY_PARAMS,
 } from '../stores/initialLabParams';
 import { recordTelemetryInteraction } from '../utils/telemetryRecorder';
-import { evaluateDataPrecisionXP } from '../services/gamificationEngine';
+import {
+  evaluateDataPrecisionXP,
+  saveLastOpenedModuleId,
+} from '../services/gamificationEngine';
 import { aiVoiceAssistant } from '../services/aiVoiceAssistant';
 import { LAB_EVENTS } from '../utils/labEventBus';
 
@@ -426,6 +429,7 @@ export function useLabSession() {
 
   const handleSelectCatalogModule = (mod: ExperimentModule) => {
     labSound.playClick();
+    saveLastOpenedModuleId(mod.id);
     setActiveModule(mod.id);
     setActiveDomain(mod.domain.toLowerCase() as any);
     if ((mod.domain as string).toLowerCase() === 'biologi') {

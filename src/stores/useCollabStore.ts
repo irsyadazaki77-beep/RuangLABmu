@@ -5,12 +5,14 @@ import {
   LabRoom,
   LabRoomClient,
   StudentLiveTelemetry,
+  CustomAIMissionPayload,
 } from '../utils/collabProtocol';
 
 export interface CollabState {
   wsConnected: boolean;
   activeRoomId: string | null;
   activeRoom: LabRoom | null;
+  activeCustomMission: CustomAIMissionPayload | null;
   roomPin: string | null;
   roomError: string | null;
   isFrozenByTeacher: boolean;
@@ -27,6 +29,7 @@ export interface CollabState {
   setWsConnected: (wsConnected: boolean) => void;
   setActiveRoomId: (activeRoomId: string | null) => void;
   setActiveRoom: (room: LabRoom | null) => void;
+  setActiveCustomMission: (mission: CustomAIMissionPayload | null) => void;
   setRoomPin: (pin: string | null) => void;
   setRoomError: (err: string | null) => void;
   setIsFrozenByTeacher: (isFrozen: boolean, teacherName?: string) => void;
@@ -48,6 +51,7 @@ export const useCollabStore = create<CollabState>((set) => ({
   wsConnected: false,
   activeRoomId: null,
   activeRoom: null,
+  activeCustomMission: null,
   roomPin: null,
   roomError: null,
   isFrozenByTeacher: false,
@@ -65,15 +69,29 @@ export const useCollabStore = create<CollabState>((set) => ({
   setActiveRoomId: (activeRoomId: string | null) => set({ activeRoomId }),
 
   setActiveRoom: (room: LabRoom | null) =>
-    set({
+    set((state) => ({
       activeRoom: room,
       activeRoomId: room ? room.roomId : null,
+      activeCustomMission:
+        room && room.customMission !== undefined
+          ? room.customMission
+          : room === null
+          ? null
+          : state.activeCustomMission,
       roomPin: room ? room.pin : null,
       roomError: null,
       isFrozenByTeacher: room ? room.isFrozenByTeacher : false,
       teacherName: room ? room.teacherName || null : null,
       roomMembers: room ? room.clients || {} : {},
-    }),
+    })),
+
+  setActiveCustomMission: (activeCustomMission: CustomAIMissionPayload | null) =>
+    set((state) => ({
+      activeCustomMission,
+      activeRoom: state.activeRoom
+        ? { ...state.activeRoom, customMission: activeCustomMission }
+        : state.activeRoom,
+    })),
 
   setRoomPin: (roomPin: string | null) => set({ roomPin }),
 

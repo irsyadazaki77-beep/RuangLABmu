@@ -186,6 +186,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   const [layerMode, setLayerMode] = useState<AnatomyLayerMode>('outer');
   const layerModeRef = useRef<AnatomyLayerMode>('outer');
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
+  const [sceneKey, setSceneKey] = useState<number>(0);
   const cameraLerpRef = useRef<{ target: THREE.Vector3; pos: THREE.Vector3; active: boolean }>({
     target: new THREE.Vector3(0, 0, 0),
     pos: new THREE.Vector3(0, 1.4, 5.2),
@@ -247,6 +248,14 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.touchAction = 'none';
+    const handleWebGLContextLost = (event: Event) => {
+      event.preventDefault();
+    };
+    const handleWebGLContextRestored = () => {
+      setSceneKey((prev) => prev + 1);
+    };
+    renderer.domElement.addEventListener('webglcontextlost', handleWebGLContextLost, false);
+    renderer.domElement.addEventListener('webglcontextrestored', handleWebGLContextRestored, false);
     container.appendChild(renderer.domElement);
 
     const gl = renderer.getContext() as WebGL2RenderingContext;
@@ -767,6 +776,8 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('mousedown', onPointerDown);
+      renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
+      renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
       controls.dispose();
       studioComposer.dispose();
       disposeThreeSceneResources(scene, renderer, envTexture);
@@ -774,7 +785,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }
     };
-  }, [mode]);
+  }, [mode, sceneKey]);
 
   return (
     <div className="relative w-full h-full min-h-[420px] bg-slate-950 rounded-2xl overflow-hidden border border-slate-800/80 select-none">

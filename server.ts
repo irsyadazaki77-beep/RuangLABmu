@@ -2,6 +2,7 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -22,7 +23,11 @@ import {
   LabRoom,
   LabRoomClient,
   StudentLiveTelemetry,
+  CustomAIMissionPayload,
   generateRandomRoomId,
+  generateDeterministicCustomMission,
+  normalizeCustomMissionPayload,
+  resolveModuleBlueprint,
 } from './src/utils/collabProtocol';
 
 const ROOT_DIR = process.cwd();
@@ -355,6 +360,8 @@ async function startServer() {
   });
 
   app.use('/api/assistant', aiAssistantLimiter);
+  app.use('/api/generate-mission', aiAssistantLimiter);
+  app.use('/api/ai/generate-mission', aiAssistantLimiter);
   app.use('/api/dr-labmu/ask', aiAssistantLimiter);
   app.use('/api/ai/dr-labmu', aiAssistantLimiter);
   app.use('/api/ai/vision-diagnose', aiAssistantLimiter);
@@ -411,6 +418,32 @@ async function startServer() {
     });
   });
 
+  // FITUR 5: Mode LAN Kelas Tanpa Kuota (Local Hotspot Info untuk Daerah 3T)
+  app.get('/api/lan-info', (_req, res) => {
+    const interfaces = os.networkInterfaces();
+    const localIps: string[] = [];
+    for (const ifaceName of Object.keys(interfaces)) {
+      const ifaceList = interfaces[ifaceName];
+      if (!ifaceList) continue;
+      for (const iface of ifaceList) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          localIps.push(iface.address);
+        }
+      }
+    }
+    const primaryIp = localIps[0] || '127.0.0.1';
+    const port = Number(process.env.PORT) || 3000;
+    res.json({
+      primaryIp,
+      localIps,
+      port,
+      lanUrl: `http://${primaryIp}:${port}`,
+      isLocalHotspotReady: true,
+      tip3T:
+        'Tips Daerah 3T: Nyalakan Hotspot Wi-Fi di laptop Guru (tanpa perlu paket data internet), lalu minta siswa membuka alamat IP lokal ini untuk praktikum bersama tanpa kuota!',
+    });
+  });
+
   app.get('/api/rooms', (_req, res) => {
     const rooms = Array.from(activeLabRooms.values()).map((room) => ({
       roomId: room.roomId,
@@ -420,6 +453,7 @@ async function startServer() {
       isFrozenByTeacher: room.isFrozenByTeacher,
       createdAt: room.createdAt,
       clientCount: Object.keys(room.clients || {}).length,
+      customMission: room.customMission || null,
     }));
     res.json({ rooms });
   });
@@ -508,11 +542,21 @@ async function startServer() {
     },
   ];
 
+  // Pastikan direktori data/ dan berkas data/submissions.json otomatis diinisialisasi berisi []
+  // secara non-blocking jika belum ada saat server dinyalakan di Docker/Cloud
+  await fs.promises.mkdir(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(SUBMISSIONS_FILE)) {
+    await fs.promises.writeFile(SUBMISSIONS_FILE, '[]\n', 'utf-8');
+  }
+
   const submissionStore = new AsyncSubmissionStore<LabSubmissionRecord>(
     SUBMISSIONS_FILE,
     initialSubmissionsSeed
   );
   const submissionsList: LabSubmissionRecord[] = await submissionStore.init();
+  if (submissionsList.length === 0 && initialSubmissionsSeed.length > 0) {
+    submissionsList.push(...initialSubmissionsSeed);
+  }
 
   const persistSubmissions = (): Promise<void> => submissionStore.enqueuePersist();
 
@@ -611,9 +655,238 @@ async function startServer() {
     }
   });
 
+  // Helper to generate a structured AI Custom Mission Scenario via Gemini or deterministic fallback
+  const buildCustomMissionScenario = async (body: Record<string, unknown>): Promise<CustomAIMissionPayload> => {
+    const moduleId = String(body.moduleId || 'acid-base-titration').trim();
+    const caseStudyPrompt = String(
+      body.caseStudyPrompt || body.storyPrompt || body.prompt || ''
+    ).trim();
+    const teacherName = String(body.teacherName || 'Dr. Hendra Kusuma').trim();
+    const roomId = String(body.roomId || 'LAB-ALPHA').trim().toUpperCase();
+    const blueprint = resolveModuleBlueprint(moduleId);
+
+    if (process.env.GEMINI_API_KEY && caseStudyPrompt) {
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: process.env.GEMINI_API_KEY,
+          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
+        });
+
+        const missionPrompt = `Anda adalah Arsitek Kurikulum Sains & Praktikum Virtual 3D RuangLABmu.
+Guru memilih modul dasar: "${blueprint.moduleTitle}" (ID: ${blueprint.moduleId}, Domain: ${blueprint.domain}).
+Studi Kasus Cerita dari Guru: "${caseStudyPrompt}"
+Target Variabel Standar Modul: ${blueprint.targetVariable.variableLabel} (${blueprint.targetVariable.variableKey}) dalam satuan ${blueprint.targetVariable.unit}.
+
+Buat skenario misi praktikum kontekstual berbahasa Indonesia dalam format JSON terstruktur yang mencakup:
+1. title: Judul misi eksperimen yang menarik & relevan dengan studi kasus.
+2. narrative: Narasi studi kasus ilmiah (2-3 kalimat) yang menginstruksikan siswa tentang apa yang harus diuji di laboratorium 3D.
+3. targetVariable: Objek berisi variableKey ("${blueprint.targetVariable.variableKey}"), variableLabel, unit ("${blueprint.targetVariable.unit}"), targetValue (angka), minSuccessValue (angka batas bawah keberhasilan), dan maxSuccessValue (angka batas atas keberhasilan).
+4. contextualQuestions: Array berisi tepat 3 pertanyaan LKS kontekstual (masing-masing memiliki id, questionText, expectedConceptOrValue, dan hint Sokratik).`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: missionPrompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                narrative: { type: Type.STRING },
+                targetVariable: {
+                  type: Type.OBJECT,
+                  properties: {
+                    variableKey: { type: Type.STRING },
+                    variableLabel: { type: Type.STRING },
+                    unit: { type: Type.STRING },
+                    targetValue: { type: Type.NUMBER },
+                    minSuccessValue: { type: Type.NUMBER },
+                    maxSuccessValue: { type: Type.NUMBER },
+                  },
+                  required: [
+                    'variableKey',
+                    'variableLabel',
+                    'unit',
+                    'targetValue',
+                    'minSuccessValue',
+                    'maxSuccessValue',
+                  ],
+                },
+                contextualQuestions: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      id: { type: Type.STRING },
+                      questionText: { type: Type.STRING },
+                      expectedConceptOrValue: { type: Type.STRING },
+                      hint: { type: Type.STRING },
+                    },
+                    required: ['id', 'questionText', 'expectedConceptOrValue', 'hint'],
+                  },
+                },
+              },
+              required: ['title', 'narrative', 'targetVariable', 'contextualQuestions'],
+            },
+          },
+        });
+
+        const parsed = JSON.parse(response.text || '{}');
+        return normalizeCustomMissionPayload(
+          parsed,
+          { moduleId, caseStudyPrompt, teacherName, roomId },
+          'gemini-api'
+        );
+      } catch {
+        // Fallback to deterministic generator
+      }
+    }
+
+    return generateDeterministicCustomMission({
+      moduleId,
+      caseStudyPrompt,
+      teacherName,
+      roomId,
+    });
+  };
+
+  const applyCustomMissionToRoom = (
+    roomIdRaw: string,
+    mission: CustomAIMissionPayload | null,
+    teacherName?: string
+  ): LabRoom => {
+    const targetRoomId = (roomIdRaw || 'LAB-ALPHA').toUpperCase().trim();
+    let room = activeLabRooms.get(targetRoomId);
+    if (!room) {
+      room = {
+        roomId: targetRoomId,
+        pin: '1234',
+        domain: mission?.domain || 'physics',
+        moduleId: mission?.moduleId || 'newton-incline',
+        teacherName: teacherName || mission?.createdByTeacher || 'Dr. Hendra Kusuma',
+        isFrozenByTeacher: false,
+        createdAt: Date.now(),
+        clients: {},
+        customMission: mission,
+      };
+      activeLabRooms.set(targetRoomId, room);
+    } else {
+      room.customMission = mission;
+      if (mission) {
+        room.domain = mission.domain;
+        room.moduleId = mission.moduleId;
+      }
+    }
+    return room;
+  };
+
+  // Endpoint AI Custom Mission Builder untuk Guru (/api/generate-mission)
+  app.post(['/api/generate-mission', '/api/ai/generate-mission'], async (req, res) => {
+    try {
+      const body = (req.body || {}) as Record<string, unknown>;
+      const caseStudyPrompt = String(
+        body.caseStudyPrompt || body.storyPrompt || body.prompt || ''
+      ).trim();
+      if (!caseStudyPrompt) {
+        res.status(400).json({
+          error: 'Deskripsi studi kasus cerita wajib diisi untuk membuat misi praktikum AI.',
+        });
+        return;
+      }
+
+      const mission = await buildCustomMissionScenario(body);
+      const shouldPublish = body.publishToRoom !== false;
+      let updatedRoom: LabRoom | undefined;
+      if (shouldPublish) {
+        updatedRoom = applyCustomMissionToRoom(
+          mission.roomId,
+          mission,
+          mission.createdByTeacher
+        );
+        broadcastAll({
+          type: 'ROOM_MISSION_UPDATED',
+          payload: {
+            roomId: updatedRoom.roomId,
+            customMission: mission,
+            room: updatedRoom,
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        mission,
+        room: updatedRoom,
+      });
+    } catch {
+      res.status(500).json({ error: 'Gagal menghasilkan skenario misi praktikum AI.' });
+    }
+  });
+
+  // Endpoint untuk menyimpan/memperbarui misi kustom ke Room PIN tertentu
+  app.post('/api/rooms/:roomId/mission', (req, res) => {
+    try {
+      const { roomId } = req.params;
+      const { mission, teacherName } = req.body || {};
+      const updatedRoom = applyCustomMissionToRoom(
+        roomId,
+        (mission as CustomAIMissionPayload | null) ?? null,
+        teacherName
+      );
+      broadcastAll({
+        type: 'ROOM_MISSION_UPDATED',
+        payload: {
+          roomId: updatedRoom.roomId,
+          customMission: updatedRoom.customMission || null,
+          room: updatedRoom,
+        },
+      });
+      res.json({
+        success: true,
+        room: updatedRoom,
+        customMission: updatedRoom.customMission || null,
+      });
+    } catch {
+      res.status(500).json({ error: 'Gagal menyimpan misi kustom ke Room.' });
+    }
+  });
+
   // Structured Socratic AI endpoint for Dr. LabMu (accessible via /api/dr-labmu/ask and /api/assistant)
   app.post(['/api/dr-labmu/ask', '/api/assistant'], async (req, res) => {
     try {
+      // Support AI Custom Mission Builder requests sent directly to /api/assistant
+      if (
+        req.body &&
+        (req.body.mode === 'generate-mission' ||
+          req.body.action === 'generate-mission' ||
+          typeof req.body.caseStudyPrompt === 'string')
+      ) {
+        const mission = await buildCustomMissionScenario(req.body as Record<string, unknown>);
+        const shouldPublish = req.body.publishToRoom !== false;
+        let updatedRoom: LabRoom | undefined;
+        if (shouldPublish) {
+          updatedRoom = applyCustomMissionToRoom(
+            mission.roomId,
+            mission,
+            mission.createdByTeacher
+          );
+          broadcastAll({
+            type: 'ROOM_MISSION_UPDATED',
+            payload: {
+              roomId: updatedRoom.roomId,
+              customMission: mission,
+              room: updatedRoom,
+            },
+          });
+        }
+        res.json({
+          success: true,
+          mission,
+          room: updatedRoom,
+        });
+        return;
+      }
+
       const telemetry = normalizeDrLabMuRequest(req.body);
       if (!telemetry) {
         res.status(400).json({ error: 'Invalid telemetry payload' });
@@ -1013,6 +1286,26 @@ Berikan bimbingan Sokratik cerdas:
             });
             broadcastRoom(targetRoomId, { type: 'ROOM_STATE_SYNC', payload: { room } });
           }
+        } else if (msg.type === 'ROOM_SET_CUSTOM_MISSION' && msg.payload) {
+          const { roomId, customMission, teacherName } = msg.payload;
+          const targetRoomId = (roomId || ws.roomId || 'LAB-ALPHA').toUpperCase().trim();
+          const updatedRoom = applyCustomMissionToRoom(
+            targetRoomId,
+            (customMission as CustomAIMissionPayload | null) ?? null,
+            teacherName || ws.userName
+          );
+          broadcastAll({
+            type: 'ROOM_MISSION_UPDATED',
+            payload: {
+              roomId: updatedRoom.roomId,
+              customMission: updatedRoom.customMission || null,
+              room: updatedRoom,
+            },
+          });
+          broadcastRoom(updatedRoom.roomId, {
+            type: 'ROOM_STATE_SYNC',
+            payload: { room: updatedRoom },
+          });
         } else if (msg.type === 'STUDENT_TELEMETRY_SYNC' && msg.payload) {
           const { roomId, studentName, telemetry } = msg.payload;
           const targetRoomId = (roomId || ws.roomId || '').toUpperCase().trim();

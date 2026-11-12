@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   Printer,
@@ -8,6 +8,8 @@ import {
   Send,
   Ticket,
   Lock,
+  AlertTriangle,
+  Download,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -25,6 +27,11 @@ import {
   recordPerfectLksQuiz,
 } from '../../services/gamificationEngine';
 import { buildSubmissionTelemetryTimeline } from '../../utils/telemetryRecorder';
+import { parseRateLimitRetryAfter } from '../../hooks/useDrLabMuChat';
+import {
+  createOfflinePacket,
+  downloadOfflineRlabPacket,
+} from '../../utils/offlinePacketProtocol';
 
 export interface StudentWorksheetFormProps {
   activeStudentName: string;
@@ -51,6 +58,8 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
 }) => {
   const { t } = useTranslation();
   const { isSubmissionLocked, setSubmissionLocked } = useLabStore();
+  const { activeCustomMission } = useCollabStore();
+  const [customMissionAnswers, setCustomMissionAnswers] = useState<Record<string, string>>({});
 
   const [answers, setAnswers] = useState<Record<string, string>>({
     'q-newton-1': '9.0',
@@ -68,6 +77,26 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [submissionSuccessTicket, setSubmissionSuccessTicket] = useState<string | null>(null);
   const [gradedResult, setGradedResult] = useState<ReturnType<typeof gradeWorksheetAnswers> | null>(null);
+  const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState<number>(0);
+  const [offlinePacketNotice, setOfflinePacketNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (rateLimitCountdown <= 0) {
+      setRateLimitMessage(null);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setRateLimitCountdown((prev) => {
+        if (prev <= 1) {
+          setRateLimitMessage(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [rateLimitCountdown]);
 
   const filteredQuestions = WORKSHEET_QUESTIONS.filter((q) => {
     if (lksDomainFilter === 'Semua') return true;
@@ -142,9 +171,23 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         }),
       });
 
+      if (res.status === 429) {
+        const retrySec = parseRateLimitRetryAfter(
+          res.headers.get('Retry-After') || res.headers.get('RateLimit-Reset'),
+          20
+        );
+        setRateLimitCountdown(retrySec);
+        setRateLimitMessage(
+          'Dr. LabMu sedang menganalisis banyak data, silakan tunggu beberapa detik sebelum mengirim pertanyaan atau laporan berikutnya.'
+        );
+        return;
+      }
+
       if (res.ok) {
         const data = await res.json();
         labSound.playSuccessChime();
+        setRateLimitMessage(null);
+        setRateLimitCountdown(0);
         setSubmissionSuccessTicket(data.ticketCode || 'SUB-OK');
         // FITUR 2: Kunci Pengiriman (Submission Lock) setelah tombol kirim ditekan
         setSubmissionLocked(true);
@@ -161,8 +204,84 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     }
   };
 
+  const handleDownloadOfflineRlab = () => {
+    labSound.playSuccessChime();
+    const finalGrade = gradedResult ?? gradeWorksheetAnswers(answers);
+    const activeRoomId = useCollabStore.getState().activeRoomId || 'LAB-3T';
+    const regSummary = computeRecordsRegressionSummary(observationRecords);
+    const obsPayload = (observationRecords || []).map((r, i) => ({
+      No: i + 1,
+      Waktu: r.timestamp,
+      X: r.numericX ?? 0,
+      Y1: r.numericY1 ?? 0,
+      Parameter: r.parametersSummary,
+    }));
+    const telemetryLog = buildSubmissionTelemetryTimeline(domain || 'Fisika', obsPayload);
+
+    const packet = createOfflinePacket({
+      studentName: activeStudentName,
+      studentId: activeGroupId,
+      roomId: activeRoomId,
+      domain: domain || 'Fisika',
+      moduleId: moduleId || 'lab-experiment',
+      submittedAt: new Date().toISOString(),
+      hypothesisText: hypothesisNote?.hypothesisText || '',
+      observationData: obsPayload,
+      regressionMetrics: {
+        rSquared: regSummary.rSquared,
+        slope: regSummary.slope,
+        equation: regSummary.equation,
+      },
+      quizAnswers: Object.entries(answers).map(([qId, val]) => ({
+        questionId: qId,
+        selectedAnswer: val,
+        isCorrect: finalGrade.results?.[qId]?.isCorrect ?? true,
+      })),
+      quizScore: finalGrade.totalScore,
+      conclusionText,
+      telemetryLog,
+    });
+
+    downloadOfflineRlabPacket(packet);
+    setOfflinePacketNotice(
+      `Berkas tugas luring (.rlab) berhasil diunduh (${packet.packetId})! Berikan berkas ini ke guru via Bluetooth/Flashdisk/LAN lokal.`
+    );
+    setTimeout(() => setOfflinePacketNotice(null), 6000);
+  };
+
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-sm space-y-5">
+      {/* Offline .rlab Download Notice Banner */}
+      {offlinePacketNotice && (
+        <div
+          role="status"
+          data-testid="offline-packet-notice"
+          className="p-3.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-500/50 flex items-center gap-2.5 text-xs text-teal-800 dark:text-teal-200 font-semibold shadow-sm animate-fade-in"
+        >
+          <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+          <span>{offlinePacketNotice}</span>
+        </div>
+      )}
+
+      {/* Friendly HTTP 429 Rate Limit Banner */}
+      {rateLimitMessage && (
+        <div
+          role="alert"
+          data-testid="lks-rate-limit-banner"
+          className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-500/40 flex items-center justify-between gap-3 text-xs"
+        >
+          <div className="flex items-center gap-2.5 text-amber-800 dark:text-amber-200 font-semibold">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>{rateLimitMessage}</span>
+          </div>
+          {rateLimitCountdown > 0 && (
+            <span className="font-mono font-bold text-[11px] px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-200 shrink-0">
+              Tunggu {rateLimitCountdown} dtk
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Submission Lock Banner (FITUR 2) */}
       {isSubmissionLocked && (
         <div
@@ -320,6 +439,62 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         </div>
       </div>
 
+      {/* Active Teacher AI Custom Mission Contextual LKS Questions */}
+      {activeCustomMission && (
+        <div
+          data-testid="lks-custom-ai-mission-section"
+          className="p-4 rounded-2xl bg-indigo-950/30 border border-indigo-500/40 space-y-3"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold">
+                ✨ MISI STUDI KASUS GURU · ROOM {activeCustomMission.roomId}
+              </span>
+              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white mt-1">
+                {activeCustomMission.title}
+              </h4>
+            </div>
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+              Target {activeCustomMission.targetVariable.variableLabel}:{' '}
+              {activeCustomMission.targetVariable.minSuccessValue} –{' '}
+              {activeCustomMission.targetVariable.maxSuccessValue}{' '}
+              {activeCustomMission.targetVariable.unit}
+            </span>
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            {activeCustomMission.narrative}
+          </p>
+          <div className="space-y-2.5 pt-1">
+            {activeCustomMission.contextualQuestions.slice(0, 3).map((cq, idx) => (
+              <div
+                key={cq.id || idx}
+                className="p-3 rounded-xl bg-white/80 dark:bg-slate-900/90 border border-indigo-500/25 space-y-1.5"
+              >
+                <div className="text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                  Pertanyaan Kontekstual Studi Kasus #{idx + 1}
+                </div>
+                <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                  {cq.questionText}
+                </p>
+                <input
+                  type="text"
+                  disabled={isSubmissionLocked}
+                  value={customMissionAnswers[cq.id] || ''}
+                  onChange={(e) =>
+                    setCustomMissionAnswers((prev) => ({
+                      ...prev,
+                      [cq.id]: e.target.value,
+                    }))
+                  }
+                  placeholder={`Petunjuk: ${cq.hint}`}
+                  className="w-full px-3 py-1.5 text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* LKS Questions Form */}
       <form onSubmit={handleGradeForm} className="space-y-4">
         <div className="space-y-3">
@@ -421,7 +596,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             </div>
           )}
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
             <button
               type="submit"
               disabled={isSubmissionLocked}
@@ -431,9 +606,19 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             </button>
             <button
               type="button"
+              data-testid="download-offline-rlab-btn"
+              onClick={handleDownloadOfflineRlab}
+              title="Unduh paket tugas luring (.rlab) terenkapsulasi anti-tamper untuk dikumpulkan via Flashdisk/Bluetooth tanpa kuota"
+              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>💾 Unduh File Tugas Luring (.rlab)</span>
+            </button>
+            <button
+              type="button"
               onClick={handleSubmitReportToTeacher}
               disabled={isSubmittingReport || isSubmissionLocked}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
             >
               {isSubmissionLocked ? <Lock className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
               <span>

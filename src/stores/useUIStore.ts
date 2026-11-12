@@ -2,7 +2,15 @@ import { create } from 'zustand';
 import { VisualComfortPreferences } from '../components/ui/VisualComfortToolbar';
 
 export type DrawerTab = 'variables' | 'worksheet' | 'analytics' | 'ai';
-export type ActiveModal = null | 'safety' | 'quiz' | 'report' | 'mystery' | 'portfolio' | 'gradebook';
+export type ActiveModal =
+  | null
+  | 'safety'
+  | 'quiz'
+  | 'report'
+  | 'mystery'
+  | 'portfolio'
+  | 'gradebook'
+  | 'ai-mission-builder';
 export type MobileTab = 'canvas' | 'variables' | 'worksheet' | 'ai';
 
 const DEFAULT_COMFORT_PREFS: VisualComfortPreferences = {
@@ -42,6 +50,8 @@ export interface UIState {
   mobileTab: MobileTab;
   onboardingTourOpen: boolean;
   sidebarWidthPx: number;
+  liteDeviceMode: boolean;
+  liteModeNotification: string | null;
 
   // Actions
   toggleZenMode: () => void;
@@ -57,6 +67,21 @@ export interface UIState {
   setMobileTab: (tab: MobileTab) => void;
   setOnboardingTourOpen: (open: boolean) => void;
   setSidebarWidthPx: (widthPx: number) => void;
+  setLiteDeviceMode: (enabled: boolean) => void;
+  toggleLiteDeviceMode: () => void;
+  setLiteModeNotification: (msg: string | null) => void;
+}
+
+function loadInitialLiteMode(): boolean {
+  try {
+    const saved = window.localStorage.getItem('simulab-lite-device-mode');
+    if (saved !== null) {
+      return saved === 'true';
+    }
+  } catch {
+    // Ignore storage parse error
+  }
+  return false;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -68,6 +93,8 @@ export const useUIStore = create<UIState>((set) => ({
   mobileTab: 'canvas',
   onboardingTourOpen: false,
   sidebarWidthPx: 360,
+  liteDeviceMode: loadInitialLiteMode(),
+  liteModeNotification: null,
 
   toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
 
@@ -102,5 +129,29 @@ export const useUIStore = create<UIState>((set) => ({
   setOnboardingTourOpen: (onboardingTourOpen: boolean) => set({ onboardingTourOpen }),
 
   setSidebarWidthPx: (sidebarWidthPx: number) => set({ sidebarWidthPx }),
+
+  setLiteDeviceMode: (liteDeviceMode: boolean) => {
+    try {
+      window.localStorage.setItem('simulab-lite-device-mode', String(liteDeviceMode));
+    } catch {
+      // Ignore storage error
+    }
+    set({ liteDeviceMode });
+  },
+
+  toggleLiteDeviceMode: () => {
+    set((state) => {
+      const next = !state.liteDeviceMode;
+      try {
+        window.localStorage.setItem('simulab-lite-device-mode', String(next));
+      } catch {
+        // Ignore storage error
+      }
+      return { liteDeviceMode: next };
+    });
+  },
+
+  setLiteModeNotification: (liteModeNotification: string | null) => set({ liteModeNotification }),
 }));
+
 

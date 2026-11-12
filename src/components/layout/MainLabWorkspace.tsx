@@ -8,6 +8,7 @@ import {
   Users,
   CheckCircle2,
   Sparkles,
+  Wifi,
 } from 'lucide-react';
 import {
   ScienceDomain,
@@ -226,6 +227,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     setDrawerOpen,
     activeDrawerTab,
     setDrawerTab,
+    openModal,
   } = useUIStore();
 
   const [queuedDrLabMuPrompt, setQueuedDrLabMuPrompt] = useState<{ id: number; prompt: string } | null>(
@@ -274,6 +276,22 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     domainMissions[0]?.id || LAB_MISSIONS_CATALOG[0].id
   );
   const [claimedBadges, setClaimedBadges] = useState<string[]>([]);
+  const [lanInfo, setLanInfo] = useState<{ ip: string; port: number; localUrl: string } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/lan-info')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && (data.primaryIp || data.ip)) {
+          setLanInfo({
+            ip: data.primaryIp || data.ip,
+            port: data.port,
+            localUrl: data.lanUrl || data.localUrl || `http://${data.primaryIp || data.ip}:${data.port}`,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (domainMissions.length > 0 && !domainMissions.some((m) => m.id === selectedMissionId)) {
@@ -353,6 +371,18 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
                 : 'MODE GURU: Belum Membuka Room PIN'}
             </span>
 
+            {/* 3T LAN Hotspot Info for Teacher */}
+            {lanInfo && (
+              <span
+                data-testid="teacher-bar-lan-badge"
+                title="Tips Daerah 3T: Nyalakan Hotspot Wi-Fi di laptop Guru agar siswa dapat membuka IP ini tanpa kuota internet!"
+                className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs font-mono text-amber-300"
+              >
+                <Wifi className="w-3.5 h-3.5 text-amber-400" />
+                <span>LAN: <strong className="text-white select-all">{lanInfo.localUrl}</strong></span>
+              </span>
+            )}
+
             {liveStudentTelemetries.length > 0 && (
               <div className="hidden xl:flex items-center gap-2 text-xs text-slate-300 font-mono">
                 <span className="text-slate-500">Live Telemetri Siswa:</span>
@@ -369,6 +399,19 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              data-testid="teacher-bar-ai-mission-btn"
+              onClick={() => {
+                labSound.playClick(620);
+                openModal('ai-mission-builder');
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>✨ Buat Misi Praktikum AI</span>
+            </button>
+
             {!activeRoomId && (
               <button
                 type="button"

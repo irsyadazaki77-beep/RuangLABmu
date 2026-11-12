@@ -91,6 +91,9 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
     autoSpeakEnabled,
     setAutoSpeakEnabled,
     isListeningVoice,
+    rateLimitCountdown,
+    rateLimitMessage,
+    isOfflineMentorActive,
     activeTurns,
     liveTelemetry,
     readableTopic,
@@ -123,11 +126,20 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
               {activeTab === 'dr-labmu' ? <MessageCircle className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+              <div className="text-sm font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5 flex-wrap">
                 <span>Dr. LabMu</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-sky-500/15 text-sky-600 dark:text-sky-300 font-medium">
                   Mentor Sokratik
                 </span>
+                {isOfflineMentorActive && (
+                  <span
+                    data-testid="offline-mentor-badge"
+                    title="Dr. LabMu beroperasi penuh dalam mode luring tanpa kuota internet dengan basis pengetahuan Sokratik lokal"
+                    className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-semibold flex items-center gap-1"
+                  >
+                    🌱 Mode Mentor Luring (Tanpa Kuota)
+                  </span>
+                )}
                 {isEmbedded && (
                   <span className="hidden sm:inline text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
                     Docked
@@ -165,6 +177,25 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             <span className="text-[11px] leading-tight">
               <strong>Lab Sync Terputus (Offline):</strong> Kolaborasi multi-user sedang mencoba menyambung ulang. Mode eksperimen lokal tetap aktif secara penuh.
             </span>
+          </div>
+        )}
+
+        {/* HTTP 429 Friendly Rate-Limit Banner */}
+        {rateLimitMessage && (
+          <div
+            role="alert"
+            data-testid="dr-labmu-rate-limit-banner"
+            className="px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/70 border border-amber-500/50 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between gap-2 shadow-sm"
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className="text-[11px] leading-tight">{rateLimitMessage}</span>
+            </div>
+            {rateLimitCountdown > 0 && (
+              <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
+                {rateLimitCountdown}s
+              </span>
+            )}
           </div>
         )}
 

@@ -11,6 +11,7 @@ import { CommandPaletteModal } from './components/ui/CommandPaletteModal';
 import { PWAInstallBanner } from './components/ui/PWAInstallBanner';
 import { ExamSessionController } from './components/exam/ExamSessionController';
 import { StudentPortfolioModal } from './components/portfolio/StudentPortfolioModal';
+import { AICustomMissionBuilderModal } from './components/teacher/AICustomMissionBuilderModal';
 import { LabOnboardingTour } from './components/ui/LabOnboardingTour';
 import { useLabSession } from './hooks/useLabSession';
 import { useUrlRouterSync } from './hooks/useUrlRouterSync';
@@ -323,7 +324,17 @@ export default function App() {
       {/* 6. Global Spotlight Command Palette (Ctrl+K / Cmd+K) */}
       <CommandPaletteModal onSelectModule={handleSelectCatalogModule} />
 
-      {/* 7. In-App PWA Offline Install Banner */}
+      {/* 7. AI Custom Mission Builder Modal untuk Guru */}
+      <AICustomMissionBuilderModal
+        isOpen={activeModal === 'ai-mission-builder'}
+        onClose={closeModal}
+        teacherName={
+          useCollabStore.getState().teacherName || 'Dr. Hendra Kusuma'
+        }
+        onSelectModule={handleSelectCatalogModule}
+      />
+
+      {/* 8. In-App PWA Offline Install Banner */}
       <PWAInstallBanner />
     </div>
   );

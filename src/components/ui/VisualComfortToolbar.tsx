@@ -13,8 +13,10 @@ import {
   Sparkles,
   RotateCcw,
   X,
+  Zap,
 } from 'lucide-react';
 import { labSound } from '../../utils/soundEngine';
+import { useUIStore } from '../../stores/useUIStore';
 
 export type ComfortThemeMode = 'light' | 'dark' | 'sepia';
 export type EyeComfortTheme = ComfortThemeMode;
@@ -176,6 +178,7 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
       colorBlindSafe: false,
       eyeRestReminderEnabled: true,
     };
+  const { liteDeviceMode, toggleLiteDeviceMode } = useUIStore();
   const eyeRestEnabled =
     preferences.eyeRestReminderEnabled ?? preferences.eyeRestTimerEnabled ?? true;
   const emitChange = (next: VisualComfortPreferences) => {
@@ -572,6 +575,36 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* 5. 3T Lite GPU & Battery Saver Mode */}
+              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-white text-xs flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Mode Hemat Daya 3T (Lite GPU 30 FPS)</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Optimalkan untuk Chromebook & HP RAM 2GB-4GB (hemat baterai 50%)
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  data-testid="toolbar-lite-mode-switch"
+                  aria-checked={liteDeviceMode}
+                  onClick={() => {
+                    labSound.playClick(liteDeviceMode ? 440 : 660);
+                    toggleLiteDeviceMode();
+                  }}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer shrink-0 ${
+                    liteDeviceMode
+                      ? 'bg-amber-400 text-slate-950 font-black'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {liteDeviceMode ? '⚡ Aktif' : 'Mati'}
+                </button>
               </div>
             </motion.div>
           </>

@@ -16,6 +16,7 @@ import {
   buildDrLabMuTelemetry,
   generateSocraticDrLabMuResponse,
 } from '../utils/scienceEngine';
+import { generateOfflineSocraticMentorResponse } from '../utils/offlineDrLabMuEngine';
 import { labSound } from '../utils/soundEngine';
 
 export interface ConversationTurn {
@@ -76,6 +77,23 @@ export interface UseDrLabMuChatProps {
   externalPromptRequest?: { id: number; prompt: string } | null;
 }
 
+export function parseRateLimitRetryAfter(
+  retryAfterHeader: string | null | undefined,
+  fallbackSeconds = 15
+): number {
+  if (!retryAfterHeader) return fallbackSeconds;
+  const parsed = Number.parseInt(retryAfterHeader.trim(), 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.min(parsed, 120);
+  }
+  return fallbackSeconds;
+}
+
+export function formatFriendlyRateLimitMessage(retrySeconds: number): string {
+  const sec = Math.max(1, Math.round(retrySeconds));
+  return `Dr. LabMu sedang menganalisis banyak data, silakan tunggu beberapa detik (${sec} dtk) sebelum mengirim pertanyaan berikutnya.`;
+}
+
 export function useDrLabMuChat({
   domain,
   academicLevel,
@@ -91,8 +109,44 @@ export function useDrLabMuChat({
   const [isSpeakingAnswer, setIsSpeakingAnswer] = useState<boolean>(false);
   const [autoSpeakEnabled, setAutoSpeakEnabled] = useState<boolean>(false);
   const [isListeningVoice, setIsListeningVoice] = useState<boolean>(false);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState<number>(0);
+  const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
+  const [isOfflineMentorActive, setIsOfflineMentorActive] = useState<boolean>(() => {
+    return typeof navigator !== 'undefined' ? !navigator.onLine : false;
+  });
   const recognitionRef = useRef<any>(null);
   const [historyByDomain, setHistoryByDomain] = useState<Record<string, ConversationTurn[]>>({});
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleOnline = () => setIsOfflineMentorActive(false);
+    const handleOffline = () => setIsOfflineMentorActive(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (rateLimitCountdown <= 0) {
+      setRateLimitMessage(null);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setRateLimitCountdown((prev) => {
+        if (prev <= 1) {
+          setRateLimitMessage(null);
+          return 0;
+        }
+        const next = prev - 1;
+        setRateLimitMessage(formatFriendlyRateLimitMessage(next));
+        return next;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [rateLimitCountdown]);
 
   useEffect(() => {
     const unsub = voiceNarration.subscribe((speaking) => {
@@ -130,7 +184,10 @@ export function useDrLabMuChat({
   const readableTopic = READABLE_TOPIC_NAME[liveTelemetry.topic] || liveTelemetry.topic;
 
   const defaultInitialTurn = useMemo<ConversationTurn>(() => {
-    const initialResponse = generateSocraticDrLabMuResponse(liveTelemetry);
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const initialResponse = isOffline
+      ? generateOfflineSocraticMentorResponse(liveTelemetry)
+      : generateSocraticDrLabMuResponse(liveTelemetry);
     return {
       id: `init-dr-labmu-${domain}-${liveTelemetry.topic}`,
       timestamp: 'Aktif',
@@ -169,61 +226,100 @@ export function useDrLabMuChat({
 
     let structuredResult: DrLabMuStructuredResponse | null = null;
 
-    // 1. Try dedicated structured Socratic endpoint
-    try {
-      const res = await fetch('/api/dr-labmu/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telemetry: payload }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.response?.observation && data?.response?.socraticQuestion) {
-          structuredResult = data.response as DrLabMuStructuredResponse;
-        }
-      }
-    } catch {
-      // fallback
-    }
-
-    // 2. Try conversational endpoint if structured endpoint didn't respond
-    if (!structuredResult) {
+    // 1. Try dedicated structured Socratic endpoint if online
+    const isClientOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (!isClientOffline) {
       try {
-        const res = await fetch('/api/ai/dr-labmu', {
+        const res = await fetch('/api/dr-labmu/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: queryToUse,
-            history: domainHistory.slice(0, 4).map((turn) => ({
-              role: 'model',
-              text: turn.response.observation + ' ' + turn.response.socraticQuestion,
-            })),
-            telemetry: payload,
-          }),
+          body: JSON.stringify({ telemetry: payload }),
         });
-
-        if (res.ok) {
+        if (res.status === 429) {
+          const retrySec = parseRateLimitRetryAfter(
+            res.headers.get('Retry-After') || res.headers.get('RateLimit-Reset'),
+            15
+          );
+          const friendlyMsg = formatFriendlyRateLimitMessage(retrySec);
+          setRateLimitCountdown(retrySec);
+          setRateLimitMessage(friendlyMsg);
+          structuredResult = {
+            observation: friendlyMsg,
+            dataHighlight: `Server sedang memproses antrean analisis (HTTP 429). Silakan tunggu ${retrySec} detik sebelum mengirim pertanyaan berikutnya.`,
+            socraticQuestion:
+              'Sambil menunggu beberapa detik, perhatikan kembali kemiringan grafik regresi dan satuan variabel bebas Anda.',
+            detectedTrigger: 'concept-analogy',
+            formattedText: friendlyMsg,
+          };
+        } else if (res.ok) {
           const data = await res.json();
-          if (data?.structured?.observation) {
-            structuredResult = data.structured as DrLabMuStructuredResponse;
-          } else if (data?.reply) {
-            structuredResult = {
-              observation: `Eksplorasi yang sangat baik di laboratorium virtual ${payload.domain} (${payload.educationLevel}).`,
-              dataHighlight: data.reply,
-              socraticQuestion: 'Bagaimana hipotesis Anda bila parameter simulasi disesuaikan satu langkah lagi?',
-              detectedTrigger: 'concept-analogy',
-              formattedText: data.reply,
-            };
+          if (data?.response?.observation && data?.response?.socraticQuestion) {
+            structuredResult = data.response as DrLabMuStructuredResponse;
+            setIsOfflineMentorActive(false);
           }
         }
       } catch {
-        // fallback to deterministic local engine
+        // fallback to secondary endpoint or local offline engine
+      }
+
+      // 2. Try conversational endpoint if structured endpoint didn't respond
+      if (!structuredResult) {
+        try {
+          const res = await fetch('/api/ai/dr-labmu', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: queryToUse,
+              history: domainHistory.slice(0, 4).map((turn) => ({
+                role: 'model',
+                text: turn.response.observation + ' ' + turn.response.socraticQuestion,
+              })),
+              telemetry: payload,
+            }),
+          });
+
+          if (res.status === 429) {
+            const retrySec = parseRateLimitRetryAfter(
+              res.headers.get('Retry-After') || res.headers.get('RateLimit-Reset'),
+              15
+            );
+            const friendlyMsg = formatFriendlyRateLimitMessage(retrySec);
+            setRateLimitCountdown(retrySec);
+            setRateLimitMessage(friendlyMsg);
+            structuredResult = {
+              observation: friendlyMsg,
+              dataHighlight: `Server sedang memproses antrean analisis (HTTP 429). Silakan tunggu ${retrySec} detik sebelum mengirim pertanyaan berikutnya.`,
+              socraticQuestion:
+                'Sambil menunggu beberapa detik, perhatikan kembali kemiringan grafik regresi dan satuan variabel bebas Anda.',
+              detectedTrigger: 'concept-analogy',
+              formattedText: friendlyMsg,
+            };
+          } else if (res.ok) {
+            const data = await res.json();
+            if (data?.structured?.observation) {
+              structuredResult = data.structured as DrLabMuStructuredResponse;
+              setIsOfflineMentorActive(false);
+            } else if (data?.reply) {
+              structuredResult = {
+                observation: `Eksplorasi yang sangat baik di laboratorium virtual ${payload.domain} (${payload.educationLevel}).`,
+                dataHighlight: data.reply,
+                socraticQuestion: 'Bagaimana hipotesis Anda bila parameter simulasi disesuaikan satu langkah lagi?',
+                detectedTrigger: 'concept-analogy',
+                formattedText: data.reply,
+              };
+              setIsOfflineMentorActive(false);
+            }
+          }
+        } catch {
+          // fallback to deterministic local engine
+        }
       }
     }
 
-    // 3. Guaranteed deterministic local pedagogical engine
+    // 3. Guaranteed deterministic local pedagogical engine (100% Offline 3T Mode)
     if (!structuredResult) {
-      structuredResult = generateSocraticDrLabMuResponse(payload);
+      structuredResult = generateOfflineSocraticMentorResponse(payload);
+      setIsOfflineMentorActive(true);
     }
 
     const newTurn: ConversationTurn = {
@@ -315,7 +411,16 @@ export function useDrLabMuChat({
           studentQuery: queryText,
         }),
       });
-      if (res.ok) {
+      if (res.status === 429) {
+        const retrySec = parseRateLimitRetryAfter(
+          res.headers.get('Retry-After') || res.headers.get('RateLimit-Reset'),
+          15
+        );
+        const friendlyMsg = formatFriendlyRateLimitMessage(retrySec);
+        setRateLimitCountdown(retrySec);
+        setRateLimitMessage(friendlyMsg);
+        replyText = friendlyMsg;
+      } else if (res.ok) {
         const data = await res.json();
         if (data?.reply) {
           replyText = String(data.reply);
@@ -325,7 +430,7 @@ export function useDrLabMuChat({
       // fallback
     }
 
-    const fallbackStructured = generateSocraticDrLabMuResponse(payload);
+    const fallbackStructured = generateOfflineSocraticMentorResponse(payload);
     const structuredVision: DrLabMuStructuredResponse = replyText
       ? {
           observation: `Diagnostik Visual 3D Selesai (${payload.domain} — ${readableTopic}). Dr. LabMu telah memeriksa tangkapan layar aparatus laboratorium Anda.`,
@@ -335,6 +440,10 @@ export function useDrLabMuChat({
           formattedText: replyText,
         }
       : fallbackStructured;
+
+    if (!replyText) {
+      setIsOfflineMentorActive(true);
+    }
 
     const newTurn: ConversationTurn = {
       id: `turn-vision-${Date.now()}`,
@@ -458,6 +567,9 @@ export function useDrLabMuChat({
     autoSpeakEnabled,
     setAutoSpeakEnabled,
     isListeningVoice,
+    rateLimitCountdown,
+    rateLimitMessage,
+    isOfflineMentorActive,
     activeTurns,
     liveTelemetry,
     readableTopic,
