@@ -10,6 +10,7 @@ import {
   AstronomyParams,
   calculateAstronomyMetrics,
 } from './astronomyEngine';
+import type { DrLabMuUIAction } from '../drLabMuActions';
 
 export type ScienceDomain = 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
 
@@ -1537,6 +1538,7 @@ export interface DrLabMuStructuredResponse {
     | 'off-topic-refusal'
     | 'concept-analogy';
   formattedText: string;
+  uiActions?: DrLabMuUIAction[];
 }
 
 export interface BiologyTelemetryContext {
@@ -1948,6 +1950,8 @@ export interface SafetyHazardAlert {
   isHazardous: boolean;
   hazardCode: string | null;
   domain: 'Fisika' | 'Kimia';
+  severity?: 'warning' | 'critical';
+  hazardFocusPoint?: [number, number, number];
   title: string;
   headlineAlert: string;
   scientificExplanation: string;
@@ -1978,6 +1982,8 @@ export function evaluateSafetyHazard(
         isHazardous: true,
         hazardCode: 'CHEM_THERMAL_RUNAWAY',
         domain: 'Kimia',
+        severity: 'critical',
+        hazardFocusPoint: [0, 1.5, 0],
         title: 'Peringatan Keselamatan: Reaksi Eksotermik di Luar Kendali!',
         headlineAlert:
           'Peringatan Keselamatan: Reaksi eksotermik di luar kendali! Amati mengapa hal ini berbahaya di laboratorium riil.',
@@ -1997,6 +2003,8 @@ export function evaluateSafetyHazard(
         isHazardous: true,
         hazardCode: 'CHEM_OVERPRESSURE_VESSEL',
         domain: 'Kimia',
+        severity: 'critical',
+        hazardFocusPoint: [0, 1.8, 0],
         title: 'Peringatan Keselamatan: Tekanan Bejana Gas Melampaui Batas Kritis!',
         headlineAlert:
           'Peringatan Keselamatan: Reaksi eksotermik & tekanan gas di luar kendali! Amati mengapa hal ini berbahaya di laboratorium riil.',
@@ -2004,6 +2012,27 @@ export function evaluateSafetyHazard(
         mitigationInstruction:
           'Perbesar volume ruang gas (V > 4.0 L) atau turunkan temperatur absolut gas.',
         triggerParamSummary: `T = ${chemistryParams.gasTemperatureK} K, V = ${chemistryParams.gasVolumeL} L`,
+      };
+    }
+
+    if (
+      chemistryParams.mode === 'acid-base-titration' &&
+      (chemistryParams.titrantAddedMl ?? 0) >= 48 &&
+      Math.max(chemistryParams.analyteAcidConc || 0, chemistryParams.titrantBaseConc || 0) >= 1.8
+    ) {
+      return {
+        isHazardous: true,
+        hazardCode: 'CHEM_CORROSIVE_OVERFLOW',
+        domain: 'Kimia',
+        severity: 'warning',
+        hazardFocusPoint: [0, 1.35, 0],
+        title: 'Peringatan Keselamatan: Risiko Luapan Asam-Basa Pekat pada Labu Titrasi!',
+        headlineAlert:
+          'Peringatan Keselamatan: Volume titran hampir penuh dengan reagen korosif pekat!',
+        scientificExplanation: `Penambahan titran hingga ${chemistryParams.titrantAddedMl} mL dengan molaritas pekat (≥ 1.8 M) membuat labu Erlenmeyer mendekati batas kapasitas dan menghasilkan panas netralisasi lokal yang berisiko memercikkan larutan korosif.`,
+        mitigationInstruction:
+          'Tutup keran buret (kurangi Vb < 45 mL) atau encerkan konsentrasi larutan asam/basa di bawah 1.5 M.',
+        triggerParamSummary: `Vb = ${chemistryParams.titrantAddedMl} mL (≥ 48 mL), [M]_max = ${Math.max(chemistryParams.analyteAcidConc || 0, chemistryParams.titrantBaseConc || 0).toFixed(2)} M`,
       };
     }
   }
@@ -2015,6 +2044,8 @@ export function evaluateSafetyHazard(
         isHazardous: true,
         hazardCode: 'PHYS_PENDULUM_EXTREME_ANGLE',
         domain: 'Fisika',
+        severity: 'warning',
+        hazardFocusPoint: [0, 2.2, 0],
         title: 'Peringatan Keselamatan: Sudut Ayunan Pendulum Melampaui Batas Aman (> 80°)!',
         headlineAlert:
           'Peringatan Keselamatan: Beban & sudut simpangan melampaui batas statif! Amati mengapa hal ini berbahaya di laboratorium riil.',
@@ -2036,6 +2067,8 @@ export function evaluateSafetyHazard(
         isHazardous: true,
         hazardCode: 'PHYS_WIRE_BREAKING_STRESS',
         domain: 'Fisika',
+        severity: 'critical',
+        hazardFocusPoint: [0, 1.2, 0],
         title: 'Peringatan Keselamatan: Beban Melampaui Batas Regangan Putus Kawat/Pegas!',
         headlineAlert:
           'Peringatan Keselamatan: Tegangan mekanik melampaui batas elastisitas (Ultimate Tensile Strength)! Amati mengapa hal ini berbahaya di laboratorium riil.',

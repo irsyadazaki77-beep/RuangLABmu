@@ -9,6 +9,7 @@ import {
   createAdaptiveFpsMonitor,
   configureRendererForLiteMode,
   smoothCameraTransition,
+  type CameraSyncPose,
 } from '../utils/threeStudioKit';
 import {
   AstronomyParams,
@@ -16,11 +17,11 @@ import {
   SolarPlanetPreset,
   SOLAR_PLANET_PRESETS,
 } from '../utils/scienceEngine';
-import { SpatialCursorManager } from '../utils/spatialCursorGroup';
+import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2, Link2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
-import { globalMultiApparatusEngine } from '../utils/engines/multiApparatusEngine';
+import { triggerDomainApparatusSnap } from '../utils/engines/multiApparatusEngine';
 import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
@@ -37,6 +38,7 @@ interface AstronomyScene3DProps {
   metrics: AstronomyMetrics;
   activePlanet?: SolarPlanetPreset;
   simTime?: number;
+  simTimeRef?: React.RefObject<number>;
   remoteCursors?: Record<string, SpatialCursorPayload>;
   onEmitCursor?: (
     pos: [number, number, number],
@@ -48,6 +50,8 @@ interface AstronomyScene3DProps {
   onCaptureSnapshot?: (dataUrl: string) => void;
   snapshotCount?: number;
   comfortTheme?: ComfortThemeMode;
+  cameraSyncPose?: CameraSyncPose | null;
+  onCameraSyncChange?: (pose: Omit<CameraSyncPose, 'seq'>) => void;
 }
 
 type CameraPreset = 'isometric' | 'ecliptic' | 'top' | 'focus';
@@ -192,12 +196,15 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   metrics,
   activePlanet,
   simTime,
+  simTimeRef,
   remoteCursors,
   onEmitCursor,
   onUpdateParam,
   onPlanetClick,
   onCaptureSnapshot,
   comfortTheme,
+  cameraSyncPose,
+  onCameraSyncChange,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
   const showConceptLabels = useUIStore((s) => s.showConceptLabels);
@@ -227,6 +234,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     metrics,
     activePlanet,
     simTime,
+    simTimeRef,
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
@@ -238,6 +246,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     metrics,
     activePlanet,
     simTime,
+    simTimeRef,
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
@@ -251,6 +260,17 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     captureCanvas: () => string | null;
     applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
   } | null>(null);
+
+  const onCameraSyncChangeRef = useRef(onCameraSyncChange);
+  onCameraSyncChangeRef.current = onCameraSyncChange;
+  const lastAppliedCamSeqRef = useRef<number>(-1);
+  const cameraSyncHandleRef = useRef<{ applyPose: (pose: CameraSyncPose) => void } | null>(null);
+
+  useEffect(() => {
+    if (!cameraSyncPose || cameraSyncPose.seq === lastAppliedCamSeqRef.current) return;
+    lastAppliedCamSeqRef.current = cameraSyncPose.seq;
+    cameraSyncHandleRef.current?.applyPose(cameraSyncPose);
+  }, [cameraSyncPose]);
 
   useEffect(() => {
     cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Astronomi'));
@@ -360,6 +380,26 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     const desiredCamPos = new THREE.Vector3(0, 9.5, 14.5);
     const desiredTarget = new THREE.Vector3(0, 0, 0);
 
+    let isApplyingExternalCam = false;
+    cameraSyncHandleRef.current = {
+      applyPose: (pose) => {
+        isApplyingExternalCam = true;
+        camTransitionActive = false;
+        camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
+        controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
+        controls.update();
+        isApplyingExternalCam = false;
+      },
+    };
+    const handleControlsChange = () => {
+      if (isApplyingExternalCam || !onCameraSyncChangeRef.current) return;
+      onCameraSyncChangeRef.current({
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        target: [controls.target.x, controls.target.y, controls.target.z],
+      });
+    };
+    controls.addEventListener('change', handleControlsChange);
+
     controls.addEventListener('start', () => {
       camTransitionActive = false;
     });
@@ -380,6 +420,15 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       }
       camTransitionActive = true;
     };
+
+    const unsubAiAction = subscribeLabEvent(LAB_EVENTS.AI_UI_ACTION, (action) => {
+      if (!action) return;
+      if (action.type === 'FOCUS_CAMERA' && action.target === 'planet_focus') {
+        setActivePreset('focus');
+        activePresetRef.current = 'focus';
+        applyCameraPreset('focus');
+      }
+    });
 
     // Deep space lighting + High-Intensity Quadratic Decay PointLight + Soft Shadow Directional KeyLight
     const ambientLight = new THREE.AmbientLight(
@@ -473,6 +522,12 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     scene.add(nearStarLayer, deepStarLayer);
 
     const cursorManager = new SpatialCursorManager(scene);
+    const teacherCollabBridge = attachTeacherCollabBridge({
+      scene,
+      camera,
+      controls,
+      domElement: renderer.domElement,
+    });
 
     // =========================================================
     // 1. SOLAR KEPLER 3D GROUP (DYNAMIC SUN + ASTEROID BELT)
@@ -899,8 +954,13 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       }
 
       const elapsed = (nowMs - startTimeMs) / 1000;
-      const { params: p, metrics: m } = latestRef.current;
-      const t = latestRef.current.simTime ?? elapsed;
+      const { params: p, metrics: m, simTime: propSimTime, simTimeRef: propSimTimeRef } = latestRef.current;
+      const t =
+        propSimTimeRef && typeof propSimTimeRef.current === 'number'
+          ? propSimTimeRef.current
+          : typeof propSimTime === 'number'
+          ? propSimTime
+          : elapsed;
 
       solarGroup.visible = p.mode === 'solar-kepler';
       milkyWayGroup.visible = p.mode === 'milkyway-galaxy' || (p.mode as string) === 'milky-way-rotation';
@@ -911,21 +971,21 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       hubbleGroup.visible = p.mode === 'hubble-expansion';
 
       // Parallax Starfield subtle depth shift & rotation
-      nearStarLayer.rotation.y = elapsed * 0.004;
-      deepStarLayer.rotation.y = -elapsed * 0.0015;
+      nearStarLayer.rotation.y = t * 0.004;
+      deepStarLayer.rotation.y = -t * 0.0015;
       nearStarLayer.position.x = -camera.position.x * 0.06;
       nearStarLayer.position.z = -camera.position.z * 0.06;
       deepStarLayer.position.x = -camera.position.x * 0.02;
       deepStarLayer.position.z = -camera.position.z * 0.02;
 
       // Update Dynamic Sun Shader & Corona
-      sunMesh.rotation.y = elapsed * 0.14;
-      sunStdMat.emissiveIntensity = 2.0 + Math.sin(elapsed * 3.2) * 0.35;
-      sunCoronaMat.uniforms.uTime.value = elapsed;
-      wienCoronaMat.uniforms.uTime.value = elapsed;
+      sunMesh.rotation.y = t * 0.14;
+      sunStdMat.emissiveIntensity = 2.0 + Math.sin(t * 3.2) * 0.35;
+      sunCoronaMat.uniforms.uTime.value = t;
+      wienCoronaMat.uniforms.uTime.value = t;
 
       // Rotate Asteroid Belt smoothly
-      asteroidBeltGroup.rotation.y = elapsed * 0.045;
+      asteroidBeltGroup.rotation.y = t * 0.045;
 
       // 1. Kepler Orbit (3D Inclined Elliptical Trajectory)
       if (p.mode === 'solar-kepler') {
@@ -956,7 +1016,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         const pz = (curZ / b) * scaledR;
         const py = Math.sin(curM) * scaledR * Math.sin(incRad);
         planetMesh.position.set(px, py, pz);
-        planetMesh.rotation.y = elapsed * 0.6;
+        planetMesh.rotation.y = t * 0.6;
 
         if (activePresetRef.current === 'focus' && !isDragging) {
           desiredTarget.copy(planetMesh.position);
@@ -981,7 +1041,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
       // 2. Milky Way Galaxy
       else if (p.mode === 'milkyway-galaxy' || (p.mode as string) === 'milky-way-rotation') {
-        diskParticles.rotation.y += 0.002;
+        diskParticles.rotation.y = t * 0.12;
         const rKpc = p.galactocentricRadiusKpc || 8.2;
         const rScaled = Math.min(8.5, Math.max(1.2, (rKpc / 25.0) * 8.5));
         const angle = t * 0.15;
@@ -1058,6 +1118,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         );
       }
 
+      teacherCollabBridge.tick();
       controls.update();
 
       const showLabels = showConceptLabelsRef.current;
@@ -1234,6 +1295,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
     return () => {
       disposed = true;
+      unsubAiAction();
       unsubLite();
       cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
@@ -1244,7 +1306,10 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
       renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
       renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
+      teacherCollabBridge.dispose();
       cursorManager.dispose();
+      controls.removeEventListener('change', handleControlsChange);
+      cameraSyncHandleRef.current = null;
       controls.dispose();
 
       // Dispose Post-Processing & Textures
@@ -1331,24 +1396,13 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
           type="button"
           data-testid="snap-dock-apparatus-btn"
           onClick={() => {
-            labSound.playClick(760);
-            const allNodes = globalMultiApparatusEngine.getAllNodes();
-            if (allNodes.length < 2) {
-              globalMultiApparatusEngine.seedDefaultDomainNodes('Astronomi');
-            }
-            const nodes = globalMultiApparatusEngine.getAllNodes();
-            if (nodes.length >= 2) {
-              const src = nodes[0];
-              const tgt = nodes[1];
-              const srcPort = src.ports[0];
-              const tgtPort = tgt.ports[0];
-              if (srcPort && tgtPort) {
-                globalMultiApparatusEngine.moveNodeAndEvaluateSnap(src.id, {
-                  [srcPort.id]: [tgtPort.position[0] - 0.18, tgtPort.position[1] + 0.08, tgtPort.position[2]],
-                });
-                globalMultiApparatusEngine.commitActiveSnapOnRelease();
-                globalMultiApparatusEngine.stepTransfer(1.5);
-              }
+            const { docked, transfer } = triggerDomainApparatusSnap('Astronomi');
+            if (docked) {
+              setDragToast({
+                label: `Port Docked (${docked.portType.toUpperCase()})`,
+                value: `Φ = ${(transfer?.opticalIntensityMw ?? 0).toFixed(1)} mW`,
+              });
+              setTimeout(() => setDragToast(null), 1800);
             }
           }}
           title="Snap-to-Port: Sambung & Transfer Aparatus Teleskop 3D"

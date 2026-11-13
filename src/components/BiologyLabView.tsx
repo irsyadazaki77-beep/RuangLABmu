@@ -35,6 +35,8 @@ import {
   getBiologyParameterFeedback,
   normalizeEducationLevel,
 } from '../utils/pedagogicalHelpers';
+import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
+import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
 
 export interface BiologyLabViewProps {
   activeStudentName: string;
@@ -97,6 +99,8 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   snapshotCount = 0,
 }) => {
   const storeLevel = useLabStore((s) => s.academicLevel);
+  const playbackSpeed = useLabStore((s) => s.playbackSpeed);
+  const isTimeTraveling = useLabStore((s) => s.isTimeTraveling);
   const effectiveEducationLevel = normalizeEducationLevel(activeTier ?? storeLevel);
   const biologyModules = useMemo(() => getExperimentsByDomain('biologi'), []);
   const selectedModuleId = externalModuleId || 'photosynthesis-ingenhousz';
@@ -104,6 +108,9 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   const [activeCameraPreset, setActiveCameraPreset] = useState<string>('isometric');
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [simTime, setSimTime] = useState<number>(0);
+  const simTimeRef = useRef<number>(0);
+  const [isDualRealityMode, setIsDualRealityMode] = useState<boolean>(false);
 
   const currentModule = useMemo(() => {
     return (
@@ -121,9 +128,73 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     return init;
   });
 
-  const currentOutputs = useMemo(() => {
-    return currentModule.computeStep(paramsState, 1.0);
+  const buildPerturbedBioRealityB = (
+    mod: typeof currentModule,
+    base: Record<string, number>
+  ): Record<string, number> => {
+    const copy = { ...base };
+    const firstParam = mod.parameters[0];
+    if (firstParam) {
+      const span = firstParam.max - firstParam.min;
+      const cur = base[firstParam.key] ?? firstParam.defaultValue;
+      const shifted = cur + span * 0.3 <= firstParam.max ? cur + span * 0.3 : Math.max(firstParam.min, cur - span * 0.3);
+      copy[firstParam.key] = Number(shifted.toFixed(2));
+    }
+    return copy;
+  };
+
+  const [realityBParamsState, setRealityBParamsState] = useState<Record<string, number>>(() =>
+    buildPerturbedBioRealityB(currentModule, paramsState)
+  );
+  const prevBioModuleRef = useRef(currentModule.id);
+  useEffect(() => {
+    if (prevBioModuleRef.current !== currentModule.id) {
+      prevBioModuleRef.current = currentModule.id;
+      setRealityBParamsState(buildPerturbedBioRealityB(currentModule, paramsState));
+    }
   }, [currentModule, paramsState]);
+
+  const currentOutputs = useMemo(() => {
+    return currentModule.computeStep(paramsState, Math.max(0.1, simTime));
+  }, [currentModule, paramsState, simTime]);
+
+  const currentOutputsB = useMemo(() => {
+    return currentModule.computeStep(realityBParamsState, Math.max(0.1, simTime));
+  }, [currentModule, realityBParamsState, simTime]);
+
+  useTimelineRecorder<Record<string, number>, Record<string, number>>({
+    domain: 'biology',
+    simTime,
+    simTimeRef,
+    isPlaying,
+    params: paramsState,
+    stateSnapshot: currentOutputs,
+    onRestoreFrame: (frame) => {
+      setIsPlaying(false);
+      simTimeRef.current = frame.simTime;
+      setSimTime(frame.simTime);
+      setParamsState(frame.parameters);
+    },
+  });
+
+  useEffect(() => {
+    let animId = 0;
+    let lastStamp = performance.now();
+    const loop = (stamp: number) => {
+      const dt = Math.min((stamp - lastStamp) / 1000, 0.1);
+      lastStamp = stamp;
+      if (isPlaying && !isTimeTraveling) {
+        setSimTime((prev) => {
+          const next = prev + dt * playbackSpeed;
+          simTimeRef.current = next;
+          return next;
+        });
+      }
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, [isPlaying, isTimeTraveling, playbackSpeed]);
 
   const prevBioSig = useRef('');
   const bioSig = `${currentModule.id}:${JSON.stringify(paramsState)}`;
@@ -145,12 +216,18 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     const unsubToggle = subscribeLabEvent(LAB_EVENTS.TOGGLE_SIMULATION, (data: any) => {
       setIsPlaying((prev) => (data?.isSimulating !== undefined ? data.isSimulating : !prev));
     });
+    const unsubReset = subscribeLabEvent(LAB_EVENTS.RESET_TRIAL, () => {
+      setSimTime(0);
+      simTimeRef.current = 0;
+      setIsPlaying(false);
+    });
     const unsubCapture = subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, () => {
       setShutterFlash(true);
       setTimeout(() => setShutterFlash(false), 240);
     });
     return () => {
       unsubToggle();
+      unsubReset();
       unsubCapture();
     };
   }, []);
@@ -215,6 +292,86 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
       zenMode={zenMode}
       activeCameraPreset={activeCameraPreset}
       onSelectCameraPreset={setActiveCameraPreset}
+      dualModeActive={isDualRealityMode}
+      onToggleDualMode={() => setIsDualRealityMode((prev) => !prev)}
+      dualViewport={
+        isDualRealityMode ? (() => {
+          const p0 = currentModule.parameters[0];
+          const out0 = currentModule.outputs[0];
+          const valA = p0 ? (paramsState[p0.key] ?? p0.defaultValue) : 0;
+          const valB = p0 ? (realityBParamsState[p0.key] ?? p0.defaultValue) : 0;
+          const resA = out0 ? (currentOutputs[out0.key] ?? 0) : 0;
+          const resB = out0 ? (currentOutputsB[out0.key] ?? 0) : 0;
+          const deltaVal = resB - resA;
+          return (
+            <DualRealityLabViewport
+              domain="Biologi"
+              moduleTitle={currentModule.title}
+              realityASummary={
+                p0 && out0
+                  ? `${p0.label.split(' ')[0]}=${valA}${p0.unit} · ${out0.label.split(' ')[0]}=${resA.toFixed(1)}${out0.unit}`
+                  : currentModule.title
+              }
+              realityBSummary={
+                p0 && out0
+                  ? `${p0.label.split(' ')[0]}=${valB}${p0.unit} · ${out0.label.split(' ')[0]}=${resB.toFixed(1)}${out0.unit}`
+                  : currentModule.title
+              }
+              deltaSummary={
+                out0
+                  ? `Δ${out0.label.split(' ')[0]} = ${deltaVal >= 0 ? '+' : ''}${deltaVal.toFixed(1)} ${out0.unit}`
+                  : undefined
+              }
+              onResetBToMatchA={() => setRealityBParamsState({ ...paramsState })}
+              onClose={() => setIsDualRealityMode(false)}
+              realityBControls={
+                p0 ? (
+                  <div className="w-full flex items-center justify-between gap-3">
+                    <span className="font-semibold text-amber-300 shrink-0">
+                      {p0.label} (B):{' '}
+                      <strong className="font-mono">
+                        {valB} {p0.unit}
+                      </strong>
+                    </span>
+                    <input
+                      type="range"
+                      aria-label={`${p0.label} Realitas B`}
+                      min={p0.min}
+                      max={p0.max}
+                      step={p0.step}
+                      value={valB}
+                      onChange={(e) => {
+                        const nextVal = Number(e.target.value);
+                        setRealityBParamsState((prev) => ({ ...prev, [p0.key]: nextVal }));
+                      }}
+                      className="flex-1 max-w-[220px] accent-amber-400 cursor-pointer"
+                    />
+                  </div>
+                ) : undefined
+              }
+              renderViewport={(side, syncProps) => (
+                <Suspense
+                  fallback={
+                    <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-emerald-300">
+                      Menyiapkan Realitas {side}...
+                    </div>
+                  }
+                >
+                  <BiologyScene3D
+                    mode={currentModule.id as any}
+                    params={side === 'A' ? paramsState : realityBParamsState}
+                    isPlaying={isPlaying}
+                    simTime={simTime}
+                    simTimeRef={simTimeRef}
+                    cameraSyncPose={syncProps.cameraSyncPose}
+                    onCameraSyncChange={syncProps.onCameraSyncChange}
+                  />
+                </Suspense>
+              )}
+            />
+          );
+        })() : undefined
+      }
       canvas={
         <LabErrorBoundary domain="Biologi" sceneName="BiologyScene3D">
           <Suspense
@@ -233,6 +390,8 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
               remoteCursors={remoteCursors}
               onEmitCursor={onEmitCursor}
               isPlaying={isPlaying}
+              simTime={simTime}
+              simTimeRef={simTimeRef}
               snapshotCount={snapshotCount}
               onCaptureSnapshot={(dataUrl) => {
                 setShutterFlash(true);
@@ -320,6 +479,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
                   <TactileParameterControl
                     key={p.key}
                     id={`bio-param-${p.key}`}
+                    paramKey={p.key}
                     label={p.label}
                     unit={p.unit}
                     value={paramsState[p.key] ?? p.defaultValue}

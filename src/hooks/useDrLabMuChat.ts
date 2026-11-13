@@ -18,6 +18,37 @@ import {
 } from '../utils/scienceEngine';
 import { generateOfflineSocraticMentorResponse } from '../utils/offlineDrLabMuEngine';
 import { labSound } from '../utils/soundEngine';
+import { DrLabMuUIAction, sanitizeDrLabMuUIActions } from '../utils/drLabMuActions';
+import { LAB_EVENTS, emitLabEvent } from '../utils/labEventBus';
+import { useLabStore } from '../stores/useLabStore';
+
+export function executeDrLabMuUIAction(action: DrLabMuUIAction): void {
+  const labStore = useLabStore.getState();
+  switch (action.type) {
+    case 'FOCUS_CAMERA':
+    case 'TOGGLE_XRAY': {
+      emitLabEvent(LAB_EVENTS.AI_UI_ACTION, action);
+      break;
+    }
+    case 'HIGHLIGHT_SLIDER': {
+      labStore.highlightParamSlider(action.paramKey, action.durationMs);
+      break;
+    }
+    case 'SET_SIMULATION_STATE': {
+      if (action.action === 'play') {
+        if (!labStore.isSimulating) {
+          labStore.toggleSimulation();
+        }
+      } else if (action.action === 'pause') {
+        labStore.setIsSimulating(false);
+        emitLabEvent(LAB_EVENTS.TOGGLE_SIMULATION, { isSimulating: false });
+      } else if (action.action === 'reset') {
+        labStore.triggerResetTrial();
+      }
+      break;
+    }
+  }
+}
 
 export interface ConversationTurn {
   id: string;
@@ -254,7 +285,11 @@ export function useDrLabMuChat({
         } else if (res.ok) {
           const data = await res.json();
           if (data?.response?.observation && data?.response?.socraticQuestion) {
-            structuredResult = data.response as DrLabMuStructuredResponse;
+            const rawResp = data.response as DrLabMuStructuredResponse;
+            structuredResult = {
+              ...rawResp,
+              uiActions: sanitizeDrLabMuUIActions(rawResp.uiActions),
+            };
             setIsOfflineMentorActive(false);
           }
         }
@@ -297,7 +332,11 @@ export function useDrLabMuChat({
           } else if (res.ok) {
             const data = await res.json();
             if (data?.structured?.observation) {
-              structuredResult = data.structured as DrLabMuStructuredResponse;
+              const rawStructured = data.structured as DrLabMuStructuredResponse;
+              structuredResult = {
+                ...rawStructured,
+                uiActions: sanitizeDrLabMuUIActions(rawStructured.uiActions ?? data.uiActions),
+              };
               setIsOfflineMentorActive(false);
             } else if (data?.reply) {
               structuredResult = {
@@ -306,6 +345,7 @@ export function useDrLabMuChat({
                 socraticQuestion: 'Bagaimana hipotesis Anda bila parameter simulasi disesuaikan satu langkah lagi?',
                 detectedTrigger: 'concept-analogy',
                 formattedText: data.reply,
+                uiActions: sanitizeDrLabMuUIActions(data.uiActions),
               };
               setIsOfflineMentorActive(false);
             }
@@ -343,6 +383,10 @@ export function useDrLabMuChat({
       setStudentQuery('');
     }
     setIsLoading(false);
+
+    if (structuredResult.uiActions && structuredResult.uiActions.length > 0) {
+      structuredResult.uiActions.forEach((act) => executeDrLabMuUIAction(act));
+    }
 
     if (autoSpeakEnabled) {
       const script = `${newTurn.response.observation} ${newTurn.response.dataHighlight} Pertanyaan pemantik reflektif: ${newTurn.response.socraticQuestion}`;
@@ -559,6 +603,11 @@ export function useDrLabMuChat({
     }
   }, [externalPromptRequest]);
 
+  const handleTriggerUIAction = (action: DrLabMuUIAction) => {
+    labSound.playClick(680);
+    executeDrLabMuUIAction(action);
+  };
+
   return {
     studentQuery,
     setStudentQuery,
@@ -578,5 +627,6 @@ export function useDrLabMuChat({
     handleToggleVoiceInput,
     handleToggleSpeakAnswer,
     handleClearHistory,
+    handleTriggerUIAction,
   };
 }

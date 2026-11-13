@@ -4,10 +4,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Eye, Layers, Sparkles, X } from 'lucide-react';
 import {
+  configureRendererForLiteMode,
   createBiologicalMembraneTexture,
   createStudioComposer,
   disposeThreeSceneResources,
   smoothCameraTransition,
+  type CameraSyncPose,
 } from '../../utils/threeStudioKit';
 import {
   calculateCardiovascularHeart,
@@ -15,8 +17,10 @@ import {
   calculateNeuralSynapse,
 } from '../../utils/engines/biologyEngine';
 import { SpatialCursorPayload } from '../../utils/collabProtocol';
+import { attachTeacherCollabBridge } from '../../utils/spatialCursorGroup';
 import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
 import { useUIStore } from '../../stores/useUIStore';
+import { LAB_EVENTS, subscribeLabEvent } from '../../utils/labEventBus';
 import {
   ConceptLabelDomRef,
   ConceptLabelToggleButton,
@@ -37,6 +41,8 @@ export interface AnatomySubScene3DProps {
   params: Record<string, number>;
   isPlaying?: boolean;
   timeScale?: number;
+  simTime?: number;
+  simTimeRef?: React.RefObject<number>;
   remoteCursors?: Record<string, SpatialCursorPayload>;
   onEmitCursor?: (
     position: [number, number, number],
@@ -45,6 +51,8 @@ export interface AnatomySubScene3DProps {
   ) => void;
   onCaptureSnapshot?: (dataUrl: string) => void;
   comfortTheme?: ComfortThemeMode;
+  cameraSyncPose?: CameraSyncPose | null;
+  onCameraSyncChange?: (pose: Omit<CameraSyncPose, 'seq'>) => void;
 }
 
 interface AnatomyPinDef {
@@ -189,6 +197,10 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   params,
   isPlaying = true,
   timeScale = 1,
+  simTime,
+  simTimeRef,
+  cameraSyncPose,
+  onCameraSyncChange,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const showConceptLabels = useUIStore((s) => s.showConceptLabels);
@@ -204,6 +216,10 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   const paramsRef = useRef<Record<string, number>>(params);
   const playingRef = useRef(isPlaying);
   const timeScaleRef = useRef(timeScale);
+  const simTimePropRef = useRef(simTime);
+  simTimePropRef.current = simTime;
+  const externalSimTimeRef = useRef(simTimeRef);
+  externalSimTimeRef.current = simTimeRef;
 
   const [layerMode, setLayerMode] = useState<AnatomyLayerMode>('outer');
   const layerModeRef = useRef<AnatomyLayerMode>('outer');
@@ -215,6 +231,17 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     active: false,
   });
 
+  const onCameraSyncChangeRef = useRef(onCameraSyncChange);
+  onCameraSyncChangeRef.current = onCameraSyncChange;
+  const lastAppliedCamSeqRef = useRef<number>(-1);
+  const cameraSyncHandleRef = useRef<{ applyPose: (pose: CameraSyncPose) => void } | null>(null);
+
+  useEffect(() => {
+    if (!cameraSyncPose || cameraSyncPose.seq === lastAppliedCamSeqRef.current) return;
+    lastAppliedCamSeqRef.current = cameraSyncPose.seq;
+    cameraSyncHandleRef.current?.applyPose(cameraSyncPose);
+  }, [cameraSyncPose]);
+
   useEffect(() => { paramsRef.current = params; }, [params]);
   useEffect(() => { playingRef.current = isPlaying; }, [isPlaying]);
   useEffect(() => { timeScaleRef.current = timeScale; }, [timeScale]);
@@ -223,6 +250,24 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     setSelectedPinId(null);
     setLayerMode('outer');
     cameraLerpRef.current.active = false;
+  }, [mode]);
+
+  useEffect(() => {
+    return subscribeLabEvent(LAB_EVENTS.AI_UI_ACTION, (action) => {
+      if (!action) return;
+      if (action.type === 'FOCUS_CAMERA' && action.target === 'left_ventricle') {
+        cameraLerpRef.current = {
+          target: new THREE.Vector3(0.35, -0.35, 0.2),
+          pos: new THREE.Vector3(1.5, 0.45, 2.55),
+          active: true,
+        };
+        if (mode === 'anatomy-cardiovascular-heart') {
+          setSelectedPinId('pin-left-ventricle');
+        }
+      } else if (action.type === 'TOGGLE_XRAY') {
+        setLayerMode(action.enabled ? 'xray' : 'outer');
+      }
+    });
   }, [mode]);
 
   const activePins = ANATOMY_PINS.filter((pin) => pin.mode === mode);
@@ -305,6 +350,41 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
     controls.target.set(0, 0.1, 0);
+
+    let isApplyingExternalCam = false;
+    cameraSyncHandleRef.current = {
+      applyPose: (pose) => {
+        isApplyingExternalCam = true;
+        cameraLerpRef.current.active = false;
+        camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
+        controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
+        controls.update();
+        isApplyingExternalCam = false;
+      },
+    };
+    const handleControlsChange = () => {
+      if (isApplyingExternalCam || !onCameraSyncChangeRef.current) return;
+      onCameraSyncChangeRef.current({
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        target: [controls.target.x, controls.target.y, controls.target.z],
+      });
+    };
+    controls.addEventListener('change', handleControlsChange);
+    const teacherCollabBridge = attachTeacherCollabBridge({
+      scene,
+      camera,
+      controls,
+      domElement: renderer.domElement,
+    });
+
+    configureRendererForLiteMode(renderer, useUIStore.getState().liteDeviceMode);
+    let currentLite = useUIStore.getState().liteDeviceMode;
+    const unsubLite = useUIStore.subscribe((state) => {
+      if (state.liteDeviceMode !== currentLite) {
+        currentLite = state.liteDeviceMode;
+        configureRendererForLiteMode(renderer, currentLite);
+      }
+    });
 
     scene.add(new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 0.45));
     const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
@@ -579,11 +659,10 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       );
       innerGroup.add(sysStream, pulStream);
 
-      let phase = 0;
-      updateFrame = (t, dt) => {
+      updateFrame = (t) => {
         const hr = paramsRef.current.heartRateBpm ?? 72;
         const radiusRatio = paramsRef.current.vesselRadiusRatio ?? 1.0;
-        phase = (phase + dt * (hr / 60)) % 1.0;
+        const phase = (t * (hr / 60)) % 1.0;
         const sysPulse = phase < 0.32 ? Math.sin((phase / 0.32) * Math.PI) : 0;
         const atrPulse = phase > 0.78 ? Math.sin(((phase - 0.78) / 0.22) * Math.PI) : 0;
 
@@ -833,11 +912,25 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
     const clock = new THREE.Clock();
     let animId = 0;
+    let lastRenderStamp = 0;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
+      const isLite = useUIStore.getState().liteDeviceMode;
+      const nowStamp = performance.now();
+      if (isLite && nowStamp - lastRenderStamp < 32) {
+        return;
+      }
+      lastRenderStamp = nowStamp;
       const dt = Math.min(clock.getDelta(), 0.05) * (playingRef.current ? timeScaleRef.current : 0);
       const elapsed = clock.getElapsedTime();
+      const extRef = externalSimTimeRef.current;
+      const effectiveT =
+        extRef && typeof extRef.current === 'number'
+          ? extRef.current
+          : typeof simTimePropRef.current === 'number'
+          ? simTimePropRef.current
+          : elapsed;
 
       const lm = layerModeRef.current;
       outerMaterials.forEach((mat) => {
@@ -855,7 +948,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
       pinMeshes.forEach(({ halo }, idx) => {
         halo.lookAt(camera.position);
-        halo.scale.setScalar(1 + 0.18 * Math.sin(elapsed * 3.5 + idx));
+        halo.scale.setScalar(1 + 0.18 * Math.sin(effectiveT * 3.5 + idx));
       });
 
       if (cameraLerpRef.current.active) {
@@ -868,7 +961,8 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         );
       }
 
-      updateFrame(elapsed, dt);
+      updateFrame(effectiveT, dt);
+      teacherCollabBridge.tick();
       controls.update();
 
       const showLabels = showConceptLabelsRef.current;
@@ -984,7 +1078,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       }
       updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
 
-      studioComposer.render();
+      studioComposer.render(useUIStore.getState().liteDeviceMode);
     };
     animate();
 
@@ -1002,19 +1096,23 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
       studioComposer.resize(w, h, pr);
-      studioComposer.render();
+      studioComposer.render(useUIStore.getState().liteDeviceMode);
     };
     const resizeObserver = new ResizeObserver(() => handleResize());
     resizeObserver.observe(container);
     window.addEventListener('resize', handleResize);
 
     return () => {
+      unsubLite();
       cancelAnimationFrame(animId);
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
+      controls.removeEventListener('change', handleControlsChange);
+      cameraSyncHandleRef.current = null;
       renderer.domElement.removeEventListener('mousedown', onPointerDown);
       renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
       renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
+      teacherCollabBridge.dispose();
       controls.dispose();
       studioComposer.dispose();
       disposableBioTextures.forEach((tex) => tex.dispose());

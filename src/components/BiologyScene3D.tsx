@@ -11,12 +11,13 @@ import {
   createAdaptiveFpsMonitor,
   configureRendererForLiteMode,
   smoothCameraTransition,
+  type CameraSyncPose,
 } from '../utils/threeStudioKit';
 import { Maximize2, Minimize2, Focus, Link2 } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
-import { SpatialCursorManager } from '../utils/spatialCursorGroup';
+import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
 import { labSound } from '../utils/soundEngine';
-import { globalMultiApparatusEngine } from '../utils/engines/multiApparatusEngine';
+import { triggerDomainApparatusSnap } from '../utils/engines/multiApparatusEngine';
 import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
@@ -46,9 +47,13 @@ interface BiologyScene3DProps {
     hoveredObject?: string
   ) => void;
   isPlaying?: boolean;
+  simTime?: number;
+  simTimeRef?: React.RefObject<number>;
   onCaptureSnapshot?: (dataUrl: string) => void;
   snapshotCount?: number;
   comfortTheme?: ComfortThemeMode;
+  cameraSyncPose?: CameraSyncPose | null;
+  onCameraSyncChange?: (pose: Omit<CameraSyncPose, 'seq'>) => void;
 }
 
 type BioCameraPreset = 'isometric' | 'front' | 'top' | 'focus';
@@ -79,8 +84,13 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   params,
   remoteCursors = {},
   onEmitCursor,
+  isPlaying = true,
+  simTime,
+  simTimeRef,
   onCaptureSnapshot,
   comfortTheme,
+  cameraSyncPose,
+  onCameraSyncChange,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
   const showConceptLabels = useUIStore((s) => s.showConceptLabels);
@@ -104,9 +114,14 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   onCaptureSnapshotRef.current = onCaptureSnapshot;
   const latestParamsRef = useRef(params);
   latestParamsRef.current = params;
+  const simTimePropRef = useRef(simTime);
+  simTimePropRef.current = simTime;
+  const externalSimTimeRef = useRef(simTimeRef);
+  externalSimTimeRef.current = simTimeRef;
 
   const [activePreset, setActivePreset] = useState<BioCameraPreset>('isometric');
   const [clickedBadge, setClickedBadge] = useState<string | null>(null);
+  const [snapToast, setSnapToast] = useState<string | null>(null);
   const [sceneKey, setSceneKey] = useState<number>(0);
   const [lensFocus, setLensFocus] = useState<number>(75); // 0 to 100 (optimal crispness near 75-100)
   const lensFocusRef = useRef<number>(75);
@@ -118,6 +133,17 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     captureCanvas: () => string | null;
     applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
   } | null>(null);
+
+  const onCameraSyncChangeRef = useRef(onCameraSyncChange);
+  onCameraSyncChangeRef.current = onCameraSyncChange;
+  const lastAppliedCamSeqRef = useRef<number>(-1);
+  const cameraSyncHandleRef = useRef<{ applyPose: (pose: CameraSyncPose) => void } | null>(null);
+
+  useEffect(() => {
+    if (!cameraSyncPose || cameraSyncPose.seq === lastAppliedCamSeqRef.current) return;
+    lastAppliedCamSeqRef.current = cameraSyncPose.seq;
+    cameraSyncHandleRef.current?.applyPose(cameraSyncPose);
+  }, [cameraSyncPose]);
 
   const syncConceptLabelsRef = useRef<(() => void) | null>(null);
 
@@ -248,6 +274,26 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const desiredCamPos = new THREE.Vector3(2.8, 3.8, 7.2);
     const desiredTarget = new THREE.Vector3(0, 1.3, 0);
 
+    let isApplyingExternalCam = false;
+    cameraSyncHandleRef.current = {
+      applyPose: (pose) => {
+        isApplyingExternalCam = true;
+        camTransitionActive = false;
+        camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
+        controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
+        controls.update();
+        isApplyingExternalCam = false;
+      },
+    };
+    const handleControlsChange = () => {
+      if (isApplyingExternalCam || !onCameraSyncChangeRef.current) return;
+      onCameraSyncChangeRef.current({
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        target: [controls.target.x, controls.target.y, controls.target.z],
+      });
+    };
+    controls.addEventListener('change', handleControlsChange);
+
     controls.addEventListener('start', () => {
       camTransitionActive = false;
     });
@@ -273,6 +319,12 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     // Collaboration Cursor Group
     const cursorManager = new SpatialCursorManager(scene);
     cursorManagerRef.current = cursorManager;
+    const teacherCollabBridge = attachTeacherCollabBridge({
+      scene,
+      camera,
+      controls,
+      domElement: renderer.domElement,
+    });
 
     // Studio Lights with Soft Contact Shadows (2048x2048, bias -0.0001)
     const hemiLight = new THREE.HemisphereLight(
@@ -968,6 +1020,13 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       lastTimeMs = nowMs;
       const elapsed = (nowMs - startTimeMs) / 1000;
       const curParams = latestParamsRef.current;
+      const extRef = externalSimTimeRef.current;
+      const t =
+        extRef && typeof extRef.current === 'number'
+          ? extRef.current
+          : typeof simTimePropRef.current === 'number'
+          ? simTimePropRef.current
+          : elapsed;
 
       // Smoothly interpolate 3D Microscope Lens Focus (Tahap 5)
       currentFocusSmooth = THREE.MathUtils.damp(
@@ -992,19 +1051,18 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       desiredCamPos.copy(baseCamPos).multiplyScalar(zoomFactor);
 
       // Slow gentle rotation for viewing angle
-      apparatusGroup.rotation.y = Math.sin(elapsed * 0.15) * 0.25;
+      apparatusGroup.rotation.y = Math.sin(t * 0.15) * 0.25;
 
-      // Update particle motions
+      // Update particle motions deterministically against t for smooth time-travel scrubbing
       if (mode === 'photosynthesis-ingenhousz') {
-        const bubbleSpeed = (curParams.lightIntensityLux || 1200) / 60000;
-        particles.forEach((p) => {
-          p.position.y += p.userData.speed + bubbleSpeed;
-          p.position.x += Math.sin(elapsed * 3 + p.userData.seed) * 0.002;
-          if (p.position.y > 2.8) {
-            p.position.y = 0.4;
-            p.position.x = (Math.random() - 0.5) * 0.2;
-            p.position.z = (Math.random() - 0.5) * 0.2;
-          }
+        const bubbleSpeed = 0.55 + (curParams.lightIntensityLux || 1200) / 1600;
+        particles.forEach((p, idx) => {
+          const seed = Number(p.userData.seed ?? idx);
+          const span = 2.4;
+          const phase = (seed * 0.41 + t * bubbleSpeed) % span;
+          p.position.y = 0.4 + (phase < 0 ? phase + span : phase);
+          p.position.x = Math.sin(t * 3 + seed) * 0.14;
+          p.position.z = Math.cos(seed * 1.7) * 0.12;
         });
 
         if (lightSpot) {
@@ -1020,20 +1078,21 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         foamMesh.scale.y = foamTarget;
         foamMesh.position.y = 0.5 + (1.2 * foamTarget) / 2;
 
-        particles.forEach((p) => {
-          p.position.y += p.userData.speed;
-          if (p.position.y > 2.6) p.position.y = 0.8;
+        particles.forEach((p, idx) => {
+          const seed = Number(p.userData.seed ?? idx * 0.7);
+          const span = 1.8;
+          const phase = (seed + t * 0.8) % span;
+          p.position.y = 0.8 + (phase < 0 ? phase + span : phase);
         });
       } else if (protoplastMesh) {
         const sucrose = curParams.sucroseConcMolar ?? 0.3;
         const shrinkage = Math.max(0.55, 1.0 - sucrose * 0.45);
         protoplastMesh.scale.set(shrinkage, shrinkage, shrinkage);
 
-        particles.forEach((p) => {
-          p.position.x += p.userData.speedX;
-          p.position.z += p.userData.speedZ;
-          if (Math.abs(p.position.x) > 2.0) p.userData.speedX *= -1;
-          if (Math.abs(p.position.z) > 2.0) p.userData.speedZ *= -1;
+        particles.forEach((p, idx) => {
+          const seed = Number(p.userData.seed ?? idx * 0.9);
+          p.position.x = Math.sin(t * 0.7 + seed) * 1.6;
+          p.position.z = Math.cos(t * 0.65 + seed * 1.3) * 1.6;
         });
       }
 
@@ -1047,6 +1106,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         );
       }
 
+      teacherCollabBridge.tick();
       controls.update();
 
       const syncBioLabelsNow = () => {
@@ -1197,6 +1257,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       controls.dispose();
 
+      teacherCollabBridge.dispose();
       if (cursorManagerRef.current) {
         cursorManagerRef.current.dispose();
       }
@@ -1213,6 +1274,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       chloroBump?.dispose();
       protoMembraneTex?.dispose();
       protoBump?.dispose();
+      controls.removeEventListener('change', handleControlsChange);
+      cameraSyncHandleRef.current = null;
       renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
       renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
 
@@ -1256,10 +1319,15 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       <AnatomySubScene3D
         mode={mode as AnatomyModuleId}
         params={params}
+        isPlaying={isPlaying}
+        simTime={simTime}
+        simTimeRef={simTimeRef}
         remoteCursors={remoteCursors}
         onEmitCursor={onEmitCursor}
         onCaptureSnapshot={onCaptureSnapshot}
         comfortTheme={comfortTheme}
+        cameraSyncPose={cameraSyncPose}
+        onCameraSyncChange={onCameraSyncChange}
       />
     );
   }
@@ -1369,6 +1437,13 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         </div>
       )}
 
+      {snapToast && (
+        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-emerald-950/95 border border-emerald-400/50 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-emerald-200">
+          <span className="h-2 w-2 rounded-full bg-emerald-400" />
+          <span>{snapToast}</span>
+        </div>
+      )}
+
       {/* Unified Top-Right Camera & Fullscreen Pill */}
       {/* Consolidated Top-Right Capsule Bar: Snap-to-Port | 🥽 Mode VR | Presets (Iso | Depan | Atas | Fokus | ⛶) */}
       <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20 opacity-80 hover:opacity-100 transition-opacity">
@@ -1376,24 +1451,12 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           type="button"
           data-testid="snap-dock-apparatus-btn"
           onClick={() => {
-            labSound.playClick(760);
-            const allNodes = globalMultiApparatusEngine.getAllNodes();
-            if (allNodes.length < 2) {
-              globalMultiApparatusEngine.seedDefaultDomainNodes('Biologi');
-            }
-            const nodes = globalMultiApparatusEngine.getAllNodes();
-            if (nodes.length >= 2) {
-              const src = nodes[0];
-              const tgt = nodes[1];
-              const srcPort = src.ports[0];
-              const tgtPort = tgt.ports[0];
-              if (srcPort && tgtPort) {
-                globalMultiApparatusEngine.moveNodeAndEvaluateSnap(src.id, {
-                  [srcPort.id]: [tgtPort.position[0] - 0.18, tgtPort.position[1] + 0.08, tgtPort.position[2]],
-                });
-                globalMultiApparatusEngine.commitActiveSnapOnRelease();
-                globalMultiApparatusEngine.stepTransfer(1.5);
-              }
+            const { docked, transfer } = triggerDomainApparatusSnap('Biologi');
+            if (docked) {
+              setSnapToast(
+                `Port Docked (${docked.portType.toUpperCase()}): Φ = ${(transfer?.opticalIntensityMw ?? 0).toFixed(1)} mW`
+              );
+              setTimeout(() => setSnapToast(null), 2000);
             }
           }}
           title="Snap-to-Port: Sambung & Transfer Spesimen Biologi 3D"

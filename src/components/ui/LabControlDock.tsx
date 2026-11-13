@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Circle,
   X,
+  History,
 } from 'lucide-react';
 import { useLabStore } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
@@ -48,6 +49,13 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     toggleSimulation,
     triggerResetTrial,
     triggerCaptureSnapshot,
+    isTimeTraveling,
+    timelineCount,
+    timelineCursor,
+    timelineMinTime,
+    timelineMaxTime,
+    timelineCurrentTime,
+    seekTimelineCursor,
   } = useLabStore();
 
   const {
@@ -144,16 +152,57 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     return null;
   }
 
+  const safeTimelineMaxIdx = Math.max(0, timelineCount - 1);
+  const safeTimelineVal = Math.max(0, Math.min(safeTimelineMaxIdx, timelineCursor));
+
   return (
     <div
       role="toolbar"
       aria-label="Dock Kontrol Cepat RuangLABmu"
-      className={`fixed bottom-3 -translate-x-1/2 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-2xl lab-glass-panel shadow-2xl border border-slate-300/80 dark:border-slate-700/80 transition-all duration-200 select-none ${
+      className={`fixed bottom-3 -translate-x-1/2 z-40 flex flex-col items-stretch gap-1.5 px-2.5 py-1.5 rounded-2xl lab-glass-panel shadow-2xl border border-slate-300/80 dark:border-slate-700/80 transition-all duration-200 select-none ${
         zenMode
           ? 'left-1/2'
           : 'left-1/2 lg:left-[calc(50%-9rem)] xl:left-[calc(50%-11rem)]'
       }`}
     >
+      {/* Slim Time-Travel Scrubber Slider */}
+      {timelineCount > 1 && (
+        <div
+          data-testid="time-travel-scrubber-bar"
+          className={`flex items-center gap-2 px-2 py-1 rounded-xl border text-[10px] font-mono transition-colors ${
+            isTimeTraveling
+              ? 'bg-amber-500/15 border-amber-500/40 text-amber-800 dark:text-amber-200'
+              : 'bg-slate-200/50 dark:bg-slate-900/60 border-slate-300/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-300'
+          }`}
+        >
+          <span className="flex items-center gap-1 font-bold shrink-0">
+            <History className={`w-3 h-3 ${isTimeTraveling ? 'text-amber-500' : 'text-sky-500'}`} />
+            <span>{isTimeTraveling ? 'Time-Travel' : 'Linimasa'}</span>
+          </span>
+          <input
+            type="range"
+            data-testid="time-travel-scrubber"
+            aria-label="Time-Travel Scrubber Simulasi 3D"
+            min={0}
+            max={safeTimelineMaxIdx}
+            step={1}
+            value={safeTimelineVal}
+            onChange={(e) => {
+              seekTimelineCursor(Number(e.target.value));
+            }}
+            className="flex-1 min-w-[110px] sm:min-w-[170px] h-1.5 accent-amber-500 cursor-ew-resize"
+          />
+          <span className="tabular-nums font-bold shrink-0">
+            t={timelineCurrentTime.toFixed(2)}s
+            <span className="opacity-60 hidden sm:inline">
+              {' '}
+              ({timelineMinTime.toFixed(1)}–{timelineMaxTime.toFixed(1)}s)
+            </span>
+          </span>
+        </div>
+      )}
+
+      <div className="flex items-center gap-1">
       {/* 1. Play/Jeda */}
       <button
         type="button"
@@ -420,6 +469,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           </span>
         )}
       </button>
+      </div>
     </div>
   );
 };

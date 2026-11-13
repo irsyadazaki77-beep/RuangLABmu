@@ -230,3 +230,51 @@ test('BackendSync (Tahap 4): Exponential Backoff, Offline Outbox Queue, and Runt
   assert.equal(validParamMsg?.payload.value, 4.5);
 });
 
+test('FASE 4 CollabProtocol: Teacher 3D Laser Ray & Camera Sync validation', async () => {
+  const {
+    validateTeacherLaserRayPayload,
+    validateTeacherCameraSyncPayload,
+  } = await import('./collabProtocol');
+  const { isValidBackendWsMessage } = await import('../hooks/useBackendSync');
+
+  // Reject NaN/Infinity or missing fields
+  assert.equal(
+    validateTeacherLaserRayPayload({ active: true, point: [1, Number.NaN, 2] }),
+    null
+  );
+  assert.equal(
+    validateTeacherCameraSyncPayload({ enabled: true, position: [0, 2, 5], target: [0, 0] }),
+    null
+  );
+
+  // Accept valid payloads and normalize roomId/bounds
+  const laser = validateTeacherLaserRayPayload({
+    roomId: ' lab-99 ',
+    teacherName: 'Dr. Hendra Kusuma',
+    point: [1.5, 0.8, -0.4],
+    normal: [0, 1, 0],
+    hoveredObject: 'Buret Asam 50mL',
+    active: true,
+  });
+  assert.ok(laser !== null);
+  assert.equal(laser?.roomId, 'LAB-99');
+  assert.equal(laser?.hoveredObject, 'Buret Asam 50mL');
+  assert.equal(isValidBackendWsMessage({ type: 'TEACHER_LASER_RAY', payload: laser }), true);
+
+  const cam = validateTeacherCameraSyncPayload({
+    roomId: 'lab-99',
+    teacherName: 'Dr. Hendra Kusuma',
+    enabled: true,
+    position: [4.2, 3.1, 6.0],
+    target: [0, 0.5, 0],
+    seq: 7,
+  });
+  assert.ok(cam !== null);
+  assert.equal(cam?.seq, 7);
+  assert.equal(isValidBackendWsMessage({ type: 'TEACHER_CAMERA_SYNC', payload: cam }), true);
+  assert.equal(
+    isValidBackendWsMessage({ type: 'TEACHER_CAMERA_SYNC', payload: { enabled: true } }),
+    false
+  );
+});
+

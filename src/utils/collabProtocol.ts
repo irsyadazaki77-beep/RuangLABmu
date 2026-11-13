@@ -96,6 +96,88 @@ export interface LabRoom {
   customMission?: CustomAIMissionPayload | null;
 }
 
+export interface TeacherLaserRayPayload {
+  roomId: string;
+  teacherName: string;
+  point: [number, number, number];
+  normal?: [number, number, number];
+  hoveredObject?: string;
+  active: boolean;
+  updatedAt: number;
+}
+
+export interface TeacherCameraSyncPayload {
+  roomId: string;
+  teacherName: string;
+  enabled: boolean;
+  position: [number, number, number];
+  target: [number, number, number];
+  seq: number;
+  updatedAt: number;
+}
+
+export function isFiniteVec3(vec: unknown): vec is [number, number, number] {
+  return (
+    Array.isArray(vec) &&
+    vec.length === 3 &&
+    typeof vec[0] === 'number' &&
+    Number.isFinite(vec[0]) &&
+    typeof vec[1] === 'number' &&
+    Number.isFinite(vec[1]) &&
+    typeof vec[2] === 'number' &&
+    Number.isFinite(vec[2])
+  );
+}
+
+export function validateTeacherLaserRayPayload(raw: unknown): TeacherLaserRayPayload | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.active !== 'boolean') return null;
+  if (!isFiniteVec3(obj.point)) return null;
+  if (obj.normal !== undefined && !isFiniteVec3(obj.normal)) return null;
+  const roomId = typeof obj.roomId === 'string' && obj.roomId.trim() ? obj.roomId.trim().toUpperCase().slice(0, 32) : 'LAB-ALPHA';
+  const teacherName = typeof obj.teacherName === 'string' && obj.teacherName.trim() ? obj.teacherName.trim().slice(0, 64) : 'Pengajar';
+  return {
+    roomId,
+    teacherName,
+    point: [
+      Math.max(-500, Math.min(500, obj.point[0])),
+      Math.max(-500, Math.min(500, obj.point[1])),
+      Math.max(-500, Math.min(500, obj.point[2])),
+    ],
+    normal: obj.normal ? [obj.normal[0], obj.normal[1], obj.normal[2]] : undefined,
+    hoveredObject: typeof obj.hoveredObject === 'string' ? obj.hoveredObject.slice(0, 80) : undefined,
+    active: obj.active,
+    updatedAt: typeof obj.updatedAt === 'number' && Number.isFinite(obj.updatedAt) ? obj.updatedAt : Date.now(),
+  };
+}
+
+export function validateTeacherCameraSyncPayload(raw: unknown): TeacherCameraSyncPayload | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.enabled !== 'boolean') return null;
+  if (!isFiniteVec3(obj.position) || !isFiniteVec3(obj.target)) return null;
+  const roomId = typeof obj.roomId === 'string' && obj.roomId.trim() ? obj.roomId.trim().toUpperCase().slice(0, 32) : 'LAB-ALPHA';
+  const teacherName = typeof obj.teacherName === 'string' && obj.teacherName.trim() ? obj.teacherName.trim().slice(0, 64) : 'Pengajar';
+  return {
+    roomId,
+    teacherName,
+    enabled: obj.enabled,
+    position: [
+      Math.max(-500, Math.min(500, obj.position[0])),
+      Math.max(-500, Math.min(500, obj.position[1])),
+      Math.max(-500, Math.min(500, obj.position[2])),
+    ],
+    target: [
+      Math.max(-500, Math.min(500, obj.target[0])),
+      Math.max(-500, Math.min(500, obj.target[1])),
+      Math.max(-500, Math.min(500, obj.target[2])),
+    ],
+    seq: typeof obj.seq === 'number' && Number.isFinite(obj.seq) ? obj.seq : Date.now(),
+    updatedAt: typeof obj.updatedAt === 'number' && Number.isFinite(obj.updatedAt) ? obj.updatedAt : Date.now(),
+  };
+}
+
 export type CollabWSMessage =
   | { type: 'CURSOR_3D_MOVE'; payload: SpatialCursorPayload }
   | { type: 'CURSOR_3D_LEAVE'; payload: { userId: string; groupId: string } }
@@ -110,6 +192,8 @@ export type CollabWSMessage =
   | { type: 'ROOM_ERROR'; payload: { message: string; code: string } }
   | { type: 'ROOM_LEAVE'; payload: { roomId: string; userId: string } }
   | { type: 'TEACHER_FREEZE_TOGGLE'; payload: { roomId: string; isFrozen: boolean; teacherName: string } }
+  | { type: 'TEACHER_LASER_RAY'; payload: TeacherLaserRayPayload }
+  | { type: 'TEACHER_CAMERA_SYNC'; payload: TeacherCameraSyncPayload }
   | { type: 'STUDENT_TELEMETRY_SYNC'; payload: { roomId: string; studentName: string; userId: string; telemetry: StudentLiveTelemetry } }
   | { type: 'ROOM_STATE_SYNC'; payload: { room: LabRoom } }
   | { type: 'ROOM_SET_CUSTOM_MISSION'; payload: { roomId: string; customMission: CustomAIMissionPayload | null; teacherName?: string; teacherPin?: string } }

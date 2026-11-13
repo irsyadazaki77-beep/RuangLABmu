@@ -55,6 +55,17 @@ export interface LabState {
   isSubmissionLocked: boolean;
   dockedConnections: ApparatusDockingConnection[];
 
+  // Time-Travel Scrubber State
+  isTimeTraveling: boolean;
+  timelineCount: number;
+  timelineCursor: number;
+  timelineMinTime: number;
+  timelineMaxTime: number;
+  timelineCurrentTime: number;
+
+  // Dr. LabMu Hands-On Slider Highlight
+  highlightedParamKey: string | null;
+
   // Actions
   setActiveDomain: (domain: AnyLabDomain) => void;
   setActiveModule: (moduleId: string) => void;
@@ -72,8 +83,22 @@ export interface LabState {
   setSubmissionLocked: (locked: boolean) => void;
   recordApparatusDocking: (conn: ApparatusDockingConnection) => void;
   clearApparatusDockings: () => void;
+  setTimelineStatus: (status: {
+    timelineCount?: number;
+    timelineCursor?: number;
+    timelineMinTime?: number;
+    timelineMaxTime?: number;
+    timelineCurrentTime?: number;
+    isTimeTraveling?: boolean;
+  }) => void;
+  setIsTimeTraveling: (isTimeTraveling: boolean) => void;
+  seekTimelineCursor: (cursorIndex: number) => void;
+  resetTimelineState: () => void;
+  highlightParamSlider: (paramKey: string, durationMs?: number) => void;
   getIndonesianDomain: () => IndonesianDomain;
 }
+
+let highlightParamTimer: ReturnType<typeof setTimeout> | null = null;
 
 const initialUrlParams =
   typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -93,14 +118,37 @@ export const useLabStore = create<LabState>((set, get) => ({
   isLobbyMode: !isAutoStart,
   isSubmissionLocked: false,
   dockedConnections: [],
+  isTimeTraveling: false,
+  timelineCount: 0,
+  timelineCursor: 0,
+  timelineMinTime: 0,
+  timelineMaxTime: 0,
+  timelineCurrentTime: 0,
+  highlightedParamKey: null,
 
   setActiveDomain: (domain: AnyLabDomain) => {
     const canonical = DOMAIN_TO_EN[domain] || 'physics';
-    set({ activeDomain: canonical });
+    set({
+      activeDomain: canonical,
+      isTimeTraveling: false,
+      timelineCount: 0,
+      timelineCursor: 0,
+      timelineMinTime: 0,
+      timelineMaxTime: 0,
+      timelineCurrentTime: 0,
+    });
   },
 
   setActiveModule: (moduleId: string) => {
-    set({ activeModuleId: moduleId });
+    set({
+      activeModuleId: moduleId,
+      isTimeTraveling: false,
+      timelineCount: 0,
+      timelineCursor: 0,
+      timelineMinTime: 0,
+      timelineMaxTime: 0,
+      timelineCurrentTime: 0,
+    });
   },
 
   setIsSimulating: (isSimulating) => {
@@ -112,13 +160,31 @@ export const useLabStore = create<LabState>((set, get) => ({
   },
 
   toggleSimulation: () => {
-    const next = !get().isSimulating;
+    const state = get();
+    const next = !state.isSimulating;
+    if (next && state.isTimeTraveling) {
+      set({ isSimulating: true, isTimeTraveling: false });
+      emitLabEvent(LAB_EVENTS.RESUME_FROM_TIMELINE, {
+        cursorIndex: state.timelineCursor,
+        simTime: state.timelineCurrentTime,
+      });
+      emitLabEvent(LAB_EVENTS.TOGGLE_SIMULATION, { isSimulating: true });
+      return;
+    }
     set({ isSimulating: next });
     emitLabEvent(LAB_EVENTS.TOGGLE_SIMULATION, { isSimulating: next });
   },
 
   triggerResetTrial: () => {
-    set({ isSimulating: false });
+    set({
+      isSimulating: false,
+      isTimeTraveling: false,
+      timelineCount: 0,
+      timelineCursor: 0,
+      timelineMinTime: 0,
+      timelineMaxTime: 0,
+      timelineCurrentTime: 0,
+    });
     emitLabEvent(LAB_EVENTS.RESET_TRIAL, { timestamp: Date.now() });
   },
 
@@ -175,6 +241,51 @@ export const useLabStore = create<LabState>((set, get) => ({
 
   clearApparatusDockings: () => {
     set({ dockedConnections: [] });
+  },
+
+  setTimelineStatus: (status) => {
+    set((state) => ({ ...state, ...status }));
+  },
+
+  setIsTimeTraveling: (isTimeTraveling: boolean) => {
+    set({ isTimeTraveling });
+  },
+
+  seekTimelineCursor: (cursorIndex: number) => {
+    const count = get().timelineCount;
+    const clamped = Math.max(0, Math.min(Math.max(0, count - 1), Math.floor(cursorIndex)));
+    set({
+      isSimulating: false,
+      isTimeTraveling: true,
+      timelineCursor: clamped,
+    });
+    emitLabEvent(LAB_EVENTS.SEEK_TIMELINE, { cursorIndex: clamped });
+  },
+
+  resetTimelineState: () => {
+    set({
+      isTimeTraveling: false,
+      timelineCount: 0,
+      timelineCursor: 0,
+      timelineMinTime: 0,
+      timelineMaxTime: 0,
+      timelineCurrentTime: 0,
+    });
+  },
+
+  highlightParamSlider: (paramKey: string, durationMs = 3000) => {
+    if (highlightParamTimer) {
+      clearTimeout(highlightParamTimer);
+      highlightParamTimer = null;
+    }
+    set({ highlightedParamKey: paramKey });
+    const clampedMs = Math.max(500, Math.min(8000, durationMs));
+    highlightParamTimer = setTimeout(() => {
+      if (get().highlightedParamKey === paramKey) {
+        set({ highlightedParamKey: null });
+      }
+      highlightParamTimer = null;
+    }, clampedMs);
   },
 
   getIndonesianDomain: () => {

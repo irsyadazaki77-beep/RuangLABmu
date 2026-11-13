@@ -8,6 +8,8 @@ import {
   ParameterLockPayload,
   SpatialCursorPayload,
   generateRandomRoomId,
+  validateTeacherCameraSyncPayload,
+  validateTeacherLaserRayPayload,
 } from '../../src/utils/collabProtocol';
 import type {
   CollabNote,
@@ -354,6 +356,62 @@ export function createCollabSocketServer(
               },
             });
             broadcastRoom(targetRoomId, { type: 'ROOM_STATE_SYNC', payload: { room } });
+          }
+        } else if (msg.type === 'TEACHER_LASER_RAY' && msg.payload) {
+          const targetRoomId = (msg.payload.roomId || ws.roomId || 'LAB-ALPHA')
+            .toString()
+            .toUpperCase()
+            .trim();
+          const room = activeLabRooms.get(targetRoomId);
+          const authCheck = verifyTeacherAuthorization({
+            socketId: ws.socketId,
+            claimedRole: 'Pengajar',
+            providedPin: msg.payload.teacherPin || msg.payload.pin,
+            roomPin: room?.pin,
+            roomTeacherSocketId: room?.teacherSocketId,
+            isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
+          });
+          if (!authCheck.authorized) {
+            return;
+          }
+          const validated = validateTeacherLaserRayPayload({
+            ...msg.payload,
+            roomId: targetRoomId,
+            teacherName: msg.payload.teacherName || ws.userName || room?.teacherName || 'Pengajar',
+          });
+          if (!validated) return;
+          if (room) {
+            broadcastRoom(targetRoomId, { type: 'TEACHER_LASER_RAY', payload: validated }, ws);
+          } else {
+            broadcastGroup(ws.groupId, { type: 'TEACHER_LASER_RAY', payload: validated }, ws, ws.roomId);
+          }
+        } else if (msg.type === 'TEACHER_CAMERA_SYNC' && msg.payload) {
+          const targetRoomId = (msg.payload.roomId || ws.roomId || 'LAB-ALPHA')
+            .toString()
+            .toUpperCase()
+            .trim();
+          const room = activeLabRooms.get(targetRoomId);
+          const authCheck = verifyTeacherAuthorization({
+            socketId: ws.socketId,
+            claimedRole: 'Pengajar',
+            providedPin: msg.payload.teacherPin || msg.payload.pin,
+            roomPin: room?.pin,
+            roomTeacherSocketId: room?.teacherSocketId,
+            isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
+          });
+          if (!authCheck.authorized) {
+            return;
+          }
+          const validated = validateTeacherCameraSyncPayload({
+            ...msg.payload,
+            roomId: targetRoomId,
+            teacherName: msg.payload.teacherName || ws.userName || room?.teacherName || 'Pengajar',
+          });
+          if (!validated) return;
+          if (room) {
+            broadcastRoom(targetRoomId, { type: 'TEACHER_CAMERA_SYNC', payload: validated }, ws);
+          } else {
+            broadcastGroup(ws.groupId, { type: 'TEACHER_CAMERA_SYNC', payload: validated }, ws, ws.roomId);
           }
         } else if (msg.type === 'ROOM_SET_CUSTOM_MISSION' && msg.payload) {
           const { roomId, customMission, teacherName } = msg.payload;

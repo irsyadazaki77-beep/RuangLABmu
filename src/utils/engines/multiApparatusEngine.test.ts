@@ -3,12 +3,19 @@ import assert from 'node:assert/strict';
 import {
   MultiApparatusEngine,
   computePortDistance3D,
+  triggerDomainApparatusSnap,
 } from './multiApparatusEngine';
 import {
   evaluateAdaptiveScaffolding,
   resolveScaffoldingTier,
   adaptiveScaffoldingEngine,
 } from './adaptiveScaffoldingEngine';
+import { evaluateSafetyHazard } from './statisticsAndRegression';
+import {
+  computeSnapPitchHz,
+  computeHazardAlarmProfile,
+  shouldTriggerCooldownAudio,
+} from '../soundEngine';
 import { useLabStore } from '../../stores/useLabStore';
 
 describe('Fase 2: MultiApparatusEngine & AdaptiveScaffoldingEngine', () => {
@@ -190,5 +197,134 @@ describe('Fase 2: MultiApparatusEngine & AdaptiveScaffoldingEngine', () => {
     assert.strictEqual(safetyHint?.condition, 'safety_violation');
     assert.strictEqual(safetyHint?.tier, 3);
     assert.strictEqual(resolveScaffoldingTier('erratic_outliers', 3), 3);
+  });
+
+  it('FASE 5: triggerDomainApparatusSnap docks domain-specific ports and transfers fluid/electric/optical energy', () => {
+    const engine = new MultiApparatusEngine(0.5);
+
+    const chemSnap = triggerDomainApparatusSnap('Kimia', engine);
+    assert.ok(chemSnap.docked);
+    assert.strictEqual(chemSnap.docked?.portType, 'fluid');
+    assert.ok((chemSnap.transfer?.fluidTransferredMl ?? 0) > 0);
+
+    const physSnap = triggerDomainApparatusSnap('Fisika', engine);
+    assert.ok(physSnap.docked);
+    assert.strictEqual(physSnap.docked?.portType, 'electric');
+    assert.strictEqual(physSnap.transfer?.electricCurrentAmp, 2);
+
+    const bioSnap = triggerDomainApparatusSnap('Biologi', engine);
+    assert.ok(bioSnap.docked);
+    assert.strictEqual(bioSnap.docked?.portType, 'optical');
+    assert.ok((bioSnap.transfer?.opticalIntensityMw ?? 0) > 0);
+
+    assert.ok(useLabStore.getState().dockedConnections.length >= 3);
+  });
+
+  it('FASE 5: evaluateSafetyHazard detects K3 thermal runaway, overpressure, corrosive overflow, and mechanical overload while keeping defaults safe', () => {
+    const safeChem = evaluateSafetyHazard('Kimia', undefined, {
+      mode: 'acid-base-titration',
+      reactionId: 'neutralization-hcl-naoh',
+      initialTempC: 25,
+      reactantConcentration: 0.5,
+      solutionVolumeMl: 100,
+      pressureAtm: 1,
+      useCatalyst: false,
+      stirringRpm: 200,
+      analyteAcidConc: 0.1,
+      analyteVolumeMl: 25,
+      titrantBaseConc: 0.1,
+      titrantAddedMl: 25,
+      acidPka: 1,
+      indicatorType: 'fenolftalein',
+      redoxPairId: 'zn-cu',
+      anodeConcM: 1,
+      cathodeConcM: 1,
+    });
+    assert.strictEqual(safeChem.isHazardous, false);
+
+    const thermalRunaway = evaluateSafetyHazard('Kimia', undefined, {
+      mode: 'reaction-kinetics-arrhenius',
+      reactionId: 'neutralization-hcl-naoh',
+      initialTempC: 25,
+      kineticsTempC: 92,
+      kineticsConcA: 2.0,
+      reactantConcentration: 1.0,
+      solutionVolumeMl: 100,
+      pressureAtm: 1,
+      useCatalyst: false,
+      stirringRpm: 200,
+      analyteAcidConc: 0.1,
+      analyteVolumeMl: 25,
+      titrantBaseConc: 0.1,
+      titrantAddedMl: 0,
+      acidPka: 1,
+      indicatorType: 'fenolftalein',
+      redoxPairId: 'zn-cu',
+      anodeConcM: 1,
+      cathodeConcM: 1,
+    });
+    assert.strictEqual(thermalRunaway.isHazardous, true);
+    assert.strictEqual(thermalRunaway.hazardCode, 'CHEM_THERMAL_RUNAWAY');
+    assert.strictEqual(thermalRunaway.severity, 'critical');
+
+    const overflow = evaluateSafetyHazard('Kimia', undefined, {
+      mode: 'acid-base-titration',
+      reactionId: 'neutralization-hcl-naoh',
+      initialTempC: 25,
+      reactantConcentration: 0.5,
+      solutionVolumeMl: 100,
+      pressureAtm: 1,
+      useCatalyst: false,
+      stirringRpm: 200,
+      analyteAcidConc: 1.9,
+      analyteVolumeMl: 25,
+      titrantBaseConc: 1.8,
+      titrantAddedMl: 49,
+      acidPka: 1,
+      indicatorType: 'fenolftalein',
+      redoxPairId: 'zn-cu',
+      anodeConcM: 1,
+      cathodeConcM: 1,
+    });
+    assert.strictEqual(overflow.isHazardous, true);
+    assert.strictEqual(overflow.hazardCode, 'CHEM_CORROSIVE_OVERFLOW');
+
+    const pendulumHazard = evaluateSafetyHazard('Fisika', {
+      mode: 'pendulum-harmonic',
+      mass: 5,
+      appliedForce: 0,
+      frictionCoeffStatic: 0.2,
+      frictionCoeffKinetic: 0.1,
+      inclineAngle: 0,
+      gravity: 9.8,
+      initialVelocity: 0,
+      launchAngle: 45,
+      initialHeight: 0,
+      secondaryMass: 5,
+      separationDistance: 5,
+      collisionMass2: 5,
+      velocity2Initial: 0,
+      dampingCoeff: 0.1,
+      springConstantK: 50,
+      springDisplacement: 0.5,
+      pendulumLength: 1.2,
+      pendulumAngle: 85,
+      restitutionCoeff: 1,
+    });
+    assert.strictEqual(pendulumHazard.isHazardous, true);
+    assert.strictEqual(pendulumHazard.hazardCode, 'PHYS_PENDULUM_EXTREME_ANGLE');
+  });
+
+  it('FASE 5: pure soundEngine helpers compute distinct snap pitches and enforce alarm cooldowns', () => {
+    const fluidPitch = computeSnapPitchHz('fluid');
+    const electricPitch = computeSnapPitchHz('electric');
+    const opticalPitch = computeSnapPitchHz('optical');
+    assert.notStrictEqual(fluidPitch.accentHz, electricPitch.accentHz);
+    assert.notStrictEqual(electricPitch.accentHz, opticalPitch.accentHz);
+
+    const alarm = computeHazardAlarmProfile();
+    assert.ok(alarm.primaryHz > alarm.secondaryHz);
+    assert.strictEqual(shouldTriggerCooldownAudio(2000, 1000, alarm.cooldownMs), false);
+    assert.strictEqual(shouldTriggerCooldownAudio(2600, 1000, alarm.cooldownMs), true);
   });
 });

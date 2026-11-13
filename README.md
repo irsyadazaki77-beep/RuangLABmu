@@ -29,6 +29,23 @@ mulai-lab-sekolah.bat
 ./mulai-lab-sekolah.sh
 ```
 
+### 📦 Cara Menjalankan Versi Portabel (Untuk Guru Daerah 3T Tanpa Install Node.js)
+
+Bagi sekolah yang komputernya **sama sekali belum terpasang Node.js, NPM, maupun Git**, tersedia bundel **Portable Executable Mandiri**:
+
+1. **Membangun Paket Portabel (Oleh Tim IT / Developer)**:
+   ```bash
+   npm run build:portable
+   # Atau cross-compile khusus Windows (.exe):
+   npx tsx scripts/build-portable.ts --target=win
+   ```
+   Perintah ini otomatis mengompilasi aset 3D frontend (`release/dist/`) dan membungkus `server.ts` menjadi satu file executable mandiri di folder `release/` (misal `release/RuangLABmu-Sekolah-win.exe` atau `release/RuangLABmu-Sekolah-linux`).
+2. **Distribusi via Flashdisk ke Sekolah 3T**:
+   Salin seluruh isi folder `release/` ke komputer laboratorium atau laptop Guru.
+3. **Jalankan dengan Klik 2x (Zero-Install)**:
+   - Guru cukup **klik 2x** pada file `RuangLABmu-Sekolah-win.exe` (Windows) atau `./RuangLABmu-Sekolah-linux` (Linux).
+   - Server otomatis mendeteksi folder `dist/` di sebelahnya, mencari port kosong (`3000`/`3001`/dst.), mencetak **Alamat IP Hotspot Wi-Fi lokal Guru beserta QR Code** langsung di layar terminal, dan otomatis membuka browser ke `http://localhost:3000`.
+
 ### Apa yang Dilakukan Skrip Ini Secara Otomatis?
 1. **Pengecekan Otomatis**: Memastikan dependensi dan berkas build `dist/` sudah siap. Jika belum, skrip otomatis melakukan build pertama kali.
 2. **Jaringan Hotspot Lokal (Zero Data / Tanpa Kuota)**: Laptop guru cukup menyalakan *Mobile Hotspot* (tethering Wi-Fi tanpa kuota). Skrip mendeteksi dan menampilkan alamat IP lokal guru (misal: `http://192.168.137.1:3000`) di layar terminal.

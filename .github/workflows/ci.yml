@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -43,3 +44,35 @@ jobs:
 
       - name: Build Production Client & Server Bundles
         run: npm run build
+
+  e2e-smoke:
+    name: Playwright E2E Smoke Suite (Headless Chromium & WebSocket)
+    needs: validate-and-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright Chromium Browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Production Bundles
+        run: npm run build
+
+      - name: Run Playwright E2E Smoke Tests
+        run: npm run test:e2e

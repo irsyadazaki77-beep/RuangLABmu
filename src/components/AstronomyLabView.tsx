@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import {
   Camera,
 } from 'lucide-react';
@@ -37,6 +37,8 @@ import {
   getAstronomyParameterFeedback,
   normalizeEducationLevel,
 } from '../utils/pedagogicalHelpers';
+import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
+import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
 
 export interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -100,21 +102,101 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   snapshotCount = 0,
 }) => {
   const storeAcademicLevel = useLabStore((s) => s.academicLevel);
+  const playbackSpeed = useLabStore((s) => s.playbackSpeed);
+  const isTimeTraveling = useLabStore((s) => s.isTimeTraveling);
   const effectiveEducationLevel = normalizeEducationLevel(
     academicLevel ?? storeAcademicLevel
   );
   const [activeCameraPreset, setActiveCameraPreset] = useState<string>('isometric');
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [focusedPlanetBadge, setFocusedPlanetBadge] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [simTime, setSimTime] = useState<number>(0);
+  const simTimeRef = useRef<number>(0);
+  const [isDualRealityMode, setIsDualRealityMode] = useState<boolean>(false);
+
+  const buildInitialRealityB = (base: AstronomyParams): AstronomyParams => {
+    switch (base.mode) {
+      case 'milkyway-galaxy':
+        return { ...base, darkMatterHaloFraction: 0 };
+      case 'stellar-exoplanet':
+        return { ...base, exoplanetRadiusEarth: Math.min(15, Number((base.exoplanetRadiusEarth * 2).toFixed(1))) };
+      case 'stellar-wien-spectrum':
+        return { ...base, starEffectiveTempK: Math.min(30000, base.starEffectiveTempK + 6000) };
+      case 'hubble-expansion':
+        return { ...base, galaxyDistanceMpc: Math.min(600, (base.galaxyDistanceMpc ?? 120) + 180) };
+      default:
+        return { ...base, customSemiMajorAxisAu: Math.min(30, Number((base.customSemiMajorAxisAu * 1.8).toFixed(1))) };
+    }
+  };
+
+  const [realityBParams, setRealityBParams] = useState<AstronomyParams>(() => buildInitialRealityB(params));
+  const prevAstroModeRef = useRef(params.mode);
+  useEffect(() => {
+    if (prevAstroModeRef.current !== params.mode) {
+      prevAstroModeRef.current = params.mode;
+      setRealityBParams(buildInitialRealityB(params));
+    }
+  }, [params]);
 
   const metrics = calculateAstronomyMetrics(params);
+  const metricsB = calculateAstronomyMetrics(realityBParams);
+
+  useTimelineRecorder<AstronomyParams, { orbitalPeriodYears: number; meanOrbitalVelocityKms: number }>({
+    domain: 'astronomy',
+    simTime,
+    simTimeRef,
+    isPlaying,
+    params,
+    stateSnapshot: {
+      orbitalPeriodYears: metrics.orbitalPeriodYears,
+      meanOrbitalVelocityKms: metrics.meanOrbitalVelocityKms,
+    },
+    onRestoreFrame: (frame) => {
+      setIsPlaying(false);
+      simTimeRef.current = frame.simTime;
+      setSimTime(frame.simTime);
+      onChangeParams(frame.parameters);
+    },
+  });
 
   useEffect(() => {
+    let animId = 0;
+    let lastStamp = performance.now();
+    const loop = (stamp: number) => {
+      const dt = Math.min((stamp - lastStamp) / 1000, 0.1);
+      lastStamp = stamp;
+      if (isPlaying && !isTimeTraveling) {
+        setSimTime((prev) => {
+          const next = prev + dt * playbackSpeed;
+          simTimeRef.current = next;
+          return next;
+        });
+      }
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, [isPlaying, isTimeTraveling, playbackSpeed]);
+
+  useEffect(() => {
+    const unsubToggle = subscribeLabEvent(LAB_EVENTS.TOGGLE_SIMULATION, (data: any) => {
+      setIsPlaying((prev) => (data?.isSimulating !== undefined ? data.isSimulating : !prev));
+    });
+    const unsubReset = subscribeLabEvent(LAB_EVENTS.RESET_TRIAL, () => {
+      setSimTime(0);
+      simTimeRef.current = 0;
+      setIsPlaying(false);
+    });
     const unsubCapture = subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, () => {
       setShutterFlash(true);
       setTimeout(() => setShutterFlash(false), 240);
     });
-    return () => unsubCapture();
+    return () => {
+      unsubToggle();
+      unsubReset();
+      unsubCapture();
+    };
   }, []);
 
   const handleParamPatch = (patch: Partial<AstronomyParams>) => {
@@ -228,6 +310,134 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
       zenMode={zenMode}
       activeCameraPreset={activeCameraPreset}
       onSelectCameraPreset={setActiveCameraPreset}
+      dualModeActive={isDualRealityMode}
+      onToggleDualMode={() => setIsDualRealityMode((prev) => !prev)}
+      dualViewport={
+        isDualRealityMode ? (() => {
+          const astroVar = (() => {
+            switch (params.mode) {
+              case 'milkyway-galaxy':
+                return {
+                  key: 'darkMatterHaloFraction' as const,
+                  label: 'Materi Gelap (B)',
+                  unit: '×',
+                  min: 0,
+                  max: 1.5,
+                  step: 0.1,
+                  valB: realityBParams.darkMatterHaloFraction,
+                  summaryA: `DM=${params.darkMatterHaloFraction}× · v=${metrics.observedDarkMatterVelocityKms}km/s`,
+                  summaryB: `DM=${realityBParams.darkMatterHaloFraction}× · v=${metricsB.observedDarkMatterVelocityKms}km/s`,
+                  delta: `Δv = ${(metricsB.observedDarkMatterVelocityKms - metrics.observedDarkMatterVelocityKms >= 0 ? '+' : '')}${(metricsB.observedDarkMatterVelocityKms - metrics.observedDarkMatterVelocityKms).toFixed(1)} km/s`,
+                };
+              case 'stellar-exoplanet':
+                return {
+                  key: 'exoplanetRadiusEarth' as const,
+                  label: 'Radius Rp (B)',
+                  unit: 'R⊕',
+                  min: 0.5,
+                  max: 15,
+                  step: 0.5,
+                  valB: realityBParams.exoplanetRadiusEarth,
+                  summaryA: `Rp=${params.exoplanetRadiusEarth}R⊕ · Depth=${metrics.transitDepthPct}%`,
+                  summaryB: `Rp=${realityBParams.exoplanetRadiusEarth}R⊕ · Depth=${metricsB.transitDepthPct}%`,
+                  delta: `ΔDepth = ${(metricsB.transitDepthPct - metrics.transitDepthPct >= 0 ? '+' : '')}${(metricsB.transitDepthPct - metrics.transitDepthPct).toFixed(2)}%`,
+                };
+              case 'stellar-wien-spectrum':
+                return {
+                  key: 'starEffectiveTempK' as const,
+                  label: 'Suhu T* (B)',
+                  unit: 'K',
+                  min: 2800,
+                  max: 30000,
+                  step: 200,
+                  valB: realityBParams.starEffectiveTempK,
+                  summaryA: `T*=${params.starEffectiveTempK}K · λmax=${metrics.wienPeakWavelengthNm ?? 502}nm`,
+                  summaryB: `T*=${realityBParams.starEffectiveTempK}K · λmax=${metricsB.wienPeakWavelengthNm ?? 502}nm`,
+                  delta: `Δλ = ${((metricsB.wienPeakWavelengthNm ?? 0) - (metrics.wienPeakWavelengthNm ?? 0) >= 0 ? '+' : '')}${((metricsB.wienPeakWavelengthNm ?? 0) - (metrics.wienPeakWavelengthNm ?? 0)).toFixed(0)} nm`,
+                };
+              case 'hubble-expansion':
+                return {
+                  key: 'galaxyDistanceMpc' as const,
+                  label: 'Jarak d (B)',
+                  unit: 'Mpc',
+                  min: 20,
+                  max: 600,
+                  step: 10,
+                  valB: realityBParams.galaxyDistanceMpc ?? 120,
+                  summaryA: `d=${params.galaxyDistanceMpc ?? 120}Mpc · v=${metrics.hubbleRecessionVelocityKmS ?? 8400}km/s`,
+                  summaryB: `d=${realityBParams.galaxyDistanceMpc ?? 120}Mpc · v=${metricsB.hubbleRecessionVelocityKmS ?? 8400}km/s`,
+                  delta: `Δv = ${((metricsB.hubbleRecessionVelocityKmS ?? 0) - (metrics.hubbleRecessionVelocityKmS ?? 0) >= 0 ? '+' : '')}${((metricsB.hubbleRecessionVelocityKmS ?? 0) - (metrics.hubbleRecessionVelocityKmS ?? 0)).toFixed(0)} km/s`,
+                };
+              default:
+                return {
+                  key: 'customSemiMajorAxisAu' as const,
+                  label: 'Semi-Mayor a (B)',
+                  unit: 'AU',
+                  min: 0.2,
+                  max: 30,
+                  step: 0.1,
+                  valB: realityBParams.customSemiMajorAxisAu,
+                  summaryA: `a=${params.customSemiMajorAxisAu}AU · T=${metrics.orbitalPeriodYears}thn`,
+                  summaryB: `a=${realityBParams.customSemiMajorAxisAu}AU · T=${metricsB.orbitalPeriodYears}thn`,
+                  delta: `ΔT = ${(metricsB.orbitalPeriodYears - metrics.orbitalPeriodYears >= 0 ? '+' : '')}${(metricsB.orbitalPeriodYears - metrics.orbitalPeriodYears).toFixed(2)} thn`,
+                };
+            }
+          })();
+
+          return (
+            <DualRealityLabViewport
+              domain="Astronomi"
+              moduleTitle={params.mode}
+              realityASummary={astroVar.summaryA}
+              realityBSummary={astroVar.summaryB}
+              deltaSummary={astroVar.delta}
+              onResetBToMatchA={() => setRealityBParams({ ...params })}
+              onClose={() => setIsDualRealityMode(false)}
+              realityBControls={
+                <div className="w-full flex items-center justify-between gap-3">
+                  <span className="font-semibold text-amber-300 shrink-0">
+                    {astroVar.label}:{' '}
+                    <strong className="font-mono">
+                      {astroVar.valB} {astroVar.unit}
+                    </strong>
+                  </span>
+                  <input
+                    type="range"
+                    aria-label={astroVar.label}
+                    min={astroVar.min}
+                    max={astroVar.max}
+                    step={astroVar.step}
+                    value={astroVar.valB}
+                    onChange={(e) => {
+                      const nextVal = Number(e.target.value);
+                      setRealityBParams((prev) => ({ ...prev, [astroVar.key]: nextVal }));
+                    }}
+                    className="flex-1 max-w-[220px] accent-amber-400 cursor-pointer"
+                  />
+                </div>
+              }
+              renderViewport={(side, syncProps) => (
+                <Suspense
+                  fallback={
+                    <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-sky-300">
+                      Menyiapkan Realitas {side}...
+                    </div>
+                  }
+                >
+                  <AstronomyScene3D
+                    params={side === 'A' ? params : realityBParams}
+                    metrics={side === 'A' ? metrics : metricsB}
+                    simTime={simTime}
+                    simTimeRef={simTimeRef}
+                    cameraSyncPose={syncProps.cameraSyncPose}
+                    onCameraSyncChange={syncProps.onCameraSyncChange}
+                  />
+                </Suspense>
+              )}
+            />
+          );
+        })() : undefined
+      }
       topOverlay={
         focusedPlanetBadge ? (
           <div className="px-3 py-1.5 rounded-xl bg-sky-950/80 backdrop-blur-md border border-sky-500/50 text-sky-200 text-xs font-mono font-bold shadow-lg flex items-center gap-2">
@@ -251,6 +461,8 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
             <AstronomyScene3D
               params={params}
               metrics={metrics}
+              simTime={simTime}
+              simTimeRef={simTimeRef}
               remoteCursors={remoteCursors}
               onEmitCursor={onEmitCursor}
               onUpdateParam={(key, val) => handleParamPatch({ [key]: val })}
@@ -452,6 +664,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               ) : params.mode === 'stellar-wien-spectrum' ? (
                 <>
                   <TactileParameterControl
+                    paramKey="starEffectiveTempK"
                     label="Suhu Efektif Bintang (T*)"
                     unit="K"
                     value={params.starEffectiveTempK}
@@ -465,6 +678,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     onChange={(v) => handleParamPatch({ starEffectiveTempK: v })}
                   />
                   <TactileParameterControl
+                    paramKey="starRadiusSolar"
                     label="Radius Bintang (R*)"
                     unit="R☉"
                     value={params.starRadiusSolar}
@@ -482,6 +696,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                 <>
                   <TactileParameterControl
                     id="astro-hubble-distance"
+                    paramKey="galaxyDistanceMpc"
                     label="Jarak Galaksi Jauh (d)"
                     unit="Mpc"
                     value={params.galaxyDistanceMpc ?? 120}
@@ -512,6 +727,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               ) : (
                 <>
                   <TactileParameterControl
+                    paramKey="customSemiMajorAxisAu"
                     label="Jarak Semi-Mayor (a)"
                     unit="AU"
                     value={params.customSemiMajorAxisAu}
@@ -527,6 +743,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
 
                   <TactileParameterControl
                     id="astro-eccentricity"
+                    paramKey="customEccentricity"
                     label="Eksentrisitas Orbit (e)"
                     unit=""
                     value={params.customEccentricity}
@@ -542,6 +759,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                   />
 
                   <TactileParameterControl
+                    paramKey="centralStarMassSolar"
                     label="Massa Bintang Pusat (M*)"
                     unit="M☉"
                     value={params.centralStarMassSolar}

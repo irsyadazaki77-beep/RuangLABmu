@@ -6,6 +6,11 @@ import {
   Users,
   Sparkles,
   Wifi,
+  Crosshair,
+  Video,
+  VideoOff,
+  FlaskConical,
+  LayoutDashboard,
 } from 'lucide-react';
 import {
   ScienceDomain,
@@ -245,6 +250,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     externalDrLabMuPrompt
   );
   const [pip3DMode, setPip3DMode] = useState<'pip' | 'split' | 'minimized'>('pip');
+  const [teacherViewMode, setTeacherViewMode] = useState<'dashboard' | 'lab3d'>('dashboard');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -252,7 +258,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
       window.dispatchEvent(new Event('resize'));
     }, 50);
     return () => clearTimeout(t);
-  }, [workflowStep, pip3DMode]);
+  }, [workflowStep, pip3DMode, teacherViewMode]);
 
   useEffect(() => {
     if (externalDrLabMuPrompt) {
@@ -269,6 +275,14 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     roomMembers,
     studentTelemetryMap,
     openRoomModal,
+    teacherLaserActive,
+    setTeacherLaserActive,
+    teacherCameraSyncEnabled,
+    setTeacherCameraSyncEnabled,
+    remoteTeacherLaser,
+    remoteTeacherCameraSync,
+    followTeacherCamera,
+    setFollowTeacherCamera,
   } = useCollabStore();
 
   const activeTierLabel: EducationTier =
@@ -410,7 +424,81 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              data-testid="teacher-view-mode-btn"
+              onClick={() => {
+                labSound.playClick(600);
+                if (isLobbyMode) setIsLobbyMode(false);
+                setTeacherViewMode((prev) => (prev === 'dashboard' ? 'lab3d' : 'dashboard'));
+              }}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
+                teacherViewMode === 'lab3d' && !isLobbyMode
+                  ? 'bg-sky-600 text-white border-sky-400 shadow-md'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              }`}
+              title="Beralih antara Dashboard Monitoring Kelas dan Ruang Lab 3D Demonstrasi Guru"
+            >
+              {teacherViewMode === 'lab3d' && !isLobbyMode ? (
+                <>
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>Dashboard Guru</span>
+                </>
+              ) : (
+                <>
+                  <FlaskConical className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Lab 3D Guru</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              data-testid="teacher-laser-toggle-btn"
+              onClick={() => {
+                const next = !teacherLaserActive;
+                labSound.playClick(next ? 740 : 480);
+                setTeacherLaserActive(next);
+                if (next) {
+                  if (isLobbyMode) setIsLobbyMode(false);
+                  setTeacherViewMode('lab3d');
+                }
+              }}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
+                teacherLaserActive
+                  ? 'bg-rose-600 text-white border-rose-400 ring-2 ring-rose-400/50 shadow-md'
+                  : 'bg-slate-800 hover:bg-slate-700 text-rose-300 border-slate-700'
+              }`}
+              title="Arahkan kursor pada objek 3D untuk memancarkan sinar Laser Pointer merah real-time ke seluruh layar murid"
+            >
+              <Crosshair className="w-3.5 h-3.5" />
+              <span>{teacherLaserActive ? '🔴 Laser Pointer Aktif' : '🔴 Laser Pointer 3D'}</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="teacher-camera-sync-toggle-btn"
+              onClick={() => {
+                const next = !teacherCameraSyncEnabled;
+                labSound.playClick(next ? 700 : 460);
+                setTeacherCameraSyncEnabled(next);
+                if (next) {
+                  if (isLobbyMode) setIsLobbyMode(false);
+                  setTeacherViewMode('lab3d');
+                }
+              }}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
+                teacherCameraSyncEnabled
+                  ? 'bg-indigo-600 text-white border-indigo-400 ring-2 ring-indigo-400/50 shadow-md'
+                  : 'bg-slate-800 hover:bg-slate-700 text-indigo-300 border-slate-700'
+              }`}
+              title="Sinkronkan sudut pandang kamera 3D murid mengikuti rotasi kamera Guru secara langsung"
+            >
+              {teacherCameraSyncEnabled ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
+              <span>{teacherCameraSyncEnabled ? '🎥 Kamera Tersinkron' : '🎥 Sinkronkan Kamera Murid'}</span>
+            </button>
+
             <button
               type="button"
               data-testid="teacher-bar-ai-mission-btn"
@@ -496,7 +584,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
 
       <Suspense fallback={<LabLoadingSkeleton />}>
         {/* VIEW 1: Teacher Dashboard */}
-        {userRole === 'pengajar' && !isLobbyMode && (
+        {userRole === 'pengajar' && teacherViewMode === 'dashboard' && !isLobbyMode && (
           <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
             <TeacherDashboardView
               students={students}
@@ -554,7 +642,12 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
               onSelectExperiment={(exp) => {
                 onSelectCatalogModule(exp);
                 setIsLobbyMode(false);
-                setWorkflowStep(1);
+                if (userRole === 'pengajar') {
+                  setTeacherViewMode('lab3d');
+                  setWorkflowStep(2);
+                } else {
+                  setWorkflowStep(1);
+                }
               }}
               onCreateRoom={onCreateRoom}
               onJoinRoom={onJoinRoom}
@@ -578,15 +671,55 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
           </div>
         )}
 
-        {/* VIEW 4, 5 & 6: Student Workflow Stages 2 (3D Cockpit), 3 (Grafik & LKS), and 4 (Laporan) with Persistent Live 3D / Mini-3D PiP / Split 45%-55% */}
-        {userRole === 'siswa' && !isLobbyMode && (workflowStep === 2 || workflowStep === 3 || workflowStep === 4) && (
+        {/* VIEW 4, 5 & 6: Student Workflow Stages 2 (3D Cockpit), 3 (Grafik & LKS), and 4 (Laporan) OR Teacher Live 3D Demo Cockpit */}
+        {!isLobbyMode &&
+          ((userRole === 'siswa' && (workflowStep === 2 || workflowStep === 3 || workflowStep === 4)) ||
+            (userRole === 'pengajar' && teacherViewMode === 'lab3d')) && (() => {
+          const isTeacherLabDemo = userRole === 'pengajar' && teacherViewMode === 'lab3d';
+          const effectiveStep = isTeacherLabDemo ? 2 : workflowStep;
+          return (
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden h-full w-full relative">
+            {/* Student Live Teacher Laser / Camera Follow Status Pill */}
+            {userRole === 'siswa' && (remoteTeacherCameraSync?.enabled || remoteTeacherLaser?.active) && (
+              <div
+                data-testid="student-follow-teacher-cam-pill"
+                className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/90 backdrop-blur-md border border-indigo-400/60 text-xs text-slate-100 shadow-xl"
+              >
+                {remoteTeacherLaser?.active && (
+                  <span className="inline-flex items-center gap-1.5 text-rose-300 font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                    <span>
+                      Laser {remoteTeacherLaser.teacherName}: {remoteTeacherLaser.hoveredObject || 'Aparatus 3D'}
+                    </span>
+                  </span>
+                )}
+                {remoteTeacherCameraSync?.enabled && (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 text-indigo-300 font-semibold">
+                      <Video className="w-3.5 h-3.5" />
+                      <span>
+                        {followTeacherCamera ? 'Mengikuti Kamera Guru' : 'Kamera Guru Aktif (Dijeda)'}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      data-testid="student-follow-teacher-cam-btn"
+                      onClick={() => setFollowTeacherCamera(!followTeacherCamera)}
+                      className="px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold cursor-pointer"
+                    >
+                      {followTeacherCamera ? 'Lepas' : 'Ikuti Guru'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Persistent 3D Viewport Container (Full Cockpit on Step 2, Split 45% or Floating Mini-3D PiP on Steps 3 & 4) */}
             <div
-              data-testid={workflowStep === 2 ? 'main-3d-cockpit' : 'mini-3d-pip-viewport'}
-              data-pip-mode={workflowStep === 2 ? 'full' : pip3DMode}
+              data-testid={effectiveStep === 2 ? 'main-3d-cockpit' : 'mini-3d-pip-viewport'}
+              data-pip-mode={effectiveStep === 2 ? 'full' : pip3DMode}
               className={
-                workflowStep === 2
+                effectiveStep === 2
                   ? 'flex-1 min-h-0 flex overflow-hidden relative w-full h-full'
                   : pip3DMode === 'split'
                   ? 'w-full lg:w-[45%] h-[300px] lg:h-full shrink-0 flex flex-col overflow-hidden relative border-b lg:border-b-0 lg:border-r border-[var(--comfort-border)] bg-slate-950'
@@ -596,7 +729,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
               }
             >
               {/* Mini-3D PiP / Split Control Header Bar when in Step 3 or Step 4 */}
-              {workflowStep !== 2 && (
+              {effectiveStep !== 2 && (
                 <div className="px-3 py-1.5 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between gap-2 text-[11px] text-slate-200 shrink-0 z-20">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
@@ -652,7 +785,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
               {/* 3D Scene Inner Viewport */}
               <div
                 className={
-                  workflowStep !== 2 && pip3DMode === 'minimized'
+                  effectiveStep !== 2 && pip3DMode === 'minimized'
                     ? 'hidden'
                     : 'flex-1 min-h-0 flex overflow-hidden relative w-full h-full'
                 }
@@ -684,7 +817,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
                     onSubmitMysteryExam={onSubmitMysteryExam}
                     hypothesisNote={currentModuleHypothesis}
                     onChangeHypothesisNote={onUpdateCurrentHypothesis}
-                    zenMode={workflowStep === 2 ? zenMode : true}
+                    zenMode={effectiveStep === 2 ? zenMode : true}
                     snapshotCount={capturedSnapshots.length}
                     onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
                       onCapture3DSnapshot('Fisika', dataUrl, modTitle, pSum, pMetric)
@@ -718,7 +851,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
                     onSubmitMysteryExam={onSubmitMysteryExam}
                     hypothesisNote={currentModuleHypothesis}
                     onChangeHypothesisNote={onUpdateCurrentHypothesis}
-                    zenMode={workflowStep === 2 ? zenMode : true}
+                    zenMode={effectiveStep === 2 ? zenMode : true}
                     snapshotCount={capturedSnapshots.length}
                     onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
                       onCapture3DSnapshot('Kimia', dataUrl, modTitle, pSum, pMetric)
@@ -755,7 +888,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
                     }}
                     hypothesisNote={currentModuleHypothesis}
                     onChangeHypothesisNote={onUpdateCurrentHypothesis}
-                    zenMode={workflowStep === 2 ? zenMode : true}
+                    zenMode={effectiveStep === 2 ? zenMode : true}
                     snapshotCount={capturedSnapshots.length}
                     onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
                       onCapture3DSnapshot('Biologi', dataUrl, modTitle, pSum, pMetric)
@@ -789,7 +922,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
                     onSubmitMysteryExam={onSubmitMysteryExam}
                     hypothesisNote={currentModuleHypothesis}
                     onChangeHypothesisNote={onUpdateCurrentHypothesis}
-                    zenMode={workflowStep === 2 ? zenMode : true}
+                    zenMode={effectiveStep === 2 ? zenMode : true}
                     snapshotCount={capturedSnapshots.length}
                     onCapture3DSnapshot={(dataUrl, modTitle, pSum, pMetric) =>
                       onCapture3DSnapshot('Astronomi', dataUrl, modTitle, pSum, pMetric)
@@ -802,7 +935,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
             </div>
 
             {/* VIEW 5: Student Workflow Stage 3 (Analytics, OLS Regression, LKS) */}
-            {workflowStep === 3 && (
+            {effectiveStep === 3 && (
               <div
                 className={`flex-1 overflow-y-auto px-4 py-6 ${
                   pip3DMode === 'split' ? 'lg:w-[55%]' : 'max-w-[1380px] w-full mx-auto'
@@ -847,7 +980,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
             )}
 
             {/* VIEW 6: Student Workflow Stage 4 (Collaboration, Report & Group Tasks) */}
-            {workflowStep === 4 && (
+            {effectiveStep === 4 && (
               <div
                 className={`flex-1 overflow-y-auto px-4 py-6 ${
                   pip3DMode === 'split' ? 'lg:w-[55%]' : 'max-w-[1380px] w-full mx-auto'
@@ -890,11 +1023,12 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
             )}
 
             {/* Mobile Bottom Navigation Bar (<1024px) */}
-            {workflowStep === 2 && (
+            {effectiveStep === 2 && (
               <BottomNavigationBar recordsCount={records.length} hasLowR2Alert={hasLowR2Alert} />
             )}
           </div>
-        )}
+          );
+        })()}
       </Suspense>
 
       {/* Unified Floating Action Dock (Bottom-Center) */}

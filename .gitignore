@@ -10,6 +10,9 @@ coverage/
 .aistudio/
 .playwright-cli/
 dist-server/
+release/
+playwright-report/
+test-results/
 data/submissions.json
 data/*.tmp
 

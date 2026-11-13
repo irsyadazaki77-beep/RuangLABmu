@@ -17,18 +17,20 @@ import {
   createAdaptiveFpsMonitor,
   configureRendererForLiteMode,
   smoothCameraTransition,
+  type CameraSyncPose,
 } from '../utils/threeStudioKit';
 import {
   ChemistryParams,
   ChemistryMetrics,
   ThermoReactionPreset,
   RedoxCouplePreset,
+  evaluateSafetyHazard,
 } from '../utils/scienceEngine';
-import { SpatialCursorManager } from '../utils/spatialCursorGroup';
+import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2, Link2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
-import { globalMultiApparatusEngine } from '../utils/engines/multiApparatusEngine';
+import { triggerDomainApparatusSnap } from '../utils/engines/multiApparatusEngine';
 import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
@@ -47,6 +49,8 @@ interface ChemistryScene3DProps {
   redoxPreset: RedoxCouplePreset;
   reactionProgress: number;
   isReacting: boolean;
+  simTime?: number;
+  simTimeRef?: React.RefObject<number>;
   remoteCursors?: Record<string, SpatialCursorPayload>;
   onEmitCursor?: (
     pos: [number, number, number],
@@ -57,6 +61,8 @@ interface ChemistryScene3DProps {
   onCaptureSnapshot?: (dataUrl: string) => void;
   snapshotCount?: number;
   comfortTheme?: ComfortThemeMode;
+  cameraSyncPose?: CameraSyncPose | null;
+  onCameraSyncChange?: (pose: Omit<CameraSyncPose, 'seq'>) => void;
 }
 
 type CameraPreset = 'isometric' | 'front' | 'top' | 'closeup';
@@ -156,11 +162,15 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   redoxPreset,
   reactionProgress,
   isReacting,
+  simTime,
+  simTimeRef,
   remoteCursors,
   onEmitCursor,
   onUpdateParam,
   onCaptureSnapshot,
   comfortTheme,
+  cameraSyncPose,
+  onCameraSyncChange,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
   const showConceptLabels = useUIStore((s) => s.showConceptLabels);
@@ -190,6 +200,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     redoxPreset,
     reactionProgress,
     isReacting,
+    simTime,
+    simTimeRef,
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
@@ -202,6 +214,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     redoxPreset,
     reactionProgress,
     isReacting,
+    simTime,
+    simTimeRef,
     remoteCursors,
     onEmitCursor,
     onUpdateParam,
@@ -214,6 +228,17 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     captureCanvas: () => string | null;
     applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
   } | null>(null);
+
+  const onCameraSyncChangeRef = useRef(onCameraSyncChange);
+  onCameraSyncChangeRef.current = onCameraSyncChange;
+  const lastAppliedCamSeqRef = useRef<number>(-1);
+  const cameraSyncHandleRef = useRef<{ applyPose: (pose: CameraSyncPose) => void } | null>(null);
+
+  useEffect(() => {
+    if (!cameraSyncPose || cameraSyncPose.seq === lastAppliedCamSeqRef.current) return;
+    lastAppliedCamSeqRef.current = cameraSyncPose.seq;
+    cameraSyncHandleRef.current?.applyPose(cameraSyncPose);
+  }, [cameraSyncPose]);
 
   useEffect(() => {
     cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Kimia'));
@@ -325,6 +350,26 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const desiredCamPos = new THREE.Vector3(4.2, 5.8, 10.5);
     const desiredTarget = new THREE.Vector3(0, 1.4, 0);
 
+    let isApplyingExternalCam = false;
+    cameraSyncHandleRef.current = {
+      applyPose: (pose) => {
+        isApplyingExternalCam = true;
+        camTransitionActive = false;
+        camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
+        controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
+        controls.update();
+        isApplyingExternalCam = false;
+      },
+    };
+    const handleControlsChange = () => {
+      if (isApplyingExternalCam || !onCameraSyncChangeRef.current) return;
+      onCameraSyncChangeRef.current({
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        target: [controls.target.x, controls.target.y, controls.target.z],
+      });
+    };
+    controls.addEventListener('change', handleControlsChange);
+
     controls.addEventListener('start', () => {
       camTransitionActive = false;
     });
@@ -345,6 +390,15 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       }
       camTransitionActive = true;
     };
+
+    const unsubAiAction = subscribeLabEvent(LAB_EVENTS.AI_UI_ACTION, (action) => {
+      if (!action) return;
+      if (action.type === 'FOCUS_CAMERA' && action.target === 'burette_tip') {
+        desiredTarget.set(0, 1.85, 0);
+        desiredCamPos.set(1.35, 2.25, 2.45);
+        camTransitionActive = true;
+      }
+    });
 
     // Lighting with Soft Contact Shadows (2048x2048, bias -0.0001)
     const hemiLight = new THREE.HemisphereLight(
@@ -459,6 +513,12 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       });
 
     const cursorManager = new SpatialCursorManager(scene);
+    const teacherCollabBridge = attachTeacherCollabBridge({
+      scene,
+      camera,
+      controls,
+      domElement: renderer.domElement,
+    });
 
     // Track dynamic liquid shader materials for wobble updates
     const liquidShaderMaterials: THREE.ShaderMaterial[] = [];
@@ -1090,6 +1150,53 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     scene.add(gasBubblePoints);
 
     // =========================================================
+    // 8. K3 SAFETY HAZARD 3D VAPOR, WARNING RING & BEACON LIGHT
+    // =========================================================
+    const hazardGroup = new THREE.Group();
+    hazardGroup.visible = false;
+    scene.add(hazardGroup);
+
+    const hazardLight = new THREE.PointLight(0xf43f5e, 0, 14);
+    hazardLight.position.set(0, 3.8, 1.8);
+    hazardGroup.add(hazardLight);
+
+    const chemHazardRingGeo = new THREE.TorusGeometry(2.1, 0.045, 12, 48);
+    const chemHazardRingMat = new THREE.MeshBasicMaterial({
+      color: 0xf43f5e,
+      transparent: true,
+      opacity: 0.82,
+    });
+    const chemHazardRing = new THREE.Mesh(chemHazardRingGeo, chemHazardRingMat);
+    chemHazardRing.rotation.x = Math.PI / 2;
+    chemHazardRing.position.set(0, 0.3, 0);
+    hazardGroup.add(chemHazardRing);
+
+    const overpressureHaloGeo = new THREE.TorusGeometry(1.42, 0.036, 12, 36);
+    const overpressureHaloMat = new THREE.MeshBasicMaterial({
+      color: 0xfb923c,
+      transparent: true,
+      opacity: 0.72,
+    });
+    const overpressureHalo = new THREE.Mesh(overpressureHaloGeo, overpressureHaloMat);
+    overpressureHalo.rotation.x = Math.PI / 2;
+    overpressureHalo.position.set(0, 2.0, 0);
+    hazardGroup.add(overpressureHalo);
+
+    const CHEM_VAPOR_COUNT = 18;
+    const chemVaporMeshes: THREE.Mesh[] = [];
+    const chemVaporGeo = new THREE.SphereGeometry(0.2, 10, 10);
+    for (let i = 0; i < CHEM_VAPOR_COUNT; i++) {
+      const vMat = new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? 0xef4444 : 0xf97316,
+        transparent: true,
+        opacity: 0.42,
+      });
+      const vMesh = new THREE.Mesh(chemVaporGeo, vMat);
+      hazardGroup.add(vMesh);
+      chemVaporMeshes.push(vMesh);
+    }
+
+    // =========================================================
     // DIRECT 3D MESH DRAGGING (RAYCASTER GIZMOS)
     // =========================================================
     let isDragging = false;
@@ -1189,6 +1296,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     };
 
     let lastRenderTimestamp = 0;
+    let prevSimTime = -1;
+    let lastDropImpactCycle = -1;
 
     const tick = (timestamp?: number) => {
       if (disposed) return;
@@ -1210,7 +1319,15 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       const dt = Math.min((nowMs - lastTimeMs) / 1000, 0.05);
       lastTimeMs = nowMs;
       const elapsed = (nowMs - startTimeMs) / 1000;
-      const { params: p, metrics: m, isReacting: reacting } = latestRef.current;
+      const { params: p, metrics: m, isReacting: reacting, simTime: propSimTime, simTimeRef: propSimTimeRef } = latestRef.current;
+      const t =
+        propSimTimeRef && typeof propSimTimeRef.current === 'number'
+          ? propSimTimeRef.current
+          : typeof propSimTime === 'number'
+          ? propSimTime
+          : elapsed;
+      const isSimTimeAdvancing = prevSimTime >= 0 && t > prevSimTime + 0.0005;
+      prevSimTime = t;
 
       const isRedox = p.mode === 'electrochemistry-cell' || (p.mode as string) === 'redox-electrochemistry';
       thermoGroup.visible = p.mode === 'thermo-calorimetry';
@@ -1219,6 +1336,33 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       gasGroup.visible = p.mode === 'ideal-gas-boyle';
       kineticsGroup.visible = p.mode === 'reaction-kinetics-arrhenius';
       spectroGroup.visible = p.mode === 'spectrophotometry-beer';
+
+      // K3 Safety Hazard 3D Visuals (Thermal Runaway / Overpressure / Corrosive Overflow)
+      const safetyAlert = evaluateSafetyHazard('Kimia', undefined, p);
+      hazardGroup.visible = safetyAlert.isHazardous;
+      if (safetyAlert.isHazardous) {
+        const nowSec = elapsed;
+        const [fx, fy, fz] = safetyAlert.hazardFocusPoint ?? [0, 1.5, 0];
+        hazardLight.intensity = isLite ? 0 : 2.8 + Math.sin(nowSec * 12) * 2.2;
+        const ringPulse = 1 + Math.sin(nowSec * 8) * 0.08;
+        chemHazardRing.scale.set(ringPulse, ringPulse, 1);
+        chemHazardRingMat.opacity = 0.52 + 0.32 * Math.abs(Math.sin(nowSec * 6));
+        overpressureHalo.visible = safetyAlert.hazardCode === 'CHEM_OVERPRESSURE_VESSEL';
+        if (overpressureHalo.visible) {
+          const opScale = 1 + Math.sin(nowSec * 10) * 0.1;
+          overpressureHalo.scale.set(opScale, opScale, 1);
+        }
+        chemVaporMeshes.forEach((vMesh, idx) => {
+          const cycle = (nowSec * 1.25 + idx * 0.19) % 1.0;
+          vMesh.position.set(
+            fx + Math.sin(nowSec * 2.1 + idx) * (0.35 + cycle * 0.9),
+            fy + cycle * 2.6,
+            fz + Math.cos(nowSec * 1.7 + idx) * (0.35 + cycle * 0.8)
+          );
+          vMesh.scale.setScalar(0.55 + cycle * 1.4);
+          (vMesh.material as THREE.MeshBasicMaterial).opacity = (1 - cycle) * 0.45;
+        });
+      }
 
       // Detect titrant addition for surface ripple wobble
       const curVb = p.titrantAddedMl ?? 0;
@@ -1231,7 +1375,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       const baseWobble = reacting ? 0.05 : 0.018;
       const totalWobble = baseWobble + wobbleBoost;
       for (const mat of liquidShaderMaterials) {
-        mat.uniforms.uTime.value = elapsed;
+        mat.uniforms.uTime.value = t;
         mat.uniforms.uWobbleAmp.value = totalWobble;
       }
 
@@ -1251,17 +1395,21 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         // Animate droplet falling from burette tip (y=1.92) to Erlenmeyer liquid surface (y=1.54)
         const dropRate = reacting || wobbleBoost > 0.01 ? 2.4 : vb > 0 ? 1.15 : 0;
         if (dropRate > 0 && vb < 50) {
-          const dropPhase = (elapsed * dropRate) % 1.0;
+          const dropPhase = (t * dropRate) % 1.0;
+          const dropCycle = Math.floor(t * dropRate);
           fallingDropMesh.visible = dropPhase < 0.72;
           if (fallingDropMesh.visible) {
             const fallProgress = dropPhase / 0.72;
             const dropY = 1.92 - fallProgress * fallProgress * 0.39;
             fallingDropMesh.position.set(0, dropY, 0);
+          } else if (isSimTimeAdvancing && reacting && lastDropImpactCycle !== dropCycle) {
+            lastDropImpactCycle = dropCycle;
+            labSound.playTitrationDrop(m.currentPh ?? 7.0);
           }
 
           // Ripple rings & radial color bloom triggered at droplet impact (phase >= 0.72 or continuous wave)
-          const ripplePhase1 = ((elapsed * dropRate - 0.72 + 1.0) % 1.0);
-          const ripplePhase2 = ((elapsed * dropRate - 0.32 + 1.0) % 1.0);
+          const ripplePhase1 = ((t * dropRate - 0.72 + 1.0) % 1.0);
+          const ripplePhase2 = ((t * dropRate - 0.32 + 1.0) % 1.0);
           rippleRing1.visible = true;
           rippleRing1.scale.setScalar(0.35 + ripplePhase1 * 5.8);
           rippleRingMat1.opacity = Math.max(0, (1 - ripplePhase1) * 0.68);
@@ -1320,13 +1468,17 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
       // 3. Reaction Kinetics update
       else if (p.mode === 'reaction-kinetics-arrhenius') {
-        stirBar.rotation.y += reacting ? 0.35 : 0.08;
+        const rpmSpeed = ((p.stirringRpm ?? 240) / 60) * (reacting ? 4.2 : 1.6);
+        stirBar.rotation.y = t * Math.max(1.2, rpmSpeed);
         const tempC = p.kineticsTempC ?? 25;
         const eaFraction = Math.min(1, Math.max(0, tempC / 70));
         kLiquidMat.uniforms.uOpacity.value = 0.55 + eaFraction * 0.4;
         hotplateCeramicTopMat.emissiveIntensity = Math.min(0.6, 0.15 + eaFraction * 0.45);
         heaterRingMat.emissiveIntensity = Math.min(0.6, 0.25 + eaFraction * 0.35);
         heaterLight.intensity = Math.min(0.8, 0.3 + eaFraction * 0.5);
+        if (isSimTimeAdvancing && tempC >= 60) {
+          labSound.playThermalBubbling((tempC - 55) / 45);
+        }
       }
 
       // 4. Spectrophotometry update
@@ -1352,10 +1504,6 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         const activeBubbles = isLite ? Math.floor(BUBBLE_COUNT / 2) : BUBBLE_COUNT;
         bubbleGeo.setDrawRange(0, activeBubbles);
         for (let i = 0; i < activeBubbles; i++) {
-          let bx = bPos.getX(i);
-          let by = bPos.getY(i) + bubbleSpeeds[i] * dt * rateMultiplier;
-          let bz = bPos.getZ(i);
-
           let minY = 0.4;
           let maxY = 1.65;
           let centerX = 0;
@@ -1378,15 +1526,13 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
             maxY = 1.82;
           }
 
-          if (by > maxY || by < minY) {
-            by = minY + Math.random() * 0.15;
-            const angle = bubbleSeeds[i] + elapsed;
-            const rad = Math.random() * 0.55;
-            bx = centerX + Math.cos(angle) * rad;
-            bz = Math.sin(angle) * rad;
-          } else {
-            bx += Math.sin(elapsed * 3.5 + bubbleSeeds[i]) * 0.003;
-          }
+          const spanY = Math.max(0.2, maxY - minY);
+          const phase = (bubbleSeeds[i] * 0.37 + t * bubbleSpeeds[i] * rateMultiplier) % spanY;
+          const by = minY + (phase < 0 ? phase + spanY : phase);
+          const angle = bubbleSeeds[i] * 2.1;
+          const rad = 0.1 + ((bubbleSeeds[i] * 13.7) % 0.45);
+          const bx = centerX + Math.cos(angle) * rad + Math.sin(t * 3.5 + bubbleSeeds[i]) * 0.04;
+          const bz = Math.sin(angle) * rad;
 
           bPos.setXYZ(i, bx, by, bz);
         }
@@ -1408,6 +1554,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         );
       }
 
+      teacherCollabBridge.tick();
       controls.update();
 
       const showLabels = showConceptLabelsRef.current;
@@ -1605,6 +1752,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
     return () => {
       disposed = true;
+      unsubAiAction();
       unsubLite();
       cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
@@ -1615,7 +1763,10 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
       renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
       renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
+      teacherCollabBridge.dispose();
       cursorManager.dispose();
+      controls.removeEventListener('change', handleControlsChange);
+      cameraSyncHandleRef.current = null;
       controls.dispose();
 
       // Dispose Post-Processing Pipeline, Studio Workbench & Textures
@@ -1694,24 +1845,13 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           type="button"
           data-testid="snap-dock-apparatus-btn"
           onClick={() => {
-            labSound.playClick(760);
-            const allNodes = globalMultiApparatusEngine.getAllNodes();
-            if (allNodes.length < 2) {
-              globalMultiApparatusEngine.seedDefaultDomainNodes('Kimia');
-            }
-            const nodes = globalMultiApparatusEngine.getAllNodes();
-            if (nodes.length >= 2) {
-              const src = nodes[0];
-              const tgt = nodes[1];
-              const srcPort = src.ports[0];
-              const tgtPort = tgt.ports[0];
-              if (srcPort && tgtPort) {
-                globalMultiApparatusEngine.moveNodeAndEvaluateSnap(src.id, {
-                  [srcPort.id]: [tgtPort.position[0] - 0.18, tgtPort.position[1] + 0.08, tgtPort.position[2]],
-                });
-                globalMultiApparatusEngine.commitActiveSnapOnRelease();
-                globalMultiApparatusEngine.stepTransfer(1.5);
-              }
+            const { docked, transfer } = triggerDomainApparatusSnap('Kimia');
+            if (docked) {
+              setDragToast({
+                label: `Port Docked (${docked.portType.toUpperCase()})`,
+                value: `ΔV = +${(transfer?.fluidTransferredMl ?? 0).toFixed(1)} mL`,
+              });
+              setTimeout(() => setDragToast(null), 1800);
             }
           }}
           title="Snap-to-Port: Sambung & Transfer Reagen Kimia 3D"

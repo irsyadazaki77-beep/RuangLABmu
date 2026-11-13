@@ -41,6 +41,8 @@ import {
   getPhysicsParameterFeedback,
   normalizeEducationLevel,
 } from '../utils/pedagogicalHelpers';
+import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
+import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
 
 export interface PhysicsLabViewProps {
   params: PhysicsParams;
@@ -115,8 +117,43 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   const [showVectorOverlay, setShowVectorOverlay] = useState<boolean>(true);
   const [hazardModalDismissed, setHazardModalDismissed] = useState<boolean>(false);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
+  const [isDualRealityMode, setIsDualRealityMode] = useState<boolean>(false);
 
-  const { playbackSpeed, academicLevel: storeAcademicLevel } = useLabStore();
+  const buildInitialRealityB = (base: PhysicsParams): PhysicsParams => {
+    switch (base.mode) {
+      case 'pendulum-harmonic':
+        return { ...base, pendulumLength: Math.min(2.5, Number(((base.pendulumLength ?? 1.2) + 0.6).toFixed(1))) };
+      case 'spring-hooke':
+        return { ...base, springConstantK: Math.min(400, Math.round((base.springConstantK || 120) * 1.8)) };
+      case 'projectile-gravity':
+        return { ...base, initialVelocity: Math.min(50, Math.round((base.initialVelocity || 22) + 10)) };
+      case 'collision-momentum':
+        return { ...base, restitutionCoeff: base.restitutionCoeff > 0.5 ? 0.2 : 0.95 };
+      case 'stokes-viscosity':
+        return { ...base, fluidViscosity: Math.min(2.0, Number(((base.fluidViscosity ?? 0.8) + 0.7).toFixed(2))) };
+      case 'ohm-wheatstone':
+        return { ...base, resistorRx: Math.min(500, (base.resistorRx ?? 100) + 120) };
+      case 'optics-young-slit':
+        return { ...base, lightWavelength: base.lightWavelength && base.lightWavelength > 580 ? 450 : 650 };
+      case 'photoelectric-planck':
+        return { ...base, lightWavelength: 260 };
+      case 'orbital-gravity':
+        return { ...base, separationDistance: Math.max(2, Number((base.separationDistance * 0.65).toFixed(1))) };
+      default:
+        return { ...base, mass: Math.min(30, Number((base.mass * 2).toFixed(1))) };
+    }
+  };
+
+  const [realityBParams, setRealityBParams] = useState<PhysicsParams>(() => buildInitialRealityB(params));
+  const prevPhysicsModeRef = useRef(params.mode);
+  useEffect(() => {
+    if (prevPhysicsModeRef.current !== params.mode) {
+      prevPhysicsModeRef.current = params.mode;
+      setRealityBParams(buildInitialRealityB(params));
+    }
+  }, [params]);
+
+  const { playbackSpeed, academicLevel: storeAcademicLevel, isTimeTraveling } = useLabStore();
   const effectiveEducationLevel = normalizeEducationLevel(
     academicLevel ?? storeAcademicLevel
   );
@@ -127,6 +164,33 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   const metrics = calculatePhysicsMetrics(params);
   const instant = evaluateKinematicsAtTime(params, simTime);
   const safetyHazard = evaluateSafetyHazard('Fisika', params);
+  const prevHazardRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (safetyHazard.isHazardous && !prevHazardRef.current) {
+      labSound.playHazardAlarm();
+    }
+    prevHazardRef.current = safetyHazard.isHazardous;
+  }, [safetyHazard.isHazardous]);
+  const metricsB = calculatePhysicsMetrics(realityBParams);
+  const instantB = evaluateKinematicsAtTime(realityBParams, simTime);
+
+  useTimelineRecorder<PhysicsParams, { speed: number; acceleration: number }>({
+    domain: 'physics',
+    simTime,
+    simTimeRef,
+    isPlaying,
+    params,
+    stateSnapshot: {
+      speed: instant.speed,
+      acceleration: metrics.acceleration,
+    },
+    onRestoreFrame: (frame) => {
+      setIsPlaying(false);
+      simTimeRef.current = frame.simTime;
+      setSimTime(frame.simTime);
+      onChangeParams(frame.parameters);
+    },
+  });
 
   useEffect(() => {
     let animId = 0;
@@ -136,7 +200,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       const dt = Math.min((stamp - lastStamp) / 1000, 0.1);
       lastStamp = stamp;
 
-      if (isPlaying) {
+      if (isPlaying && !isTimeTraveling) {
         setSimTime((prev) => {
           const next = prev + dt * playbackSpeed;
           simTimeRef.current = next;
@@ -148,7 +212,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
-  }, [isPlaying, playbackSpeed]);
+  }, [isPlaying, isTimeTraveling, playbackSpeed]);
 
   const simWorkerRef = useRef(simWorker);
   simWorkerRef.current = simWorker;
@@ -341,6 +405,128 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       zenMode={zenMode}
       activeCameraPreset={activeCameraPreset}
       onSelectCameraPreset={setActiveCameraPreset}
+      dualModeActive={isDualRealityMode}
+      onToggleDualMode={() => setIsDualRealityMode((prev) => !prev)}
+      dualViewport={
+        isDualRealityMode ? (() => {
+          const primaryVar = (() => {
+            switch (params.mode) {
+              case 'pendulum-harmonic':
+                return {
+                  key: 'pendulumLength' as const,
+                  label: 'Panjang Tali L (B)',
+                  unit: 'm',
+                  min: 0.3,
+                  max: 2.5,
+                  step: 0.1,
+                  valA: params.pendulumLength ?? 1.2,
+                  valB: realityBParams.pendulumLength ?? 1.8,
+                  summaryA: `L=${(params.pendulumLength ?? 1.2).toFixed(1)}m · T=${(metrics.pendulumPeriod ?? 2.2).toFixed(2)}s`,
+                  summaryB: `L=${(realityBParams.pendulumLength ?? 1.8).toFixed(1)}m · T=${(metricsB.pendulumPeriod ?? 2.7).toFixed(2)}s`,
+                  delta: `ΔT = ${((metricsB.pendulumPeriod ?? 0) - (metrics.pendulumPeriod ?? 0) >= 0 ? '+' : '')}${((metricsB.pendulumPeriod ?? 0) - (metrics.pendulumPeriod ?? 0)).toFixed(2)} s`,
+                };
+              case 'spring-hooke':
+                return {
+                  key: 'springConstantK' as const,
+                  label: 'Konstanta k (B)',
+                  unit: 'N/m',
+                  min: 10,
+                  max: 400,
+                  step: 5,
+                  valA: params.springConstantK,
+                  valB: realityBParams.springConstantK,
+                  summaryA: `k=${params.springConstantK}N/m · T=${metrics.oscillationPeriod}s`,
+                  summaryB: `k=${realityBParams.springConstantK}N/m · T=${metricsB.oscillationPeriod}s`,
+                  delta: `ΔT = ${(metricsB.oscillationPeriod - metrics.oscillationPeriod >= 0 ? '+' : '')}${(metricsB.oscillationPeriod - metrics.oscillationPeriod).toFixed(2)} s`,
+                };
+              case 'projectile-gravity':
+                return {
+                  key: 'initialVelocity' as const,
+                  label: 'v₀ Peluncur (B)',
+                  unit: 'm/s',
+                  min: 5,
+                  max: 50,
+                  step: 1,
+                  valA: params.initialVelocity,
+                  valB: realityBParams.initialVelocity,
+                  summaryA: `v₀=${params.initialVelocity}m/s · R=${metrics.projectileRange}m`,
+                  summaryB: `v₀=${realityBParams.initialVelocity}m/s · R=${metricsB.projectileRange}m`,
+                  delta: `ΔR = ${(metricsB.projectileRange - metrics.projectileRange >= 0 ? '+' : '')}${(metricsB.projectileRange - metrics.projectileRange).toFixed(1)} m`,
+                };
+              default:
+                return {
+                  key: 'mass' as const,
+                  label: 'Massa m (B)',
+                  unit: 'kg',
+                  min: 0.5,
+                  max: 30,
+                  step: 0.5,
+                  valA: params.mass,
+                  valB: realityBParams.mass,
+                  summaryA: `m=${params.mass}kg · a=${metrics.acceleration}m/s²`,
+                  summaryB: `m=${realityBParams.mass}kg · a=${metricsB.acceleration}m/s²`,
+                  delta: `Δa = ${(metricsB.acceleration - metrics.acceleration >= 0 ? '+' : '')}${(metricsB.acceleration - metrics.acceleration).toFixed(2)} m/s²`,
+                };
+            }
+          })();
+
+          return (
+            <DualRealityLabViewport
+              domain="Fisika"
+              moduleTitle={params.mode}
+              realityASummary={primaryVar.summaryA}
+              realityBSummary={primaryVar.summaryB}
+              deltaSummary={primaryVar.delta}
+              onResetBToMatchA={() => setRealityBParams({ ...params })}
+              onClose={() => setIsDualRealityMode(false)}
+              realityBControls={
+                <div className="w-full flex items-center justify-between gap-3">
+                  <span className="font-semibold text-amber-300 shrink-0">
+                    {primaryVar.label}:{' '}
+                    <strong className="font-mono">
+                      {primaryVar.valB} {primaryVar.unit}
+                    </strong>
+                  </span>
+                  <input
+                    type="range"
+                    aria-label={primaryVar.label}
+                    min={primaryVar.min}
+                    max={primaryVar.max}
+                    step={primaryVar.step}
+                    value={primaryVar.valB}
+                    onChange={(e) => {
+                      const nextVal = Number(e.target.value);
+                      setRealityBParams((prev) => ({ ...prev, [primaryVar.key]: nextVal }));
+                    }}
+                    className="flex-1 max-w-[220px] accent-amber-400 cursor-pointer"
+                  />
+                </div>
+              }
+              renderViewport={(side, syncProps) => (
+                <Suspense
+                  fallback={
+                    <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-sky-300">
+                      Menyiapkan Realitas {side}...
+                    </div>
+                  }
+                >
+                  <PhysicsScene3D
+                    params={side === 'A' ? params : realityBParams}
+                    metrics={side === 'A' ? metrics : metricsB}
+                    instant={side === 'A' ? instant : instantB}
+                    simTime={simTime}
+                    simTimeRef={simTimeRef}
+                    showVectorOverlay={showVectorOverlay}
+                    simFrame={side === 'A' ? simWorker.currentFrame : undefined}
+                    cameraSyncPose={syncProps.cameraSyncPose}
+                    onCameraSyncChange={syncProps.onCameraSyncChange}
+                  />
+                </Suspense>
+              )}
+            />
+          );
+        })() : undefined
+      }
       topOverlay={
         <button
           type="button"
@@ -397,15 +583,31 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
         safetyHazard.isHazardous && !hazardModalDismissed ? (
           <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
             <div className="max-w-lg w-full rounded-2xl bg-slate-900 border-2 border-rose-500/80 shadow-2xl p-6 space-y-4">
-              <span className="inline-block px-2.5 py-0.5 rounded-md bg-rose-500/20 text-[11px] font-mono font-bold text-rose-300">
-                PERINGATAN K3 — FISIKA
-              </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-block px-2.5 py-0.5 rounded-md bg-rose-500/20 text-[11px] font-mono font-bold text-rose-300">
+                  PERINGATAN K3 — FISIKA
+                </span>
+                {safetyHazard.triggerParamSummary && (
+                  <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-amber-300 border border-amber-500/30">
+                    {safetyHazard.triggerParamSummary}
+                  </span>
+                )}
+              </div>
               <h3 className="text-base font-extrabold text-white">{safetyHazard.title}</h3>
-              <p className="text-xs text-slate-300">{safetyHazard.scientificExplanation}</p>
+              <p className="text-xs leading-relaxed text-slate-300">{safetyHazard.scientificExplanation}</p>
+              {safetyHazard.mitigationInstruction && (
+                <div className="rounded-xl bg-emerald-950/50 border border-emerald-500/40 p-3 text-xs text-emerald-200">
+                  <span className="font-bold text-emerald-300 block mb-0.5">Prosedur Mitigasi K3:</span>
+                  {safetyHazard.mitigationInstruction}
+                </div>
+              )}
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setHazardModalDismissed(true)}
+                  onClick={() => {
+                    labSound.playClick();
+                    setHazardModalDismissed(true);
+                  }}
                   className="px-3.5 py-2 rounded-xl bg-slate-800 text-xs font-semibold text-slate-300 cursor-pointer"
                 >
                   Saya Paham
@@ -413,6 +615,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    labSound.playRecordSuccess();
                     handleParamUpdate({ mass: 10, appliedForce: 50, pendulumAngle: 30, springDisplacement: 0.8 });
                     setHazardModalDismissed(false);
                   }}
@@ -492,6 +695,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               {params.mode === 'projectile-gravity' ? (
                 <>
                   <TactileParameterControl
+                    paramKey="initialVelocity"
                     label="Kecepatan Awal (v₀)"
                     unit="m/s"
                     value={params.initialVelocity || 22}
@@ -503,6 +707,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     onChange={(v) => handleParamUpdate({ initialVelocity: v })}
                   />
                   <TactileParameterControl
+                    paramKey="launchAngle"
                     label="Sudut Peluncuran (θ)"
                     unit="°"
                     value={params.launchAngle}
@@ -514,6 +719,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     onChange={(v) => handleParamUpdate({ launchAngle: v })}
                   />
                   <TactileParameterControl
+                    paramKey="initialHeight"
                     label="Tinggi Awal Menara (h₀)"
                     unit="m"
                     value={params.initialHeight}
@@ -525,6 +731,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     onChange={(v) => handleParamUpdate({ initialHeight: v })}
                   />
                   <TactileParameterControl
+                    paramKey="mass"
                     label="Massa Proyektil (m)"
                     unit="kg"
                     value={params.mass}
@@ -539,6 +746,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               ) : params.mode === 'spring-hooke' ? (
                 <>
                   <TactileParameterControl
+                    paramKey="springConstantK"
                     label="Konstanta Pegas (k)"
                     unit="N/m"
                     value={params.springConstantK}
@@ -550,6 +758,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     onChange={(v) => handleParamUpdate({ springConstantK: v })}
                   />
                   <TactileParameterControl
+                    paramKey="springDisplacement"
                     label="Simpangan Tarik (Δx)"
                     unit="m"
                     value={params.springDisplacement}
@@ -561,6 +770,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     onChange={(v) => handleParamUpdate({ springDisplacement: v })}
                   />
                   <TactileParameterControl
+                    paramKey="mass"
                     label="Massa Beban (m)"
                     unit="kg"
                     value={params.mass}
@@ -572,6 +782,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
                   <TactileParameterControl
+                    paramKey="dampingCoeff"
                     label="Koefisien Redaman (b)"
                     unit="Ns/m"
                     value={params.dampingCoeff}
@@ -587,6 +798,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                 <>
                   <TactileParameterControl
                     id="pendulum-length"
+                    paramKey="pendulumLength"
                     label="Panjang Tali Bandul (L)"
                     unit="m"
                     value={params.pendulumLength ?? 1.2}
@@ -599,6 +811,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                   />
                   <TactileParameterControl
                     id="pendulum-angle"
+                    paramKey="pendulumAngle"
                     label="Sudut Simpangan Awal (θ₀)"
                     unit="°"
                     value={params.pendulumAngle ?? 25}
@@ -610,6 +823,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     onChange={(v) => handleParamUpdate({ pendulumAngle: v })}
                   />
                   <TactileParameterControl
+                    paramKey="mass"
                     label="Massa Bandul (m)"
                     unit="kg"
                     value={params.mass}
@@ -852,6 +1066,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                 <>
                   <TactileParameterControl
                     id="incline-mass"
+                    paramKey="mass"
                     label="Massa Benda (m)"
                     unit="kg"
                     value={params.mass}
@@ -865,6 +1080,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
                   <TactileParameterControl
                     id="incline-applied-force"
+                    paramKey="appliedForce"
                     label="Gaya Dorong Luar (F)"
                     unit="N"
                     value={params.appliedForce}
@@ -878,6 +1094,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
                   <TactileParameterControl
                     id="incline-angle"
+                    paramKey="inclineAngle"
                     label="Sudut Kemiringan (θ)"
                     unit="°"
                     value={params.inclineAngle}
@@ -891,6 +1108,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
                   <TactileParameterControl
                     id="incline-friction"
+                    paramKey="frictionCoeffKinetic"
                     label="Koefisien Gesek Kinetis (μk)"
                     unit=""
                     value={params.frictionCoeffKinetic}

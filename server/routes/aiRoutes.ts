@@ -23,6 +23,10 @@ import {
   validateVisionDiagnosePayload,
   type ValidatedGenerateMissionPayload,
 } from '../utils/routePayloadValidators';
+import {
+  deriveContextualDrLabMuActions,
+  sanitizeDrLabMuUIActions,
+} from '../../src/utils/drLabMuActions';
 
 const DR_LABMU_SYSTEM_INSTRUCTION = `# ROLE & IDENTITAS
 Nama Anda adalah "Dr. LabMu", asisten mentor laboratorium sains virtual cerdas di platform RuangLABmu. Anda menguasai bidang Fisika, Kimia, Biologi, dan Astronomi untuk jenjang SMP, SMA, hingga Perguruan Tinggi.
@@ -45,7 +49,13 @@ Setiap percakapan akan menyertakan data telemetri lab dalam format JSON:
 # ATURAN PENANGANAN DATA & ANOMALI
 1. Anomali & Deviasi Data (R² < 0.85 atau Outlier Ekstrem):
    - Arahkan perhatian siswa ke baris percobaan yang menyimpang tanpa menyalahkan.
-2. Format Output:
+2. Hands-On 3D Action Calling (Opsional via \`uiActions\`):
+   - Jika relevan untuk mengarahkan fokus siswa di kanvas 3D atau panel parameter, sertakan array \`uiActions\` berisi 1-3 aksi:
+     * FOCUS_CAMERA: target salah satu dari 'left_ventricle' | 'burette_tip' | 'pendulum_bob' | 'planet_focus'
+     * TOGGLE_XRAY: enabled (boolean) untuk anatomi 3D
+     * HIGHLIGHT_SLIDER: paramKey (string nama variabel) & durationMs (3000)
+     * SET_SIMULATION_STATE: action ('play' | 'pause' | 'reset')
+3. Format Output:
   1. Observasi Singkat (1-2 kalimat)
   2. Insight / Analogi Konseptual (1-2 paragraf)
   3. Pertanyaan Pemantik (1 kalimat tanya)`;
@@ -300,6 +310,8 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
         return;
       }
 
+      const contextualActions = deriveContextualDrLabMuActions(telemetry);
+
       if (process.env.GEMINI_API_KEY) {
         try {
           const ai = new GoogleGenAI({
@@ -307,7 +319,7 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
             httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
           });
 
-          const prompt = `Data Telemetri Eksperimen Siswa (JSON):\n${JSON.stringify(telemetry, null, 2)}\n\nBerikan respons Dr. LabMu dalam 3 bagian: observasiSingkat, insightKonseptual, dan pertanyaanPemantik.`;
+          const prompt = `Data Telemetri Eksperimen Siswa (JSON):\n${JSON.stringify(telemetry, null, 2)}\n\nBerikan respons Dr. LabMu dalam 3 bagian: observasiSingkat, insightKonseptual, pertanyaanPemantik, serta opsional uiActions bila perlu menggerakkan kamera 3D / X-Ray / sorot slider.`;
 
           const response = await ai.models.generateContent({
             model: 'gemini-3.8-flash',
@@ -322,6 +334,21 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
                   insightKonseptual: { type: Type.STRING },
                   pertanyaanPemantik: { type: Type.STRING },
                   hasAnomaly: { type: Type.BOOLEAN },
+                  uiActions: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        type: { type: Type.STRING },
+                        target: { type: Type.STRING },
+                        enabled: { type: Type.BOOLEAN },
+                        paramKey: { type: Type.STRING },
+                        durationMs: { type: Type.NUMBER },
+                        action: { type: Type.STRING },
+                      },
+                      required: ['type'],
+                    },
+                  },
                 },
                 required: [
                   'observasiSingkat',
@@ -339,7 +366,7 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
             parsed.insightKonseptual &&
             parsed.pertanyaanPemantik
           ) {
-            res.json(formatDrLabMuAskPayload(parsed, 'gemini-api'));
+            res.json(formatDrLabMuAskPayload(parsed, 'gemini-api', contextualActions));
             return;
           }
         } catch {
@@ -348,7 +375,7 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
       }
 
       const fallbackResponse = generateSocraticDrLabMuResponse(telemetry);
-      res.json(formatDrLabMuAskPayload(fallbackResponse, 'socratic-engine'));
+      res.json(formatDrLabMuAskPayload(fallbackResponse, 'socratic-engine', contextualActions));
     } catch {
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -373,6 +400,14 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
           : '';
       const activeQuery = (message || telemetryQuery).trim();
 
+      const normalizedTelemetry = telemetry ? normalizeDrLabMuRequest({ telemetry }) : null;
+      const fallbackActions = normalizedTelemetry
+        ? deriveContextualDrLabMuActions({
+            ...normalizedTelemetry,
+            studentQuery: activeQuery,
+          })
+        : [];
+
       if (process.env.GEMINI_API_KEY && activeQuery) {
         try {
           const ai = new GoogleGenAI({
@@ -395,7 +430,11 @@ ${activeQuery.slice(0, 600)}
 
           const replyText = (response.text || '').trim();
           if (replyText) {
-            res.json({ reply: replyText, source: 'gemini-3.8-flash' });
+            res.json({
+              reply: replyText,
+              uiActions: sanitizeDrLabMuUIActions(fallbackActions),
+              source: 'gemini-3.8-flash',
+            });
             return;
           }
         } catch {
@@ -403,25 +442,27 @@ ${activeQuery.slice(0, 600)}
         }
       }
 
-      if (telemetry) {
-        const normalizedTelemetry = normalizeDrLabMuRequest({ telemetry });
-        if (normalizedTelemetry) {
-          const localStructured = generateSocraticDrLabMuResponse({
-            ...normalizedTelemetry,
-            studentQuery: activeQuery,
-          });
-          res.json({
-            reply: localStructured.formattedText,
-            structured: localStructured,
-            source: 'local-socratic',
-          });
-          return;
-        }
+      if (normalizedTelemetry) {
+        const localStructured = generateSocraticDrLabMuResponse({
+          ...normalizedTelemetry,
+          studentQuery: activeQuery,
+        });
+        res.json({
+          reply: localStructured.formattedText,
+          structured: {
+            ...localStructured,
+            uiActions: fallbackActions,
+          },
+          uiActions: fallbackActions,
+          source: 'local-socratic',
+        });
+        return;
       }
 
       res.json({
         reply:
           'Eksplorasi yang sangat baik di meja praktikum! Bagaimana korelasi variabel bebas dan terikat Anda teramati pada grafik?',
+        uiActions: [],
         source: 'local-socratic',
       });
     } catch {

@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { useLabStore, ApparatusDockingConnection } from '../../stores/useLabStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../labEventBus';
+import { labSound } from '../soundEngine';
 
 export type ApparatusNodeType = 'source' | 'modifier' | 'detector';
 export type ApparatusPortType = 'fluid' | 'electric' | 'optical';
@@ -87,9 +88,14 @@ export class MultiApparatusEngine {
   private nodes = new Map<string, ApparatusNode>();
   private snapTolerance: number;
   private activeSnapCandidate: SnapPreviewCandidate | null = null;
+  private seededDomain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | null = null;
 
   constructor(snapTolerance = DEFAULT_SNAP_TOLERANCE) {
     this.snapTolerance = snapTolerance;
+  }
+
+  public getSeededDomain(): 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | null {
+    return this.seededDomain;
   }
 
   public registerNode(node: ApparatusNode): ApparatusNode {
@@ -447,6 +453,7 @@ export class MultiApparatusEngine {
     domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' = 'Kimia'
   ): void {
     this.nodes.clear();
+    this.seededDomain = domain;
     if (domain === 'Kimia') {
       this.registerNode({
         id: 'buret-titran-3d',
@@ -526,8 +533,55 @@ export class MultiApparatusEngine {
 export const globalMultiApparatusEngine = new MultiApparatusEngine(DEFAULT_SNAP_TOLERANCE);
 globalMultiApparatusEngine.seedDefaultDomainNodes('Fisika');
 
+export interface DomainSnapResult {
+  docked: ApparatusDockingConnection | null;
+  transfer: TransferStepSummary | null;
+}
+
 /**
- * Mengintegrasikan visualisasi Snap-to-Port (cincin hijau menyala) dan
+ * Helper terpadu untuk menyambungkan (Snap-to-Port < 0.5 unit) aparatus utama pada domain aktif,
+ * menjalankan transfer zat/energi, dan memicu audio magnetik multi-sensori.
+ */
+export function triggerDomainApparatusSnap(
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi',
+  engine: MultiApparatusEngine = globalMultiApparatusEngine
+): DomainSnapResult {
+  if (engine.getAllNodes().length < 2 || engine.getSeededDomain() !== domain) {
+    engine.seedDefaultDomainNodes(domain);
+  }
+  const nodes = engine.getAllNodes();
+  if (nodes.length < 2) {
+    return { docked: null, transfer: null };
+  }
+  const src = nodes[0];
+  const tgt = nodes[1];
+  const srcPort = src.ports[0];
+  const tgtPort = tgt.ports[0];
+  if (!srcPort || !tgtPort) {
+    return { docked: null, transfer: null };
+  }
+
+  engine.moveNodeAndEvaluateSnap(src.id, {
+    [srcPort.id]: [
+      tgtPort.position[0] - 0.18,
+      tgtPort.position[1] + 0.08,
+      tgtPort.position[2],
+    ],
+  });
+  const docked = engine.commitActiveSnapOnRelease();
+  const transfer = engine.stepTransfer(1.5);
+
+  if (docked) {
+    labSound.playApparatusSnap(docked.portType);
+  } else {
+    labSound.playClick(760);
+  }
+
+  return { docked, transfer };
+}
+
+/**
+ * Mengintegrasikan visualisasi Snap-to-Port (cincin hijau menyala + gelombang kunci + konduit) dan
  * Level 3 Adaptive Scaffolding (Smooth Camera Lerp + Pulse Highlight) ke scene Three.js.
  */
 export function attachMultiApparatusAndScaffoldingVisuals(
@@ -555,6 +609,30 @@ export function attachMultiApparatusAndScaffoldingVisuals(
   const snapRingMesh = new THREE.Mesh(snapRingGeo, snapRingMat);
   snapRingMesh.visible = false;
   overlayGroup.add(snapRingMesh);
+
+  // 1b. Expanding Magnetic Lock Shockwave Ring + Port Conduit Glow Column
+  const lockPulseGeo = new THREE.RingGeometry(0.18, 0.28, 36);
+  const lockPulseMat = new THREE.MeshBasicMaterial({
+    color: 0x34d399,
+    transparent: true,
+    opacity: 0.0,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const lockPulseMesh = new THREE.Mesh(lockPulseGeo, lockPulseMat);
+  lockPulseMesh.visible = false;
+  overlayGroup.add(lockPulseMesh);
+
+  const conduitBeamGeo = new THREE.CylinderGeometry(0.032, 0.032, 0.65, 16);
+  const conduitBeamMat = new THREE.MeshBasicMaterial({
+    color: 0x10b981,
+    transparent: true,
+    opacity: 0.0,
+    depthWrite: false,
+  });
+  const conduitBeamMesh = new THREE.Mesh(conduitBeamGeo, conduitBeamMat);
+  conduitBeamMesh.visible = false;
+  overlayGroup.add(conduitBeamMesh);
 
   // 2. Level 3 Adaptive Scaffolding Focus Highlight Ring (`#f59e0b` / `#38bdf8`)
   const focusHaloGeo = new THREE.TorusGeometry(0.42, 0.032, 16, 40);
@@ -595,14 +673,34 @@ export function attachMultiApparatusAndScaffoldingVisuals(
     }
   );
 
-  // Subscribe to Apparatus Docked events to briefly show the green magnetic lock ring
+  // Subscribe to Apparatus Docked events to show green lock ring, shockwave & medium conduit
   let dockFlashTimer = 0;
   const unsubDocked = subscribeLabEvent(LAB_EVENTS.APPARATUS_DOCKED, (detail) => {
     if (!detail) return;
     const [sx, sy, sz] = detail.snappedPosition;
+    const mediumHex =
+      detail.portType === 'fluid'
+        ? 0x10b981
+        : detail.portType === 'electric'
+          ? 0x38bdf8
+          : 0xf59e0b;
+
+    snapRingMat.color.setHex(mediumHex);
+    snapRingMat.emissive.setHex(mediumHex);
     snapRingMesh.position.set(sx, sy, sz);
     snapRingMesh.visible = true;
-    dockFlashTimer = 2.2;
+
+    lockPulseMat.color.setHex(mediumHex);
+    lockPulseMesh.position.set(sx, sy, sz);
+    lockPulseMesh.scale.setScalar(1);
+    lockPulseMesh.visible = true;
+
+    conduitBeamMat.color.setHex(mediumHex);
+    conduitBeamMesh.position.set(sx, sy, sz);
+    conduitBeamMesh.rotation.z = detail.portType === 'fluid' ? 0 : Math.PI / 2;
+    conduitBeamMesh.visible = true;
+
+    dockFlashTimer = 2.4;
   });
 
   const updatePerFrame = (dt: number) => {
@@ -618,11 +716,24 @@ export function attachMultiApparatusAndScaffoldingVisuals(
     } else if (dockFlashTimer > 0) {
       dockFlashTimer = Math.max(0, dockFlashTimer - safeDt);
       snapRingMesh.rotation.z += safeDt * 2.5;
+      snapRingMesh.lookAt(camera.position);
+
+      const progress = 1 - dockFlashTimer / 2.4;
+      const pulsePhase = Math.min(1, progress * 1.8);
+      lockPulseMesh.lookAt(camera.position);
+      lockPulseMesh.scale.setScalar(1 + pulsePhase * 2.6);
+      lockPulseMat.opacity = Math.max(0, (1 - pulsePhase) * 0.85);
+      conduitBeamMat.opacity = Math.max(0, (1 - progress) * 0.65);
+
       if (dockFlashTimer <= 0) {
         snapRingMesh.visible = false;
+        lockPulseMesh.visible = false;
+        conduitBeamMesh.visible = false;
       }
     } else if (snapRingMesh.visible) {
       snapRingMesh.visible = false;
+      lockPulseMesh.visible = false;
+      conduitBeamMesh.visible = false;
     }
 
     // Smooth camera lerp & pulse highlight for Level 3 Adaptive Scaffolding
@@ -651,6 +762,10 @@ export function attachMultiApparatusAndScaffoldingVisuals(
     scene.remove(overlayGroup);
     snapRingGeo.dispose();
     snapRingMat.dispose();
+    lockPulseGeo.dispose();
+    lockPulseMat.dispose();
+    conduitBeamGeo.dispose();
+    conduitBeamMat.dispose();
     focusHaloGeo.dispose();
     focusHaloMat.dispose();
   };

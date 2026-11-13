@@ -27,6 +27,7 @@ import {
 } from '../utils/scienceEngine';
 import { labSound } from '../utils/soundEngine';
 import { useDrLabMuChat } from '../hooks/useDrLabMuChat';
+import { formatDrLabMuActionChipLabel } from '../utils/drLabMuActions';
 
 export type DrawerTabMode = 'dr-labmu' | 'notifications';
 
@@ -101,6 +102,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
     handleToggleVoiceInput,
     handleToggleSpeakAnswer,
     handleClearHistory,
+    handleTriggerUIAction,
   } = useDrLabMuChat({
     domain,
     academicLevel,
@@ -333,6 +335,22 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                       </span>
                       <p className="italic leading-relaxed">{turn.response.socraticQuestion}</p>
                     </div>
+                    {turn.response.uiActions && turn.response.uiActions.length > 0 && (
+                      <div className="pt-1 flex flex-wrap gap-1.5" data-testid="dr-labmu-action-chips">
+                        {turn.response.uiActions.map((act, idx) => (
+                          <button
+                            key={`${turn.id}-act-${idx}`}
+                            type="button"
+                            data-testid="dr-labmu-action-chip"
+                            onClick={() => handleTriggerUIAction(act)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold text-[11px] transition-colors cursor-pointer"
+                          >
+                            <Sparkles className="w-3 h-3 shrink-0" />
+                            <span>{formatDrLabMuActionChipLabel(act)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

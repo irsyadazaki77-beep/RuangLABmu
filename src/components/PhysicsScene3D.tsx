@@ -12,6 +12,7 @@ import {
   createAdaptiveFpsMonitor,
   configureRendererForLiteMode,
   smoothCameraTransition,
+  type CameraSyncPose,
 } from '../utils/threeStudioKit';
 import {
   PhysicsParams,
@@ -20,11 +21,11 @@ import {
   evaluateKinematicsAtTime,
 } from '../utils/scienceEngine';
 import { SimulationFrame } from '../utils/simulationBuffer';
-import { SpatialCursorManager } from '../utils/spatialCursorGroup';
+import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2, Link2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
-import { globalMultiApparatusEngine } from '../utils/engines/multiApparatusEngine';
+import { triggerDomainApparatusSnap } from '../utils/engines/multiApparatusEngine';
 import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
@@ -54,6 +55,8 @@ interface PhysicsScene3DProps {
   onCaptureSnapshot?: (dataUrl: string) => void;
   snapshotCount?: number;
   comfortTheme?: ComfortThemeMode;
+  cameraSyncPose?: CameraSyncPose | null;
+  onCameraSyncChange?: (pose: Omit<CameraSyncPose, 'seq'>) => void;
 }
 
 type CameraPreset = 'isometric' | 'front' | 'top' | 'focus';
@@ -242,6 +245,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   onUpdateParam,
   onCaptureSnapshot,
   comfortTheme,
+  cameraSyncPose,
+  onCameraSyncChange,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
   const showConceptLabels = useUIStore((s) => s.showConceptLabels);
@@ -299,6 +304,17 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     captureCanvas: () => string | null;
     applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
   } | null>(null);
+
+  const onCameraSyncChangeRef = useRef(onCameraSyncChange);
+  onCameraSyncChangeRef.current = onCameraSyncChange;
+  const lastAppliedCamSeqRef = useRef<number>(-1);
+  const cameraSyncHandleRef = useRef<{ applyPose: (pose: CameraSyncPose) => void } | null>(null);
+
+  useEffect(() => {
+    if (!cameraSyncPose || cameraSyncPose.seq === lastAppliedCamSeqRef.current) return;
+    lastAppliedCamSeqRef.current = cameraSyncPose.seq;
+    cameraSyncHandleRef.current?.applyPose(cameraSyncPose);
+  }, [cameraSyncPose]);
 
   useEffect(() => {
     cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Fisika'));
@@ -417,6 +433,26 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const desiredCamPos = new THREE.Vector3(4.8, 6.2, 12.8);
     const desiredTarget = new THREE.Vector3(0, 1.4, 0);
 
+    let isApplyingExternalCam = false;
+    cameraSyncHandleRef.current = {
+      applyPose: (pose) => {
+        isApplyingExternalCam = true;
+        camTransitionActive = false;
+        camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
+        controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
+        controls.update();
+        isApplyingExternalCam = false;
+      },
+    };
+    const handleControlsChange = () => {
+      if (isApplyingExternalCam || !onCameraSyncChangeRef.current) return;
+      onCameraSyncChangeRef.current({
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        target: [controls.target.x, controls.target.y, controls.target.z],
+      });
+    };
+    controls.addEventListener('change', handleControlsChange);
+
     controls.addEventListener('start', () => {
       camTransitionActive = false;
     });
@@ -437,6 +473,18 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       }
       camTransitionActive = true;
     };
+
+    const unsubAiAction = subscribeLabEvent(LAB_EVENTS.AI_UI_ACTION, (action) => {
+      if (!action) return;
+      if (action.type === 'FOCUS_CAMERA' && action.target === 'pendulum_bob') {
+        const targetPos = pendBobWorldPos.lengthSq() > 0.001
+          ? pendBobWorldPos
+          : new THREE.Vector3(0.6, 2.4, 0);
+        desiredTarget.copy(targetPos);
+        desiredCamPos.set(targetPos.x + 1.8, targetPos.y + 0.85, targetPos.z + 3.8);
+        camTransitionActive = true;
+      }
+    });
 
     // Studio 3-Point Lighting with Soft Contact Shadows (2048x2048, bias -0.0001)
     const hemiLight = new THREE.HemisphereLight(
@@ -501,6 +549,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     // Collaborative 3D Laser Pointer Manager
     const cursorManager = new SpatialCursorManager(scene);
+    const teacherCollabBridge = attachTeacherCollabBridge({
+      scene,
+      camera,
+      controls,
+      domElement: renderer.domElement,
+    });
 
     // Shared PBR Materials & Precision Textures
     const metalTex = createBrushedMetalTextures();
@@ -1455,6 +1509,17 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     hazardLight.position.set(0, 4.5, 2.0);
     hazardGroup.add(hazardLight);
 
+    const hazardRingGeo = new THREE.TorusGeometry(2.75, 0.048, 12, 48);
+    const hazardRingMat = new THREE.MeshBasicMaterial({
+      color: 0xf43f5e,
+      transparent: true,
+      opacity: 0.78,
+    });
+    const hazardPerimeterRing = new THREE.Mesh(hazardRingGeo, hazardRingMat);
+    hazardPerimeterRing.rotation.x = Math.PI / 2;
+    hazardPerimeterRing.position.set(0, 0.25, 0);
+    hazardGroup.add(hazardPerimeterRing);
+
     const HAZARD_SMOKE_COUNT = 28;
     const hazardSmokeMeshes: THREE.Mesh[] = [];
     const smokeGeo = new THREE.SphereGeometry(0.24, 12, 12);
@@ -1549,6 +1614,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     const handlePointerUp = () => {
       if (isDragging) {
+        if (dragParamKey === 'springDisplacement' || dragParamKey === 'springConstantK') {
+          labSound.playSpringTwang(latestRef.current.params.springDisplacement ?? 0.8);
+        }
         isDragging = false;
         activeDragMesh = null;
         dragParamKey = '';
@@ -1580,6 +1648,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     };
 
     let lastRenderTimestamp = 0;
+    let prevSimTime = -1;
+    let lastCollisionImpactIndex = -1;
 
     const tick = (timestamp?: number) => {
       if (disposed) return;
@@ -1631,7 +1701,10 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       youngSlitGroup.visible = p.mode === 'optics-young-slit';
       photoelectricGroup.visible = p.mode === 'photoelectric-planck';
 
-      // Safety Hazard 3D Smoke & Pulsing Red Light
+      const isSimTimeAdvancing = prevSimTime >= 0 && t > prevSimTime + 0.0005;
+      prevSimTime = t;
+
+      // Safety Hazard 3D Smoke, Perimeter Halo & Pulsing Red Light
       const isHazardous =
         (p.mode === 'pendulum-harmonic' && Math.abs(p.pendulumAngle ?? 0) > 80) ||
         (p.mass >= 24 && Math.abs(p.appliedForce) >= 180) ||
@@ -1639,7 +1712,10 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
       hazardGroup.visible = isHazardous;
       if (isHazardous) {
-        hazardLight.intensity = 3.5 + Math.sin(nowSec * 14) * 2.5;
+        hazardLight.intensity = isLite ? 0 : 3.5 + Math.sin(nowSec * 14) * 2.5;
+        const pulse = 1 + Math.sin(nowSec * 9) * 0.08;
+        hazardPerimeterRing.scale.set(pulse, pulse, 1);
+        hazardRingMat.opacity = 0.48 + 0.35 * Math.abs(Math.sin(nowSec * 7));
         hazardSmokeMeshes.forEach((sMesh, idx) => {
           const cycle = (nowSec * 1.4 + idx * 0.17) % 1.0;
           sMesh.position.y = 0.4 + cycle * 4.2;
@@ -1823,6 +1899,16 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           x2 = Math.max(-5.0, Math.min(5.0, r2 + curV2 * 0.22 * postT));
         }
 
+        const cycleIndex = Math.floor(t / 3.4);
+        if (cycle >= impactT) {
+          if (isSimTimeAdvancing && lastCollisionImpactIndex !== cycleIndex) {
+            lastCollisionImpactIndex = cycleIndex;
+            labSound.playCollisionThud(p.restitutionCoeff ?? 1.0);
+          }
+        } else if (cycle < 0.4) {
+          lastCollisionImpactIndex = -1;
+        }
+
         // Seated flush on air-track ridge at y = 0.56
         cart1Mesh.position.set(x1, 0.56, 0);
         cart2Mesh.position.set(x2, 0.56, 0);
@@ -1977,6 +2063,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         );
       }
 
+      teacherCollabBridge.tick(nowMs);
       controls.update();
 
       const syncConceptLabelsNow = () => {
@@ -2251,6 +2338,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     return () => {
       disposed = true;
+      unsubAiAction();
       unsubLite();
       cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
@@ -2261,7 +2349,10 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
       renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
       renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
+      teacherCollabBridge.dispose();
       cursorManager.dispose();
+      controls.removeEventListener('change', handleControlsChange);
+      cameraSyncHandleRef.current = null;
       controls.dispose();
 
       // Dispose Post-Processing, Workbench & Textures
@@ -2340,24 +2431,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           type="button"
           data-testid="snap-dock-apparatus-btn"
           onClick={() => {
-            labSound.playClick(760);
-            const allNodes = globalMultiApparatusEngine.getAllNodes();
-            if (allNodes.length < 2) {
-              globalMultiApparatusEngine.seedDefaultDomainNodes('Fisika');
-            }
-            const nodes = globalMultiApparatusEngine.getAllNodes();
-            if (nodes.length >= 2) {
-              const src = nodes[0];
-              const tgt = nodes[1];
-              const srcPort = src.ports[0];
-              const tgtPort = tgt.ports[0];
-              if (srcPort && tgtPort) {
-                globalMultiApparatusEngine.moveNodeAndEvaluateSnap(src.id, {
-                  [srcPort.id]: [tgtPort.position[0] - 0.18, tgtPort.position[1] + 0.08, tgtPort.position[2]],
-                });
-                globalMultiApparatusEngine.commitActiveSnapOnRelease();
-                globalMultiApparatusEngine.stepTransfer(1.5);
-              }
+            const { docked, transfer } = triggerDomainApparatusSnap('Fisika');
+            if (docked) {
+              setDragToast({
+                label: `Port Docked (${docked.portType.toUpperCase()})`,
+                value: `I = ${(transfer?.electricCurrentAmp ?? 0).toFixed(2)} A`,
+              });
+              setTimeout(() => setDragToast(null), 1800);
             }
           }}
           title="Snap-to-Port: Sambung & Transfer Aparatus 3D"

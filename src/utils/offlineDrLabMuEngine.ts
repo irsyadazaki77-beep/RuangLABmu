@@ -2,6 +2,7 @@ import {
   DrLabMuStructuredResponse,
   DrLabMuTelemetryPayload,
 } from './engines/statisticsAndRegression';
+import { deriveContextualDrLabMuActions } from './drLabMuActions';
 
 export type DrLabMuTelemetryContext = DrLabMuTelemetryPayload | {
   domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
@@ -155,12 +156,15 @@ export function generateOfflineSocraticMentorResponse(
     const dataHighlight = `Dalam metode ilmiah, sebuah pola kurva atau hukum korelasi antar-variabel hanya dapat terbentuk jika kita menguji variabel bebas pada beberapa kondisi yang bervariasi. Jika nilai variabel bebas tetap bernilai sama atau data kurang dari 2 titik, garis regresi tidak memiliki kemiringan terdefinisi dan nilai koefisien korelasi tidak dapat dihitung.`;
     const socraticQuestion = `Bagaimana jika Anda mencoba memvariasikan nilai variabel bebas ke minimal 3 titik berbeda (misalnya setelan nilai rendah, sedang, dan tinggi), lalu amati perubahan respon variabel terikatnya pada grafik?`;
 
+    const contextualActions = deriveContextualDrLabMuActions(telemetry);
+
     return {
       observation,
       dataHighlight,
       socraticQuestion,
       detectedTrigger: 'concept-analogy',
       formattedText: `${observation}\n\n${dataHighlight}\n\n💡 Pertanyaan Pemantik Reflektif:\n${socraticQuestion}`,
+      uiActions: contextualActions,
     };
   }
 
@@ -202,6 +206,7 @@ export function generateOfflineSocraticMentorResponse(
       socraticQuestion,
       detectedTrigger: trigger,
       formattedText: `${observation}\n\n${dataHighlight}\n\n💡 Pertanyaan Pemantik:\n${socraticQuestion}`,
+      uiActions: deriveContextualDrLabMuActions(telemetry),
     };
   }
 
@@ -271,5 +276,6 @@ export function generateOfflineSocraticMentorResponse(
     socraticQuestion,
     detectedTrigger: trigger,
     formattedText: `${observation}\n\n${dataHighlight}\n\n💡 Pertanyaan Pemantik Reflektif:\n${socraticQuestion}`,
+    uiActions: deriveContextualDrLabMuActions(telemetry),
   };
 }

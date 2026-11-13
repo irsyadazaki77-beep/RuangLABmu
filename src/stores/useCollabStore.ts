@@ -6,6 +6,8 @@ import {
   LabRoomClient,
   StudentLiveTelemetry,
   CustomAIMissionPayload,
+  TeacherLaserRayPayload,
+  TeacherCameraSyncPayload,
 } from '../utils/collabProtocol';
 
 export interface CollabState {
@@ -24,6 +26,12 @@ export interface CollabState {
   isRoomModalOpen: boolean;
   roomModalMode: 'create' | 'join';
   prefilledRoomCode: string | null;
+  teacherLaserActive: boolean;
+  teacherCameraSyncEnabled: boolean;
+  localTeacherLaserPreview: TeacherLaserRayPayload | null;
+  remoteTeacherLaser: TeacherLaserRayPayload | null;
+  remoteTeacherCameraSync: TeacherCameraSyncPayload | null;
+  followTeacherCamera: boolean;
 
   // Actions
   setWsConnected: (wsConnected: boolean) => void;
@@ -45,6 +53,12 @@ export interface CollabState {
   openRoomModal: (mode?: 'create' | 'join') => void;
   closeRoomModal: () => void;
   setPrefilledRoomCode: (code: string | null) => void;
+  setTeacherLaserActive: (active: boolean) => void;
+  setTeacherCameraSyncEnabled: (enabled: boolean) => void;
+  setLocalTeacherLaserPreview: (ray: TeacherLaserRayPayload | null) => void;
+  setRemoteTeacherLaser: (ray: TeacherLaserRayPayload | null) => void;
+  setRemoteTeacherCameraSync: (sync: TeacherCameraSyncPayload | null) => void;
+  setFollowTeacherCamera: (follow: boolean) => void;
   leaveRoom: () => void;
 }
 
@@ -64,6 +78,12 @@ export const useCollabStore = create<CollabState>((set) => ({
   isRoomModalOpen: false,
   roomModalMode: 'join',
   prefilledRoomCode: null,
+  teacherLaserActive: false,
+  teacherCameraSyncEnabled: false,
+  localTeacherLaserPreview: null,
+  remoteTeacherLaser: null,
+  remoteTeacherCameraSync: null,
+  followTeacherCamera: true,
 
   setWsConnected: (wsConnected: boolean) => set({ wsConnected }),
 
@@ -171,6 +191,26 @@ export const useCollabStore = create<CollabState>((set) => ({
       roomModalMode: 'join',
     }),
 
+  setTeacherLaserActive: (teacherLaserActive: boolean) =>
+    set((state) => ({
+      teacherLaserActive,
+      localTeacherLaserPreview: teacherLaserActive ? state.localTeacherLaserPreview : null,
+    })),
+
+  setTeacherCameraSyncEnabled: (teacherCameraSyncEnabled: boolean) =>
+    set({ teacherCameraSyncEnabled }),
+
+  setLocalTeacherLaserPreview: (localTeacherLaserPreview: TeacherLaserRayPayload | null) =>
+    set({ localTeacherLaserPreview }),
+
+  setRemoteTeacherLaser: (remoteTeacherLaser: TeacherLaserRayPayload | null) =>
+    set({ remoteTeacherLaser: remoteTeacherLaser && remoteTeacherLaser.active ? remoteTeacherLaser : null }),
+
+  setRemoteTeacherCameraSync: (remoteTeacherCameraSync: TeacherCameraSyncPayload | null) =>
+    set({ remoteTeacherCameraSync: remoteTeacherCameraSync && remoteTeacherCameraSync.enabled ? remoteTeacherCameraSync : null }),
+
+  setFollowTeacherCamera: (followTeacherCamera: boolean) => set({ followTeacherCamera }),
+
   leaveRoom: () =>
     set({
       activeRoom: null,
@@ -183,5 +223,10 @@ export const useCollabStore = create<CollabState>((set) => ({
       peerCursors: {},
       lockedParameters: {},
       studentTelemetryMap: {},
+      teacherLaserActive: false,
+      teacherCameraSyncEnabled: false,
+      localTeacherLaserPreview: null,
+      remoteTeacherLaser: null,
+      remoteTeacherCameraSync: null,
     }),
 }));

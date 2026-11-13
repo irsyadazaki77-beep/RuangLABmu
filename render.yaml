@@ -1,0 +1,21 @@
+# ============================================================================
+# Render.com Blueprint — 1-Click Cloud Deployment for RuangLABmu
+# Documentation: https://render.com/docs/blueprint-spec
+# ============================================================================
+services:
+  - type: web
+    name: ruanglabmu
+    env: docker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: singapore
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: GEMINI_API_KEY
+        sync: false

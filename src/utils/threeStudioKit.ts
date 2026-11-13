@@ -21,6 +21,13 @@ export interface GraduationTick {
   ratio: number;
 }
 
+export interface CameraSyncPose {
+  position: [number, number, number];
+  target: [number, number, number];
+  seq: number;
+  sourceId?: string;
+}
+
 /**
  * Computes hardware WebGL2 MSAA sample count safely.
  * Software GL (SwiftShader / llvmpipe) receives 0 so it avoids multisampled renderbuffer crashes.

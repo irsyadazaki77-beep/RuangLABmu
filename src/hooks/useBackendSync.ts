@@ -9,7 +9,10 @@ import {
   LabRoom,
   CustomAIMissionPayload,
   ParameterLockPayload,
+  validateTeacherCameraSyncPayload,
+  validateTeacherLaserRayPayload,
 } from '../utils/collabProtocol';
+import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 
 export interface BackendSyncState {
   records: ExperimentRecord[];
@@ -199,6 +202,14 @@ export function isValidBackendWsMessage(candidate: unknown): candidate is Valida
 
     case 'TEACHER_FREEZE_TOGGLE': {
       return typeof payload.isFrozen === 'boolean';
+    }
+
+    case 'TEACHER_LASER_RAY': {
+      return validateTeacherLaserRayPayload(payload) !== null;
+    }
+
+    case 'TEACHER_CAMERA_SYNC': {
+      return validateTeacherCameraSyncPayload(payload) !== null;
     }
 
     case 'STUDENT_TELEMETRY_SYNC': {
@@ -397,6 +408,8 @@ export function useBackendSync(
   const reconnectTimerRef = useRef<number | null>(null);
   const outboxQueueRef = useRef<OfflineOutboxQueue>(new OfflineOutboxQueue());
   const activeRoomSessionRef = useRef<ActiveRoomSessionCredentials | null>(null);
+  const identityRef = useRef({ studentName, groupId, role, domain });
+  identityRef.current = { studentName, groupId, role, domain };
 
   // 1. Initial REST Hydration
   useEffect(() => {
@@ -476,7 +489,8 @@ export function useBackendSync(
 
         const storeSnapshot = useCollabStore.getState();
         const activeRoomId = storeSnapshot.activeRoomId;
-        const userId = `user-${studentName.replace(/\s+/g, '-').toLowerCase()}`;
+        const currentIdentity = identityRef.current;
+        const userId = `user-${currentIdentity.studentName.replace(/\s+/g, '-').toLowerCase()}`;
 
         // 1. Identify client session
         socket.send(
@@ -484,12 +498,15 @@ export function useBackendSync(
             type: 'client:identify',
             payload: {
               userId,
-              userName: studentName,
-              role,
-              groupId,
-              domain,
+              userName: currentIdentity.studentName,
+              role: currentIdentity.role,
+              groupId: currentIdentity.groupId,
+              domain: currentIdentity.domain,
               roomId: activeRoomId,
-              teacherPin: role === 'Pengajar' ? '1234' : undefined,
+              teacherPin:
+                currentIdentity.role === 'Pengajar'
+                  ? storeSnapshot.roomPin || activeRoomSessionRef.current?.pin || '1234'
+                  : undefined,
             },
           })
         );
@@ -502,9 +519,9 @@ export function useBackendSync(
           storeSnapshot.roomPin,
           {
             userId,
-            name: studentName,
-            role,
-            groupId,
+            name: currentIdentity.studentName,
+            role: currentIdentity.role,
+            groupId: currentIdentity.groupId,
           }
         );
         if (reconnectJoinMsg && socket.readyState === WebSocket.OPEN) {
@@ -574,7 +591,7 @@ export function useBackendSync(
           const joinedClientRole =
             isPlainObject(payload.client) && payload.client.role === 'teacher'
               ? 'teacher'
-              : role === 'Pengajar'
+              : identityRef.current.role === 'Pengajar'
               ? 'teacher'
               : 'student';
           activeRoomSessionRef.current = {
@@ -655,6 +672,16 @@ export function useBackendSync(
               Boolean(payload.isFrozen),
               typeof payload.teacherName === 'string' ? payload.teacherName : undefined
             );
+        } else if (type === 'TEACHER_LASER_RAY') {
+          const validated = validateTeacherLaserRayPayload(payload);
+          if (validated) {
+            useCollabStore.getState().setRemoteTeacherLaser(validated.active ? validated : null);
+          }
+        } else if (type === 'TEACHER_CAMERA_SYNC') {
+          const validated = validateTeacherCameraSyncPayload(payload);
+          if (validated) {
+            useCollabStore.getState().setRemoteTeacherCameraSync(validated.enabled ? validated : null);
+          }
         } else if (type === 'STUDENT_TELEMETRY_SYNC' && isPlainObject(payload.telemetry)) {
           const t = payload.telemetry as unknown as StudentLiveTelemetry;
           if (t.studentName) {
@@ -749,6 +776,31 @@ export function useBackendSync(
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (wsRef.current) wsRef.current.close();
     };
+  }, []);
+
+  // Re-identify over the existing open WebSocket when identity/role/domain changes
+  useEffect(() => {
+    const socket = wsRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    const storeSnapshot = useCollabStore.getState();
+    const userId = `user-${studentName.replace(/\s+/g, '-').toLowerCase()}`;
+    socket.send(
+      JSON.stringify({
+        type: 'client:identify',
+        payload: {
+          userId,
+          userName: studentName,
+          role,
+          groupId,
+          domain,
+          roomId: storeSnapshot.activeRoomId,
+          teacherPin:
+            role === 'Pengajar'
+              ? storeSnapshot.roomPin || activeRoomSessionRef.current?.pin || '1234'
+              : undefined,
+        },
+      })
+    );
   }, [studentName, groupId, role, domain]);
 
   /**
@@ -891,6 +943,13 @@ export function useBackendSync(
       customRoomId?: string
     ) => {
       useCollabStore.getState().setRoomError(null);
+      if (customRoomId) {
+        activeRoomSessionRef.current = {
+          roomId: customRoomId.toUpperCase().trim(),
+          pin: pin.trim(),
+          role: 'teacher',
+        };
+      }
       sendWs('ROOM_CREATE', {
         roomId: customRoomId,
         pin,
@@ -932,19 +991,70 @@ export function useBackendSync(
 
   const toggleTeacherFreeze = useCallback(
     (isFrozen: boolean) => {
-      const roomId = useCollabStore.getState().activeRoomId;
-      useCollabStore.getState().setTeacherFreeze(isFrozen, studentName);
+      const storeState = useCollabStore.getState();
+      const roomId = storeState.activeRoomId;
+      const roomPin = storeState.roomPin || activeRoomSessionRef.current?.pin || '1234';
+      storeState.setTeacherFreeze(isFrozen, studentName);
       if (roomId) {
         sendWs('TEACHER_FREEZE_TOGGLE', {
           roomId,
           isFrozen,
           teacherName: studentName,
-          teacherPin: '1234',
+          teacherPin: roomPin,
         });
       }
     },
     [sendWs, studentName]
   );
+
+  // Bridge Teacher 3D Laser & Camera Sync events over WebSocket (throttled)
+  const lastLaserEmitRef = useRef<number>(0);
+  const lastCamSyncEmitRef = useRef<number>(0);
+  const camSeqRef = useRef<number>(0);
+
+  useEffect(() => {
+    const unsubLaser = subscribeLabEvent(LAB_EVENTS.TEACHER_LASER_EMIT, (detail) => {
+      if (!detail || role !== 'Pengajar') return;
+      const now = Date.now();
+      if (detail.active && now - lastLaserEmitRef.current < 33) return;
+      lastLaserEmitRef.current = now;
+      const roomId = useCollabStore.getState().activeRoomId || 'LAB-ALPHA';
+      sendWs('TEACHER_LASER_RAY', {
+        roomId,
+        teacherName: studentName,
+        teacherPin: '1234',
+        point: detail.point,
+        normal: detail.normal,
+        hoveredObject: detail.hoveredObject,
+        active: detail.active,
+        updatedAt: now,
+      });
+    });
+
+    const unsubCam = subscribeLabEvent(LAB_EVENTS.TEACHER_CAMERA_EMIT, (detail) => {
+      if (!detail || role !== 'Pengajar') return;
+      const now = Date.now();
+      if (detail.enabled && now - lastCamSyncEmitRef.current < 50) return;
+      lastCamSyncEmitRef.current = now;
+      camSeqRef.current += 1;
+      const roomId = useCollabStore.getState().activeRoomId || 'LAB-ALPHA';
+      sendWs('TEACHER_CAMERA_SYNC', {
+        roomId,
+        teacherName: studentName,
+        teacherPin: '1234',
+        enabled: detail.enabled,
+        position: detail.position,
+        target: detail.target,
+        seq: camSeqRef.current,
+        updatedAt: now,
+      });
+    });
+
+    return () => {
+      unsubLaser();
+      unsubCam();
+    };
+  }, [role, sendWs, studentName]);
 
   const syncStudentTelemetry = useCallback(
     (telemetry: Omit<StudentLiveTelemetry, 'studentName' | 'lastUpdated'>) => {

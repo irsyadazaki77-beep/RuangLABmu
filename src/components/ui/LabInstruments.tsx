@@ -403,6 +403,7 @@ export interface TactileParameterControlProps {
   dynamicFeedback?: (value: number, level: EducationLevel) => string;
   educationLevel?: EducationLevel;
   glossaryTerm?: string;
+  paramKey?: string;
 }
 
 export const TactileParameterControl: React.FC<TactileParameterControlProps> = ({
@@ -424,9 +425,20 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
   dynamicFeedback,
   educationLevel,
   glossaryTerm,
+  paramKey,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const storeAcademicLevel = useLabStore((s) => s.academicLevel);
+  const highlightedParamKey = useLabStore((s) => s.highlightedParamKey);
+  const isHighlighted = Boolean(paramKey && highlightedParamKey === paramKey);
+
+  useEffect(() => {
+    if (isHighlighted && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [isHighlighted]);
+
   const effectiveLevel: EducationLevel = normalizeEducationLevel(
     educationLevel ?? storeAcademicLevel
   );
@@ -457,6 +469,8 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
 
   return (
     <motion.div
+      ref={cardRef}
+      data-param-key={paramKey}
       onMouseEnter={() => {
         setIsHovered(true);
         onHoverChange?.(true);
@@ -466,10 +480,18 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
         onHoverChange?.(false);
       }}
       animate={{
-        borderColor: isHovered ? 'rgba(14, 165, 233, 0.55)' : 'rgba(148, 163, 184, 0.2)',
+        borderColor: isHighlighted
+          ? 'rgba(251, 191, 36, 0.95)'
+          : isHovered
+          ? 'rgba(14, 165, 233, 0.55)'
+          : 'rgba(148, 163, 184, 0.2)',
       }}
       transition={{ duration: 0.15 }}
-      className="p-3 rounded-xl bg-slate-50/90 dark:bg-slate-800/75 border border-slate-200/90 dark:border-slate-700/80 space-y-2 transition-colors"
+      className={`p-3 rounded-xl bg-slate-50/90 dark:bg-slate-800/75 border space-y-2 transition-all ${
+        isHighlighted
+          ? 'ring-2 ring-amber-400 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.6)] animate-pulse'
+          : 'border-slate-200/90 dark:border-slate-700/80'
+      }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 min-w-0">
@@ -502,6 +524,14 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
           {badgeText && (
             <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
               · <SciFormula text={badgeText} />
+            </span>
+          )}
+          {isHighlighted && (
+            <span
+              data-testid="dr-labmu-slider-highlight-badge"
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-600 dark:text-amber-300 border border-amber-400/50 shrink-0"
+            >
+              ✨ Fokus Dr. LabMu
             </span>
           )}
         </div>

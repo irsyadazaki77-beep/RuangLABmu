@@ -64,4 +64,26 @@ describe('Server Utils: LAN Network Detection & Port Fallback', () => {
       await new Promise<void>((resolve) => blocker.close(() => resolve()));
     }
   });
+
+  it('resolves adjacent dist/ directory for standalone portable 3T binaries and builds valid compilation plans', async () => {
+    const { resolvePortableDistDir } = await import('./lanNetwork');
+    const { resolvePortableBuildPlan } = await import('../../scripts/build-portable');
+
+    const resolvedExecDist = resolvePortableDistDir(
+      '/workspace/app',
+      '/usb-drive/release/RuangLABmu-Sekolah-win.exe',
+      (candidate) => candidate.startsWith('/usb-drive/release/dist')
+    );
+    assert.equal(resolvedExecDist, '/usb-drive/release/dist');
+
+    const winPlan = resolvePortableBuildPlan({
+      rootDir: '/workspace/app',
+      targetPlatform: 'win',
+      dryRun: true,
+    });
+    assert.equal(winPlan.binaryName, 'RuangLABmu-Sekolah-win.exe');
+    assert.ok(winPlan.bunCompileArgs.includes('--compile'));
+    assert.ok(winPlan.bunCompileArgs.includes('--target=bun-windows-x64'));
+  });
 });
+

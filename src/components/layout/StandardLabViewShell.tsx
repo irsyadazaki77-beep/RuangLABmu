@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Crosshair,
   GripVertical,
+  Scale,
 } from 'lucide-react';
 import { CompactTelemetryRibbon, TelemetryRibbonMetric } from '../ui/CompactTelemetryRibbon';
 import { InteractiveFormulaPrimer } from '../ui/InteractiveFormulaPrimer';
@@ -62,6 +63,9 @@ export interface StandardLabViewShellProps {
   onSelectCameraPreset?: (presetId: string) => void;
   isHazardous?: boolean;
   shutterFlash?: boolean;
+  dualModeActive?: boolean;
+  onToggleDualMode?: () => void;
+  dualViewport?: React.ReactNode;
 }
 
 export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
@@ -76,6 +80,9 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
   zenMode = false,
   isHazardous = false,
   shutterFlash = false,
+  dualModeActive = false,
+  onToggleDualMode,
+  dualViewport,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const shellRootRef = useRef<HTMLDivElement | null>(null);
@@ -185,11 +192,35 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
                   accentColor: '#38bdf8',
                 }
               }
+              extraBadge={
+                onToggleDualMode ? (
+                  <button
+                    type="button"
+                    data-testid="toggle-dual-3d-btn"
+                    onClick={() => {
+                      labSound.playClick(660);
+                      onToggleDualMode();
+                    }}
+                    title="Bandingkan 2 kondisi eksperimen secara paralel (Realitas A vs B)"
+                    className={`h-8 px-2.5 rounded-lg border text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                      dualModeActive
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                        : 'bg-slate-900/5 dark:bg-slate-900/80 text-amber-700 dark:text-amber-300 border-slate-300/80 dark:border-slate-700 hover:border-amber-400/70'
+                    }`}
+                  >
+                    <Scale className="w-3.5 h-3.5" />
+                    <span className="hidden lg:inline">
+                      {dualModeActive ? 'Tutup 2 Dunia 3D' : 'Bandingkan 2 Dunia 3D'}
+                    </span>
+                    <span className="lg:hidden">A/B 3D</span>
+                  </button>
+                ) : undefined
+              }
             />
           </div>
         )}
 
-        {/* Full-Bleed 3D Canvas Viewport */}
+        {/* Full-Bleed 3D Canvas Viewport (or Dual-3D A/B Split-Screen) */}
         <div
           data-onboarding="canvas-3d"
           className={`relative w-full flex-1 ${
@@ -202,7 +233,7 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
                 : ''
           }`}
         >
-          {canvas}
+          {dualModeActive && dualViewport ? dualViewport : canvas}
 
           {/* Shutter Flash Animation */}
           <AnimatePresence>
@@ -217,9 +248,9 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Center-Top Contextual Overlay (e.g. Planet focus in Astronomy, subtle and non-intrusive) */}
-          {!isCompactPiPStage && topOverlay && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+          {/* Top-Left Contextual Overlay (e.g. Vektor Gaya 3D or Planet focus, avoids colliding with top-right capsule bar or Dual-3D header) */}
+          {!isCompactPiPStage && !dualModeActive && topOverlay && (
+            <div className="absolute top-3 left-3 z-20 pointer-events-auto">
               {topOverlay}
             </div>
           )}

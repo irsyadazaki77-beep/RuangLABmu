@@ -134,6 +134,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
   const {
     drawerOpen,
     toggleDrawer,
+    setDrawerTab,
     comfortPrefs,
     setComfortPrefs,
     activeModal,
@@ -854,7 +855,11 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           data-onboarding="dr-labmu-trigger"
           onClick={() => {
             labSound.playClick();
-            toggleDrawer();
+            if (drawerOpen) {
+              toggleDrawer();
+            } else {
+              setDrawerTab('ai');
+            }
           }}
           aria-label={drawerOpen ? 'Tutup Asisten Dr. LabMu' : 'Buka Asisten Dr. LabMu'}
           title="[A] Tanya Dr. LabMu (Asisten Sokratik AI)"

@@ -14,6 +14,7 @@ import {
 } from '../../utils/engines/adaptiveScaffoldingEngine';
 import {
   globalMultiApparatusEngine,
+  triggerDomainApparatusSnap,
   TransferStepSummary,
 } from '../../utils/engines/multiApparatusEngine';
 import { useLabStore } from '../../stores/useLabStore';
@@ -62,31 +63,9 @@ export const AdaptiveNudgeToast: React.FC<AdaptiveNudgeToastProps> = ({
   }, [domain, recordsCount]);
 
   const handleSnapAndDockApparatus = () => {
-    labSound.playClick(760);
-    const nodes = globalMultiApparatusEngine.getAllNodes();
-    if (nodes.length < 2) {
-      globalMultiApparatusEngine.seedDefaultDomainNodes(domain);
-    }
-    const allNodes = globalMultiApparatusEngine.getAllNodes();
-    if (allNodes.length >= 2) {
-      const src = allNodes[0];
-      const tgt = allNodes[1];
-      const srcPort = src.ports[0];
-      const tgtPort = tgt.ports[0];
-      if (srcPort && tgtPort) {
-        // 1. Move within magnetic snap radius (< 0.5 units) to trigger green snap ring
-        globalMultiApparatusEngine.moveNodeAndEvaluateSnap(src.id, {
-          [srcPort.id]: [
-            tgtPort.position[0] - 0.18,
-            tgtPort.position[1] + 0.08,
-            tgtPort.position[2],
-          ],
-        });
-        // 2. Lock docking connection on release and run transfer step
-        globalMultiApparatusEngine.commitActiveSnapOnRelease();
-        const stepRes = globalMultiApparatusEngine.stepTransfer(1.5);
-        setTransferStats(stepRes);
-      }
+    const { transfer } = triggerDomainApparatusSnap(domain);
+    if (transfer) {
+      setTransferStats(transfer);
     }
   };
 

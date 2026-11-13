@@ -3,10 +3,55 @@ import * as THREE from 'three';
 // Procedural Web Audio API Laboratory Sound Synthesizer
 // Zero external asset dependencies; safe for hermetic sandboxes and instant low-latency feedback.
 
+export type SnapAudioPortType = 'fluid' | 'electric' | 'optical';
+
+export function computeSnapPitchHz(portType: SnapAudioPortType): {
+  baseHz: number;
+  accentHz: number;
+  waveform: OscillatorType;
+} {
+  switch (portType) {
+    case 'fluid':
+      return { baseHz: 340, accentHz: 680, waveform: 'sine' };
+    case 'optical':
+      return { baseHz: 740, accentHz: 1180, waveform: 'triangle' };
+    case 'electric':
+    default:
+      return { baseHz: 260, accentHz: 520, waveform: 'triangle' };
+  }
+}
+
+export function computeHazardAlarmProfile(): {
+  primaryHz: number;
+  secondaryHz: number;
+  durationSec: number;
+  cooldownMs: number;
+} {
+  return {
+    primaryHz: 640,
+    secondaryHz: 480,
+    durationSec: 0.24,
+    cooldownMs: 1500,
+  };
+}
+
+export function shouldTriggerCooldownAudio(
+  nowMs: number,
+  lastTriggerMs: number,
+  cooldownMs: number
+): boolean {
+  if (!Number.isFinite(nowMs) || !Number.isFinite(lastTriggerMs) || cooldownMs <= 0) {
+    return false;
+  }
+  return nowMs - lastTriggerMs >= cooldownMs;
+}
+
 class LabSoundEngine {
   private ctx: AudioContext | null = null;
   private enabled: boolean = true;
   private lastDropTime: number = 0;
+  private lastHazardAlarmTime: number = 0;
+  private lastBubbleTime: number = 0;
   private userInteracted: boolean = false;
 
   constructor() {
@@ -124,7 +169,7 @@ class LabSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const nowMs = performance.now();
-    if (nowMs - this.lastDropTime < 65) return;
+    if (!shouldTriggerCooldownAudio(nowMs, this.lastDropTime, 65)) return;
     this.lastDropTime = nowMs;
 
     try {
@@ -143,6 +188,101 @@ class LabSoundEngine {
       gain.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + 0.065);
+    } catch {
+      // Ignore
+    }
+  }
+
+  public playApparatusSnap(portType: SnapAudioPortType = 'electric') {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      const { baseHz, accentHz, waveform } = computeSnapPitchHz(portType);
+
+      // Stage 1: Magnetic mechanical lock click
+      const clickOsc = ctx.createOscillator();
+      const clickGain = ctx.createGain();
+      clickOsc.type = 'triangle';
+      clickOsc.frequency.setValueAtTime(baseHz, now);
+      clickOsc.frequency.exponentialRampToValueAtTime(110, now + 0.045);
+      clickGain.gain.setValueAtTime(0.09, now);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      clickOsc.connect(clickGain);
+      clickGain.connect(ctx.destination);
+      clickOsc.start(now);
+      clickOsc.stop(now + 0.055);
+
+      // Stage 2: Port-type harmonic confirmation ping
+      const pingOsc = ctx.createOscillator();
+      const pingGain = ctx.createGain();
+      pingOsc.type = waveform;
+      pingOsc.frequency.setValueAtTime(accentHz, now + 0.045);
+      pingOsc.frequency.exponentialRampToValueAtTime(accentHz * 1.25, now + 0.14);
+      pingGain.gain.setValueAtTime(0.06, now + 0.045);
+      pingGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      pingOsc.connect(pingGain);
+      pingGain.connect(ctx.destination);
+      pingOsc.start(now + 0.045);
+      pingOsc.stop(now + 0.17);
+    } catch {
+      // Ignore
+    }
+  }
+
+  public playHazardAlarm() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const profile = computeHazardAlarmProfile();
+    const nowMs = performance.now();
+    if (!shouldTriggerCooldownAudio(nowMs, this.lastHazardAlarmTime, profile.cooldownMs)) {
+      return;
+    }
+    this.lastHazardAlarmTime = nowMs;
+
+    try {
+      const now = ctx.currentTime;
+      const tones = [profile.primaryHz, profile.secondaryHz];
+      tones.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const startOffset = idx * 0.13;
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + startOffset);
+        gain.gain.setValueAtTime(0.075, now + startOffset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + startOffset + 0.11);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + startOffset);
+        osc.stop(now + startOffset + 0.12);
+      });
+    } catch {
+      // Ignore
+    }
+  }
+
+  public playThermalBubbling(intensity = 0.5) {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const nowMs = performance.now();
+    if (!shouldTriggerCooldownAudio(nowMs, this.lastBubbleTime, 220)) return;
+    this.lastBubbleTime = nowMs;
+
+    try {
+      const now = ctx.currentTime;
+      const clamped = Math.max(0.1, Math.min(1.0, intensity));
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const pitch = 360 + Math.random() * 280 + clamped * 180;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(pitch, now);
+      osc.frequency.exponentialRampToValueAtTime(pitch * 1.65, now + 0.045);
+      gain.gain.setValueAtTime(0.025 + clamped * 0.02, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.055);
     } catch {
       // Ignore
     }

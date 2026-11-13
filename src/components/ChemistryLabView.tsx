@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import {
   Camera,
 } from 'lucide-react';
@@ -38,6 +38,8 @@ import {
   getChemistryParameterFeedback,
   normalizeEducationLevel,
 } from '../utils/pedagogicalHelpers';
+import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
+import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
 
 export interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -101,15 +103,94 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   snapshotCount = 0,
 }) => {
   const storeAcademicLevel = useLabStore((s) => s.academicLevel);
+  const playbackSpeed = useLabStore((s) => s.playbackSpeed);
+  const isTimeTraveling = useLabStore((s) => s.isTimeTraveling);
   const effectiveEducationLevel = normalizeEducationLevel(
     academicLevel ?? storeAcademicLevel
   );
   const [activeCameraPreset, setActiveCameraPreset] = useState<string>('isometric');
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [hazardModalDismissed, setHazardModalDismissed] = useState<boolean>(false);
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [simTime, setSimTime] = useState<number>(0);
+  const simTimeRef = useRef<number>(0);
+  const [isDualRealityMode, setIsDualRealityMode] = useState<boolean>(false);
+
+  const buildInitialRealityB = (base: ChemistryParams): ChemistryParams => {
+    switch (base.mode) {
+      case 'acid-base-titration':
+        return { ...base, titrantAddedMl: Math.min(50, Number((base.titrantAddedMl + 15).toFixed(1))) };
+      case 'electrochemistry-cell':
+        return { ...base, cathodeConcM: Math.min(2.0, Number((base.cathodeConcM * 2).toFixed(2))) };
+      case 'ideal-gas-boyle':
+        return { ...base, gasVolumeL: Math.max(2, Number(((base.gasVolumeL ?? 10) * 0.5).toFixed(1))) };
+      case 'spectrophotometry-beer':
+        return { ...base, spectroConcMm: Math.min(0.25, Number(((base.spectroConcMm ?? 0.1) * 2).toFixed(2))) };
+      default:
+        return {
+          ...base,
+          initialTempC: Math.min(95, base.initialTempC + 25),
+          kineticsTempC: Math.min(95, (base.kineticsTempC ?? base.initialTempC) + 25),
+        };
+    }
+  };
+
+  const [realityBParams, setRealityBParams] = useState<ChemistryParams>(() => buildInitialRealityB(params));
+  const prevChemModeRef = useRef(params.mode);
+  useEffect(() => {
+    if (prevChemModeRef.current !== params.mode) {
+      prevChemModeRef.current = params.mode;
+      setRealityBParams(buildInitialRealityB(params));
+    }
+  }, [params]);
 
   const metrics = calculateChemistryMetrics(params);
   const safetyHazard = evaluateSafetyHazard('Kimia', undefined, params);
+  const prevHazardRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (safetyHazard.isHazardous && !prevHazardRef.current) {
+      labSound.playHazardAlarm();
+    }
+    prevHazardRef.current = safetyHazard.isHazardous;
+  }, [safetyHazard.isHazardous]);
+  const metricsB = calculateChemistryMetrics(realityBParams);
+
+  useTimelineRecorder<ChemistryParams, { currentPh: number; finalTempC: number }>({
+    domain: 'chemistry',
+    simTime,
+    simTimeRef,
+    isPlaying,
+    params,
+    stateSnapshot: {
+      currentPh: metrics.currentPh,
+      finalTempC: metrics.finalTempC,
+    },
+    onRestoreFrame: (frame) => {
+      setIsPlaying(false);
+      simTimeRef.current = frame.simTime;
+      setSimTime(frame.simTime);
+      onChangeParams(frame.parameters);
+    },
+  });
+
+  useEffect(() => {
+    let animId = 0;
+    let lastStamp = performance.now();
+    const loop = (stamp: number) => {
+      const dt = Math.min((stamp - lastStamp) / 1000, 0.1);
+      lastStamp = stamp;
+      if (isPlaying && !isTimeTraveling) {
+        setSimTime((prev) => {
+          const next = prev + dt * playbackSpeed;
+          simTimeRef.current = next;
+          return next;
+        });
+      }
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, [isPlaying, isTimeTraveling, playbackSpeed]);
 
   // Reaction Preset lookup
   const currentPreset =
@@ -121,11 +202,23 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
 
   // Subscribe to Global Lab Events
   useEffect(() => {
+    const unsubToggle = subscribeLabEvent(LAB_EVENTS.TOGGLE_SIMULATION, (data: any) => {
+      setIsPlaying((prev) => (data?.isSimulating !== undefined ? data.isSimulating : !prev));
+    });
+    const unsubReset = subscribeLabEvent(LAB_EVENTS.RESET_TRIAL, () => {
+      setSimTime(0);
+      simTimeRef.current = 0;
+      setIsPlaying(false);
+    });
     const unsubCapture = subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, () => {
       setShutterFlash(true);
       setTimeout(() => setShutterFlash(false), 240);
     });
-    return () => unsubCapture();
+    return () => {
+      unsubToggle();
+      unsubReset();
+      unsubCapture();
+    };
   }, []);
 
   const handleParamChange = (patch: Partial<ChemistryParams>) => {
@@ -254,6 +347,133 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
       zenMode={zenMode}
       activeCameraPreset={activeCameraPreset}
       onSelectCameraPreset={setActiveCameraPreset}
+      dualModeActive={isDualRealityMode}
+      onToggleDualMode={() => setIsDualRealityMode((prev) => !prev)}
+      dualViewport={
+        isDualRealityMode ? (() => {
+          const chemVar = (() => {
+            switch (params.mode) {
+              case 'acid-base-titration':
+                return {
+                  key: 'titrantAddedMl' as const,
+                  label: 'Volume Titran Vb (B)',
+                  unit: 'mL',
+                  min: 0,
+                  max: 50,
+                  step: 0.5,
+                  valB: realityBParams.titrantAddedMl,
+                  summaryA: `Vb=${params.titrantAddedMl}mL · pH=${metrics.currentPh}`,
+                  summaryB: `Vb=${realityBParams.titrantAddedMl}mL · pH=${metricsB.currentPh}`,
+                  delta: `ΔpH = ${(metricsB.currentPh - metrics.currentPh >= 0 ? '+' : '')}${(metricsB.currentPh - metrics.currentPh).toFixed(2)}`,
+                };
+              case 'ideal-gas-boyle':
+                return {
+                  key: 'gasVolumeL' as const,
+                  label: 'Volume V (B)',
+                  unit: 'L',
+                  min: 2,
+                  max: 25,
+                  step: 0.5,
+                  valB: realityBParams.gasVolumeL ?? 10,
+                  summaryA: `V=${params.gasVolumeL ?? 10}L · P=${metrics.gasPressureAtm ?? 2.4}atm`,
+                  summaryB: `V=${realityBParams.gasVolumeL ?? 10}L · P=${metricsB.gasPressureAtm ?? 2.4}atm`,
+                  delta: `ΔP = ${((metricsB.gasPressureAtm ?? 0) - (metrics.gasPressureAtm ?? 0) >= 0 ? '+' : '')}${((metricsB.gasPressureAtm ?? 0) - (metrics.gasPressureAtm ?? 0)).toFixed(2)} atm`,
+                };
+              case 'electrochemistry-cell':
+                return {
+                  key: 'cathodeConcM' as const,
+                  label: '[Katoda] (B)',
+                  unit: 'M',
+                  min: 0.01,
+                  max: 2.0,
+                  step: 0.05,
+                  valB: realityBParams.cathodeConcM,
+                  summaryA: `[Kat]=${params.cathodeConcM}M · E=${metrics.nernstCellPotentialE}V`,
+                  summaryB: `[Kat]=${realityBParams.cathodeConcM}M · E=${metricsB.nernstCellPotentialE}V`,
+                  delta: `ΔE = ${(metricsB.nernstCellPotentialE - metrics.nernstCellPotentialE >= 0 ? '+' : '')}${(metricsB.nernstCellPotentialE - metrics.nernstCellPotentialE).toFixed(3)} V`,
+                };
+              default:
+                return {
+                  key: 'initialTempC' as const,
+                  label: 'Suhu T (B)',
+                  unit: '°C',
+                  min: 10,
+                  max: 95,
+                  step: 1,
+                  valB: realityBParams.initialTempC,
+                  summaryA: `T=${params.initialTempC}°C · v=${metrics.reactionRate}M/s`,
+                  summaryB: `T=${realityBParams.initialTempC}°C · v=${metricsB.reactionRate}M/s`,
+                  delta: `Δv = ${(metricsB.reactionRate - metrics.reactionRate >= 0 ? '+' : '')}${(metricsB.reactionRate - metrics.reactionRate).toFixed(2)} M/s`,
+                };
+            }
+          })();
+
+          return (
+            <DualRealityLabViewport
+              domain="Kimia"
+              moduleTitle={params.mode}
+              realityASummary={chemVar.summaryA}
+              realityBSummary={chemVar.summaryB}
+              deltaSummary={chemVar.delta}
+              onResetBToMatchA={() => setRealityBParams({ ...params })}
+              onClose={() => setIsDualRealityMode(false)}
+              realityBControls={
+                <div className="w-full flex items-center justify-between gap-3">
+                  <span className="font-semibold text-amber-300 shrink-0">
+                    {chemVar.label}:{' '}
+                    <strong className="font-mono">
+                      {chemVar.valB} {chemVar.unit}
+                    </strong>
+                  </span>
+                  <input
+                    type="range"
+                    aria-label={chemVar.label}
+                    min={chemVar.min}
+                    max={chemVar.max}
+                    step={chemVar.step}
+                    value={chemVar.valB}
+                    onChange={(e) => {
+                      const nextVal = Number(e.target.value);
+                      setRealityBParams((prev) =>
+                        chemVar.key === 'initialTempC'
+                          ? { ...prev, initialTempC: nextVal, kineticsTempC: nextVal }
+                          : { ...prev, [chemVar.key]: nextVal }
+                      );
+                    }}
+                    className="flex-1 max-w-[220px] accent-amber-400 cursor-pointer"
+                  />
+                </div>
+              }
+              renderViewport={(side, syncProps) => {
+                const pSide = side === 'A' ? params : realityBParams;
+                const mSide = side === 'A' ? metrics : metricsB;
+                return (
+                  <Suspense
+                    fallback={
+                      <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-teal-300">
+                        Menyiapkan Realitas {side}...
+                      </div>
+                    }
+                  >
+                    <ChemistryScene3D
+                      params={pSide}
+                      metrics={mSide}
+                      preset={currentPreset}
+                      redoxPreset={currentRedoxPreset}
+                      reactionProgress={Math.min(1, pSide.titrantAddedMl / Math.max(1, mSide.equivalenceVolumeMl))}
+                      isReacting={pSide.initialTempC > 25}
+                      simTime={simTime}
+                      simTimeRef={simTimeRef}
+                      cameraSyncPose={syncProps.cameraSyncPose}
+                      onCameraSyncChange={syncProps.onCameraSyncChange}
+                    />
+                  </Suspense>
+                );
+              }}
+            />
+          );
+        })() : undefined
+      }
       canvas={
         <LabErrorBoundary domain="Kimia" sceneName="ChemistryScene3D">
           <Suspense
@@ -273,6 +493,8 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               redoxPreset={currentRedoxPreset}
               reactionProgress={Math.min(1, params.titrantAddedMl / Math.max(1, metrics.equivalenceVolumeMl))}
               isReacting={params.initialTempC > 25}
+              simTime={simTime}
+              simTimeRef={simTimeRef}
               remoteCursors={remoteCursors}
               onEmitCursor={onEmitCursor}
               onUpdateParam={(key, val) => handleParamChange({ [key]: val } as any)}
@@ -295,15 +517,31 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         safetyHazard.isHazardous && !hazardModalDismissed ? (
           <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
             <div className="max-w-lg w-full rounded-2xl bg-slate-900 border-2 border-rose-500/80 shadow-2xl p-6 space-y-4">
-              <span className="inline-block px-2.5 py-0.5 rounded-md bg-rose-500/20 text-[11px] font-mono font-bold text-rose-300">
-                PERINGATAN K3 — KIMIA
-              </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-block px-2.5 py-0.5 rounded-md bg-rose-500/20 text-[11px] font-mono font-bold text-rose-300">
+                  PERINGATAN K3 — KIMIA
+                </span>
+                {safetyHazard.triggerParamSummary && (
+                  <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-amber-300 border border-amber-500/30">
+                    {safetyHazard.triggerParamSummary}
+                  </span>
+                )}
+              </div>
               <h3 className="text-base font-extrabold text-white">{safetyHazard.title}</h3>
-              <p className="text-xs text-slate-300">{safetyHazard.scientificExplanation}</p>
+              <p className="text-xs leading-relaxed text-slate-300">{safetyHazard.scientificExplanation}</p>
+              {safetyHazard.mitigationInstruction && (
+                <div className="rounded-xl bg-emerald-950/50 border border-emerald-500/40 p-3 text-xs text-emerald-200">
+                  <span className="font-bold text-emerald-300 block mb-0.5">Prosedur Mitigasi K3:</span>
+                  {safetyHazard.mitigationInstruction}
+                </div>
+              )}
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setHazardModalDismissed(true)}
+                  onClick={() => {
+                    labSound.playClick();
+                    setHazardModalDismissed(true);
+                  }}
                   className="px-3.5 py-2 rounded-xl bg-slate-800 text-xs font-semibold text-slate-300 cursor-pointer"
                 >
                   Saya Paham
@@ -311,7 +549,16 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    handleParamChange({ initialTempC: 25, kineticsTempC: 25, gasTemperatureK: 300, gasVolumeL: 10 });
+                    labSound.playRecordSuccess();
+                    handleParamChange({
+                      initialTempC: 25,
+                      kineticsTempC: 25,
+                      gasTemperatureK: 300,
+                      gasVolumeL: 10,
+                      titrantAddedMl: 25,
+                      analyteAcidConc: 0.1,
+                      titrantBaseConc: 0.1,
+                    });
                     setHazardModalDismissed(false);
                   }}
                   className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-extrabold text-xs cursor-pointer"
@@ -432,6 +679,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                 <>
                   <TactileParameterControl
                     id="chem-titrant-ml"
+                    paramKey="titrantAddedMl"
                     label="Volume Titran Buret (Vb)"
                     unit="mL"
                     value={params.titrantAddedMl}
@@ -448,6 +696,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     onChange={(v) => handleParamChange({ titrantAddedMl: v })}
                   />
                   <TactileParameterControl
+                    paramKey="titrantBaseConc"
                     label="Konsentrasi Titran (Mb)"
                     unit="M"
                     value={params.titrantBaseConc}
@@ -461,6 +710,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     onChange={(v) => handleParamChange({ titrantBaseConc: v })}
                   />
                   <TactileParameterControl
+                    paramKey="analyteAcidConc"
                     label="Konsentrasi Analit (Ma)"
                     unit="M"
                     value={params.analyteAcidConc}
@@ -519,6 +769,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               ) : params.mode === 'ideal-gas-boyle' ? (
                 <>
                   <TactileParameterControl
+                    paramKey="gasVolumeL"
                     label="Volume Silinder Gas (V)"
                     unit="L"
                     value={params.gasVolumeL ?? 10}
@@ -532,6 +783,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     onChange={(v) => handleParamChange({ gasVolumeL: v })}
                   />
                   <TactileParameterControl
+                    paramKey="gasTemperatureK"
                     label="Suhu Mutlak Gas (T)"
                     unit="K"
                     value={params.gasTemperatureK ?? 300}
@@ -604,6 +856,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                 <>
                   <TactileParameterControl
                     id="chem-heater-temp"
+                    paramKey="initialTempC"
                     label="Suhu Pemanas (T)"
                     unit="°C"
                     value={params.initialTempC}

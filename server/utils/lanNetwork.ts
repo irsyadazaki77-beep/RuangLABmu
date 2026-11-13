@@ -1,4 +1,7 @@
 import os from 'os';
+import fs from 'fs';
+import path from 'path';
+import { spawn } from 'child_process';
 import type http from 'http';
 
 export interface NetworkInterfaceLike {
@@ -131,3 +134,67 @@ export async function listenWithPortFallback(
     `Gagal menyalakan server RuangLABmu pada rentang port ${preferredPort}–${preferredPort + maxAttempts}.`
   );
 }
+
+/**
+ * Resolves the static frontend `dist/` directory for both standard production builds
+ * and standalone 3T portable executables compiled via `bun build --compile`.
+ */
+export function resolvePortableDistDir(
+  rootDir: string = process.cwd(),
+  execPath: string = process.execPath,
+  existsFn: (p: string) => boolean = (p) => {
+    try {
+      return fs.existsSync(p);
+    } catch {
+      return false;
+    }
+  }
+): string {
+  const execDir = path.dirname(execPath);
+  const candidates = [
+    path.join(execDir, 'dist'),
+    path.join(rootDir, 'dist'),
+    path.resolve(rootDir, '..', 'dist'),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsFn(path.join(candidate, 'index.html')) || existsFn(candidate)) {
+      return candidate;
+    }
+  }
+
+  return path.join(rootDir, 'dist');
+}
+
+/**
+ * Opens the default system browser to the local lab URL when running in 3T portable mode.
+ */
+export function openBrowserUrl(
+  url: string,
+  platform: NodeJS.Platform = process.platform
+): void {
+  try {
+    if (platform === 'win32') {
+      const child = spawn('cmd', ['/c', 'start', '', url], {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+    } else if (platform === 'darwin') {
+      const child = spawn('open', [url], {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+    } else {
+      const child = spawn('xdg-open', [url], {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+    }
+  } catch {
+    // Ignore errors on headless environments without a desktop browser
+  }
+}
+

@@ -14,6 +14,10 @@ import {
   type PhysicsParams,
   type ScienceDomain,
 } from './scienceEngine';
+import {
+  type DrLabMuUIAction,
+  sanitizeDrLabMuUIActions,
+} from './drLabMuActions';
 
 export interface RecordsRegressionSummary {
   hasRegression: boolean;
@@ -39,6 +43,7 @@ export interface GeminiSocraticJsonPayload {
   insightKonseptual: string;
   pertanyaanPemantik: string;
   hasAnomaly?: boolean;
+  uiActions?: DrLabMuUIAction[];
 }
 
 /**
@@ -383,25 +388,33 @@ export function normalizeDrLabMuRequest(body: unknown): DrLabMuTelemetryPayload 
  */
 export function formatDrLabMuAskPayload(
   input: DrLabMuStructuredResponse | GeminiSocraticJsonPayload,
-  source: 'gemini-api' | 'socratic-engine'
+  source: 'gemini-api' | 'socratic-engine',
+  fallbackActions?: DrLabMuUIAction[]
 ): {
   source: 'gemini-api' | 'socratic-engine';
   response: DrLabMuStructuredResponse;
 } & DrLabMuStructuredResponse {
   if ('observation' in input && 'socraticQuestion' in input) {
+    const cleanActions = sanitizeDrLabMuUIActions(input.uiActions);
+    const enriched: DrLabMuStructuredResponse = {
+      ...input,
+      uiActions: cleanActions.length > 0 ? cleanActions : fallbackActions,
+    };
     return {
       source,
-      response: input,
-      ...input,
+      response: enriched,
+      ...enriched,
     };
   }
 
+  const cleanActions = sanitizeDrLabMuUIActions(input.uiActions);
   const structured: DrLabMuStructuredResponse = {
     observation: input.observasiSingkat,
     dataHighlight: input.insightKonseptual,
     socraticQuestion: input.pertanyaanPemantik,
     detectedTrigger: input.hasAnomaly ? 'anomaly-outlier' : 'concept-analogy',
     formattedText: `1. Observasi Singkat:\n${input.observasiSingkat}\n\n2. Insight / Analogi Konseptual:\n${input.insightKonseptual}\n\n3. Pertanyaan Pemantik:\n💡 ${input.pertanyaanPemantik}`,
+    uiActions: cleanActions.length > 0 ? cleanActions : fallbackActions,
   };
 
   return {

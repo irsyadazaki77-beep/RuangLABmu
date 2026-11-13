@@ -4,6 +4,8 @@
  * and domain LabViews without raw string literals.
  */
 
+import type { DrLabMuUIAction } from './drLabMuActions';
+
 export const LAB_EVENTS = {
   TOGGLE_SIMULATION: 'ruanglab:toggle-simulation',
   CAPTURE_SNAPSHOT: 'ruanglab:capture-snapshot',
@@ -12,6 +14,11 @@ export const LAB_EVENTS = {
   APPARATUS_DOCKED: 'ruanglab:apparatus-docked',
   SCAFFOLDING_FOCUS_INSTRUMENT: 'ruanglab:scaffolding-focus-instrument',
   SCAFFOLDING_ASK_DR_LABMU: 'ruanglab:scaffolding-ask-dr-labmu',
+  SEEK_TIMELINE: 'ruanglab:seek-timeline',
+  RESUME_FROM_TIMELINE: 'ruanglab:resume-from-timeline',
+  AI_UI_ACTION: 'ruanglab:ai-ui-action',
+  TEACHER_LASER_EMIT: 'ruanglab:teacher-laser-emit',
+  TEACHER_CAMERA_EMIT: 'ruanglab:teacher-camera-emit',
 } as const;
 
 export type LabEventName = (typeof LAB_EVENTS)[keyof typeof LAB_EVENTS];
@@ -40,6 +47,25 @@ export interface LabEventPayloadMap {
     prompt: string;
     tier: 1 | 2 | 3;
     condition: 'stagnant_trial' | 'erratic_outliers' | 'safety_violation';
+  };
+  [LAB_EVENTS.SEEK_TIMELINE]: {
+    cursorIndex: number;
+  };
+  [LAB_EVENTS.RESUME_FROM_TIMELINE]: {
+    cursorIndex: number;
+    simTime: number;
+  };
+  [LAB_EVENTS.AI_UI_ACTION]: DrLabMuUIAction;
+  [LAB_EVENTS.TEACHER_LASER_EMIT]: {
+    point: [number, number, number];
+    normal?: [number, number, number];
+    hoveredObject?: string;
+    active: boolean;
+  };
+  [LAB_EVENTS.TEACHER_CAMERA_EMIT]: {
+    position: [number, number, number];
+    target: [number, number, number];
+    enabled: boolean;
   };
 }
 

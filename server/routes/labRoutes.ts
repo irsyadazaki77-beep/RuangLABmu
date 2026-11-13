@@ -14,6 +14,7 @@ export function createLabRouter({ state, getPort }: LabRoutesDeps): express.Rout
   router.get('/api/health', (_req, res) => {
     res.json({
       status: 'ok',
+      uptime: process.uptime(),
       activeRooms: state.activeLabRooms.size,
       recordsCount: state.experimentRecords.length,
       port: getPort(),
