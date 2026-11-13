@@ -10,6 +10,12 @@ import {
   Atom,
   Volume2,
   Lightbulb,
+  Compass,
+  Factory,
+  GraduationCap,
+  History,
+  Calculator,
+  XCircle,
 } from 'lucide-react';
 import {
   ExperimentModule,
@@ -33,6 +39,46 @@ import {
 } from '../services/gamificationEngine';
 import { InteractiveFormulaPrimer } from './ui/InteractiveFormulaPrimer';
 import { DIYLocalWisdomCard } from './ui/DIYLocalWisdomCard';
+
+function cleanLatexEquation(eq: string): string {
+  if (!eq) return '';
+  return eq
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1) / ($2)')
+    .replace(/\\text\{([^}]+)\}/g, '$1')
+    .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
+    .replace(/\\left\(/g, '(')
+    .replace(/\\right\)/g, ')')
+    .replace(/\\Sigma/g, 'Σ')
+    .replace(/\\Delta/g, 'Δ')
+    .replace(/\\Psi/g, 'Ψ')
+    .replace(/\\lambda/g, 'λ')
+    .replace(/\\theta/g, 'θ')
+    .replace(/\\mu/g, 'μ')
+    .replace(/\\pi/g, 'π')
+    .replace(/\\eta/g, 'η')
+    .replace(/\\rho/g, 'ρ')
+    .replace(/\\nu/g, 'ν')
+    .replace(/\\phi/g, 'φ')
+    .replace(/\\varepsilon/g, 'ε')
+    .replace(/\\alpha/g, 'α')
+    .replace(/\\beta/g, 'β')
+    .replace(/\\gamma/g, 'γ')
+    .replace(/\\implies/g, '⟹')
+    .replace(/\\cdot/g, '·')
+    .replace(/\\times/g, '×')
+    .replace(/\\approx/g, '≈')
+    .replace(/\\propto/g, '∝')
+    .replace(/\\quad/g, ' ')
+    .replace(/\\max/g, 'max')
+    .replace(/\\sin/g, 'sin')
+    .replace(/\\cos/g, 'cos')
+    .replace(/\\tan/g, 'tan')
+    .replace(/\^2/g, '²')
+    .replace(/\^3/g, '³')
+    .replace(/\_\{([^}]+)\}/g, '_$1')
+    .replace(/\\/g, '')
+    .trim();
+}
 
 interface PreLabBriefingViewProps {
   experiment: ExperimentModule;
@@ -137,6 +183,22 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
               01. Pengenalan, Hipotesis Awal &amp; K3 Laboratorium
             </span>
             <span aria-hidden="true">·</span>
+            {experiment.chapterNumber && (
+              <>
+                <span className="font-bold text-sky-700 dark:text-sky-300 bg-sky-100/80 dark:bg-sky-950/80 border border-sky-300 dark:border-sky-800 px-2 py-0.5 rounded-md">
+                  Bab {experiment.chapterNumber}
+                </span>
+                <span aria-hidden="true">·</span>
+              </>
+            )}
+            {experiment.competencyLevel && (
+              <>
+                <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                  Tingkat {experiment.competencyLevel}
+                </span>
+                <span aria-hidden="true">·</span>
+              </>
+            )}
             <span className="capitalize">{experiment.domain}</span>
             <span aria-hidden="true">·</span>
             <span>{experiment.subCategory}</span>
@@ -196,45 +258,14 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
                   Rumus &amp; Hukum Dasar:
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {experiment.keyEquations.map((eq, idx) => {
-                    const cleanEq = eq
-                      .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1) / ($2)')
-                      .replace(/\\text\{([^}]+)\}/g, '$1')
-                      .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
-                      .replace(/\\left\(/g, '(')
-                      .replace(/\\right\)/g, ')')
-                      .replace(/\\Sigma/g, 'Σ')
-                      .replace(/\\Delta/g, 'Δ')
-                      .replace(/\\Psi/g, 'Ψ')
-                      .replace(/\\lambda/g, 'λ')
-                      .replace(/\\theta/g, 'θ')
-                      .replace(/\\mu/g, 'μ')
-                      .replace(/\\pi/g, 'π')
-                      .replace(/\\eta/g, 'η')
-                      .replace(/\\rho/g, 'ρ')
-                      .replace(/\\nu/g, 'ν')
-                      .replace(/\\phi/g, 'φ')
-                      .replace(/\\cdot/g, '·')
-                      .replace(/\\times/g, '×')
-                      .replace(/\\approx/g, '≈')
-                      .replace(/\\quad/g, ' ')
-                      .replace(/\\max/g, 'max')
-                      .replace(/\\sin/g, 'sin')
-                      .replace(/\\cos/g, 'cos')
-                      .replace(/\\tan/g, 'tan')
-                      .replace(/\^2/g, '²')
-                      .replace(/\^3/g, '³')
-                      .replace(/\_\{([^}]+)\}/g, '_$1')
-                      .replace(/\\/g, '');
-                    return (
-                      <div
-                        key={idx}
-                        className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs text-sky-600 dark:text-sky-400 font-semibold leading-relaxed"
-                      >
-                        {cleanEq}
-                      </div>
-                    );
-                  })}
+                  {experiment.keyEquations.map((eq, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs text-sky-600 dark:text-sky-400 font-semibold leading-relaxed"
+                    >
+                      {cleanLatexEquation(eq)}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -271,6 +302,170 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
               </ul>
             </div>
           </section>
+
+          {/* 1. PANDUAN INVESTIGASI ILMIAH BERTALAP */}
+          {experiment.stepByStepGuide && experiment.stepByStepGuide.length > 0 && (
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-3.5">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm">
+                  <Compass className="w-4 h-4 text-sky-500" />
+                  <h2>Panduan Investigasi Ilmiah Terarah</h2>
+                </div>
+                <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                  {experiment.stepByStepGuide.length} Tahap Investigasi
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {experiment.stepByStepGuide.map((stepText, idx) => {
+                  const cleanStep = stepText.replace(/^\d+\.\s*/, '');
+                  return (
+                    <div
+                      key={idx}
+                      className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800 flex items-start gap-3 text-xs text-slate-700 dark:text-slate-300 leading-relaxed"
+                    >
+                      <span className="w-5 h-5 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-600 dark:text-sky-400 font-bold font-mono text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                        {idx + 1}
+                      </span>
+                      <span>{cleanStep}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* 2. KLINIK MISKONSEPSI: MITOS VS FAKTA ILMIAH */}
+          {experiment.commonMisconceptions && experiment.commonMisconceptions.length > 0 && (
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-3.5">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm">
+                  <Lightbulb className="w-4 h-4 text-amber-500" />
+                  <h2>Klinik Miskonsepsi: Mitos vs Fakta Ilmiah</h2>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 px-2 py-0.5 rounded-md">
+                  Pemberantasan Salah Konsep
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {experiment.commonMisconceptions.map((item, idx) => {
+                  const parts = item.split(/Faktanya:|Fakta:/i);
+                  const misconception = parts[0]?.trim() || item;
+                  const fact = parts[1]?.trim() || '';
+
+                  return (
+                    <div
+                      key={idx}
+                      className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2.5 text-xs"
+                    >
+                      <div className="flex items-start gap-2.5 text-rose-700 dark:text-rose-400">
+                        <XCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" />
+                        <div>
+                          <span className="font-bold">Mitos / Miskonsepsi Umum: </span>
+                          <span className="text-slate-700 dark:text-slate-300">{misconception}</span>
+                        </div>
+                      </div>
+                      {fact && (
+                        <div className="flex items-start gap-2.5 text-emerald-700 dark:text-emerald-400 pt-2 border-t border-slate-200/60 dark:border-slate-800/80">
+                          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
+                          <div>
+                            <span className="font-bold">Fakta Ilmiah yang Benar: </span>
+                            <span className="text-slate-700 dark:text-slate-300 leading-relaxed">{fact}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* 3. APLIKASI NYATA & INDUSTRI DI INDONESIA */}
+          {experiment.realWorldApplications && experiment.realWorldApplications.length > 0 && (
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-3.5">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm">
+                  <Factory className="w-4 h-4 text-emerald-500" />
+                  <h2>Aplikasi Nyata &amp; Industri di Indonesia</h2>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700/60 px-2 py-0.5 rounded-md">
+                  Konteks Nasional &amp; Industri
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {experiment.realWorldApplications.map((appText, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-col justify-between text-xs space-y-2"
+                  >
+                    <div className="flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
+                      <span className="w-4 h-4 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-mono text-[10px] shrink-0 font-bold">
+                        {idx + 1}
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Aplikasi {idx + 1}</span>
+                    </div>
+                    <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-xs">
+                      {appText}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 4. BEDAH PENURUNAN RUMUS & SEJARAH SAINS */}
+          {experiment.deepDiveContent && (
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm">
+                  <GraduationCap className="w-4 h-4 text-indigo-500" />
+                  <h2>Bedah Penurunan Rumus &amp; Sejarah Penemuan</h2>
+                </div>
+                <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-300 dark:border-indigo-700/60 px-2 py-0.5 rounded-md">
+                  Pengayaan Konseptual Mendalam
+                </span>
+              </div>
+
+              {experiment.deepDiveContent.historicalContext && (
+                <div className="p-3.5 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/80 dark:border-indigo-900/50 text-xs space-y-1.5 text-slate-700 dark:text-indigo-200/90 leading-relaxed">
+                  <div className="flex items-center gap-1.5 font-bold text-indigo-900 dark:text-indigo-300">
+                    <History className="w-3.5 h-3.5" />
+                    <span>Konteks Sejarah Sains:</span>
+                  </div>
+                  <p>{experiment.deepDiveContent.historicalContext}</p>
+                </div>
+              )}
+
+              {experiment.deepDiveContent.derivationLatex && experiment.deepDiveContent.derivationLatex.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                    <Calculator className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Langkah Penurunan Matematis Eksak (Derivation Steps):</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {experiment.deepDiveContent.derivationLatex.map((step, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs text-indigo-700 dark:text-indigo-300 overflow-x-auto flex items-center gap-2"
+                      >
+                        <span className="text-slate-400 font-mono text-[10px] shrink-0">[{idx + 1}]</span>
+                        <span className="font-semibold">{cleanLatexEquation(step)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {experiment.deepDiveContent.advancedConcept && (
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <strong className="text-slate-900 dark:text-slate-200">Konsep Lanjutan &amp; Batasan: </strong>
+                  {experiment.deepDiveContent.advancedConcept}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Integrated Pre-Lab Hypothesis Scratchpad */}
           {hypothesisNote && onChangeHypothesisNote && (

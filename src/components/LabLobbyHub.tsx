@@ -19,6 +19,11 @@ import {
   X,
   Wifi,
   QrCode as QrCodeIcon,
+  BookOpen,
+  Layers,
+  GraduationCap,
+  ChevronRight,
+  ArrowRight,
 } from 'lucide-react';
 import {
   ExperimentModule,
@@ -27,6 +32,11 @@ import {
   EXPERIMENT_CATALOG,
   getExperimentById,
 } from '../registry/experimentRegistry';
+import {
+  CURRICULUM_CHAPTERS,
+  CurriculumChapter,
+  CompetencyTier,
+} from '../registry/curriculumChapters';
 import { labSound } from '../utils/soundEngine';
 import { ComfortThemeMode } from './ui/VisualComfortToolbar';
 import {
@@ -202,6 +212,9 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
   const [selectedDomain, setSelectedDomain] = useState<ScienceDomain | 'all'>('all');
   const [cognitiveFilter, setCognitiveFilter] = useState<CognitiveLoadTier>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [lobbyViewMode, setLobbyViewMode] = useState<'chapters' | 'all'>('chapters');
+  const [selectedChapterNum, setSelectedChapterNum] = useState<number | 'all'>('all');
+  const [competencyTierFilter, setCompetencyTierFilter] = useState<CompetencyTier | 'Semua'>('Semua');
 
   const { userRole, setUserRole } = useLabStore();
   const { openModal } = useUIStore();
@@ -326,9 +339,47 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
       .catch(() => {});
   }, [isRoomModalOpen]);
 
+  const filteredChapters = useMemo(() => {
+    return CURRICULUM_CHAPTERS.filter((ch) => {
+      if (selectedDomain !== 'all' && ch.domain !== selectedDomain) return false;
+      if (competencyTierFilter !== 'Semua' && ch.competencyTier !== competencyTierFilter) return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchTitle = ch.title.toLowerCase().includes(q);
+        const matchDesc = ch.overviewDescription.toLowerCase().includes(q);
+        const matchTheme = ch.realWorldTheme.toLowerCase().includes(q);
+        const matchCompetencies = ch.coreCompetencies.some((c) => c.toLowerCase().includes(q));
+        const matchModules = ch.moduleIds.some((id) => {
+          const m = EXPERIMENT_CATALOG.find((exp) => exp.id === id);
+          return m && (m.title.toLowerCase().includes(q) || m.theorySummary.toLowerCase().includes(q));
+        });
+        if (!matchTitle && !matchDesc && !matchTheme && !matchCompetencies && !matchModules) return false;
+      }
+
+      return true;
+    });
+  }, [selectedDomain, competencyTierFilter, searchQuery]);
+
+  const currentActiveChapter = useMemo(() => {
+    if (selectedChapterNum === 'all') return null;
+    return CURRICULUM_CHAPTERS.find((ch) => ch.chapterNumber === selectedChapterNum) || null;
+  }, [selectedChapterNum]);
+
   const filteredModules = useMemo(() => {
     return EXPERIMENT_CATALOG.filter((mod) => {
-      if (!mod.supportedTiers.includes(activeTier)) return false;
+      // If a specific chapter is selected, show its modules
+      if (selectedChapterNum !== 'all') {
+        if (mod.chapterNumber !== selectedChapterNum) return false;
+      } else {
+        if (competencyTierFilter !== 'Semua') {
+          const ch = CURRICULUM_CHAPTERS.find((c) => c.chapterNumber === mod.chapterNumber);
+          if (ch && ch.competencyTier !== competencyTierFilter) return false;
+        } else if (lobbyViewMode === 'all') {
+          if (!mod.supportedTiers.includes(activeTier)) return false;
+        }
+      }
+
       if (selectedDomain !== 'all' && mod.domain !== selectedDomain) return false;
 
       if (cognitiveFilter !== 'all') {
@@ -346,7 +397,15 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
 
       return true;
     });
-  }, [activeTier, selectedDomain, cognitiveFilter, searchQuery]);
+  }, [
+    activeTier,
+    selectedDomain,
+    cognitiveFilter,
+    searchQuery,
+    selectedChapterNum,
+    competencyTierFilter,
+    lobbyViewMode,
+  ]);
 
   const handleRoomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -897,86 +956,211 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
         </div>
       </div>
 
-      {/* 3. SINGLE-ROW FILTER & SEARCH BAR */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        {/* Domain Filter Tabs */}
-        <div className="flex items-center gap-1 p-1 bg-stone-200/60 dark:bg-slate-900 rounded-xl border border-stone-200/80 dark:border-slate-800 overflow-x-auto">
-          {[
-            { id: 'all', label: 'Semua Domain' },
-            { id: 'fisika', label: 'Fisika' },
-            { id: 'kimia', label: 'Kimia' },
-            { id: 'biologi', label: 'Biologi' },
-            { id: 'astronomi', label: 'Astronomi' },
-          ].map((tab) => (
+      {/* 3. CURRICULUM CHAPTER & COMPETENCY CONTROLS */}
+      <div className="space-y-2.5">
+        {/* Row A: View Mode Toggle & Competency Tier Selector */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 p-2.5 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200/90 dark:border-slate-800 shadow-2xs">
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1.5 p-1 bg-stone-100 dark:bg-slate-950 rounded-xl border border-stone-200/80 dark:border-slate-800">
             <button
-              key={tab.id}
               type="button"
               onClick={() => {
                 labSound.playClick();
-                setSelectedDomain(tab.id as ScienceDomain | 'all');
+                setLobbyViewMode('chapters');
+                setSelectedChapterNum('all');
               }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                selectedDomain === tab.id
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                lobbyViewMode === 'chapters'
                   ? 'bg-sky-600 text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              {tab.label}
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Bab Kurikulum (8 Bab)</span>
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setLobbyViewMode('all');
+                setSelectedChapterNum('all');
+              }}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                lobbyViewMode === 'all'
+                  ? 'bg-sky-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Semua 28 Modul Sains</span>
+            </button>
+          </div>
+
+          {/* Competency Tier Selector (Kemampuan Siswa) */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-slate-500 dark:text-slate-400 font-medium mr-1 flex items-center gap-1 text-[11px]">
+              <GraduationCap className="w-3.5 h-3.5 text-sky-500" />
+              <span>Pilih Kemampuan:</span>
+            </span>
+            {(['Semua', 'Dasar (SMP)', 'Menengah (SMA)', 'Lanjut (Mahasiswa / OSN)'] as const).map((tier) => {
+              const active = competencyTierFilter === tier;
+              let badgeColor =
+                'bg-stone-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white';
+              if (active) {
+                if (tier === 'Dasar (SMP)') badgeColor = 'bg-emerald-600 text-white font-bold';
+                else if (tier === 'Menengah (SMA)') badgeColor = 'bg-sky-600 text-white font-bold';
+                else if (tier === 'Lanjut (Mahasiswa / OSN)')
+                  badgeColor = 'bg-indigo-600 text-white font-bold';
+                else badgeColor = 'bg-slate-900 dark:bg-slate-700 text-white font-bold';
+              }
+              return (
+                <button
+                  key={tier}
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setCompetencyTierFilter(tier);
+                    if (tier === 'Dasar (SMP)') onTierChange('SMP');
+                    else if (tier === 'Menengah (SMA)') onTierChange('SMA');
+                    else if (tier === 'Lanjut (Mahasiswa / OSN)') onTierChange('Mahasiswa');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] transition-colors cursor-pointer shrink-0 ${badgeColor}`}
+                >
+                  {tier === 'Semua' ? 'Semua Kemampuan' : tier}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Academic Tier Segmented Control */}
-          <div className="flex items-center gap-1 p-1 bg-stone-200/60 dark:bg-slate-900 rounded-xl border border-stone-200/80 dark:border-slate-800 shrink-0">
-            {(['SMP', 'SMA', 'Mahasiswa'] as const).map((tier) => (
+        {/* Row B: Quick Chapter Selector Carousel */}
+        <div className="flex items-center gap-1.5 overflow-x-auto py-1 text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              labSound.playClick();
+              setSelectedChapterNum('all');
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+              selectedChapterNum === 'all'
+                ? 'bg-slate-900 dark:bg-slate-700 text-white'
+                : 'bg-stone-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-stone-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            Semua Bab (1–8)
+          </button>
+          {CURRICULUM_CHAPTERS.map((ch) => {
+            const isSelected = selectedChapterNum === ch.chapterNumber;
+            return (
               <button
-                key={tier}
+                key={ch.id}
                 type="button"
                 onClick={() => {
                   labSound.playClick();
-                  onTierChange(tier);
+                  setSelectedChapterNum(ch.chapterNumber);
+                  setLobbyViewMode('chapters');
                 }}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
-                  activeTier === tier
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                    : 'bg-stone-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-stone-200 dark:hover:bg-slate-700'
                 }`}
               >
-                {tier}
+                {ch.shortTitle}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Row C: Domain Filter & Search Bar */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Domain Filter Tabs */}
+          <div className="flex items-center gap-1 p-1 bg-stone-200/60 dark:bg-slate-900 rounded-xl border border-stone-200/80 dark:border-slate-800 overflow-x-auto">
+            {[
+              { id: 'all', label: 'Semua Domain' },
+              { id: 'fisika', label: 'Fisika' },
+              { id: 'kimia', label: 'Kimia' },
+              { id: 'biologi', label: 'Biologi' },
+              { id: 'astronomi', label: 'Astronomi' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setSelectedDomain(tab.id as ScienceDomain | 'all');
+                }}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  selectedDomain === tab.id
+                    ? 'bg-sky-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {tab.label}
               </button>
             ))}
           </div>
 
-          {/* Compact Cognitive Load Select */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white dark:bg-slate-900 rounded-xl border border-stone-200/90 dark:border-slate-800 text-xs">
-            <BrainCircuit className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-            <select
-              aria-label="Filter Beban Kognitif"
-              value={cognitiveFilter}
-              onChange={(e) => {
-                labSound.playClick();
-                setCognitiveFilter(e.target.value as CognitiveLoadTier);
-              }}
-              className="bg-transparent font-medium text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
-            >
-              <option value="all" className="bg-white dark:bg-slate-900">Semua Tingkat Kesulitan</option>
-              <option value="ringan" className="bg-white dark:bg-slate-900">● Beban Ringan</option>
-              <option value="terstruktur" className="bg-white dark:bg-slate-900">◆ Beban Terstruktur</option>
-              <option value="analitik" className="bg-white dark:bg-slate-900">▲ Beban Analitik</option>
-            </select>
-          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Academic Tier Segmented Control */}
+            <div className="flex items-center gap-1 p-1 bg-stone-200/60 dark:bg-slate-900 rounded-xl border border-stone-200/80 dark:border-slate-800 shrink-0">
+              {(['SMP', 'SMA', 'Mahasiswa'] as const).map((tier) => (
+                <button
+                  key={tier}
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    onTierChange(tier);
+                  }}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+                    activeTier === tier
+                      ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {tier}
+                </button>
+              ))}
+            </div>
 
-          {/* Search Input */}
-          <div className="relative flex-1 min-w-[200px] sm:w-56">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari modul atau rumus..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-sky-500 transition-colors"
-            />
+            {/* Compact Cognitive Load Select */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white dark:bg-slate-900 rounded-xl border border-stone-200/90 dark:border-slate-800 text-xs">
+              <BrainCircuit className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+              <select
+                aria-label="Filter Beban Kognitif"
+                value={cognitiveFilter}
+                onChange={(e) => {
+                  labSound.playClick();
+                  setCognitiveFilter(e.target.value as CognitiveLoadTier);
+                }}
+                className="bg-transparent font-medium text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+              >
+                <option value="all" className="bg-white dark:bg-slate-900">
+                  Semua Tingkat Kesulitan
+                </option>
+                <option value="ringan" className="bg-white dark:bg-slate-900">
+                  ● Beban Ringan
+                </option>
+                <option value="terstruktur" className="bg-white dark:bg-slate-900">
+                  ◆ Beban Terstruktur
+                </option>
+                <option value="analitik" className="bg-white dark:bg-slate-900">
+                  ▲ Beban Analitik
+                </option>
+              </select>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[200px] sm:w-56">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari modul atau rumus..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-sky-500 transition-colors"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -984,8 +1168,223 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
       {/* 4. STUDENT SCIENTIFIC ACHIEVEMENT BADGES STRIP */}
       {badges.length > 0 && <AchievementBadgesStrip badges={badges} />}
 
-      {/* 5. 3-COLUMN PROPORTIONAL EXPERIMENT MODULE GRID */}
-      {filteredModules.length === 0 ? (
+      {/* 5. ACTIVE CHAPTER BANNER (If a specific chapter is chosen) */}
+      {currentActiveChapter && (
+        <div className="rounded-2xl border border-sky-300 dark:border-sky-800/80 bg-gradient-to-r from-sky-50/70 via-indigo-50/40 to-white dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950 p-5 space-y-3.5 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-200/60 dark:border-slate-800 pb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2.5 py-1 rounded-lg bg-sky-600 text-white font-bold font-mono text-xs shadow-2xs">
+                Bab {currentActiveChapter.chapterNumber}
+              </span>
+              <span className="px-2.5 py-0.5 rounded-md bg-white/90 dark:bg-slate-800 font-bold text-xs text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-700">
+                {currentActiveChapter.competencyTier}
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Sasaran: {currentActiveChapter.targetGrades}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setSelectedChapterNum('all');
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-stone-100 dark:hover:bg-slate-700 border border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer transition-colors shadow-2xs"
+            >
+              ← Kembali ke Daftar 8 Bab
+            </button>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {currentActiveChapter.title}
+            </h2>
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+              {currentActiveChapter.overviewDescription}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-xs">
+            <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-950/70 border border-stone-200/80 dark:border-slate-800/80 space-y-1.5">
+              <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>Capaian Pembelajaran Inti Bab:</span>
+              </div>
+              <ul className="space-y-1 text-slate-600 dark:text-slate-400">
+                {currentActiveChapter.coreCompetencies.map((c, i) => (
+                  <li key={i} className="flex items-start gap-1.5 leading-relaxed">
+                    <span className="text-sky-500 font-bold">·</span>
+                    <span>{c}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-950/70 border border-stone-200/80 dark:border-slate-800/80 flex flex-col justify-between space-y-2.5">
+              <div>
+                <div className="font-bold text-slate-800 dark:text-slate-200">
+                  Prasyarat Konsep:
+                </div>
+                <div className="text-slate-600 dark:text-slate-400 text-xs mt-0.5">
+                  {currentActiveChapter.prerequisites.join(' · ')}
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-stone-100 dark:border-slate-800">
+                <div className="font-bold text-slate-800 dark:text-slate-200">
+                  Konteks Industri &amp; Penerapan Nyata di Indonesia:
+                </div>
+                <div className="text-slate-600 dark:text-slate-400 text-xs mt-0.5">
+                  {currentActiveChapter.realWorldTheme}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. MAIN CONTENT AREA: CHAPTERS GRID OR EXPERIMENT MODULES GRID */}
+      {lobbyViewMode === 'chapters' && selectedChapterNum === 'all' ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-sky-500" />
+                <span>Pilih Berdasarkan Bab Kurikulum &amp; Tingkat Kemampuan</span>
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                8 Bab berjenjang dari Tingkat Dasar (SMP), Menengah (SMA), hingga Lanjut (Mahasiswa / OSN).
+              </p>
+            </div>
+            <span className="text-xs font-mono text-slate-400">
+              {filteredChapters.length} Bab Tersedia
+            </span>
+          </div>
+
+          {filteredChapters.length === 0 ? (
+            <div className="p-12 text-center rounded-2xl border border-dashed border-stone-300 dark:border-slate-800 bg-white dark:bg-slate-900/50 space-y-3">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                Tidak ada bab yang sesuai dengan filter domain atau kemampuan Anda.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDomain('all');
+                  setCompetencyTierFilter('Semua');
+                  setSearchQuery('');
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-sky-600 text-white hover:bg-sky-500 cursor-pointer"
+              >
+                Reset Semua Filter
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4.5">
+              {filteredChapters.map((ch) => {
+                let tierBadge =
+                  'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
+                if (ch.competencyTier.startsWith('Menengah')) {
+                  tierBadge = 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30';
+                } else if (ch.competencyTier.startsWith('Lanjut')) {
+                  tierBadge =
+                    'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30';
+                }
+
+                const DomainIcon = DOMAIN_ICONS[ch.domain as ScienceDomain] || Atom;
+                const domainColor = DOMAIN_COLORS[ch.domain as ScienceDomain] || '#0ea5e9';
+
+                return (
+                  <div
+                    key={ch.id}
+                    className="rounded-2xl border border-stone-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 flex flex-col justify-between hover:border-sky-500/60 dark:hover:border-sky-500/60 transition-all shadow-xs hover:shadow-lg space-y-4 cursor-pointer group"
+                    onClick={() => {
+                      labSound.playClick();
+                      setSelectedChapterNum(ch.chapterNumber);
+                    }}
+                  >
+                    <div className="space-y-3">
+                      {/* Top Badges */}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded-lg bg-slate-900 text-white dark:bg-slate-800 shadow-2xs">
+                            Bab {ch.chapterNumber}
+                          </span>
+                          <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300">
+                            <DomainIcon className="w-3.5 h-3.5" style={{ color: domainColor }} />
+                            <span className="capitalize font-semibold">{ch.domain}</span>
+                          </div>
+                        </div>
+
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${tierBadge}`}>
+                          {ch.competencyTier}
+                        </span>
+                      </div>
+
+                      {/* Chapter Title */}
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white leading-snug group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
+                          {ch.title}
+                        </h3>
+                        <div className="text-[11px] text-sky-600 dark:text-sky-400 font-semibold mt-0.5">
+                          Sasaran: {ch.targetGrades}
+                        </div>
+                      </div>
+
+                      {/* Overview */}
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-2">
+                        {ch.overviewDescription}
+                      </p>
+
+                      {/* Core Competencies Preview */}
+                      <div className="space-y-1 pt-1">
+                        <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                          Capaian Pembelajaran Inti:
+                        </div>
+                        <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                          {ch.coreCompetencies.slice(0, 2).map((comp, idx) => (
+                            <li key={idx} className="flex items-start gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                              <span className="line-clamp-1">{comp}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Theme */}
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-2 border-t border-stone-100 dark:border-slate-800 flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">
+                          Konteks Industri:
+                        </span>
+                        <span className="truncate">{ch.realWorldTheme}</span>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="pt-2 flex items-center justify-between border-t border-stone-100 dark:border-slate-800">
+                      <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                        {ch.moduleIds.length} Modul Praktikum 3D
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          labSound.playClick();
+                          setSelectedChapterNum(ch.chapterNumber);
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs group-hover:translate-x-0.5"
+                      >
+                        <span>Buka Modul Bab Ini</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : filteredModules.length === 0 ? (
         <div className="p-12 text-center rounded-2xl border border-dashed border-stone-300 dark:border-slate-800 bg-white dark:bg-slate-900/50 space-y-3">
           <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
             Tidak ada modul eksperimen yang sesuai dengan pencarian atau filter beban kognitif Anda.
@@ -996,6 +1395,8 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               setSearchQuery('');
               setSelectedDomain('all');
               setCognitiveFilter('all');
+              setSelectedChapterNum('all');
+              setCompetencyTierFilter('Semua');
             }}
             className="px-4 py-2 text-xs font-semibold rounded-xl bg-sky-600 text-white hover:bg-sky-500 cursor-pointer"
           >
@@ -1064,11 +1465,22 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                   </div>
 
                   {/* Card Body */}
-                  <div className="p-5 pb-3.5 space-y-2">
+                  <div className="p-5 pb-3.5 space-y-2.5">
+                    {/* Chapter & SubCategory Metadata */}
                     <div className="flex items-center justify-between gap-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                      <span className="truncate">
-                        {exp.subCategory} · {exp.apparatusList[0] || 'Aparatus 3D'}
-                      </span>
+                      <div className="flex items-center gap-1.5 truncate">
+                        {exp.chapterNumber && (
+                          <span className="font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/70 border border-sky-200 dark:border-sky-800/80 px-1.5 py-0.2 rounded text-[10px]">
+                            Bab {exp.chapterNumber}
+                          </span>
+                        )}
+                        {exp.competencyLevel && (
+                          <span className="font-mono text-[10px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded">
+                            {exp.competencyLevel}
+                          </span>
+                        )}
+                        <span className="truncate">{exp.subCategory}</span>
+                      </div>
                       <span className="font-mono text-[10px] shrink-0 text-slate-400 dark:text-slate-500">
                         {exp.estimatedMinutes}m · {exp.parameters.length} var
                       </span>
@@ -1083,6 +1495,12 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                     <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed comfort-prose">
                       {conciseDesc}
                     </p>
+
+                    {/* In-depth materials tag */}
+                    <div className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 px-2 py-1 rounded-lg">
+                      <Sparkles className="w-3 h-3 text-emerald-500 shrink-0" />
+                      <span className="truncate">Materi Mendalam: Miskonsepsi &amp; Industri Indonesia</span>
+                    </div>
                   </div>
                 </div>
 

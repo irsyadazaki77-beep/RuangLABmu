@@ -10,6 +10,8 @@ import {
   FlaskConical,
   Leaf,
   Orbit,
+  GraduationCap,
+  Sparkles,
 } from 'lucide-react';
 import {
   ExperimentModule,
@@ -17,6 +19,10 @@ import {
   ScienceDomain,
   getExperimentsByDomain,
 } from '../registry/experimentRegistry';
+import {
+  CURRICULUM_CHAPTERS,
+  CurriculumChapter,
+} from '../registry/curriculumChapters';
 import { labSound } from '../utils/soundEngine';
 
 interface ExperimentCatalogPickerProps {
@@ -84,14 +90,20 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('all');
   const [tierFilter, setTierFilter] = useState<EducationTier | 'Semua'>('Semua');
+  const [selectedChapterNum, setSelectedChapterNum] = useState<number | 'all'>('all');
 
-  // Reset subcategory when switching science domains
+  // Reset subcategory and chapter when switching science domains
   React.useEffect(() => {
     setSelectedSubCategory('all');
+    setSelectedChapterNum('all');
   }, [domain]);
 
   const domainExperiments = useMemo(() => {
     return getExperimentsByDomain(domain);
+  }, [domain]);
+
+  const domainChapters = useMemo(() => {
+    return CURRICULUM_CHAPTERS.filter((ch) => ch.domain === domain);
   }, [domain]);
 
   const subCategories = useMemo(() => {
@@ -102,6 +114,9 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
 
   const filteredExperiments = useMemo(() => {
     return domainExperiments.filter((exp) => {
+      if (selectedChapterNum !== 'all' && exp.chapterNumber !== selectedChapterNum) {
+        return false;
+      }
       if (tierFilter !== 'Semua' && !exp.supportedTiers.includes(tierFilter)) {
         return false;
       }
@@ -122,7 +137,7 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
       }
       return true;
     });
-  }, [domainExperiments, tierFilter, selectedSubCategory, searchQuery]);
+  }, [domainExperiments, selectedChapterNum, tierFilter, selectedSubCategory, searchQuery]);
 
   const handleTierClick = (tier: EducationTier | 'Semua') => {
     labSound.playClick();
@@ -267,6 +282,49 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
             })}
           </div>
         </div>
+
+        {/* Chapter Filter Pills for the Domain */}
+        {domainChapters.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto text-xs py-1 border-t border-slate-100 dark:border-slate-800/80 pt-2">
+            <span className="text-slate-500 dark:text-slate-400 font-medium mr-1 flex items-center gap-1 shrink-0">
+              <BookOpen className="w-3.5 h-3.5 text-sky-500" /> Bab Kurikulum:
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setSelectedChapterNum('all');
+              }}
+              className={`px-2.5 py-1 rounded-md text-xs whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                selectedChapterNum === 'all'
+                  ? 'bg-slate-900 dark:bg-slate-700 text-white font-medium'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              Semua Bab
+            </button>
+            {domainChapters.map((ch) => {
+              const active = selectedChapterNum === ch.chapterNumber;
+              return (
+                <button
+                  key={ch.id}
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setSelectedChapterNum(ch.chapterNumber);
+                  }}
+                  className={`px-2.5 py-1 rounded-md text-xs whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                    active
+                      ? 'bg-sky-600 text-white font-medium shadow-2xs'
+                      : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {ch.shortTitle} ({ch.competencyTier.split(' ')[0]})
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Grid of Experiment Module Cards */}
@@ -286,9 +344,19 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
               }`}
             >
               <div>
-                {/* Unboxed Clean Metadata Row (Zero-Pill Discipline) */}
+                {/* Unboxed Clean Metadata Row */}
                 <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
                   <div className="flex items-center gap-1.5 truncate">
+                    {exp.chapterNumber && (
+                      <span className="font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/70 border border-sky-200 dark:border-sky-800/80 px-1.5 py-0.2 rounded text-[10px]">
+                        Bab {exp.chapterNumber}
+                      </span>
+                    )}
+                    {exp.competencyLevel && (
+                      <span className="font-mono text-[10px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded">
+                        {exp.competencyLevel}
+                      </span>
+                    )}
                     <span className="font-medium text-sky-600 dark:text-sky-400">
                       {exp.subCategory}
                     </span>
@@ -319,6 +387,12 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
                 <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 line-clamp-2 leading-relaxed">
                   {exp.theorySummary}
                 </p>
+
+                {/* In-depth content badge */}
+                <div className="mt-2 flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 px-2 py-1 rounded-lg">
+                  <Sparkles className="w-3 h-3 text-emerald-500 shrink-0" />
+                  <span className="truncate">Miskonsepsi &amp; Industri Indonesia Lengkap</span>
+                </div>
 
                 {/* Primary Formula Box */}
                 {exp.keyEquations.length > 0 && (

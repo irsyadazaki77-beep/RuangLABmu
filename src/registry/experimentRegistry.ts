@@ -2,9 +2,14 @@ import { PHYSICS_MODULES } from './modules/physicsModules';
 import { CHEMISTRY_MODULES } from './modules/chemistryModules';
 import { BIOLOGY_MODULES } from './modules/biologyModules';
 import { ASTRONOMY_MODULES } from './modules/astronomyModules';
+import { MODULE_DEEP_DIVE_MAP } from './moduleDeepDiveData';
+import { CURRICULUM_CHAPTERS, CurriculumChapter, CompetencyTier } from './curriculumChapters';
 
 export type ScienceDomain = 'fisika' | 'kimia' | 'biologi' | 'astronomi';
 export type EducationTier = 'SMP' | 'SMA' | 'Mahasiswa';
+
+export { CURRICULUM_CHAPTERS };
+export type { CurriculumChapter, CompetencyTier };
 
 export interface ParameterDef {
   key: string;
@@ -34,11 +39,20 @@ export interface PreLabQuestion {
   explanation: string;
 }
 
+export interface DeepDiveContent {
+  derivationLatex?: string[];
+  historicalContext?: string;
+  advancedConcept?: string;
+}
+
 export interface ExperimentModule {
   id: string;
   title: string;
   domain: ScienceDomain;
   subCategory: string; // e.g., "Mekanika", "Listrik & Magnet", "Optika", "Fisika Modern", "Kimia Analitik", "Fisiologi"
+  chapterNumber?: number;
+  chapterTitle?: string;
+  competencyLevel?: 'Dasar' | 'Menengah' | 'Lanjut' | 'Olimpiade';
   supportedTiers: EducationTier[];
   difficulty: 1 | 2 | 3;
   estimatedMinutes: number;
@@ -47,6 +61,10 @@ export interface ExperimentModule {
   keyEquations: string[];
   apparatusList: string[]; // Alat & Bahan
   safetyNotes: string[];   // K3 Laboratorium
+  commonMisconceptions?: string[];
+  realWorldApplications?: string[];
+  stepByStepGuide?: string[];
+  deepDiveContent?: DeepDiveContent;
   parameters: ParameterDef[];
   outputs: OutputMetricDef[];
   defaultRegressionAxes: { xKey: string; yKey: string; expectedSlopeMeaning: string };
@@ -59,7 +77,13 @@ export const EXPERIMENT_CATALOG: ExperimentModule[] = [
   ...CHEMISTRY_MODULES,
   ...BIOLOGY_MODULES,
   ...ASTRONOMY_MODULES,
-];
+].map((mod) => {
+  const deepDive = MODULE_DEEP_DIVE_MAP[mod.id] || {};
+  return {
+    ...mod,
+    ...deepDive,
+  };
+});
 
 export function getExperimentsByDomain(
   domain: ScienceDomain,
@@ -85,3 +109,8 @@ export function getSubCategories(domain: ScienceDomain): string[] {
   const mods = EXPERIMENT_CATALOG.filter((m) => m.domain === domain);
   return Array.from(new Set(mods.map((m) => m.subCategory)));
 }
+
+export function getExperimentsByChapterNumber(chapterNum: number): ExperimentModule[] {
+  return EXPERIMENT_CATALOG.filter((mod) => mod.chapterNumber === chapterNum);
+}
+
