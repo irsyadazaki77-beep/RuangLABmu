@@ -44,6 +44,8 @@ import {
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from './ui/ConceptLabelsOverlay';
+import { buildChemistrySpecialRigs } from './scenes/ChemistryRigs';
+import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
 
 interface ChemistryScene3DProps {
   params: ChemistryParams;
@@ -175,6 +177,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
+  const [hoveredPartLabel, setHoveredPartLabel] = useState<string | null>(null);
   const [showProbe3D, setShowProbe3D] = useState<boolean>(false);
   const showProbe3DRef = useRef<boolean>(false);
   showProbe3DRef.current = showProbe3D;
@@ -774,281 +777,22 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     titrationGroup.add(phScaleGroup);
 
     // =========================================================
-    // 3. ELECTROCHEMISTRY GALVANIC CELL 3D GROUP
+    // 3-6. SPECIAL CHEMISTRY RIGS (Redox, Ideal Gas, Kinetics, Spectrophotometry)
     // =========================================================
-    const redoxGroup = new THREE.Group();
-    scene.add(redoxGroup);
-
     const sharedBeakerGeo = buildLatheFromProfile(createBeakerProfilePoints(0.92, 1.85, 0.045), 40);
-
-    // Left beaker (Anode) with Graduations
-    const beakerLeft = new THREE.Mesh(sharedBeakerGeo, glassMat);
-    beakerLeft.position.set(-1.8, 0.29, 0);
-    beakerLeft.castShadow = true;
-    if (beakerScaleTex) {
-      const beakerLeftScale = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.926, 0.926, 1.5, 32, 1, true),
-        graduationOverlayMat(beakerScaleTex)
-      );
-      beakerLeftScale.position.set(-1.8, 1.15, 0);
-      beakerLeftScale.rotation.y = -Math.PI * 0.4;
-      redoxGroup.add(beakerLeftScale);
-    }
-    const anodeLiquidMat = createLiquidWobbleMaterial(0x94a3b8, 0.72);
-    liquidShaderMaterials.push(anodeLiquidMat);
-    const anodeLiquid = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.85, 0.85, 1.25, 32, 12),
-      anodeLiquidMat
-    );
-    anodeLiquid.position.set(-1.8, 0.96, 0);
-    const anodeElectrode = new THREE.Mesh(new RoundedBoxGeometry(0.28, 2.0, 0.09, 2, 0.015), brushedSteelMat);
-    anodeElectrode.position.set(-1.8, 1.4, 0);
-    anodeElectrode.castShadow = true;
-    anodeElectrode.userData = { draggableParam: 'anodeConcM', min: 0.01, max: 2.0, step: 0.05, label: '[Anoda]' };
-    redoxGroup.add(beakerLeft, anodeLiquid, anodeElectrode);
-
-    // Right beaker (Cathode) with Graduations
-    const beakerRight = new THREE.Mesh(sharedBeakerGeo, glassMat);
-    beakerRight.position.set(1.8, 0.29, 0);
-    beakerRight.castShadow = true;
-    if (beakerScaleTex) {
-      const beakerRightScale = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.926, 0.926, 1.5, 32, 1, true),
-        graduationOverlayMat(beakerScaleTex)
-      );
-      beakerRightScale.position.set(1.8, 1.15, 0);
-      beakerRightScale.rotation.y = -Math.PI * 0.4;
-      redoxGroup.add(beakerRightScale);
-    }
-    const cathodeLiquidMat = createLiquidWobbleMaterial(0x0284c7, 0.76);
-    liquidShaderMaterials.push(cathodeLiquidMat);
-    const cathodeLiquid = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.85, 0.85, 1.25, 32, 12),
-      cathodeLiquidMat
-    );
-    cathodeLiquid.position.set(1.8, 0.96, 0);
-    const cathodeElectrode = new THREE.Mesh(new RoundedBoxGeometry(0.28, 2.0, 0.09, 2, 0.015), brassMat);
-    cathodeElectrode.position.set(1.8, 1.4, 0);
-    cathodeElectrode.castShadow = true;
-    cathodeElectrode.userData = { draggableParam: 'cathodeConcM', min: 0.01, max: 2.0, step: 0.05, label: '[Katoda]' };
-    redoxGroup.add(beakerRight, cathodeLiquid, cathodeElectrode);
-
-    // Salt Bridge U-Tube
-    const saltBridge = new THREE.Mesh(
-      new THREE.TorusGeometry(1.8, 0.12, 14, 36, Math.PI),
-      glassMat
-    );
-    saltBridge.position.set(0, 1.6, 0);
-    saltBridge.castShadow = true;
-    redoxGroup.add(saltBridge);
-
-    // Digital Voltmeter Housing
-    const voltMeter = new THREE.Mesh(new RoundedBoxGeometry(1.65, 1.0, 0.82, 3, 0.05), darkFrameMat);
-    voltMeter.position.set(0, 2.8, -1.2);
-    voltMeter.castShadow = true;
-    redoxGroup.add(voltMeter);
-
-    // =========================================================
-    // 4. IDEAL GAS & BOYLE COMPRESSION 3D GROUP
-    // =========================================================
-    const gasGroup = new THREE.Group();
-    scene.add(gasGroup);
-
-    // Heavy glass cylinder
-    const gasCylinder = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.6, 1.6, 4.4, 32, 1, true),
-      glassMat
-    );
-    gasCylinder.position.set(0, 2.5, 0);
-    gasCylinder.castShadow = true;
-    gasGroup.add(gasCylinder);
-
-    const gasCylBase = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.25, 32), darkFrameMat);
-    gasCylBase.position.set(0, 0.4, 0);
-    gasCylBase.castShadow = true;
-    gasCylBase.receiveShadow = true;
-    gasGroup.add(gasCylBase);
-
-    // Movable metallic piston head
-    const pistonHead = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.58, 1.58, 0.35, 32),
-      brushedSteelMat
-    );
-    pistonHead.position.set(0, 3.2, 0);
-    pistonHead.castShadow = true;
-    pistonHead.userData = { draggableParam: 'gasVolumeL', min: 2.0, max: 25.0, step: 0.5, label: 'Volume Gas V (L)' };
-    gasGroup.add(pistonHead);
-
-    const pistonRod = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 2.2, 16), brushedSteelMat);
-    pistonRod.position.set(0, 4.4, 0);
-    pistonRod.castShadow = true;
-    gasGroup.add(pistonRod);
-
-    // Analog dial pressure gauge
-    const pressureDial = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.2, 28), brassMat);
-    pressureDial.rotation.x = Math.PI / 2;
-    pressureDial.position.set(2.2, 2.6, 0);
-    pressureDial.castShadow = true;
-    gasGroup.add(pressureDial);
-
-    const pressureNeedle = new THREE.Mesh(
-      new THREE.BoxGeometry(0.03, 0.5, 0.02),
-      new THREE.MeshBasicMaterial({ color: 0xef4444 })
-    );
-    pressureNeedle.position.set(2.2, 2.6, 0.12);
-    gasGroup.add(pressureNeedle);
-
-    // Kinetic gas bouncing particles (Single Draw-Call InstancedMesh Pool)
-    const GAS_PARTICLES_MAX = 48;
-    const gasParticleStates: { pos: THREE.Vector3; vel: THREE.Vector3 }[] = [];
-    const gasPartGeo = new THREE.SphereGeometry(0.08, 12, 12);
-    const gasPartMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: 0x38bdf8,
-      emissiveIntensity: 0.55,
-      roughness: 0.2,
+    const specialRigs = buildChemistrySpecialRigs(scene, {
+      sharedBeakerGeo,
+      flaskGeo,
+      glassMat,
+      brushedSteelMat,
+      brassMat,
+      darkFrameMat,
+      beakerScaleTex,
+      graduationOverlayMat,
+      createLiquidWobbleMaterial,
+      liquidShaderMaterials,
     });
-    const gasPool = createInstancedParticlePool(GAS_PARTICLES_MAX, gasPartGeo, gasPartMat, gasGroup);
-    for (let i = 0; i < GAS_PARTICLES_MAX; i++) {
-      const pos = new THREE.Vector3(
-        (Math.random() - 0.5) * 2.2,
-        0.6 + Math.random() * 2.2,
-        (Math.random() - 0.5) * 2.2
-      );
-      const vel = new THREE.Vector3(
-        (Math.random() - 0.5) * 2,
-        (Math.random() - 0.5) * 2,
-        (Math.random() - 0.5) * 2
-      ).normalize();
-      gasParticleStates.push({ pos, vel });
-      gasPool.setTransform(i, pos.x, pos.y, pos.z, 1);
-    }
-    gasPool.commit(GAS_PARTICLES_MAX);
-
-    // =========================================================
-    // 5. REACTION KINETICS & ARRHENIUS 3D GROUP
-    // =========================================================
-    const kineticsGroup = new THREE.Group();
-    scene.add(kineticsGroup);
-
-    // Magnetic hotplate stirrer & Bunsen heater
-    const hotplateBase = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.8, 3.6), darkFrameMat);
-    hotplateBase.position.set(0, 0.68, 0);
-    hotplateBase.castShadow = true;
-    hotplateBase.receiveShadow = true;
-    hotplateBase.userData = { draggableParam: 'kineticsTempC', min: 10, max: 90, step: 5, label: 'Suhu Pemanas T (°C)' };
-    kineticsGroup.add(hotplateBase);
-
-    const hotplateCeramicTopMat = new THREE.MeshStandardMaterial({
-      color: 0x334155,
-      roughness: 0.35,
-      metalness: 0.15,
-      emissive: 0xf97316,
-      emissiveIntensity: 0.25,
-    });
-    const hotplateCeramicTop = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.5, 1.5, 0.1, 32),
-      hotplateCeramicTopMat
-    );
-    hotplateCeramicTop.position.set(0, 1.12, 0);
-    hotplateCeramicTop.userData = { draggableParam: 'kineticsTempC', min: 10, max: 90, step: 5, label: 'Suhu Pemanas T (°C)' };
-    kineticsGroup.add(hotplateCeramicTop);
-
-    // Warm orange heater PointLight (capped at max 0.8 intensity, distance = 3.0)
-    const heaterLight = new THREE.PointLight(0xf97316, 0.8, 3.0);
-    heaterLight.position.set(0, 1.35, 0);
-    kineticsGroup.add(heaterLight);
-
-    // Glowing heater ring with capped emissiveIntensity <= 0.6
-    const heaterRingMat = new THREE.MeshStandardMaterial({
-      color: 0xf97316,
-      roughness: 0.3,
-      metalness: 0.2,
-      emissive: 0xf97316,
-      emissiveIntensity: 0.6,
-    });
-    const heaterFlameRing = new THREE.Mesh(
-      new THREE.TorusGeometry(1.05, 0.05, 12, 32),
-      heaterRingMat
-    );
-    heaterFlameRing.rotation.x = Math.PI / 2;
-    heaterFlameRing.position.set(0, 1.17, 0);
-    kineticsGroup.add(heaterFlameRing);
-
-    // Temp control knob on hotplate
-    const tempKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.2, 16), brassMat);
-    tempKnob.rotation.x = Math.PI / 2;
-    tempKnob.position.set(0, 0.68, 1.85);
-    tempKnob.userData = { draggableParam: 'kineticsTempC', min: 10, max: 90, step: 5, label: 'Suhu Pemanas T (°C)' };
-    kineticsGroup.add(tempKnob);
-
-    // Reaction flask on hotplate
-    const kFlask = new THREE.Mesh(flaskGeo, glassMat);
-    kFlask.position.set(0, 1.18, 0);
-    kFlask.castShadow = true;
-    kineticsGroup.add(kFlask);
-
-    // Liquid whose color turns to sulfur precipitate with procedural surface wobble
-    const kLiquidMat = createLiquidWobbleMaterial(0xfef08a, 0.8);
-    liquidShaderMaterials.push(kLiquidMat);
-    const kLiquid = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.68, 1.32, 1.0, 32, 16),
-      kLiquidMat
-    );
-    kLiquid.position.set(0, 1.7, 0);
-    kineticsGroup.add(kLiquid);
-
-    // Magnetic stir bar inside flask
-    const stirBar = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.06, 0.06, 0.6, 12),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })
-    );
-    stirBar.rotation.z = Math.PI / 2;
-    stirBar.position.set(0, 1.25, 0);
-    kineticsGroup.add(stirBar);
-
-    // =========================================================
-    // 6. SPECTROPHOTOMETRY UV-VIS (BEER'S LAW) 3D GROUP
-    // =========================================================
-    const spectroGroup = new THREE.Group();
-    scene.add(spectroGroup);
-
-    // Main Spectrophotometer Chassis
-    const spectroChassis = new THREE.Mesh(new THREE.BoxGeometry(7.2, 2.2, 4.8), darkFrameMat);
-    spectroChassis.position.set(0, 1.38, 0);
-    spectroChassis.castShadow = true;
-    spectroChassis.receiveShadow = true;
-    spectroGroup.add(spectroChassis);
-
-    // Sample Compartment Lid (openable)
-    const spectroLid = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.18, 2.2), brushedSteelMat);
-    spectroLid.position.set(-0.8, 2.55, 0.4);
-    spectroLid.castShadow = true;
-    spectroGroup.add(spectroLid);
-
-    // Optical Cuvette (Refractive Glass)
-    const cuvette = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.8, 0.65), glassMat);
-    cuvette.position.set(-0.8, 2.8, 0.4);
-    cuvette.castShadow = true;
-    spectroGroup.add(cuvette);
-
-    // Colored analyte inside cuvette (KMnO4 magenta / CuSO4 cyan)
-    const analyteSolutionCuvette = new THREE.Mesh(
-      new THREE.BoxGeometry(0.58, 1.6, 0.58),
-      new THREE.MeshStandardMaterial({ color: 0xd946ef, transparent: true, opacity: 0.75 })
-    );
-    analyteSolutionCuvette.position.set(-0.8, 2.8, 0.4);
-    analyteSolutionCuvette.userData = { draggableParam: 'spectroConcMm', min: 0.01, max: 0.25, step: 0.01, label: 'Konsentrasi c (mM)' };
-    spectroGroup.add(analyteSolutionCuvette);
-
-    // Incident light beam line (glows with Bloom)
-    const spectroBeam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.04, 0.04, 3.8, 12),
-      new THREE.MeshBasicMaterial({ color: 0x22c55e })
-    );
-    spectroBeam.rotation.z = Math.PI / 2;
-    spectroBeam.position.set(-0.8, 2.8, 0.4);
-    spectroGroup.add(spectroBeam);
+    const { pistonHead } = specialRigs;
 
     // =========================================================
     // 7. RISING GAS MICRO-BUBBLE SYSTEM (Single Draw-Call InstancedMesh)
@@ -1172,6 +916,9 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       dragSpanPx: 280,
       getInteractiveObjects: getInteractiveMeshes,
       getParamValue: (key) => (latestRef.current.params as unknown as Record<string, number>)[key],
+      onHoverChange: (obj) => {
+        setHoveredPartLabel(obj ? (obj.userData?.label ?? obj.name ?? 'Aparatus Kimia 3D') : null);
+      },
       onDragStart: (obj, paramKey) => {
         if (obj.userData?.measurementHandle === 'probe-body') {
           probeStartX = probeHandle.group.position.x;
@@ -1271,10 +1018,6 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       const isRedox = p.mode === 'electrochemistry-cell' || (p.mode as string) === 'redox-electrochemistry';
       thermoGroup.visible = p.mode === 'thermo-calorimetry';
       titrationGroup.visible = p.mode === 'acid-base-titration';
-      redoxGroup.visible = isRedox;
-      gasGroup.visible = p.mode === 'ideal-gas-boyle';
-      kineticsGroup.visible = p.mode === 'reaction-kinetics-arrhenius';
-      spectroGroup.visible = p.mode === 'spectrophotometry-beer';
 
       // K3 Safety Hazard 3D Visuals (Thermal Runaway / Overpressure / Corrosive Overflow)
       const safetyAlert = evaluateSafetyHazard('Kimia', undefined, p);
@@ -1378,64 +1121,15 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         phPointerMesh.position.y = -1.15 + phFrac * 2.3;
       }
 
-      // 2. Gas Boyle update
-      else if (p.mode === 'ideal-gas-boyle') {
-        const vL = p.gasVolumeL ?? 10.0;
-        const pistonY = 0.8 + (vL / 25.0) * 3.2;
-        pistonHead.position.y = pistonY;
-        pistonRod.position.y = pistonY + 1.2;
-
-        const pAtm = m.gasPressureAtm ?? 1.0;
-        const needleAngle = Math.max(-1.4, Math.min(1.4, (pAtm / 5.0) * Math.PI - Math.PI / 2));
-        pressureNeedle.rotation.z = -needleAngle;
-
-        const gasTempK = p.gasTemperatureK ?? 300;
-        const speed = Math.sqrt(gasTempK / 300) * 0.04;
-        const activeGasCount = isLite ? 24 : GAS_PARTICLES_MAX;
-        const gasHex = gasTempK >= 480 ? 0xef4444 : gasTempK >= 360 ? 0xf97316 : 0x38bdf8;
-        for (let idx = 0; idx < activeGasCount; idx++) {
-          const part = gasParticleStates[idx];
-          part.pos.addScaledVector(part.vel, speed);
-          if (part.pos.y > pistonY - 0.2 || part.pos.y < 0.6) {
-            part.vel.y *= -1;
-            part.pos.y = Math.max(0.6, Math.min(pistonY - 0.2, part.pos.y));
-          }
-          if (Math.abs(part.pos.x) > 1.2) {
-            part.vel.x *= -1;
-            part.pos.x = Math.sign(part.pos.x) * 1.2;
-          }
-          if (Math.abs(part.pos.z) > 1.2) {
-            part.vel.z *= -1;
-            part.pos.z = Math.sign(part.pos.z) * 1.2;
-          }
-          gasPool.setTransform(idx, part.pos.x, part.pos.y, part.pos.z, 1);
-          gasPool.setColor(idx, gasHex);
-        }
-        gasPool.commit(activeGasCount);
-      }
-
-      // 3. Reaction Kinetics update
-      else if (p.mode === 'reaction-kinetics-arrhenius') {
-        const rpmSpeed = ((p.stirringRpm ?? 240) / 60) * (reacting ? 4.2 : 1.6);
-        stirBar.rotation.y = t * Math.max(1.2, rpmSpeed);
-        const tempC = p.kineticsTempC ?? 25;
-        const eaFraction = Math.min(1, Math.max(0, tempC / 70));
-        kLiquidMat.uniforms.uOpacity.value = 0.55 + eaFraction * 0.4;
-        hotplateCeramicTopMat.emissiveIntensity = Math.min(0.6, 0.15 + eaFraction * 0.45);
-        heaterRingMat.emissiveIntensity = Math.min(0.6, 0.25 + eaFraction * 0.35);
-        heaterLight.intensity = Math.min(0.8, 0.3 + eaFraction * 0.5);
-        if (isSimTimeAdvancing && tempC >= 60) {
-          labSound.playThermalBubbling((tempC - 55) / 45);
-        }
-      }
-
-      // 4. Spectrophotometry update
-      else if (p.mode === 'spectrophotometry-beer') {
-        const absVal = m.spectroAbsorbance ?? 0.8;
-        const opacity = Math.min(0.95, Math.max(0.2, absVal * 0.4));
-        (analyteSolutionCuvette.material as THREE.MeshStandardMaterial).opacity = opacity;
-        (spectroBeam.material as THREE.MeshBasicMaterial).color.setHex(absVal > 2 ? 0xef4444 : 0x22c55e);
-      }
+      // 2-4. Special Chemistry Rigs update (Redox, Ideal Gas, Kinetics, Spectrophotometry)
+      specialRigs.update({
+        params: p,
+        metrics: m,
+        simTime: t,
+        isLite,
+        reacting,
+        isSimTimeAdvancing,
+      });
 
       // 5. Rising Gas Micro-Bubbles (Single Draw-Call InstancedMesh) in active chemical vessels
       const showBubbles =
@@ -1829,6 +1523,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           )}
         </button>
       </div>
+      <Scene3DHoverBadge hoveredLabel={dragToast ? null : hoveredPartLabel} accent="emerald" />
     </div>
   );
 };

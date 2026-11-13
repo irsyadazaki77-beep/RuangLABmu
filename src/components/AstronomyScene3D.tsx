@@ -33,6 +33,7 @@ import {
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from './ui/ConceptLabelsOverlay';
+import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
 
 interface AstronomyScene3DProps {
   params: AstronomyParams;
@@ -103,6 +104,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   const activePresetRef = useRef<CameraPreset>('isometric');
   activePresetRef.current = activePreset;
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
+  const [hoveredPartLabel, setHoveredPartLabel] = useState<string | null>(null);
   const [sceneKey, setSceneKey] = useState<number>(0);
 
   const latestRef = useRef({
@@ -377,6 +379,9 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       getParamValue: (paramKey) => {
         const val = (latestRef.current.params as unknown as Record<string, unknown>)[paramKey];
         return typeof val === 'number' ? val : 0;
+      },
+      onHoverChange: (obj) => {
+        setHoveredPartLabel(obj ? (obj.userData?.label ?? obj.name ?? 'Objek Astronomi 3D') : null);
       },
       onDragStart: () => {
         isDraggingInteractive = true;
@@ -714,6 +719,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
           )}
         </button>
       </div>
+      <Scene3DHoverBadge hoveredLabel={dragToast ? null : hoveredPartLabel} accent="violet" />
     </div>
   );
 };

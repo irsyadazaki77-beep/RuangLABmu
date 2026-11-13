@@ -35,6 +35,7 @@ import {
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from './ui/ConceptLabelsOverlay';
+import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
 
 interface BiologyScene3DProps {
   mode:
@@ -123,6 +124,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   const [activePreset, setActivePreset] = useState<BioCameraPreset>('isometric');
   const [clickedBadge, setClickedBadge] = useState<string | null>(null);
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
+  const [hoveredPartLabel, setHoveredPartLabel] = useState<string | null>(null);
   const [snapToast, setSnapToast] = useState<string | null>(null);
   const [showRuler3D, setShowRuler3D] = useState<boolean>(false);
   const showRuler3DRef = useRef<boolean>(false);
@@ -601,6 +603,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       getParamValue: (paramKey) => {
         const val = (latestParamsRef.current as unknown as Record<string, unknown>)[paramKey];
         return typeof val === 'number' ? val : undefined;
+      },
+      onHoverChange: (obj) => {
+        setHoveredPartLabel(obj ? (obj.userData?.label ?? obj.name ?? 'Spesimen Biologi 3D') : null);
       },
       onDragStart: () => {
         const ends = rulerHandle.getEndpoints();
@@ -1116,6 +1121,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           <span>{clickedBadge}</span>
         </div>
       )}
+      <Scene3DHoverBadge hoveredLabel={dragToast ? null : hoveredPartLabel} accent="emerald" />
     </div>
   );
 };

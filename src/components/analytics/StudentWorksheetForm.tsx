@@ -77,9 +77,11 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     'q-titration-4': '20.0',
     'q-kepler-5': '8.0',
     'q-exoplanet-6': '1.0',
+    'q-cardio-7': '5.25',
+    'q-osmosis-8': '-16.0',
   });
   const [hintLevelByQuestion, setHintLevelByQuestion] = useState<Record<string, number>>({});
-  const [lksDomainFilter, setLksDomainFilter] = useState<'Semua' | 'Fisika' | 'Kimia' | 'Astronomi'>('Semua');
+  const [lksDomainFilter, setLksDomainFilter] = useState<'Semua' | 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi'>('Semua');
   const [conclusionText, setConclusionText] = useState<string>(
     'Berdasarkan perolehan data percobaan dan kurva regresi kuantitatif, hipotesis awal terbukti valid. Hubungan antar variabel menunjukkan korelasi linear yang kuat sesuai teori ilmiah yang berlaku.'
   );
@@ -263,7 +265,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     e.preventDefault();
     if (isSubmissionLocked) return;
     labSound.playSuccessChime();
-    const result = gradeWorksheetAnswers(answers);
+    const result = gradeWorksheetAnswers(answers, filteredQuestions);
     setGradedResult(result);
     recordPerfectLksQuiz(result.totalScore, domain, moduleId);
     if (onSubmitQuizScore) {
@@ -274,7 +276,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   const handleSubmitReportToTeacher = async () => {
     if (isSubmissionLocked) return;
     labSound.playClick();
-    const finalGrade = gradedResult ?? gradeWorksheetAnswers(answers);
+    const finalGrade = gradedResult ?? gradeWorksheetAnswers(answers, filteredQuestions);
     setGradedResult(finalGrade);
     setIsSubmittingReport(true);
     const activeRoomId = useCollabStore.getState().activeRoomId || 'LAB-ALPHA';
@@ -520,7 +522,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
             <Filter className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
-            {(['Semua', 'Fisika', 'Kimia', 'Astronomi'] as const).map((dom) => (
+            {(['Semua', 'Fisika', 'Kimia', 'Biologi', 'Astronomi'] as const).map((dom) => (
               <button
                 key={dom}
                 type="button"
@@ -814,7 +816,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             <div className="flex items-center gap-2 text-xs">
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               <span>
-                Nilai LKS: <strong className="font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">{gradedResult.totalScore}/100</strong> ({gradedResult.correctCount} dari {WORKSHEET_QUESTIONS.length} Soal Benar)
+                Nilai LKS: <strong className="font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">{gradedResult.totalScore}/100</strong> ({gradedResult.correctCount} dari {gradedResult.totalQuestions} Soal Benar)
               </span>
             </div>
           )}

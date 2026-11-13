@@ -192,6 +192,42 @@ export const WORKSHEET_QUESTIONS: WorksheetQuestion[] = [
       'Langkah Substitusi: (0.10)² = 0.01. Kalikan dengan 100% untuk mendapatkan persentase peredupan cahaya.',
     ],
   },
+  {
+    id: 'q-cardio-7',
+    domain: 'Biologi',
+    topic: 'Fisiologi Kardiovaskular & Curah Jantung',
+    questionText:
+      'Seorang siswa beristirahat dengan denyut jantung (HR) 75 detak/menit dan volume sekuncup (SV) 70 mL/detak. Berapakah curah jantung (Cardiac Output, CO) siswa tersebut dalam satuan Liter/menit?',
+    formulaHint: 'CO = (HR × SV) / 1000',
+    unit: 'L/menit',
+    correctValue: 5.25,
+    tolerance: 0.1,
+    explanation:
+      'Curah jantung (Cardiac Output) adalah volume darah total yang dipompa ventrikel dalam satu menit: CO = (HR × SV) / 1000 = (75 × 70) / 1000 = 5.25 L/menit.',
+    scaffoldedHints: [
+      'Konsep Fisis: Curah jantung (Cardiac Output) menyatakan volume total darah yang dipompa jantung ke seluruh sirkulasi tubuh dalam satu menit.',
+      'Identifikasi Variabel: Kalikan frekuensi denyut jantung (HR = 75 detak/menit) dengan volume sekuncup (SV = 70 mL/detak).',
+      'Langkah Substitusi: 75 × 70 = 5250 mL/menit. Bagi dengan 1000 untuk mengonversi satuan mL/menit menjadi L/menit: 5250 ÷ 1000 = 5.25 L/menit.',
+    ],
+  },
+  {
+    id: 'q-osmosis-8',
+    domain: 'Biologi',
+    topic: 'Potensial Air & Osmosis Membran Sel Tumbuhan',
+    questionText:
+      'Sebuah silinder kentang bermassa awal m₀ = 5.0 gram direndam dalam larutan sukrosa hipertonik. Setelah 30 menit, massanya menyusut menjadi m_akhir = 4.2 gram akibat keluarnya air secara osmosis. Hitunglah persentase perubahan massa (%Δm) jaringan kentang tersebut!',
+    formulaHint: '%Δm = ((m_akhir - m_awal) / m_awal) × 100%',
+    unit: '%',
+    correctValue: -16.0,
+    tolerance: 0.5,
+    explanation:
+      '%Δm = ((4.2 - 5.0) / 5.0) × 100% = (-0.8 / 5.0) × 100% = -16.0% (tanda negatif mengindikasikan penyusutan massa sel akibat peristiwa plasmolisis).',
+    scaffoldedHints: [
+      'Konsep Fisis: Pada larutan hipertonik, air keluar dari vakuola sel tumbuhan secara osmosis sehingga massa jaringan menyusut (bertanda negatif).',
+      'Identifikasi Variabel: Hitung selisih perubahan massa jaringan kentang: Δm = m_akhir - m_awal = 4.2 - 5.0 = -0.8 gram.',
+      'Langkah Substitusi: Bagi selisih massa dengan massa awal (-0.8 ÷ 5.0 = -0.16), lalu kalikan 100% sehingga diperoleh -16.0%.',
+    ],
+  },
 ];
 
 export function calculateLinearRegression(
@@ -578,17 +614,25 @@ export interface WorksheetQuestionGradeDetail {
 }
 
 export function gradeWorksheetAnswers(
-  userAnswers: Record<string, number | string>
+  userAnswers: Record<string, number | string>,
+  targetQuestions?: WorksheetQuestion[]
 ): {
   totalScore: number;
   correctCount: number;
   totalQuestions: number;
   results: Record<string, WorksheetQuestionGradeDetail>;
 } {
+  const activeQuestions =
+    targetQuestions && targetQuestions.length > 0
+      ? targetQuestions
+      : Object.keys(userAnswers).length === 6 && !('q-cardio-7' in userAnswers)
+      ? WORKSHEET_QUESTIONS.slice(0, 6)
+      : WORKSHEET_QUESTIONS;
+
   let correctCount = 0;
   const results: Record<string, WorksheetQuestionGradeDetail> = {};
 
-  for (const q of WORKSHEET_QUESTIONS) {
+  for (const q of activeQuestions) {
     const raw = userAnswers[q.id];
     const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw ?? ''));
 
@@ -650,16 +694,22 @@ export function gradeWorksheetAnswers(
       diagnosticBadge = 'Hampir Tepat (Galat Pembulatan)';
       diagnosticFeedback = `Jawaban Anda (${parsed} ${q.unit}) mendekati nilai acuan (${q.correctValue} ${q.unit}, galat ${errorPct}%). Hindari pembulatan terlalu dini pada langkah antara.`;
     } else {
-      if (q.id === 'q1-newton') {
-        diagnosticFeedback = `Ingat untuk mengurangkan komponen berat sejajar bidang miring (m·g·sin 30° = 19.62 N) dan gaya gesek kinetis (f_k = 6.79 N) dari gaya dorong F = 40 N sebelum dibagi massa m = 4 kg.`;
-      } else if (q.id === 'q2-projectile') {
-        diagnosticFeedback = `Gunakan v₀² = 20² = 400 m²/s² dan sin(2 × 45°) = sin(90°) = 1, lalu bagi dengan gravitasi g = 9.81 m/s².`;
-      } else if (q.id === 'q3-gibbs') {
-        diagnosticFeedback = `Konversikan ΔS = 160 J/(mol·K) menjadi 0.160 kJ/(mol·K) terlebih dahulu sebelum dikalikan T = 300 K pada rumus ΔG = ΔH - T·ΔS.`;
-      } else if (q.id === 'q4-titration') {
-        diagnosticFeedback = `Gunakan syarat titik ekuivalen monoprotik: M_asam × V_asam = M_basa × V_basa → 0.20 × 25 = 0.25 × V_basa.`;
-      } else if (q.id === 'q5-kepler') {
-        diagnosticFeedback = `Hitung a³ = 4.0³ = 64 terlebih dahulu, lalu tarik akar kuadratnya: T = √64 = 8.0 tahun Bumi.`;
+      if (q.id === 'q-newton-1' || q.id === 'q1-newton') {
+        diagnosticFeedback = `Gaya normal N = m·g = 50 N, gaya gesek kinetis fk = μk·N = 0.10 × 50 = 5 N. Resultan gaya ΣF = 50 - 5 = 45 N, sehingga percepatan a = ΣF / m = 45 / 5 = 9.0 m/s².`;
+      } else if (q.id === 'q-collision-2' || q.id === 'q2-projectile') {
+        diagnosticFeedback = `Gunakan hukum kekekalan momentum: m₁·v₁ + m₂·v₂ = (m₁ + m₂)·v'. Momentum total awal = (4×6) + (2×0) = 24 kg·m/s, dibagi massa total 6 kg menghasilkan v' = 4.0 m/s.`;
+      } else if (q.id === 'q-thermo-3' || q.id === 'q3-gibbs') {
+        diagnosticFeedback = `Konversikan ΔS = 100 J/(mol·K) menjadi 0.100 kJ/(mol·K) terlebih dahulu sebelum dikalikan T = 300 K (T·ΔS = 30 kJ/mol), sehingga ΔG = -60 - 30 = -90.0 kJ/mol.`;
+      } else if (q.id === 'q-titration-4' || q.id === 'q4-titration') {
+        diagnosticFeedback = `Gunakan syarat titik ekuivalen monoprotik: M_a × V_a = M_b × V_b → 0.20 × 25 = 0.25 × V_b sehingga V_b = 5.0 / 0.25 = 20.0 mL.`;
+      } else if (q.id === 'q-kepler-5' || q.id === 'q5-kepler') {
+        diagnosticFeedback = `Berdasarkan Hukum III Kepler: T² = a³ / M_*. Dengan a = 4.0 dan M_* = 1.0, T² = 4³ = 64 sehingga T = √64 = 8.0 tahun Bumi.`;
+      } else if (q.id === 'q-exoplanet-6') {
+        diagnosticFeedback = `Gunakan rumus peredupan fluks transit: ΔF/F = (Rp / R*)² × 100% = (0.10)² × 100% = 1.0%.`;
+      } else if (q.id === 'q-cardio-7') {
+        diagnosticFeedback = `Gunakan rumus curah jantung: CO = (HR × SV) / 1000 = (75 × 70) / 1000 = 5.25 L/menit.`;
+      } else if (q.id === 'q-osmosis-8') {
+        diagnosticFeedback = `Gunakan rumus persentase perubahan massa: %Δm = ((4.2 - 5.0) / 5.0) × 100% = (-0.8 / 5.0) × 100% = -16.0%.`;
       }
     }
 
@@ -676,12 +726,12 @@ export function gradeWorksheetAnswers(
   }
 
   const totalScore = Math.round(
-    (correctCount / WORKSHEET_QUESTIONS.length) * 100
+    (correctCount / activeQuestions.length) * 100
   );
   return {
     totalScore,
     correctCount,
-    totalQuestions: WORKSHEET_QUESTIONS.length,
+    totalQuestions: activeQuestions.length,
     results,
   };
 }
