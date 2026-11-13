@@ -5,13 +5,17 @@ import {
   createBiologicalMembraneTexture,
   createBorosilicateGlassMaterial,
   createBrushedMetalTextures,
-  createInstancedParticlePool,
   createLabBenchTextures,
   smoothCameraTransition,
-  wavelengthNmToHex,
   type CameraSyncPose,
-  type InstancedParticlePool,
 } from '../utils/threeStudioKit';
+import {
+  BiologyRigHandle,
+  buildCatalaseRig,
+  buildOsmosisRig,
+  buildPhotosynthesisRig,
+  buildPredatorPreyRig,
+} from './scenes/BiologyRigs';
 import { createMeasurementRuler3D } from '../utils/threeMeasurementTools';
 import { initThreeStudioHost } from '../utils/threeStudioHost';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
@@ -164,7 +168,20 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         if (url) onCaptureSnapshotRef.current(url);
       }
     };
-    return subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, handleGlobalSnapshot);
+    const unsubSnapshot = subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, handleGlobalSnapshot);
+    const orderedPresets: BioCameraPreset[] = ['isometric', 'front', 'top', 'focus'];
+    const unsubPreset = subscribeLabEvent(LAB_EVENTS.SET_CAMERA_PRESET, (detail) => {
+      if (!detail) return;
+      const preset = orderedPresets[detail.index];
+      if (preset) {
+        setActivePreset(preset);
+        cameraCtrlRef.current?.setPreset(preset);
+      }
+    });
+    return () => {
+      unsubSnapshot();
+      unsubPreset();
+    };
   }, []);
 
   const isAnatomyMode =
@@ -511,340 +528,25 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       return orgGroup;
     };
 
-    // Particle pool (Single Draw-Call InstancedMesh across Biology modes)
-    let instancedPool: InstancedParticlePool | null = null;
-    let particleSeeds: Float32Array = new Float32Array(0);
-    let particleGeo: THREE.BufferGeometry | null = null;
-    let particleMat: THREE.Material | null = null;
-    let lightSpot: THREE.SpotLight | null = null;
-    let foamMesh: THREE.Mesh | null = null;
-    let protoplastMesh: THREE.Mesh | null = null;
-    let cellOrganellesGroup: THREE.Group | null = null;
-
-    // SETUP MODE 1: INGENHOUSZ PHOTOSYNTHESIS
-    if (mode === 'photosynthesis-ingenhousz') {
-      const beakerGeo = new THREE.CylinderGeometry(1.5, 1.5, 3.2, 32, 1, true);
-      const beakerGlassMat = slideGlassMat;
-      const beaker = new THREE.Mesh(beakerGeo, beakerGlassMat);
-      beaker.position.y = 1.6;
-      beaker.castShadow = true;
-      beaker.name = 'Gelas Beker Kaca 1000 mL';
-      apparatusGroup.add(beaker);
-
-      const waterGeo = new THREE.CylinderGeometry(1.48, 1.48, 2.8, 32);
-      const waterMat = new THREE.MeshStandardMaterial({
-        color: 0x0284c7,
-        transparent: true,
-        opacity: 0.38,
-        roughness: 0.2,
-      });
-      const water = new THREE.Mesh(waterGeo, waterMat);
-      water.position.y = 1.4;
-      water.name = 'Larutan Air & NaHCO₃';
-      apparatusGroup.add(water);
-
-      const funnelConeGeo = new THREE.ConeGeometry(1.1, 1.2, 24, 1, true);
-      const funnel = new THREE.Mesh(funnelConeGeo, slideGlassMat);
-      funnel.position.y = 0.7;
-      funnel.rotation.x = Math.PI;
-      funnel.name = '🎯 Corong Kaca & Tabung O₂';
-      funnel.userData = {
-        draggableParam: 'wavelengthNm',
-        min: 400,
-        max: 700,
-        step: 10,
-        label: 'Panjang Gelombang λ (nm)',
-      };
-      apparatusGroup.add(funnel);
-
-      const tubeGeo = new THREE.CylinderGeometry(0.22, 0.22, 1.8, 16);
-      const tube = new THREE.Mesh(tubeGeo, slideGlassMat);
-      tube.position.y = 2.0;
-      tube.name = '🎯 Tabung Reaksi Penampung Gas O₂';
-      apparatusGroup.add(tube);
-
-      const gasPocketGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.4, 16);
-      const gasPocketMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.8,
-      });
-      const gasPocket = new THREE.Mesh(gasPocketGeo, gasPocketMat);
-      gasPocket.position.y = 2.7;
-      gasPocket.name = 'Ruang Gas O₂ Murni';
-      apparatusGroup.add(gasPocket);
-
-      const plantGroup = new THREE.Group();
-      plantGroup.position.set(0, 0.2, 0);
-      plantGroup.name = '🌱 Tanaman Hydrilla verticillata';
-
-      const stemGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.0, 8);
-      const stemMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.5 });
-      const stem1 = new THREE.Mesh(stemGeo, stemMat);
-      stem1.position.set(0, 0.5, 0);
-      plantGroup.add(stem1);
-
-      const leafGeo = new THREE.ConeGeometry(0.12, 0.35, 4);
-      for (let i = 0; i < 5; i++) {
-        const y = 0.2 + i * 0.18;
-        for (let j = 0; j < 4; j++) {
-          const angle = (j * Math.PI) / 2 + (i * Math.PI) / 4;
-          const leaf = new THREE.Mesh(leafGeo, chloroMat);
-          leaf.position.set(Math.cos(angle) * 0.12, y, Math.sin(angle) * 0.12);
-          leaf.rotation.z = Math.cos(angle) * 0.7;
-          leaf.rotation.x = -Math.sin(angle) * 0.7;
-          leaf.name = '🌿 Daun Hydrilla & Kloroplas Fotosistem II';
-          plantGroup.add(leaf);
-        }
-      }
-      apparatusGroup.add(plantGroup);
-
-      // Sub-cellular organelle magnification holo-inset next to beaker
-      cellOrganellesGroup = createCellularOrganellesGroup(0.55);
-      cellOrganellesGroup.position.set(2.2, 1.3, 0);
-      apparatusGroup.add(cellOrganellesGroup);
-
-      const lampGeo = new THREE.CylinderGeometry(0.3, 0.45, 0.5, 16);
-      const lampMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.7 });
-      const lamp = new THREE.Mesh(lampGeo, lampMat);
-      lamp.position.set(-3.2, 2.5, 0);
-      lamp.rotation.z = -Math.PI / 3;
-      lamp.name = '💡 Lampu Spektrum Variabel';
-      lamp.userData = {
-        draggableParam: 'lightIntensityLux',
-        min: 100,
-        max: 3000,
-        step: 50,
-        label: 'Intensitas Cahaya (Lux)',
-      };
-      apparatusGroup.add(lamp);
-
-      const lightColor = wavelengthNmToHex(latestParamsRef.current.wavelengthNm || 660);
-      lightSpot = new THREE.SpotLight(
-        lightColor,
-        (latestParamsRef.current.lightIntensityLux || 1200) / 300,
-        10,
-        Math.PI / 4,
-        0.5
-      );
-      lightSpot.position.set(-3.2, 2.5, 0);
-      lightSpot.target = plantGroup;
-      scene.add(lightSpot);
-
-      const BUBBLE_COUNT = 44;
-      particleGeo = new THREE.SphereGeometry(0.045, 8, 8);
-      particleMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: 0x38bdf8,
-        emissiveIntensity: 0.55,
-        transparent: true,
-        opacity: 0.85,
-        roughness: 0.1,
-      });
-      instancedPool = createInstancedParticlePool(BUBBLE_COUNT, particleGeo, particleMat, apparatusGroup);
-      particleSeeds = new Float32Array(BUBBLE_COUNT);
-      for (let i = 0; i < BUBBLE_COUNT; i++) {
-        particleSeeds[i] = Math.random() * 10;
-        instancedPool.setTransform(
-          i,
-          (Math.random() - 0.5) * 0.4,
-          0.3 + Math.random() * 2.4,
-          (Math.random() - 0.5) * 0.4,
-          1
-        );
-      }
-      instancedPool.commit(BUBBLE_COUNT);
-    }
-
-    // SETUP MODE 2: CATALASE ENZYME
-    else if (mode === 'enzyme-catalase' || mode === 'enzyme-kinetics') {
-      const rackBase = new THREE.Mesh(
-        new THREE.BoxGeometry(3.5, 0.15, 1.2),
-        new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.7 })
-      );
-      rackBase.position.y = 0.08;
-      rackBase.castShadow = true;
-      rackBase.name = 'Rak Tabung Reaksi Kayu';
-      apparatusGroup.add(rackBase);
-
-      const tubeGeo = new THREE.CylinderGeometry(0.55, 0.55, 3.2, 24, 1, true);
-      const tube = new THREE.Mesh(tubeGeo, slideGlassMat);
-      tube.position.y = 1.7;
-      tube.castShadow = true;
-      tube.name = '🧪 Tabung Reaksi Reaksi Katalase';
-      tube.userData = {
-        draggableParam: 'substrateConcMm',
-        min: 1,
-        max: 50,
-        step: 1,
-        label: 'Konsentrasi Substrat [S] (mM)',
-      };
-      apparatusGroup.add(tube);
-
-      const liquidGeo = new THREE.CylinderGeometry(0.52, 0.52, 0.6, 24);
-      const liquidMat = new THREE.MeshStandardMaterial({
-        color: 0xef4444,
-        transparent: true,
-        opacity: 0.75,
-      });
-      const liquid = new THREE.Mesh(liquidGeo, liquidMat);
-      liquid.position.y = 0.4;
-      liquid.name = 'Campuran Enzim & H₂O₂';
-      liquid.userData = {
-        draggableParam: 'solutionPH',
-        min: 2,
-        max: 12,
-        step: 0.5,
-        label: 'pH Larutan',
-      };
-      apparatusGroup.add(liquid);
-
-      const foamGeo = new THREE.CylinderGeometry(0.53, 0.53, 1.2, 24);
-      const foamMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        roughness: 0.9,
-        transparent: true,
-        opacity: 0.88,
-      });
-      foamMesh = new THREE.Mesh(foamGeo, foamMat);
-      foamMesh.position.y = 1.3;
-      foamMesh.name = '🎯 Kolom Busa O₂ Berbusa';
-      apparatusGroup.add(foamMesh);
-
-      cellOrganellesGroup = createCellularOrganellesGroup(0.6);
-      cellOrganellesGroup.position.set(1.85, 1.35, 0);
-      apparatusGroup.add(cellOrganellesGroup);
-
-      const FOAM_BUBBLES = 32;
-      particleGeo = new THREE.SphereGeometry(0.06, 8, 8);
-      particleMat = new THREE.MeshStandardMaterial({ color: 0xfffbeb, roughness: 0.4 });
-      instancedPool = createInstancedParticlePool(FOAM_BUBBLES, particleGeo, particleMat, apparatusGroup);
-      particleSeeds = new Float32Array(FOAM_BUBBLES);
-      for (let i = 0; i < FOAM_BUBBLES; i++) {
-        particleSeeds[i] = Math.random() * 5;
-        instancedPool.setTransform(
-          i,
-          (Math.random() - 0.5) * 0.8,
-          0.7 + Math.random() * 1.5,
-          (Math.random() - 0.5) * 0.8,
-          1
-        );
-      }
-      instancedPool.commit(FOAM_BUBBLES);
-    }
-
-    // SETUP MODE 3 & OTHERS: OSMOSIS, PLASMOLYSIS & MICROSCOPIC CELL ORGANELLES
-    else {
-      const petriGeo = new THREE.CylinderGeometry(2.4, 2.4, 0.4, 32);
-      const petri = new THREE.Mesh(petriGeo, slideGlassMat);
-      petri.position.y = 0.25;
-      petri.castShadow = true;
-      petri.name = 'Cawan Petri & Kaca Preparat Sukrosa';
-      apparatusGroup.add(petri);
-
-      // Rigid Plant Cell Wall (Outer Frame)
-      const wallFrameGeo = new THREE.BoxGeometry(2.3, 1.65, 1.45);
-      const wallFrameMat = new THREE.MeshStandardMaterial({
-        color: 0x22c55e,
-        emissive: 0x15803d,
-        emissiveIntensity: 0.4,
-        wireframe: true,
-      });
-      const cellWall = new THREE.Mesh(wallFrameGeo, wallFrameMat);
-      cellWall.position.y = 1.35;
-      cellWall.name = '🧱 Dinding Selulosa Kaku';
-      apparatusGroup.add(cellWall);
-
-      // Inner Plasma Membrane & Protoplast (Translucent with cellular membrane bump relief)
-      const protoGeo = new THREE.BoxGeometry(2.1, 1.5, 1.3);
-      const protoMat = new THREE.MeshPhysicalMaterial({
-        color: 0x86efac,
-        map: protoMembraneTex,
-        bumpMap: protoBump,
-        bumpScale: 0.015,
-        transparent: true,
-        opacity: 0.44,
-        roughness: 0.16,
-        transmission: 0.7,
-        thickness: 0.5,
-      });
-      protoplastMesh = new THREE.Mesh(protoGeo, protoMat);
-      protoplastMesh.position.y = 1.35;
-      protoplastMesh.name = '🎯 Protoplas & Membran Sel Tumbuhan';
-      protoplastMesh.userData = {
-        draggableParam: 'sucroseConcMolar',
-        min: 0.05,
-        max: 1.0,
-        step: 0.05,
-        label: 'Molaritas Sukrosa (M)',
-      };
-      apparatusGroup.add(protoplastMesh);
-
-      // 3D Organelles inside the Plant Cell (Nucleus, Mitochondria, Chloroplasts)
-      cellOrganellesGroup = createCellularOrganellesGroup(0.95);
-      protoplastMesh.add(cellOrganellesGroup);
-
-      // Solute particles (Amber dots) and Water molecules (Blue dots) via Single Draw-Call InstancedMesh
-      const OSMOSIS_DOTS = 48;
-      particleGeo = new THREE.SphereGeometry(0.045, 8, 8);
-      particleMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: 0x0ea5e9,
-        emissiveIntensity: 0.35,
-        roughness: 0.25,
-      });
-      instancedPool = createInstancedParticlePool(OSMOSIS_DOTS, particleGeo, particleMat, apparatusGroup);
-      particleSeeds = new Float32Array(OSMOSIS_DOTS);
-      for (let i = 0; i < OSMOSIS_DOTS; i++) {
-        const isSolute = i % 3 === 0;
-        particleSeeds[i] = (i * 0.9 + Math.random() * 0.5);
-        instancedPool.setTransform(
-          i,
-          (Math.random() - 0.5) * 3.8,
-          0.35 + Math.random() * 1.75,
-          (Math.random() - 0.5) * 3.8,
-          isSolute ? 1.15 : 0.95
-        );
-        instancedPool.setColor(i, isSolute ? 0xf59e0b : 0x38bdf8);
-      }
-      instancedPool.commit(OSMOSIS_DOTS);
-    }
-
-    // 3D Concept Arrows attached to apparatusGroup
-    const photonArrow = new THREE.ArrowHelper(
-      new THREE.Vector3(1, -0.45, 0).normalize(),
-      new THREE.Vector3(-2.6, 2.25, 0),
-      1.45,
-      0xfacc15,
-      0.28,
-      0.14
-    );
-    photonArrow.visible = mode === 'photosynthesis-ingenhousz';
-    apparatusGroup.add(photonArrow);
-
-    const osmosisArrowLeft = new THREE.ArrowHelper(
-      new THREE.Vector3(-1, 0, 0),
-      new THREE.Vector3(-1.35, 1.35, 0.2),
-      0.85,
-      0xf97316,
-      0.22,
-      0.11
-    );
-    const osmosisArrowRight = new THREE.ArrowHelper(
-      new THREE.Vector3(1, 0, 0),
-      new THREE.Vector3(1.35, 1.35, 0.2),
-      0.85,
-      0xf97316,
-      0.22,
-      0.11
-    );
-    osmosisArrowLeft.visible = false;
-    osmosisArrowRight.visible = false;
-    apparatusGroup.add(osmosisArrowLeft, osmosisArrowRight);
+    const rigSharedCtx = {
+      apparatusGroup,
+      scene,
+      slideGlassMat,
+      chloroMat,
+      protoMembraneTex,
+      protoBump,
+      createCellularOrganellesGroup,
+    };
+    const activeRig: BiologyRigHandle =
+      mode === 'photosynthesis-ingenhousz'
+        ? buildPhotosynthesisRig(rigSharedCtx)
+        : mode === 'enzyme-catalase' || mode === 'enzyme-kinetics'
+        ? buildCatalaseRig(rigSharedCtx)
+        : mode === 'predator-prey-dynamics'
+        ? buildPredatorPreyRig(rigSharedCtx)
+        : buildOsmosisRig(rigSharedCtx);
 
     const conceptProjVec = new THREE.Vector3();
-    const conceptWorldA = new THREE.Vector3();
-    const conceptWorldB = new THREE.Vector3();
 
     // Interactive 3D Virtual Caliper Ruler for Specimen Scale & NST Uncertainty
     const rulerHandle = createMeasurementRuler3D({
@@ -914,7 +616,10 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           lightIntensityLux: 'lux',
           substrateConcMm: 'mM',
           solutionPH: 'pH',
+          temperatureC: '°C',
           sucroseConcMolar: 'M',
+          preyPopulationX: 'ind',
+          predatorPopulationY: 'ind',
         };
         const unit = unitMap[paramKey] || '';
         const formatted = Number.isInteger(newValue) ? `${newValue}` : newValue.toFixed(2);
@@ -1018,64 +723,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       // Slow gentle rotation for viewing angle
       apparatusGroup.rotation.y = Math.sin(t * 0.15) * 0.25;
 
-      // Update particle motions deterministically against t for smooth time-travel scrubbing (Single Draw-Call InstancedMesh)
-      if (mode === 'photosynthesis-ingenhousz' && instancedPool) {
-        const bubbleSpeed = 0.55 + (curParams.lightIntensityLux || 1200) / 1600;
-        const activeCount = isLite ? Math.floor(instancedPool.maxCount / 2) : instancedPool.maxCount;
-        for (let idx = 0; idx < activeCount; idx++) {
-          const seed = particleSeeds[idx] ?? idx;
-          const span = 2.4;
-          const phase = (seed * 0.41 + t * bubbleSpeed) % span;
-          const py = 0.4 + (phase < 0 ? phase + span : phase);
-          const px = Math.sin(t * 3 + seed) * 0.14;
-          const pz = Math.cos(seed * 1.7) * 0.12;
-          instancedPool.setTransform(idx, px, py, pz, 0.75 + (py / 2.8) * 0.45);
-        }
-        instancedPool.commit(activeCount);
-
-        if (lightSpot) {
-          const hex = wavelengthNmToHex(curParams.wavelengthNm || 660);
-          lightSpot.color.setHex(hex);
-          lightSpot.intensity = (curParams.lightIntensityLux || 1200) / 300;
-        }
-      } else if ((mode === 'enzyme-catalase' || mode === 'enzyme-kinetics') && foamMesh) {
-        const ph = curParams.solutionPH || 7.0;
-        const phFactor = Math.max(0.1, 1.0 - Math.abs(ph - 7.0) * 0.15);
-        const sub = (curParams.substrateConcMm || 10) / 25;
-        const foamTarget = Math.min(2.0, 0.4 + sub * phFactor * 1.6);
-        foamMesh.scale.y = foamTarget;
-        foamMesh.position.y = 0.5 + (1.2 * foamTarget) / 2;
-
-        if (instancedPool) {
-          const activeCount = isLite ? Math.floor(instancedPool.maxCount / 2) : instancedPool.maxCount;
-          for (let idx = 0; idx < activeCount; idx++) {
-            const seed = particleSeeds[idx] ?? idx * 0.7;
-            const span = 1.8;
-            const phase = (seed + t * 0.8 * Math.max(0.35, phFactor)) % span;
-            const py = 0.8 + (phase < 0 ? phase + span : phase);
-            const px = Math.sin(seed * 4.3 + t) * 0.34;
-            const pz = Math.cos(seed * 3.1) * 0.34;
-            instancedPool.setTransform(idx, px, py, pz, 0.85);
-          }
-          instancedPool.commit(activeCount);
-        }
-      } else if (protoplastMesh) {
-        const sucrose = curParams.sucroseConcMolar ?? 0.3;
-        const shrinkage = Math.max(0.55, 1.0 - sucrose * 0.45);
-        protoplastMesh.scale.set(shrinkage, shrinkage, shrinkage);
-
-        if (instancedPool) {
-          const activeCount = isLite ? Math.floor(instancedPool.maxCount / 2) : instancedPool.maxCount;
-          for (let idx = 0; idx < activeCount; idx++) {
-            const seed = particleSeeds[idx] ?? idx * 0.9;
-            const px = Math.sin(t * 0.7 + seed) * 1.6;
-            const pz = Math.cos(t * 0.65 + seed * 1.3) * 1.6;
-            const py = 0.5 + ((idx % 7) * 0.22);
-            instancedPool.setTransform(idx, px, py, pz, idx % 3 === 0 ? 1.15 : 0.95);
-          }
-          instancedPool.commit(activeCount);
-        }
-      }
+      const rigAnchors = activeRig.update(t, curParams, isLite, showConceptLabelsRef.current);
 
       if (camTransitionActive) {
         camTransitionActive = smoothCameraTransition(
@@ -1091,103 +739,30 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       controls.update();
 
       const syncBioLabelsNow = () => {
-        const pNow = latestParamsRef.current;
         const showLabels = showConceptLabelsRef.current;
         const cw = container.clientWidth || width;
         const ch = container.clientHeight || height;
         const cDom = conceptDomRef.current;
         const cEntries = [
-          { dom: cDom.c1, worldPos: new THREE.Vector3(), text: '', active: false },
-          { dom: cDom.c2, worldPos: new THREE.Vector3(), text: '', active: false },
-          { dom: cDom.c3, worldPos: new THREE.Vector3(), text: '', active: false },
+          {
+            dom: cDom.c1,
+            worldPos: rigAnchors.c1?.pos ?? new THREE.Vector3(),
+            text: rigAnchors.c1?.text ?? '',
+            active: Boolean(showLabels && rigAnchors.c1),
+          },
+          {
+            dom: cDom.c2,
+            worldPos: rigAnchors.c2?.pos ?? new THREE.Vector3(),
+            text: rigAnchors.c2?.text ?? '',
+            active: Boolean(showLabels && rigAnchors.c2),
+          },
+          {
+            dom: cDom.c3,
+            worldPos: rigAnchors.c3?.pos ?? new THREE.Vector3(),
+            text: rigAnchors.c3?.text ?? '',
+            active: Boolean(showLabels && rigAnchors.c3),
+          },
         ];
-
-        if (mode === 'photosynthesis-ingenhousz') {
-          photonArrow.visible = showLabels;
-          if (showLabels) {
-            conceptWorldA.set(-3.2, 3.05, 0).applyMatrix4(apparatusGroup.matrixWorld);
-            conceptWorldB.set(0, 2.85, 0).applyMatrix4(apparatusGroup.matrixWorld);
-            cEntries[0] = {
-              dom: cDom.c1,
-              worldPos: conceptWorldB.clone(),
-              text: `Gelembung O₂ (Laju Fotosintesis)`,
-              active: true,
-            };
-            cEntries[2] = {
-              dom: cDom.c3,
-              worldPos: conceptWorldA.clone(),
-              text: `Foton Cahaya λ = ${Math.round(pNow.wavelengthNm || 660)} nm`,
-              active: true,
-            };
-          }
-        } else if (mode === 'enzyme-catalase' || mode === 'enzyme-kinetics') {
-          photonArrow.visible = false;
-          osmosisArrowLeft.visible = false;
-          osmosisArrowRight.visible = false;
-          if (showLabels) {
-            const tempC = pNow.temperatureC ?? pNow.tempCelsius ?? 37;
-            const phVal = pNow.solutionPH ?? 7.0;
-            if (foamMesh) foamMesh.getWorldPosition(conceptWorldA);
-            else conceptWorldA.set(0, 2.2, 0).applyMatrix4(apparatusGroup.matrixWorld);
-            conceptWorldB.set(0, 0.55, 0.65).applyMatrix4(apparatusGroup.matrixWorld);
-            cEntries[0] = {
-              dom: cDom.c1,
-              worldPos: conceptWorldA.clone().add(new THREE.Vector3(0, 0.85, 0)),
-              text: `Busa O₂ · pH ${phVal.toFixed(1)}`,
-              active: true,
-            };
-            cEntries[2] = {
-              dom: cDom.c3,
-              worldPos: conceptWorldB.clone(),
-              text:
-                tempC > 45
-                  ? `Suhu ${tempC}°C: Enzim Terdenaturasi!`
-                  : `Suhu ${tempC}°C (Aktivitas Enzim)`,
-              active: true,
-            };
-          }
-        } else {
-          photonArrow.visible = false;
-          const sucrose = pNow.sucroseConcMolar ?? 0.3;
-          const isHyper = sucrose > 0.35;
-          const isHypo = sucrose < 0.22;
-          if (showLabels && (isHyper || isHypo)) {
-            osmosisArrowLeft.visible = true;
-            osmosisArrowRight.visible = true;
-            if (isHyper) {
-              osmosisArrowLeft.position.set(-1.1, 1.35, 0.2);
-              osmosisArrowLeft.setDirection(new THREE.Vector3(-1, 0, 0));
-              osmosisArrowLeft.setColor(0xf97316);
-              osmosisArrowRight.position.set(1.1, 1.35, 0.2);
-              osmosisArrowRight.setDirection(new THREE.Vector3(1, 0, 0));
-              osmosisArrowRight.setColor(0xf97316);
-            } else {
-              osmosisArrowLeft.position.set(-2.0, 1.35, 0.2);
-              osmosisArrowLeft.setDirection(new THREE.Vector3(1, 0, 0));
-              osmosisArrowLeft.setColor(0x38bdf8);
-              osmosisArrowRight.position.set(2.0, 1.35, 0.2);
-              osmosisArrowRight.setDirection(new THREE.Vector3(-1, 0, 0));
-              osmosisArrowRight.setColor(0x38bdf8);
-            }
-          } else {
-            osmosisArrowLeft.visible = false;
-            osmosisArrowRight.visible = false;
-          }
-          if (showLabels) {
-            if (protoplastMesh) protoplastMesh.getWorldPosition(conceptWorldA);
-            else conceptWorldA.set(0, 1.35, 0).applyMatrix4(apparatusGroup.matrixWorld);
-            cEntries[1] = {
-              dom: cDom.c2,
-              worldPos: conceptWorldA.clone().add(new THREE.Vector3(0, 1.05, 0)),
-              text: isHyper
-                ? `Osmosis: H₂O Keluar (Plasmolisis)`
-                : isHypo
-                  ? `Osmosis: H₂O Masuk (Sel Turgid)`
-                  : `Isotonik: Fluks H₂O Seimbang`,
-              active: true,
-            };
-          }
-        }
         updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
       };
 
@@ -1212,8 +787,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       if (dragToastTimer) clearTimeout(dragToastTimer);
       interactionManager.dispose();
       rulerHandle.dispose();
-      particleGeo?.dispose();
-      particleMat?.dispose();
+      activeRig.dispose();
 
       teacherCollabBridge.dispose();
       if (cursorManagerRef.current) {
@@ -1273,6 +847,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         simTimeRef={simTimeRef}
         remoteCursors={remoteCursors}
         onEmitCursor={onEmitCursor}
+        onUpdateParam={onUpdateParam}
         onCaptureSnapshot={onCaptureSnapshot}
         comfortTheme={comfortTheme}
         cameraSyncPose={cameraSyncPose}

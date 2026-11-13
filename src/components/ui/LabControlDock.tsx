@@ -20,6 +20,7 @@ import {
 import { useLabStore } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { labSound } from '../../utils/soundEngine';
+import { LAB_EVENTS, emitLabEvent } from '../../utils/labEventBus';
 import { useTranslation } from 'react-i18next';
 import { aiVoiceAssistant, VoiceAssistantState } from '../../services/aiVoiceAssistant';
 
@@ -141,6 +142,14 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         e.preventDefault();
         labSound.playClick();
         useLabStore.getState().toggleSimulation();
+      } else if (
+        is3DStageActive &&
+        (key === '1' || key === '2' || key === '3' || key === '4')
+      ) {
+        e.preventDefault();
+        labSound.playClick();
+        const presetIdx = (Number(key) - 1) as 0 | 1 | 2 | 3;
+        emitLabEvent(LAB_EVENTS.SET_CAMERA_PRESET, { index: presetIdx });
       }
     };
 

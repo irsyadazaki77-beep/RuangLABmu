@@ -53,6 +53,21 @@ test('deriveContextualDrLabMuActions infers domain-specific 3D camera, X-Ray, an
   });
   assert.ok(pendActions.some((a) => a.type === 'FOCUS_CAMERA' && a.target === 'pendulum_bob'));
   assert.ok(pendActions.some((a) => a.type === 'HIGHLIGHT_SLIDER' && a.paramKey === 'pendulumLength'));
+
+  const exoActions = deriveContextualDrLabMuActions({
+    domain: 'Astronomi',
+    topic: 'exoplanet-transit',
+    studentQuery: 'Mengapa kurva cahaya transit eksoplanet menurun saat melintas?',
+  });
+  assert.ok(exoActions.some((a) => a.type === 'FOCUS_CAMERA' && a.target === 'planet_focus'));
+  assert.ok(exoActions.some((a) => a.type === 'HIGHLIGHT_SLIDER' && a.paramKey === 'exoplanetRadiusEarth'));
+
+  const ecoActions = deriveContextualDrLabMuActions({
+    domain: 'Biologi',
+    topic: 'predator-prey-dynamics',
+    studentQuery: 'Mengapa siklus populasi predator tertinggal dari mangsa?',
+  });
+  assert.ok(ecoActions.some((a) => a.type === 'HIGHLIGHT_SLIDER' && a.paramKey === 'preyPopulationX'));
 });
 
 test('formatDrLabMuActionChipLabel produces readable Indonesian labels', () => {

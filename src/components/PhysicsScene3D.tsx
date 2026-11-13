@@ -37,6 +37,7 @@ import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
+import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
 import {
   ConceptLabelDomRef,
   ConceptLabelToggleButton,
@@ -1405,18 +1406,11 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     }
 
     // =========================================================
-    // DIRECT 3D MESH DRAGGING (RAYCASTER GIZMOS)
+    // DIRECT 3D MESH DRAGGING (ThreeInteractionManager)
     // =========================================================
     let isDragging = false;
     let activeDragMesh: THREE.Object3D | null = null;
-    let dragParamKey = '';
-    let dragStartPos = { x: 0, y: 0 };
-    let dragStartVal = 0;
-    let dragConfig = { min: 0, max: 100, step: 1, label: '' };
-    const dragRaycaster = new THREE.Raycaster();
-    const dragMouse = new THREE.Vector2();
-    let hoveredMesh: THREE.Mesh | null = null;
-    const origEmissive = new THREE.Color();
+    let hoveredMesh: THREE.Object3D | null = null;
     const gizmoWorldPos = new THREE.Vector3();
     const pendBobWorldPos = new THREE.Vector3();
     const conceptProjVec = new THREE.Vector3();
@@ -1437,11 +1431,32 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     protractorHandle.group.visible = showMeasureToolsRef.current;
     scene.add(protractorHandle.group);
 
-    let activeMeasureHandle: 'ruler-a' | 'ruler-b' | 'protractor-arm' | null = null;
-    let measureStartPos = { x: 0, y: 0 };
     let measurePinStartA = rulerHandle.getEndpoints().posA;
     let measurePinStartB = rulerHandle.getEndpoints().posB;
     let measureStartAngleDeg = protractorHandle.getAngleDeg();
+
+    rulerHandle.pinA.userData.onDrag = (dx: number, dy: number) => {
+      const nextA = new THREE.Vector3(
+        Math.max(-5.5, Math.min(5.5, measurePinStartA.x + dx * 0.02)),
+        Math.max(0.25, Math.min(4.8, measurePinStartA.y - dy * 0.02)),
+        measurePinStartA.z
+      );
+      const readout = rulerHandle.setEndpoints(nextA, rulerHandle.getEndpoints().posB);
+      setMeasureHud((prev) => ({ ...prev, ruler: readout.formatted }));
+    };
+    rulerHandle.pinB.userData.onDrag = (dx: number, dy: number) => {
+      const nextB = new THREE.Vector3(
+        Math.max(-5.5, Math.min(5.5, measurePinStartB.x + dx * 0.02)),
+        Math.max(0.25, Math.min(4.8, measurePinStartB.y - dy * 0.02)),
+        measurePinStartB.z
+      );
+      const readout = rulerHandle.setEndpoints(rulerHandle.getEndpoints().posA, nextB);
+      setMeasureHud((prev) => ({ ...prev, ruler: readout.formatted }));
+    };
+    protractorHandle.armHandle.userData.onDrag = (dx: number, dy: number) => {
+      const readout = protractorHandle.setAngleDeg(measureStartAngleDeg - dy * 0.45 + dx * 0.3);
+      setMeasureHud((prev) => ({ ...prev, protractor: readout.formatted }));
+    };
 
     const getInteractiveMeshes = (): THREE.Object3D[] => {
       const list: THREE.Object3D[] = [];
@@ -1449,7 +1464,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         if (
           obj instanceof THREE.Mesh &&
           obj.visible &&
-          (obj.userData?.draggableParam || obj.userData?.measurementHandle)
+          (obj.userData?.draggableParam || obj.userData?.measurementHandle || obj.userData?.interactive)
         ) {
           let parentVisible = true;
           let cur: THREE.Object3D | null = obj.parent;
@@ -1466,76 +1481,56 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       return list;
     };
 
-    const handlePointerDown = (e: PointerEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      dragMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      dragRaycaster.setFromCamera(dragMouse, camera);
-
-      const hits = dragRaycaster.intersectObjects(getInteractiveMeshes(), false);
-      if (hits.length > 0) {
-        const hitObj = hits[0].object;
-        const mHandle = hitObj.userData?.measurementHandle as
-          | 'ruler-a'
-          | 'ruler-b'
-          | 'protractor-arm'
-          | undefined;
-        if (mHandle) {
-          activeMeasureHandle = mHandle;
-          measureStartPos = { x: e.clientX, y: e.clientY };
+    const interactionManager = new ThreeInteractionManager({
+      camera,
+      domElement: renderer.domElement,
+      controls,
+      sceneForCursor: scene,
+      defaultHoverColor: 0x38bdf8,
+      dragSpanPx: 300,
+      getInteractiveObjects: getInteractiveMeshes,
+      getParamValue: (key) => (latestRef.current.params as unknown as Record<string, number>)[key],
+      onHoverChange: (obj) => {
+        hoveredMesh = obj;
+      },
+      onDragStart: (obj, paramKey) => {
+        if (obj.userData?.measurementHandle) {
           const ends = rulerHandle.getEndpoints();
           measurePinStartA = ends.posA;
           measurePinStartB = ends.posB;
           measureStartAngleDeg = protractorHandle.getAngleDeg();
-          controls.enabled = false;
-          renderer.domElement.style.cursor = 'grabbing';
           labSound.playClick(720);
           return;
         }
-        const paramKey = hitObj.userData.draggableParam;
         if (paramKey && latestRef.current.onUpdateParam) {
           isDragging = true;
-          activeDragMesh = hitObj;
-          dragParamKey = paramKey;
-          dragStartPos = { x: e.clientX, y: e.clientY };
-          dragConfig = {
-            min: hitObj.userData.min ?? 0,
-            max: hitObj.userData.max ?? 100,
-            step: hitObj.userData.step ?? 1,
-            label: hitObj.userData.label ?? paramKey,
-          };
-          const curVal = (latestRef.current.params as unknown as Record<string, number>)[paramKey] ?? 0;
-          dragStartVal = curVal;
-          controls.enabled = false;
-          renderer.domElement.style.cursor = 'grabbing';
+          activeDragMesh = obj;
           if (paramKey === 'launchAngle' || paramKey === 'initialVelocity') {
             cannonSoundEmitter.play();
           } else {
             labSound.playClick(600);
           }
-          setDragToast({ label: dragConfig.label, value: `${curVal}` });
+          const curVal = (latestRef.current.params as unknown as Record<string, number>)[paramKey] ?? 0;
+          setDragToast({ label: obj.userData?.label ?? paramKey, value: `${curVal}` });
         }
-      }
-    };
-
-    const handlePointerUp = () => {
-      if (activeMeasureHandle) {
-        activeMeasureHandle = null;
-        controls.enabled = true;
-        renderer.domElement.style.cursor = hoveredMesh ? 'grab' : 'default';
-      }
-      if (isDragging) {
-        if (dragParamKey === 'springDisplacement' || dragParamKey === 'springConstantK') {
+      },
+      onDragUpdate: (_obj, paramKey, newValue, label) => {
+        if (!latestRef.current.onUpdateParam) return;
+        latestRef.current.onUpdateParam(paramKey, newValue);
+        setDragToast({ label: label ?? paramKey, value: `${newValue}` });
+      },
+      onDragEnd: (_obj, paramKey) => {
+        if (paramKey === 'springDisplacement' || paramKey === 'springConstantK') {
           labSound.playSpringTwang(latestRef.current.params.springDisplacement ?? 0.8);
         }
         isDragging = false;
         activeDragMesh = null;
-        dragParamKey = '';
-        controls.enabled = true;
-        renderer.domElement.style.cursor = hoveredMesh ? 'grab' : 'default';
         setTimeout(() => setDragToast(null), 1200);
-      }
-    };
+      },
+      onCursorMove3D: (pos, normal, hoveredObject) => {
+        latestRef.current.onEmitCursor?.(pos, normal, hoveredObject);
+      },
+    });
 
     // Main Tick Loop
     let disposed = false;
@@ -2163,111 +2158,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     rafId = requestAnimationFrame(tick);
 
-    let lastEmitTime = 0;
-
-    // Pointer move & Drag Handler
-    const handlePointerMove = (e: PointerEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
-
-      if (activeMeasureHandle) {
-        const dx = e.clientX - measureStartPos.x;
-        const dy = e.clientY - measureStartPos.y;
-        if (activeMeasureHandle === 'ruler-a') {
-          const nextA = new THREE.Vector3(
-            Math.max(-5.5, Math.min(5.5, measurePinStartA.x + dx * 0.02)),
-            Math.max(0.25, Math.min(4.8, measurePinStartA.y - dy * 0.02)),
-            measurePinStartA.z
-          );
-          const readout = rulerHandle.setEndpoints(nextA, rulerHandle.getEndpoints().posB);
-          setMeasureHud((prev) => ({ ...prev, ruler: readout.formatted }));
-        } else if (activeMeasureHandle === 'ruler-b') {
-          const nextB = new THREE.Vector3(
-            Math.max(-5.5, Math.min(5.5, measurePinStartB.x + dx * 0.02)),
-            Math.max(0.25, Math.min(4.8, measurePinStartB.y - dy * 0.02)),
-            measurePinStartB.z
-          );
-          const readout = rulerHandle.setEndpoints(rulerHandle.getEndpoints().posA, nextB);
-          setMeasureHud((prev) => ({ ...prev, ruler: readout.formatted }));
-        } else if (activeMeasureHandle === 'protractor-arm') {
-          const readout = protractorHandle.setAngleDeg(measureStartAngleDeg - dy * 0.45 + dx * 0.3);
-          setMeasureHud((prev) => ({ ...prev, protractor: readout.formatted }));
-        }
-        return;
-      }
-
-      if (isDragging && dragParamKey && latestRef.current.onUpdateParam) {
-        const deltaX = e.clientX - dragStartPos.x;
-        const deltaY = dragStartPos.y - e.clientY;
-        const sensitivity = (dragConfig.max - dragConfig.min) / 300;
-        const delta = (Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY) * sensitivity;
-        let nextVal = dragStartVal + delta;
-        nextVal = Math.max(dragConfig.min, Math.min(dragConfig.max, nextVal));
-        if (dragConfig.step >= 1) {
-          nextVal = Math.round(nextVal / dragConfig.step) * dragConfig.step;
-        } else {
-          nextVal = Number((Math.round(nextVal / dragConfig.step) * dragConfig.step).toFixed(2));
-        }
-        latestRef.current.onUpdateParam(dragParamKey, nextVal);
-        setDragToast({ label: dragConfig.label, value: `${nextVal}` });
-        return;
-      }
-
-      // Hover check for pointer cursor, emissive glow & floating accent gizmo ring
-      dragMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      dragRaycaster.setFromCamera(dragMouse, camera);
-      const hits = dragRaycaster.intersectObjects(getInteractiveMeshes(), false);
-      if (hits.length > 0) {
-        const hitMesh = hits[0].object as THREE.Mesh;
-        renderer.domElement.style.cursor = 'grab';
-        if (hitMesh !== hoveredMesh) {
-          if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
-            (hoveredMesh.material as any).emissive.copy(origEmissive);
-          }
-          hoveredMesh = hitMesh;
-          if ((hitMesh.material as any)?.emissive) {
-            origEmissive.copy((hitMesh.material as any).emissive);
-            (hitMesh.material as any).emissive.setHex(0x38bdf8);
-          }
-        }
-      } else {
-        renderer.domElement.style.cursor = 'default';
-        if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
-          (hoveredMesh.material as any).emissive.copy(origEmissive);
-          hoveredMesh = null;
-        }
-      }
-
-      if (latestRef.current.onEmitCursor) {
-        const now = performance.now();
-        if (now - lastEmitTime > 40) {
-          const intersects = dragRaycaster.intersectObjects(scene.children, true);
-          if (intersects.length > 0) {
-            const hit = intersects[0];
-            latestRef.current.onEmitCursor(
-              [hit.point.x, hit.point.y, hit.point.z],
-              hit.face ? [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z] : undefined,
-              hit.object.name
-            );
-            lastEmitTime = now;
-          }
-        }
-      }
-    };
-
-    renderer.domElement.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('pointerup', handlePointerUp);
-    renderer.domElement.addEventListener('pointermove', handlePointerMove);
-
     return () => {
       disposed = true;
       unsubAiAction();
       cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
-      renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('pointerup', handlePointerUp);
-      renderer.domElement.removeEventListener('pointermove', handlePointerMove);
+      interactionManager.dispose();
       teacherCollabBridge.dispose();
       cursorManager.dispose();
       cameraSyncHandleRef.current = null;
@@ -2289,6 +2185,18 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     setActivePreset(preset);
     cameraCtrlRef.current?.setPreset(preset);
   };
+
+  useEffect(() => {
+    const orderedPresets: CameraPreset[] = ['isometric', 'front', 'top', 'focus'];
+    return subscribeLabEvent(LAB_EVENTS.SET_CAMERA_PRESET, (detail) => {
+      if (!detail) return;
+      const preset = orderedPresets[detail.index];
+      if (preset) {
+        setActivePreset(preset);
+        cameraCtrlRef.current?.setPreset(preset);
+      }
+    });
+  }, []);
 
   const handleToggleFullscreen = () => {
     labSound.playClick();

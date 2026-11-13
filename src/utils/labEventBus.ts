@@ -19,6 +19,7 @@ export const LAB_EVENTS = {
   AI_UI_ACTION: 'ruanglab:ai-ui-action',
   TEACHER_LASER_EMIT: 'ruanglab:teacher-laser-emit',
   TEACHER_CAMERA_EMIT: 'ruanglab:teacher-camera-emit',
+  SET_CAMERA_PRESET: 'ruanglab:set-camera-preset',
 } as const;
 
 export type LabEventName = (typeof LAB_EVENTS)[keyof typeof LAB_EVENTS];
@@ -66,6 +67,9 @@ export interface LabEventPayloadMap {
     position: [number, number, number];
     target: [number, number, number];
     enabled: boolean;
+  };
+  [LAB_EVENTS.SET_CAMERA_PRESET]: {
+    index: 0 | 1 | 2 | 3;
   };
 }
 

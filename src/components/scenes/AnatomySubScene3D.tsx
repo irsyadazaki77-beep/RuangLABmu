@@ -7,6 +7,8 @@ import {
   type CameraSyncPose,
 } from '../../utils/threeStudioKit';
 import { initThreeStudioHost } from '../../utils/threeStudioHost';
+import { ThreeInteractionManager } from '../../utils/threeInteractionHelper';
+import { labSound } from '../../utils/soundEngine';
 import {
   calculateCardiovascularHeart,
   calculateRespiratoryLungs,
@@ -45,6 +47,7 @@ export interface AnatomySubScene3DProps {
     normal?: [number, number, number],
     hoveredObject?: string
   ) => void;
+  onUpdateParam?: (paramKey: string, value: number) => void;
   onCaptureSnapshot?: (dataUrl: string) => void;
   comfortTheme?: ComfortThemeMode;
   cameraSyncPose?: CameraSyncPose | null;
@@ -195,6 +198,8 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   timeScale = 1,
   simTime,
   simTimeRef,
+  onEmitCursor,
+  onUpdateParam,
   cameraSyncPose,
   onCameraSyncChange,
 }) => {
@@ -210,6 +215,10 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   }, []);
 
   const paramsRef = useRef<Record<string, number>>(params);
+  const onUpdateParamRef = useRef(onUpdateParam);
+  onUpdateParamRef.current = onUpdateParam;
+  const onEmitCursorRef = useRef(onEmitCursor);
+  onEmitCursorRef.current = onEmitCursor;
   const playingRef = useRef(isPlaying);
   const timeScaleRef = useRef(timeScale);
   const simTimePropRef = useRef(simTime);
@@ -220,6 +229,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   const [layerMode, setLayerMode] = useState<AnatomyLayerMode>('outer');
   const layerModeRef = useRef<AnatomyLayerMode>('outer');
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
+  const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
   const [sceneKey, setSceneKey] = useState<number>(0);
   const cameraLerpRef = useRef<{ target: THREE.Vector3; pos: THREE.Vector3; active: boolean }>({
     target: new THREE.Vector3(0, 0, 0),
@@ -365,6 +375,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     rootGroup.add(innerGroup);
     const disposableBioTextures: THREE.Texture[] = [];
 
+    const interactiveAnatomyMeshes: THREE.Object3D[] = [];
     const pinMeshes: { mesh: THREE.Mesh; halo: THREE.Mesh; pin: AnatomyPinDef }[] = [];
     const pinGroup = new THREE.Group();
     rootGroup.add(pinGroup);
@@ -375,7 +386,15 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         new THREE.MeshStandardMaterial({ color: 0x22d3ee, emissive: 0x0891b2, emissiveIntensity: 0.9, roughness: 0.2 })
       );
       sphere.position.set(...pin.position);
-      sphere.userData = { pinId: pin.id };
+      sphere.name = pin.name;
+      sphere.userData = {
+        type: 'clickable',
+        pinId: pin.id,
+        onClick: () => {
+          labSound.playClick(680);
+          handleSelectPin(pin);
+        },
+      };
       const halo = new THREE.Mesh(
         new THREE.RingGeometry(0.15, 0.22, 24),
         new THREE.MeshBasicMaterial({ color: 0x67e8f9, side: THREE.DoubleSide, transparent: true, opacity: 0.75 })
@@ -383,22 +402,47 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       halo.position.set(...pin.position);
       pinGroup.add(sphere, halo);
       pinMeshes.push({ mesh: sphere, halo, pin });
+      interactiveAnatomyMeshes.push(sphere);
     });
 
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    const onPointerDown = (ev: MouseEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObjects(pinMeshes.map((p) => p.mesh));
-      if (hits.length > 0) {
-        const found = ANATOMY_PINS.find((p) => p.id === hits[0].object.userData?.pinId);
-        if (found) handleSelectPin(found);
-      }
-    };
-    renderer.domElement.addEventListener('mousedown', onPointerDown);
+    let dragToastTimer: ReturnType<typeof setTimeout> | null = null;
+    const interactionManager = new ThreeInteractionManager({
+      camera,
+      domElement: renderer.domElement,
+      controls,
+      sceneForCursor: scene,
+      defaultHoverColor: 0x22d3ee,
+      getInteractiveObjects: () => interactiveAnatomyMeshes,
+      getParamValue: (paramKey) => {
+        const val = paramsRef.current[paramKey];
+        return typeof val === 'number' ? val : undefined;
+      },
+      onDragStart: () => {
+        labSound.playClick(620);
+      },
+      onDragUpdate: (_obj, paramKey, newValue, label) => {
+        onUpdateParamRef.current?.(paramKey, newValue);
+        const unitMap: Record<string, string> = {
+          heartRateBpm: 'bpm',
+          vesselRadiusRatio: '×',
+          diaphragmEffort: '%',
+          airwayResistance: '×',
+          stimulusVoltageMv: 'mV',
+          myelinThickness: '%',
+        };
+        const unit = unitMap[paramKey] ?? '';
+        const formatted = Number.isInteger(newValue) ? `${newValue}` : newValue.toFixed(2);
+        setDragToast({ label: label ?? paramKey, value: `${formatted}${unit ? ` ${unit}` : ''}` });
+        if (dragToastTimer) clearTimeout(dragToastTimer);
+      },
+      onDragEnd: () => {
+        if (dragToastTimer) clearTimeout(dragToastTimer);
+        dragToastTimer = setTimeout(() => setDragToast(null), 1400);
+      },
+      onCursorMove3D: (pos, normal, hoveredName) => {
+        onEmitCursorRef.current?.(pos, normal, hoveredName);
+      },
+    });
 
     const dummy = new THREE.Object3D();
     const conceptProjVec = new THREE.Vector3();
@@ -567,6 +611,25 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         pulmArtery
       );
 
+      // Direct 3D organ parameter interactions
+      leftVentricle.name = 'Ventrikel Kiri (Seret untuk ubah HR)';
+      leftVentricle.userData = {
+        draggableParam: 'heartRateBpm',
+        min: 40,
+        max: 180,
+        step: 2,
+        label: 'Detak Jantung (bpm)',
+      };
+      aortaArch.name = 'Arkus Aorta (Seret untuk ubah radius pembuluh)';
+      aortaArch.userData = {
+        draggableParam: 'vesselRadiusRatio',
+        min: 0.5,
+        max: 1.5,
+        step: 0.05,
+        label: 'Rasio Radius Aorta',
+      };
+      interactiveAnatomyMeshes.push(leftVentricle, aortaArch);
+
       // Tapered muscular Interventricular Septum (no blocky rectangle)
       const septum = new THREE.Mesh(
         new THREE.CapsuleGeometry(0.09, 1.05, 8, 16),
@@ -575,6 +638,29 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       septum.scale.set(0.7, 1.0, 2.8);
       septum.position.set(0, -0.32, 0.04);
       innerGroup.add(septum);
+
+      // Mitral & Aortic Valve Leaflets (animated opening/closing synced to systole/diastole)
+      const valveMat = new THREE.MeshStandardMaterial({
+        color: 0xfde68a,
+        roughness: 0.35,
+        side: THREE.DoubleSide,
+      });
+      const mitralLeaflets: THREE.Mesh[] = [];
+      [-1, 1].forEach((side) => {
+        const leaflet = new THREE.Mesh(new THREE.CircleGeometry(0.14, 12, 0, Math.PI), valveMat);
+        leaflet.position.set(0.28 + side * 0.06, 0.25, 0.02);
+        leaflet.rotation.y = side > 0 ? 0 : Math.PI;
+        mitralLeaflets.push(leaflet);
+        innerGroup.add(leaflet);
+      });
+      const aorticLeaflets: THREE.Mesh[] = [];
+      [-1, 1].forEach((side) => {
+        const leaflet = new THREE.Mesh(new THREE.CircleGeometry(0.11, 12, 0, Math.PI), valveMat);
+        leaflet.position.set(0.18 + side * 0.05, 0.56, 0.05);
+        leaflet.rotation.y = side > 0 ? 0 : Math.PI;
+        aorticLeaflets.push(leaflet);
+        innerGroup.add(leaflet);
+      });
 
       const rbcCount = 120;
       const rbcGeo = new THREE.SphereGeometry(0.055, 10, 10);
@@ -603,6 +689,17 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         leftAtrium.scale.setScalar(1 - 0.11 * atrPulse);
         rightAtrium.scale.setScalar(1 - 0.11 * atrPulse);
         aortaArch.scale.set(radiusRatio, 1 + 0.06 * sysPulse, radiusRatio);
+
+        // Valve aperture kinematics: Aortic opens on systole, Mitral opens during diastole filling
+        aorticLeaflets.forEach((lf, idx) => {
+          const dir = idx === 0 ? 1 : -1;
+          lf.rotation.z = dir * (0.15 + sysPulse * 0.95);
+        });
+        mitralLeaflets.forEach((lf, idx) => {
+          const dir = idx === 0 ? 1 : -1;
+          const diastoleOpen = Math.max(atrPulse, sysPulse < 0.05 ? 0.55 : 0);
+          lf.rotation.z = dir * (0.15 + diastoleOpen * 0.85);
+        });
 
         const speed = (hr / 60) * 0.65;
         for (let i = 0; i < rbcCount; i++) {
@@ -699,7 +796,53 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       );
       diaphragm.scale.set(1.15, 0.42, 0.82);
       diaphragm.position.set(0, -1.35, 0);
+      diaphragm.name = 'Diafragma (Seret untuk ubah usaha kontraksi)';
+      diaphragm.userData = {
+        draggableParam: 'diaphragmEffort',
+        min: 20,
+        max: 100,
+        step: 5,
+        label: 'Usaha Diafragma (%)',
+      };
+      trachea.name = 'Trakea (Seret untuk ubah resistensi jalan napas)';
+      trachea.userData = {
+        draggableParam: 'airwayResistance',
+        min: 0.5,
+        max: 4.0,
+        step: 0.25,
+        label: 'Resistensi Jalan Napas',
+      };
+      interactiveAnatomyMeshes.push(diaphragm, trachea);
       rootGroup.add(diaphragm);
+
+      // Bronchiole branches & grape-like Alveolar Acini Clusters inside lungs
+      const alveoliClusters: THREE.Group[] = [];
+      const alvMat = new THREE.MeshPhysicalMaterial({
+        color: 0xfda4af,
+        emissive: 0x9f1239,
+        emissiveIntensity: 0.22,
+        roughness: 0.32,
+      });
+      const alvSacGeo = new THREE.SphereGeometry(0.11, 12, 12);
+      [-1, 1].forEach((side) => {
+        const cluster = new THREE.Group();
+        cluster.position.set(side * 1.02, -0.05, 0.05);
+        const offsets = [
+          [0, 0, 0],
+          [0.14 * side, 0.14, 0.1],
+          [-0.12 * side, -0.15, 0.08],
+          [0.08 * side, -0.18, -0.12],
+          [-0.14 * side, 0.12, -0.1],
+          [0, -0.32, 0],
+        ];
+        offsets.forEach(([ox, oy, oz]) => {
+          const sac = new THREE.Mesh(alvSacGeo, alvMat);
+          sac.position.set(ox, oy, oz);
+          cluster.add(sac);
+        });
+        alveoliClusters.push(cluster);
+        innerGroup.add(cluster);
+      });
 
       const gasCount = 110;
       const gasGeo = new THREE.SphereGeometry(0.045, 8, 8);
@@ -710,12 +853,18 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       updateFrame = (t) => {
         const rr = paramsRef.current.respirationRate ?? 15;
         const effort = paramsRef.current.diaphragmEffort ?? 50;
+        const resistance = paramsRef.current.airwayResistance ?? 1.0;
         const breath = 0.5 - 0.5 * Math.cos(2 * Math.PI * (rr / 60) * t);
-        const amp = 0.08 + (effort / 100) * 0.22;
+        const amp = (0.08 + (effort / 100) * 0.22) / Math.max(0.85, Math.sqrt(resistance));
+
+        const bronchusCaliber = Math.max(0.55, 1.15 - (resistance - 1) * 0.18);
+        leftBronchus.scale.set(1, bronchusCaliber, bronchusCaliber);
+        rightBronchus.scale.set(1, bronchusCaliber, bronchusCaliber);
 
         rightLung.scale.set(0.88 * (1 + amp * breath), 1.42 * (1 + amp * 0.75 * breath), 0.78 * (1 + amp * breath));
         leftLung.scale.set(0.82 * (1 + amp * breath), 1.38 * (1 + amp * 0.75 * breath), 0.76 * (1 + amp * breath));
         diaphragm.position.y = -1.28 - breath * amp * 1.1;
+        alveoliClusters.forEach((cluster) => cluster.scale.setScalar(0.88 + breath * amp * 1.35));
 
         for (let i = 0; i < gasCount; i++) {
           const side = i % 2 === 0 ? 1 : -1;
@@ -756,6 +905,15 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
       const soma = new THREE.Mesh(new THREE.IcosahedronGeometry(0.68, 3), somaMat);
       soma.position.set(-2.1, 0, 0);
+      soma.name = 'Soma Neuron (Seret untuk ubah stimulus mV)';
+      soma.userData = {
+        draggableParam: 'stimulusVoltageMv',
+        min: -80,
+        max: 30,
+        step: 5,
+        label: 'Tegangan Stimulus (mV)',
+      };
+      interactiveAnatomyMeshes.push(soma);
       rootGroup.add(soma);
 
       const nucleus = new THREE.Mesh(
@@ -791,7 +949,16 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         seg.rotation.z = Math.PI / 2;
         seg.position.set(-1.05 + s * 0.88, 0, 0);
         seg.castShadow = true;
+        seg.name = 'Selubung Mielin (Seret untuk ubah ketebalan)';
+        seg.userData = {
+          draggableParam: 'myelinThickness',
+          min: 0,
+          max: 100,
+          step: 5,
+          label: 'Ketebalan Mielin (%)',
+        };
         myelinSegments.push(seg);
+        interactiveAnatomyMeshes.push(seg);
         rootGroup.add(seg);
       }
 
@@ -799,6 +966,29 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       bouton.scale.set(1.2, 0.95, 0.95);
       bouton.position.set(2.25, 0, 0);
       rootGroup.add(bouton);
+
+      // Postsynaptic Membrane Spine & Voltage/Ligand-Gated Ion Channels across synaptic cleft
+      const postsynapse = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.36, 0.75, 10, 20),
+        new THREE.MeshPhysicalMaterial({ color: 0x334155, roughness: 0.4, clearcoat: 0.3 })
+      );
+      postsynapse.position.set(3.45, 0, 0);
+      rootGroup.add(postsynapse);
+
+      const channelReceptors: THREE.MeshStandardMaterial[] = [];
+      [-0.36, -0.12, 0.12, 0.36].forEach((cy) => {
+        const chMat = new THREE.MeshStandardMaterial({
+          color: 0x64748b,
+          emissive: 0x0f172a,
+          emissiveIntensity: 0.4,
+          roughness: 0.3,
+        });
+        const channel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.18, 10), chMat);
+        channel.rotation.z = Math.PI / 2;
+        channel.position.set(3.08, cy, cy * 0.35);
+        channelReceptors.push(chMat);
+        innerGroup.add(channel);
+      });
 
       const pulseRing = new THREE.Mesh(
         new THREE.TorusGeometry(0.28, 0.055, 16, 32),
@@ -822,6 +1012,12 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         const scaleMyelin = 0.45 + (myelin / 100) * 0.75;
         myelinSegments.forEach((seg) => seg.scale.set(scaleMyelin, 1, scaleMyelin));
 
+        channelReceptors.forEach((chMat) => {
+          chMat.color.setHex(fired ? 0x4ade80 : 0x64748b);
+          chMat.emissive.setHex(fired ? 0x22d3ee : 0x0f172a);
+          chMat.emissiveIntensity = fired ? 1.15 : 0.2;
+        });
+
         if (fired) {
           const speed = 0.8 + (myelin / 100) * 1.8;
           const u = (t * speed) % 1;
@@ -833,7 +1029,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
         for (let i = 0; i < ntCount; i++) {
           const prog = fired ? ((t * 1.4 + i / ntCount) % 1) : 0.05;
-          dummy.position.set(2.45 + prog * 0.85, Math.sin(i * 2.1 + t * 3) * 0.35 * prog, Math.cos(i * 1.7 + t * 2) * 0.35 * prog);
+          dummy.position.set(2.45 + prog * 0.58, Math.sin(i * 2.1 + t * 3) * 0.32 * prog, Math.cos(i * 1.7 + t * 2) * 0.32 * prog);
           dummy.scale.setScalar(fired ? 1 : 0.35);
           dummy.updateMatrix();
           ntMesh.setMatrixAt(i, dummy.matrix);
@@ -1019,7 +1215,8 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     return () => {
       cancelAnimationFrame(animId);
       cameraSyncHandleRef.current = null;
-      renderer.domElement.removeEventListener('mousedown', onPointerDown);
+      if (dragToastTimer) clearTimeout(dragToastTimer);
+      interactionManager.dispose();
       teacherCollabBridge.dispose();
       disposableBioTextures.forEach((tex) => tex.dispose());
       host.dispose();
@@ -1039,6 +1236,14 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         visible={showConceptLabels}
         onBindSlot={bindConceptSlot}
       />
+
+      {dragToast && (
+        <div className="pointer-events-none absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-slate-950/90 border border-cyan-400/50 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-cyan-200">
+          <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+          <span className="text-slate-300">{dragToast.label}:</span>
+          <span className="font-bold text-cyan-300">{dragToast.value}</span>
+        </div>
+      )}
 
       {/* Top HUD: X-Ray & Cross-Section Layer Toggle */}
       <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">

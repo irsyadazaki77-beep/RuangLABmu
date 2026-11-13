@@ -244,25 +244,37 @@ export function generateOfflineSocraticMentorResponse(
       observation = `Pengamatan biologis yang mengagumkan tentang fotosintesis Ingenhousz (${educationLevel})!`;
       dataHighlight = `Perhatikan dedaunan pohon kelapa atau tanaman air di sungai yang terpapar sinar matahari pagi: gelembung-gelembung halus yang terperangkap di bawah daun adalah gas oksigen murni (O₂), bukti fotosintesis mengubah energi surya dan air menjadi karbohidrat kehidupan!`;
       socraticQuestion = `Jika intensitas cahaya dinaikkan namun gelembung oksigen tidak lagi bertambah, faktor pembatas apakah (misal CO₂ atau suhu) yang mulai menahan laju fotosintesis?`;
-    } else if (qLower.includes('nadi') || qLower.includes('jantung') || qLower.includes('darah') || qLower.includes('anatomi')) {
-      observation = `Kajian fisiologi kardiovaskular dan denyut jantung manusia yang sangat bermakna!`;
-      dataHighlight = `Tempelkan dua jari Anda di pergelangan tangan sendiri: denyut ritmis yang terasa adalah gelombang tekanan darah saat bilik kiri jantung (ventrikel sinister) berkontraksi memompa darah ke seluruh tubuh. Saat kita mendayung atau berlari, otot memerlukan lebih banyak oksigen, sehingga nodus SA memerintahkan jantung berdetak lebih cepat.`;
-      socraticQuestion = `Menurut data simulasi Anda, berapa curah jantung (Cardiac Output) yang dihasilkan dari perkalian Stroke Volume dengan Heart Rate saat ini?`;
+    } else if (qLower.includes('predator') || qLower.includes('mangsa') || qLower.includes('ekosistem') || qLower.includes('lotka')) {
+      observation = `Analisis dinamika rantai makanan Lotka-Volterra terpantau sangat aktif (${educationLevel})!`;
+      dataHighlight = `Layaknya keseimbangan kelinci (mangsa) dan rubah/elang (pemangsa) di padang rumput nusantara: saat jumlah mangsa melimpah, pemangsa berkembang pesat hingga akhirnya mangsa menipis, lalu pemangsa ikut turun dan siklus pun berulang bergelombang (fase tertinggal/phase lag).`;
+      socraticQuestion = `Pada grafik kurva waktu Anda, apakah puncak populasi predator muncul bersamaan persis atau tertinggal seperempat fase di belakang puncak populasi mangsa?`;
+    } else if (qLower.includes('katalase') || qLower.includes('enzim') || qLower.includes('ph')) {
+      observation = `Pengamatan kinetika enzim katalase Michaelis-Menten terlihat sangat presisi (${educationLevel})!`;
+      dataHighlight = `Enzim bekerja seperti kunci dan gembok: bila suhu terlalu tinggi atau pH menyimpang jauh dari kondisi netral (~pH 7), struktur protein enzim terdenaturasi sehingga busa gelembung O₂ langsung menurun drastis.`;
+      socraticQuestion = `Pada rentang pH berapakah kurva laju katalitik enzim mencapai puncak optimum sebelum mengalami denaturasi?`;
+    } else if (qLower.includes('nadi') || qLower.includes('jantung') || qLower.includes('darah') || qLower.includes('anatomi') || qLower.includes('paru') || qLower.includes('sinaps')) {
+      observation = `Kajian fisiologi anatomi manusia 3D berjalan sangat bermakna (${educationLevel})!`;
+      dataHighlight = `Aktifkan mode Transparan X-Ray untuk mengintip kerja katup jantung, alveoli paru-paru, serta reseptor ion pascasinaps secara real-time. Denyut ritmis, ventilasi alveolus (SpO₂), dan lompatan impuls saltatori bekerja selaras mempertahankan homeostasis tubuh.`;
+      socraticQuestion = `Saat jari-jari pembuluh darah atau bronkus menyempit setengahnya, bagaimana perubahan drastis pada resistensi aliran Poiseuille atau saturasi oksigen SpO₂?`;
     } else {
       observation = `Pengamatan fenomena biologi dan seluler tercatat dengan baik (${recCount} data).`;
-      dataHighlight = `Sel hidup senantiasa menjaga keseimbangan dinamis (homeostasis) terhadap lingkungannya, layaknya sel darah merah yang bertahan dalam plasma darah yang isotonik.`;
-      socraticQuestion = `Apa yang terjadi pada sel bila konsentrasi larutan di luar sel dibuat lebih pekat (hipertonik) dibandingkan cairan di dalam sel?`;
+      dataHighlight = `Sel hidup senantiasa menjaga keseimbangan dinamis (homeostasis) terhadap lingkungannya, layaknya vakuola sel tumbuhan yang mengembang saat turgid di air tawar (hipotonik) namun mengerut (plasmolisis) saat direndam larutan garam/gula pekat (hipertonik).`;
+      socraticQuestion = `Apa yang terjadi pada ukuran vakuola sel bila konsentrasi larutan di luar sel dibuat lebih pekat (hipertonik) dibandingkan cairan di dalam sel?`;
     }
   } else {
     // Astronomi
-    if (qLower.includes('kepler') || qLower.includes('orbit') || qLower.includes('planet') || qLower.includes('periode')) {
+    if (qLower.includes('exoplanet') || qLower.includes('eksoplanet') || qLower.includes('transit') || qLower.includes('kurva cahaya')) {
+      observation = `Observasi fotometri transit eksoplanet menunjukkan presisi fotometrik yang hebat (${educationLevel})!`;
+      dataHighlight = `Saat sebuah eksoplanet melintas tepat di depan cakram bintang induknya, planet menghalangi sebagian cahaya bintang sebesar perbandingan luas cakramnya (Rp/R★)²—serupa gerhana mikro yang menghasilkan lekukan (transit depth) pada kurva cahaya.`;
+      socraticQuestion = `Jika jari-jari eksoplanet Anda perbesar menjadi 2 kali lipat, menjadi berapa kali lipatkah kedalaman redupan cahaya (transit depth %) yang tercatat pada fotometer?`;
+    } else if (qLower.includes('kepler') || qLower.includes('orbit') || qLower.includes('planet') || qLower.includes('periode')) {
       observation = `Penjelajahan astrofisika dan mekanika orbit langit yang sangat inspiratif (${educationLevel})!`;
       dataHighlight = `Sejak ratusan tahun silam, nenek moyang kita telah membaca langit malam yang jernih di laut nusantara. Johannes Kepler menemukan bahwa orbit planet bukanlah lingkaran sempurna, melainkan elips dengan matahari berada di salah satu titik fokusnya. Karena itu, saat komet atau planet berada di titik terdekat (perihelion), ia meluncur jauh lebih cepat dibanding saat di titik terjauh (aphelion).`;
       socraticQuestion = `Apakah rasio T²/a³ pada planet yang Anda uji sudah mendekati angka konstan sesuai Hukum III Kepler?`;
-    } else if (qLower.includes('bintang') || qLower.includes('rasi') || qLower.includes('galaksi') || qLower.includes('waluku') || qLower.includes('pari')) {
+    } else if (qLower.includes('bintang') || qLower.includes('rasi') || qLower.includes('galaksi') || qLower.includes('materi gelap') || qLower.includes('waluku') || qLower.includes('pari')) {
       observation = `Pengamatan astrometri langit malam yang kaya kearifan kosmos nusantara!`;
-      dataHighlight = `Di daerah minim polusi lampu, langit malam memancarkan kilau ratusan ribu bintang. Rasi Bintang Pari (Crux) menjadi kompas alami penunjuk arah selatan sejati bagi para nelayan, sedangkan Rasi Waluku (Tiga Bintang Sabuk Orion / Bajak Sawah) menjadi penanda kalender musim tanam padi tradisional (Pranata Mangsa) bagi para petani.`;
-      socraticQuestion = `Bagaimana hubungan antara warna spektrum cahaya bintang (biru vs merah) dengan suhu permukaan efektifnya menurut Hukum Pergeseran Wien?`;
+      dataHighlight = `Di daerah minim polusi lampu, langit malam memancarkan kilau ribuan bintang. Rasi Bintang Pari (Crux) menjadi kompas alami penunjuk arah selatan bagi nelayan dan Rasi Waluku menandai musim tanam petani, sementara di skala besar galaksi Bima Sakti memiliki Halo Materi Gelap yang menjaga kecepatan bintang di tepi galaksi tetap datar.`;
+      socraticQuestion = `Bagaimana perbedaan kurva kecepatan rotasi bintang di pinggir galaksi ketika fraksi Halo Materi Gelap dinaikkan dibandingkan galaksi tanpa materi gelap?`;
     } else {
       observation = `Koleksi data observasi astronomi Anda tersusun dengan presisi (R² = ${r2Str}).`;
       dataHighlight = `Gaya gravitasi bekerja di seluruh penjuru semesta, mengikat bulan ke bumi, bumi ke matahari, dan matahari ke pusat galaksi Bima Sakti kita.`;

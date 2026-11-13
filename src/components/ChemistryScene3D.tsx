@@ -37,6 +37,7 @@ import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
+import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
 import {
   ConceptLabelDomRef,
   ConceptLabelToggleButton,
@@ -1125,22 +1126,16 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     }
 
     // =========================================================
-    // DIRECT 3D MESH DRAGGING (RAYCASTER GIZMOS)
+    // DIRECT 3D MESH DRAGGING (ThreeInteractionManager)
     // =========================================================
-    let isDragging = false;
-    let dragParamKey = '';
-    let dragStartPos = { x: 0, y: 0 };
-    let dragStartVal = 0;
-    let dragConfig = { min: 0, max: 100, step: 1, label: '' };
-    const dragRaycaster = new THREE.Raycaster();
-    const dragMouse = new THREE.Vector2();
-    let hoveredMesh: THREE.Mesh | null = null;
-    const origEmissive = new THREE.Color();
     const conceptProjVec = new THREE.Vector3();
+    let probeStartX = probeHandle.group.position.x;
+    let probeStartZ = probeHandle.group.position.z;
 
-    let isDraggingProbe = false;
-    const probeDragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -2.2);
-    const probeDragHit = new THREE.Vector3();
+    probeHandle.bodyMesh.userData.onDrag = (dx: number, dy: number) => {
+      probeHandle.group.position.x = Math.max(-3.6, Math.min(3.6, probeStartX + dx * 0.02));
+      probeHandle.group.position.z = Math.max(-2.6, Math.min(2.6, probeStartZ + dy * 0.02));
+    };
 
     const getInteractiveMeshes = (): THREE.Object3D[] => {
       const list: THREE.Object3D[] = [];
@@ -1148,9 +1143,18 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         if (
           obj instanceof THREE.Mesh &&
           obj.visible &&
-          (obj.userData?.draggableParam || obj.userData?.measurementHandle)
+          (obj.userData?.draggableParam || obj.userData?.measurementHandle || obj.userData?.interactive)
         ) {
-          list.push(obj);
+          let parentVisible = true;
+          let cur: THREE.Object3D | null = obj.parent;
+          while (cur) {
+            if (!cur.visible) {
+              parentVisible = false;
+              break;
+            }
+            cur = cur.parent;
+          }
+          if (parentVisible) list.push(obj);
         }
       });
       if (probeHandle.group.visible) {
@@ -1159,40 +1163,26 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       return list;
     };
 
-    const handlePointerDown = (e: PointerEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      dragMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      dragRaycaster.setFromCamera(dragMouse, camera);
-
-      const hits = dragRaycaster.intersectObjects(getInteractiveMeshes(), false);
-      if (hits.length > 0) {
-        const hitObj = hits[0].object;
-        if (hitObj.userData?.measurementHandle === 'probe-body') {
-          isDraggingProbe = true;
-          controls.enabled = false;
-          renderer.domElement.style.cursor = 'grabbing';
+    const interactionManager = new ThreeInteractionManager({
+      camera,
+      domElement: renderer.domElement,
+      controls,
+      sceneForCursor: scene,
+      defaultHoverColor: 0x14b8a6,
+      dragSpanPx: 280,
+      getInteractiveObjects: getInteractiveMeshes,
+      getParamValue: (key) => (latestRef.current.params as unknown as Record<string, number>)[key],
+      onDragStart: (obj, paramKey) => {
+        if (obj.userData?.measurementHandle === 'probe-body') {
+          probeStartX = probeHandle.group.position.x;
+          probeStartZ = probeHandle.group.position.z;
           labSound.playClick(720);
           return;
         }
-        const paramKey = hitObj.userData.draggableParam;
         if (paramKey && latestRef.current.onUpdateParam) {
-          isDragging = true;
-          dragParamKey = paramKey;
-          dragStartPos = { x: e.clientX, y: e.clientY };
-          dragConfig = {
-            min: hitObj.userData.min ?? 0,
-            max: hitObj.userData.max ?? 100,
-            step: hitObj.userData.step ?? 1,
-            label: hitObj.userData.label ?? paramKey,
-          };
-          const curVal = (latestRef.current.params as unknown as Record<string, number>)[paramKey] ?? 0;
-          dragStartVal = curVal;
-          controls.enabled = false;
-          renderer.domElement.style.cursor = 'grabbing';
           labSound.playClick(600);
           wobbleBoost = 0.08;
-
+          const curVal = (latestRef.current.params as unknown as Record<string, number>)[paramKey] ?? 0;
           if (paramKey === 'titrantAddedMl') {
             const nextVal = Math.min(50, Number((curVal + 1.0).toFixed(1)));
             latestRef.current.onUpdateParam(paramKey, nextVal);
@@ -1203,26 +1193,23 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
             latestRef.current.onUpdateParam(paramKey, nextVal);
             setDragToast({ label: 'Pemanas Bunsen (+5 °C)', value: `${nextVal} °C` });
           } else {
-            setDragToast({ label: dragConfig.label, value: `${curVal}` });
+            setDragToast({ label: obj.userData?.label ?? paramKey, value: `${curVal}` });
           }
         }
-      }
-    };
-
-    const handlePointerUp = () => {
-      if (isDraggingProbe) {
-        isDraggingProbe = false;
-        controls.enabled = true;
-        renderer.domElement.style.cursor = 'grab';
-      }
-      if (isDragging) {
-        isDragging = false;
-        dragParamKey = '';
-        controls.enabled = true;
-        renderer.domElement.style.cursor = 'grab';
+      },
+      onDragUpdate: (_obj, paramKey, newValue, label) => {
+        if (!latestRef.current.onUpdateParam) return;
+        latestRef.current.onUpdateParam(paramKey, newValue);
+        wobbleBoost = 0.065;
+        setDragToast({ label: label ?? paramKey, value: `${newValue}` });
+      },
+      onDragEnd: () => {
         setTimeout(() => setDragToast(null), 1200);
-      }
-    };
+      },
+      onCursorMove3D: (pos, normal, hoveredObject) => {
+        latestRef.current.onEmitCursor?.(pos, normal, hoveredObject);
+      },
+    });
 
     let disposed = false;
     let rafId = 0;
@@ -1649,95 +1636,12 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
     rafId = requestAnimationFrame(tick);
 
-    let lastEmitTime = 0;
-
-    const handlePointerMove = (e: PointerEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
-
-      if (isDraggingProbe) {
-        dragMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-        dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-        dragRaycaster.setFromCamera(dragMouse, camera);
-        if (dragRaycaster.ray.intersectPlane(probeDragPlane, probeDragHit)) {
-          probeHandle.group.position.x = Math.max(-3.6, Math.min(3.6, probeDragHit.x));
-          probeHandle.group.position.z = Math.max(-2.6, Math.min(2.6, probeDragHit.z));
-        }
-        return;
-      }
-
-      if (isDragging && dragParamKey && latestRef.current.onUpdateParam) {
-        const deltaX = e.clientX - dragStartPos.x;
-        const deltaY = dragStartPos.y - e.clientY;
-        const sensitivity = (dragConfig.max - dragConfig.min) / 280;
-        const delta = (Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY) * sensitivity;
-        let nextVal = dragStartVal + delta;
-        nextVal = Math.max(dragConfig.min, Math.min(dragConfig.max, nextVal));
-        if (dragConfig.step >= 1) {
-          nextVal = Math.round(nextVal / dragConfig.step) * dragConfig.step;
-        } else {
-          nextVal = Number((Math.round(nextVal / dragConfig.step) * dragConfig.step).toFixed(2));
-        }
-        latestRef.current.onUpdateParam(dragParamKey, nextVal);
-        wobbleBoost = 0.065;
-        setDragToast({ label: dragConfig.label, value: `${nextVal}` });
-        return;
-      }
-
-      dragMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      dragRaycaster.setFromCamera(dragMouse, camera);
-      const hits = dragRaycaster.intersectObjects(getInteractiveMeshes(), false);
-      if (hits.length > 0) {
-        const hitMesh = hits[0].object as THREE.Mesh;
-        renderer.domElement.style.cursor = 'grab';
-        if (hitMesh !== hoveredMesh) {
-          if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
-            (hoveredMesh.material as any).emissive.copy(origEmissive);
-          }
-          hoveredMesh = hitMesh;
-          if ((hitMesh.material as any)?.emissive) {
-            origEmissive.copy((hitMesh.material as any).emissive);
-            (hitMesh.material as any).emissive.setHex(0x14b8a6);
-          }
-        }
-      } else {
-        renderer.domElement.style.cursor = 'default';
-        if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
-          (hoveredMesh.material as any).emissive.copy(origEmissive);
-          hoveredMesh = null;
-        }
-      }
-
-      if (latestRef.current.onEmitCursor) {
-        const now = performance.now();
-        if (now - lastEmitTime > 40) {
-          const intersects = dragRaycaster.intersectObjects(scene.children, true);
-          if (intersects.length > 0) {
-            const hit = intersects[0];
-            latestRef.current.onEmitCursor(
-              [hit.point.x, hit.point.y, hit.point.z],
-              hit.face ? [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z] : undefined,
-              hit.object.name
-            );
-            lastEmitTime = now;
-          }
-        }
-      }
-    };
-
-    renderer.domElement.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('pointerup', handlePointerUp);
-    renderer.domElement.addEventListener('pointermove', handlePointerMove);
-
     return () => {
       disposed = true;
       unsubAiAction();
       cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
-      renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('pointerup', handlePointerUp);
-      renderer.domElement.removeEventListener('pointermove', handlePointerMove);
+      interactionManager.dispose();
       teacherCollabBridge.dispose();
       cursorManager.dispose();
       cameraSyncHandleRef.current = null;
@@ -1758,6 +1662,18 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     setActivePreset(presetName);
     cameraCtrlRef.current?.setPreset(presetName);
   };
+
+  useEffect(() => {
+    const orderedPresets: CameraPreset[] = ['isometric', 'front', 'top', 'closeup'];
+    return subscribeLabEvent(LAB_EVENTS.SET_CAMERA_PRESET, (detail) => {
+      if (!detail) return;
+      const preset = orderedPresets[detail.index];
+      if (preset) {
+        setActivePreset(preset);
+        cameraCtrlRef.current?.setPreset(preset);
+      }
+    });
+  }, []);
 
   const handleToggleFullscreen = () => {
     labSound.playClick();

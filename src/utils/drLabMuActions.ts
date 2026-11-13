@@ -181,10 +181,37 @@ export function deriveContextualDrLabMuActions(
         paramKey: 'stimulusVoltageMv',
         durationMs: 3000,
       });
-    } else if (combined.includes('osmosis') || combined.includes('plasmolisis')) {
+    } else if (
+      combined.includes('osmosis') ||
+      combined.includes('plasmolisis') ||
+      combined.includes('vakuola')
+    ) {
       actions.push({
         type: 'HIGHLIGHT_SLIDER',
         paramKey: 'sucroseConcMolar',
+        durationMs: 3000,
+      });
+    } else if (
+      combined.includes('katalase') ||
+      combined.includes('enzim') ||
+      combined.includes('enzyme')
+    ) {
+      actions.push({
+        type: 'HIGHLIGHT_SLIDER',
+        paramKey: combined.includes('ph') ? 'enzymePh' : 'enzymeSubstrateS',
+        durationMs: 3000,
+      });
+    } else if (
+      combined.includes('predator') ||
+      combined.includes('mangsa') ||
+      combined.includes('lotka') ||
+      combined.includes('ekosistem')
+    ) {
+      actions.push({
+        type: 'HIGHLIGHT_SLIDER',
+        paramKey: combined.includes('mangsa') || combined.includes('prey')
+          ? 'preyPopulationX'
+          : 'predatorPopulationY',
         durationMs: 3000,
       });
     } else {
@@ -196,13 +223,18 @@ export function deriveContextualDrLabMuActions(
     }
   } else if (domain.includes('astronomi')) {
     actions.push({ type: 'FOCUS_CAMERA', target: 'planet_focus' });
+    const astroParamKey = combined.includes('hubble')
+      ? 'galaxyDistanceMpc'
+      : combined.includes('wien')
+      ? 'starEffectiveTempK'
+      : combined.includes('exoplanet') || combined.includes('eksoplanet') || combined.includes('transit')
+      ? 'exoplanetRadiusEarth'
+      : combined.includes('milky') || combined.includes('bima sakti') || combined.includes('galaksi') || combined.includes('dark matter')
+      ? 'darkMatterHaloFraction'
+      : 'customSemiMajorAxisAu';
     actions.push({
       type: 'HIGHLIGHT_SLIDER',
-      paramKey: combined.includes('hubble')
-        ? 'galaxyDistanceMpc'
-        : combined.includes('wien')
-        ? 'starEffectiveTempK'
-        : 'customSemiMajorAxisAu',
+      paramKey: astroParamKey,
       durationMs: 3000,
     });
   } else {
