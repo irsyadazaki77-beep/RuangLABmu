@@ -2,17 +2,21 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
+  applyBorosilicateLiteMode,
   buildLatheFromProfile,
   createBeakerProfilePoints,
+  createBorosilicateGlassMaterial,
   createBrushedMetalTextures,
   createBuretteClampAssembly,
   createErlenmeyerProfilePoints,
   createFunnelProfilePoints,
   createGraduatedScaleTexture,
+  createInstancedParticlePool,
   createStudioWorkbenchGroup,
   smoothCameraTransition,
   type CameraSyncPose,
 } from '../utils/threeStudioKit';
+import { createDigitalProbe3D } from '../utils/threeMeasurementTools';
 import { initThreeStudioHost } from '../utils/threeStudioHost';
 import {
   ChemistryParams,
@@ -23,7 +27,7 @@ import {
 } from '../utils/scienceEngine';
 import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
-import { Maximize2, Minimize2, Link2 } from 'lucide-react';
+import { Maximize2, Minimize2, Link2, Thermometer } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
 import {
   globalMultiApparatusEngine,
@@ -132,26 +136,7 @@ function createLiquidWobbleMaterial(initialHex: number, initialOpacity = 0.78): 
   });
 }
 
-function createBubbleTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    const grad = ctx.createRadialGradient(28, 24, 2, 32, 32, 28);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-    grad.addColorStop(0.5, 'rgba(186, 230, 253, 0.65)');
-    grad.addColorStop(0.85, 'rgba(56, 189, 248, 0.25)');
-    grad.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(32, 32, 28, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
+
 
 export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   params,
@@ -189,6 +174,10 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
+  const [showProbe3D, setShowProbe3D] = useState<boolean>(false);
+  const showProbe3DRef = useRef<boolean>(false);
+  showProbe3DRef.current = showProbe3D;
+  const [probeHudText, setProbeHudText] = useState<{ text: string; color: string } | null>(null);
   const [sceneKey, setSceneKey] = useState<number>(0);
 
   const latestRef = useRef({
@@ -412,18 +401,11 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       roughness: 0.26,
       envMapIntensity: 1.25,
     });
-    const glassMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      metalness: 0.0,
-      roughness: 0.05,
-      transmission: 0.92,
-      transparent: true,
-      opacity: 0.30,
-      ior: 1.48,
-      thickness: 0.2,
-      envMapIntensity: 0.35,
-      reflectivity: 0.25,
-      depthWrite: false,
+    const glassMat = createBorosilicateGlassMaterial(useUIStore.getState().liteDeviceMode, {
+      color: 0xecfeff,
+      tintOpacity: 0.30,
+      ior: 1.47,
+      thickness: 0.35,
     });
     const graduationOverlayMat = (tex: THREE.CanvasTexture | null) =>
       new THREE.MeshBasicMaterial({
@@ -915,20 +897,32 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     pressureNeedle.position.set(2.2, 2.6, 0.12);
     gasGroup.add(pressureNeedle);
 
-    // Kinetic gas bouncing particles
-    const GAS_PARTICLES_COUNT = 24;
-    const gasParticles: { mesh: THREE.Mesh; vel: THREE.Vector3 }[] = [];
+    // Kinetic gas bouncing particles (Single Draw-Call InstancedMesh Pool)
+    const GAS_PARTICLES_MAX = 48;
+    const gasParticleStates: { pos: THREE.Vector3; vel: THREE.Vector3 }[] = [];
     const gasPartGeo = new THREE.SphereGeometry(0.08, 12, 12);
-    for (let i = 0; i < GAS_PARTICLES_COUNT; i++) {
-      const pMesh = new THREE.Mesh(
-        gasPartGeo,
-        new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 0.9 })
+    const gasPartMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 0.55,
+      roughness: 0.2,
+    });
+    const gasPool = createInstancedParticlePool(GAS_PARTICLES_MAX, gasPartGeo, gasPartMat, gasGroup);
+    for (let i = 0; i < GAS_PARTICLES_MAX; i++) {
+      const pos = new THREE.Vector3(
+        (Math.random() - 0.5) * 2.2,
+        0.6 + Math.random() * 2.2,
+        (Math.random() - 0.5) * 2.2
       );
-      pMesh.position.set((Math.random() - 0.5) * 2.2, 0.6 + Math.random() * 2.2, (Math.random() - 0.5) * 2.2);
-      const vel = new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2).normalize();
-      gasGroup.add(pMesh);
-      gasParticles.push({ mesh: pMesh, vel });
+      const vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 2,
+        (Math.random() - 0.5) * 2,
+        (Math.random() - 0.5) * 2
+      ).normalize();
+      gasParticleStates.push({ pos, vel });
+      gasPool.setTransform(i, pos.x, pos.y, pos.z, 1);
     }
+    gasPool.commit(GAS_PARTICLES_MAX);
 
     // =========================================================
     // 5. REACTION KINETICS & ARRHENIUS 3D GROUP
@@ -1056,33 +1050,32 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     spectroGroup.add(spectroBeam);
 
     // =========================================================
-    // 7. RISING GAS BUBBLE PARTICLE SYSTEM (THREE.Points)
+    // 7. RISING GAS MICRO-BUBBLE SYSTEM (Single Draw-Call InstancedMesh)
     // =========================================================
-    const BUBBLE_COUNT = 120;
-    const bubblePositions = new Float32Array(BUBBLE_COUNT * 3);
+    const BUBBLE_COUNT = 96;
     const bubbleSpeeds = new Float32Array(BUBBLE_COUNT);
     const bubbleSeeds = new Float32Array(BUBBLE_COUNT);
     for (let i = 0; i < BUBBLE_COUNT; i++) {
-      bubblePositions[i * 3] = (Math.random() - 0.5) * 1.4;
-      bubblePositions[i * 3 + 1] = Math.random() * 1.2;
-      bubblePositions[i * 3 + 2] = (Math.random() - 0.5) * 1.4;
       bubbleSpeeds[i] = 0.35 + Math.random() * 0.65;
       bubbleSeeds[i] = Math.random() * Math.PI * 2;
     }
-    const bubbleGeo = new THREE.BufferGeometry();
-    bubbleGeo.setAttribute('position', new THREE.BufferAttribute(bubblePositions, 3));
-    const bubbleTex = createBubbleTexture();
-    const bubbleMat = new THREE.PointsMaterial({
+    const bubbleInstGeo = new THREE.SphereGeometry(0.032, 10, 10);
+    const bubbleInstMat = new THREE.MeshStandardMaterial({
       color: 0xe0f2fe,
-      size: 0.14,
-      map: bubbleTex,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 0.45,
       transparent: true,
-      opacity: 0.88,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.78,
+      roughness: 0.08,
+      metalness: 0.1,
     });
-    const gasBubblePoints = new THREE.Points(bubbleGeo, bubbleMat);
-    scene.add(gasBubblePoints);
+    const bubblePool = createInstancedParticlePool(BUBBLE_COUNT, bubbleInstGeo, bubbleInstMat, scene);
+
+    // Interactive 3D Immersion Probe (pH Meter / Digital Thermocouple)
+    const probeHandle = createDigitalProbe3D('ph');
+    probeHandle.group.position.set(1.35, 2.25, 0.35);
+    probeHandle.group.visible = showProbe3DRef.current;
+    scene.add(probeHandle.group);
 
     // =========================================================
     // 8. K3 SAFETY HAZARD 3D VAPOR, WARNING RING & BEACON LIGHT
@@ -1145,13 +1138,24 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const origEmissive = new THREE.Color();
     const conceptProjVec = new THREE.Vector3();
 
+    let isDraggingProbe = false;
+    const probeDragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -2.2);
+    const probeDragHit = new THREE.Vector3();
+
     const getInteractiveMeshes = (): THREE.Object3D[] => {
       const list: THREE.Object3D[] = [];
       scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh && obj.visible && obj.userData?.draggableParam) {
+        if (
+          obj instanceof THREE.Mesh &&
+          obj.visible &&
+          (obj.userData?.draggableParam || obj.userData?.measurementHandle)
+        ) {
           list.push(obj);
         }
       });
+      if (probeHandle.group.visible) {
+        list.push(...probeHandle.getInteractiveHandles());
+      }
       return list;
     };
 
@@ -1164,6 +1168,13 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       const hits = dragRaycaster.intersectObjects(getInteractiveMeshes(), false);
       if (hits.length > 0) {
         const hitObj = hits[0].object;
+        if (hitObj.userData?.measurementHandle === 'probe-body') {
+          isDraggingProbe = true;
+          controls.enabled = false;
+          renderer.domElement.style.cursor = 'grabbing';
+          labSound.playClick(720);
+          return;
+        }
         const paramKey = hitObj.userData.draggableParam;
         if (paramKey && latestRef.current.onUpdateParam) {
           isDragging = true;
@@ -1199,6 +1210,11 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     };
 
     const handlePointerUp = () => {
+      if (isDraggingProbe) {
+        isDraggingProbe = false;
+        controls.enabled = true;
+        renderer.domElement.style.cursor = 'grab';
+      }
       if (isDragging) {
         isDragging = false;
         dragParamKey = '';
@@ -1241,6 +1257,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       fpsMonitor.recordFrame(nowMs);
 
       const isLite = useUIStore.getState().liteDeviceMode;
+      applyBorosilicateLiteMode(glassMat, isLite);
       if (isLite) {
         const delta = nowMs - lastRenderTimestamp;
         if (delta < 32) {
@@ -1385,20 +1402,29 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         const needleAngle = Math.max(-1.4, Math.min(1.4, (pAtm / 5.0) * Math.PI - Math.PI / 2));
         pressureNeedle.rotation.z = -needleAngle;
 
-        const speed = Math.sqrt((p.gasTemperatureK ?? 300) / 300) * 0.04;
-        gasParticles.forEach((part, idx) => {
-          if (isLite && idx >= 12) {
-            part.mesh.visible = false;
-            return;
-          }
-          part.mesh.visible = true;
-          part.mesh.position.addScaledVector(part.vel, speed);
-          if (part.mesh.position.y > pistonY - 0.2 || part.mesh.position.y < 0.6) {
+        const gasTempK = p.gasTemperatureK ?? 300;
+        const speed = Math.sqrt(gasTempK / 300) * 0.04;
+        const activeGasCount = isLite ? 24 : GAS_PARTICLES_MAX;
+        const gasHex = gasTempK >= 480 ? 0xef4444 : gasTempK >= 360 ? 0xf97316 : 0x38bdf8;
+        for (let idx = 0; idx < activeGasCount; idx++) {
+          const part = gasParticleStates[idx];
+          part.pos.addScaledVector(part.vel, speed);
+          if (part.pos.y > pistonY - 0.2 || part.pos.y < 0.6) {
             part.vel.y *= -1;
+            part.pos.y = Math.max(0.6, Math.min(pistonY - 0.2, part.pos.y));
           }
-          if (Math.abs(part.mesh.position.x) > 1.2) part.vel.x *= -1;
-          if (Math.abs(part.mesh.position.z) > 1.2) part.vel.z *= -1;
-        });
+          if (Math.abs(part.pos.x) > 1.2) {
+            part.vel.x *= -1;
+            part.pos.x = Math.sign(part.pos.x) * 1.2;
+          }
+          if (Math.abs(part.pos.z) > 1.2) {
+            part.vel.z *= -1;
+            part.pos.z = Math.sign(part.pos.z) * 1.2;
+          }
+          gasPool.setTransform(idx, part.pos.x, part.pos.y, part.pos.z, 1);
+          gasPool.setColor(idx, gasHex);
+        }
+        gasPool.commit(activeGasCount);
       }
 
       // 3. Reaction Kinetics update
@@ -1424,7 +1450,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         (spectroBeam.material as THREE.MeshBasicMaterial).color.setHex(absVal > 2 ? 0xef4444 : 0x22c55e);
       }
 
-      // 5. Rising Gas Bubbles (THREE.Points) in active chemical vessels
+      // 5. Rising Gas Micro-Bubbles (Single Draw-Call InstancedMesh) in active chemical vessels
       const showBubbles =
         reacting ||
         isRedox ||
@@ -1432,12 +1458,15 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         p.mode === 'thermo-calorimetry' ||
         (p.mode === 'acid-base-titration' && wobbleBoost > 0.01);
 
-      gasBubblePoints.visible = showBubbles;
+      bubblePool.mesh.visible = showBubbles;
       if (showBubbles) {
-        const bPos = bubbleGeo.getAttribute('position') as THREE.BufferAttribute;
-        const rateMultiplier = reacting ? 1.8 : 0.85;
+        const rateMultiplier = reacting ? 1.85 : 0.9;
         const activeBubbles = isLite ? Math.floor(BUBBLE_COUNT / 2) : BUBBLE_COUNT;
-        bubbleGeo.setDrawRange(0, activeBubbles);
+        const bubbleColorHex =
+          p.mode === 'acid-base-titration' && typeof m.indicatorColorHex === 'string'
+            ? parseInt(m.indicatorColorHex.replace('#', ''), 16) || 0xe0f2fe
+            : 0xe0f2fe;
+
         for (let i = 0; i < activeBubbles; i++) {
           let minY = 0.4;
           let maxY = 1.65;
@@ -1468,10 +1497,35 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           const rad = 0.1 + ((bubbleSeeds[i] * 13.7) % 0.45);
           const bx = centerX + Math.cos(angle) * rad + Math.sin(t * 3.5 + bubbleSeeds[i]) * 0.04;
           const bz = Math.sin(angle) * rad;
+          const growthScale = 0.65 + (by - minY) / spanY * 0.75;
 
-          bPos.setXYZ(i, bx, by, bz);
+          bubblePool.setTransform(i, bx, by, bz, growthScale);
+          bubblePool.setColor(i, bubbleColorHex);
         }
-        bPos.needsUpdate = true;
+        bubblePool.commit(activeBubbles);
+      }
+
+      // 6. Interactive 3D Digital Immersion Probe (pH / Thermocouple)
+      probeHandle.group.visible = showProbe3DRef.current;
+      if (probeHandle.group.visible) {
+        const usePh =
+          p.mode === 'acid-base-titration' ||
+          isRedox ||
+          p.mode === 'spectrophotometry-beer';
+        const probeVal = usePh
+          ? m.currentPh ?? 7.0
+          : p.mode === 'reaction-kinetics-arrhenius'
+          ? p.kineticsTempC ?? 25
+          : p.mode === 'ideal-gas-boyle'
+          ? (p.gasTemperatureK ?? 300) - 273.15
+          : m.finalTempC ?? p.initialTempC ?? 25;
+        const probeOut = probeHandle.setReading(
+          usePh ? 'ph' : 'thermometer',
+          probeVal
+        );
+        if (Math.floor(nowMs / 150) !== Math.floor((nowMs - dt * 1000) / 150)) {
+          setProbeHudText({ text: probeOut.formatted, color: probeOut.severityHex });
+        }
       }
 
       cursorManager.update(
@@ -1601,6 +1655,17 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       const rect = renderer.domElement.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 
+      if (isDraggingProbe) {
+        dragMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        dragMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        dragRaycaster.setFromCamera(dragMouse, camera);
+        if (dragRaycaster.ray.intersectPlane(probeDragPlane, probeDragHit)) {
+          probeHandle.group.position.x = Math.max(-3.6, Math.min(3.6, probeDragHit.x));
+          probeHandle.group.position.z = Math.max(-2.6, Math.min(2.6, probeDragHit.z));
+        }
+        return;
+      }
+
       if (isDragging && dragParamKey && latestRef.current.onUpdateParam) {
         const deltaX = e.clientX - dragStartPos.x;
         const deltaY = dragStartPos.y - e.clientY;
@@ -1679,12 +1744,12 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
       // Dispose Studio Workbench & Textures
       globalMultiApparatusEngine.clearPortAnchors();
+      probeHandle.dispose();
       workbench.dispose();
       metalTex?.dispose();
       buretteScaleTex?.dispose();
       beakerScaleTex?.dispose();
       phScaleTex.dispose();
-      bubbleTex.dispose();
       host.dispose();
     };
   }, [sceneKey]);
@@ -1734,6 +1799,17 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         onBindSlot={bindConceptSlot}
       />
 
+      {/* Interactive 3D Probe Telemetry Badge */}
+      {showProbe3D && probeHudText && (
+        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-xl bg-slate-950/90 border border-white/15 px-3 py-1.5 shadow-xl z-20 text-xs font-mono">
+          <Thermometer className="w-3.5 h-3.5 text-sky-400" />
+          <span className="text-slate-400">Sensor Probe 3D:</span>
+          <span className="font-bold" style={{ color: probeHudText.color }}>
+            {probeHudText.text}
+          </span>
+        </div>
+      )}
+
       {/* Interactive Raycaster Drag Toast */}
       {dragToast && (
         <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
@@ -1742,8 +1818,26 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         </div>
       )}
 
-      {/* Consolidated Top-Right Capsule Bar: Snap-to-Port | 🥽 Mode VR | Presets (Iso | Depan | Atas | Fokus | ⛶) */}
+      {/* Consolidated Top-Right Capsule Bar: Snap-to-Port | Probe 3D | 🥽 Mode VR | Presets (Iso | Depan | Atas | Fokus | ⛶) */}
       <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20 opacity-80 hover:opacity-100 transition-opacity">
+        <button
+          type="button"
+          data-testid="toggle-3d-probe-btn"
+          onClick={() => {
+            labSound.playClick(700);
+            setShowProbe3D((prev) => !prev);
+          }}
+          title="Tampilkan / Sembunyikan Probe Sensor pH & Termokopel Digital 3D (Seret probe di meja)"
+          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+            showProbe3D
+              ? 'bg-sky-500 text-slate-950 font-bold'
+              : 'text-sky-300 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          <Thermometer className="w-3.5 h-3.5" />
+          <span className="hidden xl:inline">Probe</span>
+        </button>
+
         <button
           type="button"
           data-testid="snap-dock-apparatus-btn"

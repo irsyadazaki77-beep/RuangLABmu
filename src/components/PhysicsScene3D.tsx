@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
+  applyBorosilicateLiteMode,
+  createBorosilicateGlassMaterial,
   createBrushedMetalTextures,
   createGraduatedScaleTexture,
   createStudioWorkbenchGroup,
@@ -11,6 +13,10 @@ import {
   wavelengthNmToHex as wavelengthToHex,
   type CameraSyncPose,
 } from '../utils/threeStudioKit';
+import {
+  createMeasurementRuler3D,
+  createProtractor3D,
+} from '../utils/threeMeasurementTools';
 import { initThreeStudioHost } from '../utils/threeStudioHost';
 import {
   PhysicsParams,
@@ -21,7 +27,7 @@ import {
 import { SimulationFrame } from '../utils/simulationBuffer';
 import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
-import { Maximize2, Minimize2, Link2 } from 'lucide-react';
+import { Maximize2, Minimize2, Link2, Ruler } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
 import {
   globalMultiApparatusEngine,
@@ -191,6 +197,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   const followCamRef = useRef<boolean>(true);
   followCamRef.current = followCamEnabled;
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
+  const [showMeasureTools, setShowMeasureTools] = useState<boolean>(false);
+  const showMeasureToolsRef = useRef<boolean>(false);
+  showMeasureToolsRef.current = showMeasureTools;
+  const [measureHud, setMeasureHud] = useState<{ ruler: string; protractor: string }>({
+    ruler: '40.00 ± 0.05 cm',
+    protractor: '30.0 ± 0.5°',
+  });
   const [sceneKey, setSceneKey] = useState<number>(0);
 
   const latestRef = useRef({
@@ -776,16 +789,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     stokesPillar.castShadow = true;
     stokesGroup.add(stokesPillar);
 
-    // Glass cylinder
-    const glassCylMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 1,
-      roughness: 0.05,
-      transmission: 0.96,
-      thickness: 0.8,
-      ior: 1.52,
-      reflectivity: 0.5,
+    // Glass cylinder (Borosilicate PBR + automatic Lite 3T fallback)
+    const glassCylMat = createBorosilicateGlassMaterial(useUIStore.getState().liteDeviceMode, {
+      color: 0xe8f4fc,
+      tintOpacity: 0.34,
+      ior: 1.47,
+      thickness: 0.55,
     });
     const stokesGlassCyl = new THREE.Mesh(
       new THREE.CylinderGeometry(0.85, 0.85, 5.2, 32, 1, true),
@@ -1414,10 +1423,34 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const conceptBlockWorldPos = new THREE.Vector3();
     const conceptPivotWorldPos = new THREE.Vector3();
 
+    // Interactive 3D Virtual Caliper Ruler & Protractor Arc
+    const rulerHandle = createMeasurementRuler3D({
+      initialA: [-2.0, 0.38, 2.1],
+      initialB: [2.0, 0.38, 2.1],
+      cmPerUnit: 10,
+    });
+    rulerHandle.group.visible = showMeasureToolsRef.current;
+    scene.add(rulerHandle.group);
+
+    const protractorHandle = createProtractor3D(30);
+    protractorHandle.group.position.set(-3.2, 1.05, 2.1);
+    protractorHandle.group.visible = showMeasureToolsRef.current;
+    scene.add(protractorHandle.group);
+
+    let activeMeasureHandle: 'ruler-a' | 'ruler-b' | 'protractor-arm' | null = null;
+    let measureStartPos = { x: 0, y: 0 };
+    let measurePinStartA = rulerHandle.getEndpoints().posA;
+    let measurePinStartB = rulerHandle.getEndpoints().posB;
+    let measureStartAngleDeg = protractorHandle.getAngleDeg();
+
     const getInteractiveMeshes = (): THREE.Object3D[] => {
       const list: THREE.Object3D[] = [];
       scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh && obj.visible && obj.userData?.draggableParam) {
+        if (
+          obj instanceof THREE.Mesh &&
+          obj.visible &&
+          (obj.userData?.draggableParam || obj.userData?.measurementHandle)
+        ) {
           let parentVisible = true;
           let cur: THREE.Object3D | null = obj.parent;
           while (cur) {
@@ -1442,6 +1475,23 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       const hits = dragRaycaster.intersectObjects(getInteractiveMeshes(), false);
       if (hits.length > 0) {
         const hitObj = hits[0].object;
+        const mHandle = hitObj.userData?.measurementHandle as
+          | 'ruler-a'
+          | 'ruler-b'
+          | 'protractor-arm'
+          | undefined;
+        if (mHandle) {
+          activeMeasureHandle = mHandle;
+          measureStartPos = { x: e.clientX, y: e.clientY };
+          const ends = rulerHandle.getEndpoints();
+          measurePinStartA = ends.posA;
+          measurePinStartB = ends.posB;
+          measureStartAngleDeg = protractorHandle.getAngleDeg();
+          controls.enabled = false;
+          renderer.domElement.style.cursor = 'grabbing';
+          labSound.playClick(720);
+          return;
+        }
         const paramKey = hitObj.userData.draggableParam;
         if (paramKey && latestRef.current.onUpdateParam) {
           isDragging = true;
@@ -1469,6 +1519,11 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     };
 
     const handlePointerUp = () => {
+      if (activeMeasureHandle) {
+        activeMeasureHandle = null;
+        controls.enabled = true;
+        renderer.domElement.style.cursor = hoveredMesh ? 'grab' : 'default';
+      }
       if (isDragging) {
         if (dragParamKey === 'springDisplacement' || dragParamKey === 'springConstantK') {
           labSound.playSpringTwang(latestRef.current.params.springDisplacement ?? 0.8);
@@ -1514,6 +1569,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       fpsMonitor.recordFrame(nowMs);
 
       const isLite = useUIStore.getState().liteDeviceMode;
+      applyBorosilicateLiteMode(glassCylMat, isLite);
+      rulerHandle.group.visible = showMeasureToolsRef.current;
+      protractorHandle.group.visible = showMeasureToolsRef.current;
       if (isLite) {
         const delta = nowMs - lastRenderTimestamp;
         if (delta < 32) {
@@ -2112,6 +2170,32 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       const rect = renderer.domElement.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 
+      if (activeMeasureHandle) {
+        const dx = e.clientX - measureStartPos.x;
+        const dy = e.clientY - measureStartPos.y;
+        if (activeMeasureHandle === 'ruler-a') {
+          const nextA = new THREE.Vector3(
+            Math.max(-5.5, Math.min(5.5, measurePinStartA.x + dx * 0.02)),
+            Math.max(0.25, Math.min(4.8, measurePinStartA.y - dy * 0.02)),
+            measurePinStartA.z
+          );
+          const readout = rulerHandle.setEndpoints(nextA, rulerHandle.getEndpoints().posB);
+          setMeasureHud((prev) => ({ ...prev, ruler: readout.formatted }));
+        } else if (activeMeasureHandle === 'ruler-b') {
+          const nextB = new THREE.Vector3(
+            Math.max(-5.5, Math.min(5.5, measurePinStartB.x + dx * 0.02)),
+            Math.max(0.25, Math.min(4.8, measurePinStartB.y - dy * 0.02)),
+            measurePinStartB.z
+          );
+          const readout = rulerHandle.setEndpoints(rulerHandle.getEndpoints().posA, nextB);
+          setMeasureHud((prev) => ({ ...prev, ruler: readout.formatted }));
+        } else if (activeMeasureHandle === 'protractor-arm') {
+          const readout = protractorHandle.setAngleDeg(measureStartAngleDeg - dy * 0.45 + dx * 0.3);
+          setMeasureHud((prev) => ({ ...prev, protractor: readout.formatted }));
+        }
+        return;
+      }
+
       if (isDragging && dragParamKey && latestRef.current.onUpdateParam) {
         const deltaX = e.clientX - dragStartPos.x;
         const deltaY = dragStartPos.y - e.clientY;
@@ -2190,6 +2274,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
       // Dispose Workbench & Custom Textures
       globalMultiApparatusEngine.clearPortAnchors();
+      rulerHandle.dispose();
+      protractorHandle.dispose();
       workbench.dispose();
       metalTex?.dispose();
       rampScaleTex?.dispose();
@@ -2245,6 +2331,21 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         onBindSlot={bindConceptSlot}
       />
 
+      {/* Interactive 3D Ruler & Protractor Uncertainty HUD */}
+      {showMeasureTools && (
+        <div className="pointer-events-none absolute bottom-4 left-4 flex flex-wrap items-center gap-3 rounded-xl bg-slate-950/90 border border-sky-400/35 px-3 py-1.5 shadow-xl z-20 text-xs font-mono">
+          <span className="flex items-center gap-1.5 text-sky-300">
+            <Ruler className="w-3.5 h-3.5 text-sky-400" />
+            <span>Mistar:</span>
+            <b className="text-white">{measureHud.ruler}</b>
+          </span>
+          <span className="h-3 w-px bg-white/15" />
+          <span className="text-amber-300">
+            Busur: <b className="text-white">{measureHud.protractor}</b>
+          </span>
+        </div>
+      )}
+
       {/* Interactive Raycaster Drag Toast */}
       {dragToast && (
         <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
@@ -2253,8 +2354,26 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         </div>
       )}
 
-      {/* Consolidated Top-Right Capsule Bar: Snap-to-Port | 🥽 Mode VR | Presets (Iso | Depan | Atas | Fokus | ⛶) */}
+      {/* Consolidated Top-Right Capsule Bar: Ukur 3D | Snap-to-Port | 🥽 Mode VR | Presets (Iso | Depan | Atas | Fokus | ⛶) */}
       <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20 opacity-80 hover:opacity-100 transition-opacity">
+        <button
+          type="button"
+          data-testid="toggle-3d-measure-btn"
+          onClick={() => {
+            labSound.playClick(700);
+            setShowMeasureTools((prev) => !prev);
+          }}
+          title="Tampilkan / Sembunyikan Mistar Kaliper & Busur Derajat 3D (Seret pin/lengan di layar)"
+          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+            showMeasureTools
+              ? 'bg-sky-500 text-slate-950 font-bold'
+              : 'text-sky-300 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          <Ruler className="w-3.5 h-3.5" />
+          <span className="hidden xl:inline">Ukur 3D</span>
+        </button>
+
         <button
           type="button"
           data-testid="snap-dock-apparatus-btn"

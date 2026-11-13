@@ -1273,3 +1273,180 @@ export function wavelengthNmToHex(wavelengthNm: number): number {
   return (ir << 16) | (ig << 8) | ib;
 }
 
+export interface BorosilicateGlassOptions {
+  color?: number;
+  tintOpacity?: number;
+  ior?: number;
+  thickness?: number;
+  emissive?: number;
+  emissiveIntensity?: number;
+}
+
+/**
+ * Creates a physically realistic borosilicate glassware material (`ior: 1.47`, `transmission`, `clearcoat`)
+ * for desktop/GPU rigs, automatically falling back to lightweight transparent `MeshStandardMaterial`
+ * in `liteDeviceMode` (3T schools) so no extra transmission render pass is incurred.
+ */
+export function createBorosilicateGlassMaterial(
+  liteDeviceMode = false,
+  options: BorosilicateGlassOptions = {}
+): THREE.MeshPhysicalMaterial | THREE.MeshStandardMaterial {
+  const {
+    color = 0xe8f4fc,
+    tintOpacity = 0.3,
+    ior = 1.47,
+    thickness = 0.35,
+    emissive = 0x000000,
+    emissiveIntensity = 0,
+  } = options;
+
+  if (liteDeviceMode) {
+    return new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.16,
+      roughness: 0.12,
+      transparent: true,
+      opacity: Math.max(0.28, tintOpacity),
+      emissive,
+      emissiveIntensity,
+      depthWrite: false,
+    });
+  }
+
+  const mat = new THREE.MeshPhysicalMaterial({
+    color,
+    metalness: 0.0,
+    roughness: 0.05,
+    transmission: 0.93,
+    transparent: true,
+    opacity: tintOpacity,
+    ior,
+    thickness,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.04,
+    envMapIntensity: 0.55,
+    emissive,
+    emissiveIntensity,
+    depthWrite: false,
+  });
+  mat.userData = {
+    baseTransmission: 0.93,
+    baseOpacity: tintOpacity,
+  };
+  return mat;
+}
+
+/**
+ * Synchronizes runtime `liteDeviceMode` transitions on glass materials created with
+ * `createBorosilicateGlassMaterial`.
+ */
+export function applyBorosilicateLiteMode(
+  material: THREE.Material,
+  liteDeviceMode: boolean
+): void {
+  if (material instanceof THREE.MeshPhysicalMaterial) {
+    const baseTrans =
+      typeof material.userData?.baseTransmission === 'number'
+        ? material.userData.baseTransmission
+        : 0.93;
+    const baseOpacity =
+      typeof material.userData?.baseOpacity === 'number'
+        ? material.userData.baseOpacity
+        : 0.3;
+    const nextTrans = liteDeviceMode ? 0 : baseTrans;
+    const nextOpacity = liteDeviceMode ? Math.max(0.32, baseOpacity) : baseOpacity;
+    if (material.transmission !== nextTrans || material.opacity !== nextOpacity) {
+      material.transmission = nextTrans;
+      material.opacity = nextOpacity;
+      material.needsUpdate = true;
+    }
+  }
+}
+
+export interface InstancedParticlePool {
+  mesh: THREE.InstancedMesh;
+  maxCount: number;
+  setTransform: (
+    index: number,
+    x: number,
+    y: number,
+    z: number,
+    scale?: number,
+    rotX?: number,
+    rotY?: number,
+    rotZ?: number
+  ) => void;
+  setColor: (index: number, hex: number) => void;
+  commit: (activeCount?: number) => void;
+}
+
+/**
+ * Wraps `THREE.InstancedMesh` with pre-allocated dummy Object3D and Color helpers
+ * for zero-allocation single-draw-call particle simulations (gas molecules, bubbles, solutes).
+ */
+export function createInstancedParticlePool(
+  maxCount: number,
+  geometry: THREE.BufferGeometry,
+  material: THREE.Material,
+  parent?: THREE.Object3D
+): InstancedParticlePool {
+  const safeCount = Math.max(1, Math.floor(maxCount));
+  const mesh = new THREE.InstancedMesh(geometry, material, safeCount);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.count = safeCount;
+
+  const dummy = new THREE.Object3D();
+  const scratchColor = new THREE.Color(0xffffff);
+
+  for (let i = 0; i < safeCount; i++) {
+    dummy.position.set(0, 0, 0);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.setScalar(1);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    mesh.setColorAt(i, scratchColor);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+
+  if (parent) {
+    parent.add(mesh);
+  }
+
+  return {
+    mesh,
+    maxCount: safeCount,
+    setTransform: (
+      index: number,
+      x: number,
+      y: number,
+      z: number,
+      scale = 1,
+      rotX = 0,
+      rotY = 0,
+      rotZ = 0
+    ) => {
+      if (index < 0 || index >= safeCount) return;
+      dummy.position.set(x, y, z);
+      dummy.rotation.set(rotX, rotY, rotZ);
+      dummy.scale.setScalar(scale);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(index, dummy.matrix);
+    },
+    setColor: (index: number, hex: number) => {
+      if (index < 0 || index >= safeCount) return;
+      scratchColor.setHex(hex);
+      mesh.setColorAt(index, scratchColor);
+    },
+    commit: (activeCount?: number) => {
+      if (typeof activeCount === 'number') {
+        mesh.count = Math.max(0, Math.min(safeCount, Math.floor(activeCount)));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) {
+        mesh.instanceColor.needsUpdate = true;
+      }
+    },
+  };
+}
+

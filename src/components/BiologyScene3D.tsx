@@ -1,16 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import {
+  applyBorosilicateLiteMode,
   createBiologicalMembraneTexture,
+  createBorosilicateGlassMaterial,
   createBrushedMetalTextures,
+  createInstancedParticlePool,
   createLabBenchTextures,
   smoothCameraTransition,
   wavelengthNmToHex,
   type CameraSyncPose,
+  type InstancedParticlePool,
 } from '../utils/threeStudioKit';
+import { createMeasurementRuler3D } from '../utils/threeMeasurementTools';
 import { initThreeStudioHost } from '../utils/threeStudioHost';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
-import { Maximize2, Minimize2, Focus, Link2 } from 'lucide-react';
+import { Maximize2, Minimize2, Focus, Link2, Ruler } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
 import { labSound } from '../utils/soundEngine';
@@ -115,6 +120,10 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   const [clickedBadge, setClickedBadge] = useState<string | null>(null);
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
   const [snapToast, setSnapToast] = useState<string | null>(null);
+  const [showRuler3D, setShowRuler3D] = useState<boolean>(false);
+  const showRuler3DRef = useRef<boolean>(false);
+  showRuler3DRef.current = showRuler3D;
+  const [rulerReadout, setRulerReadout] = useState<string | null>(null);
   const [sceneKey, setSceneKey] = useState<number>(0);
   const [lensFocus, setLensFocus] = useState<number>(75); // 0 to 100 (optimal crispness near 75-100)
   const lensFocusRef = useRef<number>(75);
@@ -340,40 +349,29 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     scene.add(condenserBezel);
 
     // Optical Condenser Lens Ring embedded in stage center
+    const initialLite = useUIStore.getState().liteDeviceMode;
+    const condenserLensMat = createBorosilicateGlassMaterial(initialLite, {
+      color: 0xe0f2fe,
+      tintOpacity: 0.34,
+      ior: 1.47,
+      thickness: 0.3,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.45,
+    });
     const condenserLens = new THREE.Mesh(
       new THREE.CylinderGeometry(0.95, 0.75, 0.16, 32),
-      new THREE.MeshPhysicalMaterial({
-        color: 0xe0f2fe,
-        roughness: 0.05,
-        transmission: 0.92,
-        thickness: 0.2,
-        ior: 1.48,
-        transparent: true,
-        opacity: 0.30,
-        envMapIntensity: 0.35,
-        reflectivity: 0.25,
-        depthWrite: false,
-        emissive: 0x0284c7,
-        emissiveIntensity: 0.45,
-      })
+      condenserLensMat
     );
     condenserLens.position.set(0, -0.04, 0);
     condenserLens.name = 'Lensa Kondensor Bawah Mikroskop';
     scene.add(condenserLens);
 
-    // Translucent Glass Microscope Slide (Kaca Preparat) above condenser
-    const slideGlassMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      metalness: 0.0,
-      roughness: 0.05,
-      transmission: 0.92,
-      transparent: true,
-      opacity: 0.30,
-      ior: 1.48,
-      thickness: 0.2,
-      envMapIntensity: 0.35,
-      reflectivity: 0.25,
-      depthWrite: false,
+    // Translucent Borosilicate Glass Microscope Slide (Kaca Preparat) above condenser
+    const slideGlassMat = createBorosilicateGlassMaterial(initialLite, {
+      color: 0xecfeff,
+      tintOpacity: 0.30,
+      ior: 1.47,
+      thickness: 0.28,
     });
     const microscopeSlide = new THREE.Mesh(
       new THREE.BoxGeometry(3.8, 0.06, 1.8),
@@ -513,8 +511,11 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       return orgGroup;
     };
 
-    // Particle arrays
-    const particles: THREE.Mesh[] = [];
+    // Particle pool (Single Draw-Call InstancedMesh across Biology modes)
+    let instancedPool: InstancedParticlePool | null = null;
+    let particleSeeds: Float32Array = new Float32Array(0);
+    let particleGeo: THREE.BufferGeometry | null = null;
+    let particleMat: THREE.Material | null = null;
     let lightSpot: THREE.SpotLight | null = null;
     let foamMesh: THREE.Mesh | null = null;
     let protoplastMesh: THREE.Mesh | null = null;
@@ -630,27 +631,29 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       lightSpot.target = plantGroup;
       scene.add(lightSpot);
 
-      const bubbleGeo = new THREE.SphereGeometry(0.045, 8, 8);
-      const bubbleMat = new THREE.MeshStandardMaterial({
+      const BUBBLE_COUNT = 44;
+      particleGeo = new THREE.SphereGeometry(0.045, 8, 8);
+      particleMat = new THREE.MeshStandardMaterial({
         color: 0xffffff,
         emissive: 0x38bdf8,
-        emissiveIntensity: 0.6,
+        emissiveIntensity: 0.55,
         transparent: true,
         opacity: 0.85,
         roughness: 0.1,
       });
-
-      for (let i = 0; i < 35; i++) {
-        const b = new THREE.Mesh(bubbleGeo, bubbleMat);
-        b.position.set(
+      instancedPool = createInstancedParticlePool(BUBBLE_COUNT, particleGeo, particleMat, apparatusGroup);
+      particleSeeds = new Float32Array(BUBBLE_COUNT);
+      for (let i = 0; i < BUBBLE_COUNT; i++) {
+        particleSeeds[i] = Math.random() * 10;
+        instancedPool.setTransform(
+          i,
           (Math.random() - 0.5) * 0.4,
           0.3 + Math.random() * 2.4,
-          (Math.random() - 0.5) * 0.4
+          (Math.random() - 0.5) * 0.4,
+          1
         );
-        b.userData = { speed: 0.015 + Math.random() * 0.025, seed: Math.random() * 10 };
-        apparatusGroup.add(b);
-        particles.push(b);
       }
+      instancedPool.commit(BUBBLE_COUNT);
     }
 
     // SETUP MODE 2: CATALASE ENZYME
@@ -712,19 +715,22 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       cellOrganellesGroup.position.set(1.85, 1.35, 0);
       apparatusGroup.add(cellOrganellesGroup);
 
-      const bubbleGeo = new THREE.SphereGeometry(0.06, 6, 6);
-      const bubbleMat = new THREE.MeshStandardMaterial({ color: 0xfffbeb, roughness: 0.4 });
-      for (let i = 0; i < 25; i++) {
-        const b = new THREE.Mesh(bubbleGeo, bubbleMat);
-        b.position.set(
+      const FOAM_BUBBLES = 32;
+      particleGeo = new THREE.SphereGeometry(0.06, 8, 8);
+      particleMat = new THREE.MeshStandardMaterial({ color: 0xfffbeb, roughness: 0.4 });
+      instancedPool = createInstancedParticlePool(FOAM_BUBBLES, particleGeo, particleMat, apparatusGroup);
+      particleSeeds = new Float32Array(FOAM_BUBBLES);
+      for (let i = 0; i < FOAM_BUBBLES; i++) {
+        particleSeeds[i] = Math.random() * 5;
+        instancedPool.setTransform(
+          i,
           (Math.random() - 0.5) * 0.8,
           0.7 + Math.random() * 1.5,
-          (Math.random() - 0.5) * 0.8
+          (Math.random() - 0.5) * 0.8,
+          1
         );
-        b.userData = { speed: 0.008 + Math.random() * 0.015, seed: Math.random() * 5 };
-        apparatusGroup.add(b);
-        particles.push(b);
       }
+      instancedPool.commit(FOAM_BUBBLES);
     }
 
     // SETUP MODE 3 & OTHERS: OSMOSIS, PLASMOLYSIS & MICROSCOPIC CELL ORGANELLES
@@ -778,34 +784,30 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       cellOrganellesGroup = createCellularOrganellesGroup(0.95);
       protoplastMesh.add(cellOrganellesGroup);
 
-      // Solute particles (Amber dots) and Water molecules (Blue dots)
-      const dotGeo = new THREE.SphereGeometry(0.045, 8, 8);
-      const waterMat = new THREE.MeshStandardMaterial({
-        color: 0x38bdf8,
-        emissive: 0x0284c7,
-        emissiveIntensity: 0.5,
+      // Solute particles (Amber dots) and Water molecules (Blue dots) via Single Draw-Call InstancedMesh
+      const OSMOSIS_DOTS = 48;
+      particleGeo = new THREE.SphereGeometry(0.045, 8, 8);
+      particleMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0x0ea5e9,
+        emissiveIntensity: 0.35,
+        roughness: 0.25,
       });
-      const soluteMat = new THREE.MeshStandardMaterial({
-        color: 0xf59e0b,
-        emissive: 0xd97706,
-        emissiveIntensity: 0.5,
-      });
-
-      for (let i = 0; i < 40; i++) {
+      instancedPool = createInstancedParticlePool(OSMOSIS_DOTS, particleGeo, particleMat, apparatusGroup);
+      particleSeeds = new Float32Array(OSMOSIS_DOTS);
+      for (let i = 0; i < OSMOSIS_DOTS; i++) {
         const isSolute = i % 3 === 0;
-        const dot = new THREE.Mesh(dotGeo, isSolute ? soluteMat : waterMat);
-        dot.position.set(
+        particleSeeds[i] = (i * 0.9 + Math.random() * 0.5);
+        instancedPool.setTransform(
+          i,
           (Math.random() - 0.5) * 3.8,
-          0.3 + Math.random() * 1.8,
-          (Math.random() - 0.5) * 3.8
+          0.35 + Math.random() * 1.75,
+          (Math.random() - 0.5) * 3.8,
+          isSolute ? 1.15 : 0.95
         );
-        dot.userData = {
-          speedX: (Math.random() - 0.5) * 0.015,
-          speedZ: (Math.random() - 0.5) * 0.015,
-        };
-        apparatusGroup.add(dot);
-        particles.push(dot);
+        instancedPool.setColor(i, isSolute ? 0xf59e0b : 0x38bdf8);
       }
+      instancedPool.commit(OSMOSIS_DOTS);
     }
 
     // 3D Concept Arrows attached to apparatusGroup
@@ -844,6 +846,44 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const conceptWorldA = new THREE.Vector3();
     const conceptWorldB = new THREE.Vector3();
 
+    // Interactive 3D Virtual Caliper Ruler for Specimen Scale & NST Uncertainty
+    const rulerHandle = createMeasurementRuler3D({
+      initialA: [-1.15, 0.42, 1.35],
+      initialB: [1.15, 0.42, 1.35],
+      cmPerUnit: 10,
+    });
+    rulerHandle.group.visible = showRuler3DRef.current;
+    scene.add(rulerHandle.group);
+
+    let dragPinStartA = rulerHandle.getEndpoints().posA;
+    let dragPinStartB = rulerHandle.getEndpoints().posB;
+    rulerHandle.pinA.userData = {
+      ...rulerHandle.pinA.userData,
+      onDrag: (dx: number, dy: number) => {
+        const nextA = new THREE.Vector3(
+          Math.max(-3.2, Math.min(3.2, dragPinStartA.x + dx * 0.015)),
+          dragPinStartA.y,
+          Math.max(-2.6, Math.min(2.6, dragPinStartA.z + dy * 0.015))
+        );
+        const currentB = rulerHandle.getEndpoints().posB;
+        const res = rulerHandle.setEndpoints(nextA, currentB);
+        setRulerReadout(res.formatted);
+      },
+    };
+    rulerHandle.pinB.userData = {
+      ...rulerHandle.pinB.userData,
+      onDrag: (dx: number, dy: number) => {
+        const nextB = new THREE.Vector3(
+          Math.max(-3.2, Math.min(3.2, dragPinStartB.x + dx * 0.015)),
+          dragPinStartB.y,
+          Math.max(-2.6, Math.min(2.6, dragPinStartB.z + dy * 0.015))
+        );
+        const currentA = rulerHandle.getEndpoints().posA;
+        const res = rulerHandle.setEndpoints(currentA, nextB);
+        setRulerReadout(res.formatted);
+      },
+    };
+
     // Unified ThreeInteractionManager (hover highlight, direct 3D drag, click & spatial cursor broadcast)
     let dragToastTimer: ReturnType<typeof setTimeout> | null = null;
     const interactionManager = new ThreeInteractionManager({
@@ -852,10 +892,18 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       controls,
       sceneForCursor: scene,
       defaultHoverColor: 0x10b981,
-      getInteractiveObjects: () => apparatusGroup.children,
+      getInteractiveObjects: () =>
+        rulerHandle.group.visible
+          ? [...apparatusGroup.children, ...rulerHandle.getInteractiveHandles()]
+          : apparatusGroup.children,
       getParamValue: (paramKey) => {
         const val = (latestParamsRef.current as unknown as Record<string, unknown>)[paramKey];
         return typeof val === 'number' ? val : undefined;
+      },
+      onDragStart: () => {
+        const ends = rulerHandle.getEndpoints();
+        dragPinStartA = ends.posA;
+        dragPinStartB = ends.posB;
       },
       onDragUpdate: (_obj, paramKey, newValue, label) => {
         if (onUpdateParamRef.current) {
@@ -920,6 +968,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       fpsMonitor.recordFrame(nowMs);
 
       const isLite = useUIStore.getState().liteDeviceMode;
+      applyBorosilicateLiteMode(slideGlassMat, isLite);
+      applyBorosilicateLiteMode(condenserLensMat, isLite);
+      rulerHandle.group.visible = showRuler3DRef.current;
       if (isLite) {
         const deltaFps = nowMs - lastRenderTimestamp;
         if (deltaFps < 32) {
@@ -967,17 +1018,20 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       // Slow gentle rotation for viewing angle
       apparatusGroup.rotation.y = Math.sin(t * 0.15) * 0.25;
 
-      // Update particle motions deterministically against t for smooth time-travel scrubbing
-      if (mode === 'photosynthesis-ingenhousz') {
+      // Update particle motions deterministically against t for smooth time-travel scrubbing (Single Draw-Call InstancedMesh)
+      if (mode === 'photosynthesis-ingenhousz' && instancedPool) {
         const bubbleSpeed = 0.55 + (curParams.lightIntensityLux || 1200) / 1600;
-        particles.forEach((p, idx) => {
-          const seed = Number(p.userData.seed ?? idx);
+        const activeCount = isLite ? Math.floor(instancedPool.maxCount / 2) : instancedPool.maxCount;
+        for (let idx = 0; idx < activeCount; idx++) {
+          const seed = particleSeeds[idx] ?? idx;
           const span = 2.4;
           const phase = (seed * 0.41 + t * bubbleSpeed) % span;
-          p.position.y = 0.4 + (phase < 0 ? phase + span : phase);
-          p.position.x = Math.sin(t * 3 + seed) * 0.14;
-          p.position.z = Math.cos(seed * 1.7) * 0.12;
-        });
+          const py = 0.4 + (phase < 0 ? phase + span : phase);
+          const px = Math.sin(t * 3 + seed) * 0.14;
+          const pz = Math.cos(seed * 1.7) * 0.12;
+          instancedPool.setTransform(idx, px, py, pz, 0.75 + (py / 2.8) * 0.45);
+        }
+        instancedPool.commit(activeCount);
 
         if (lightSpot) {
           const hex = wavelengthNmToHex(curParams.wavelengthNm || 660);
@@ -992,22 +1046,35 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         foamMesh.scale.y = foamTarget;
         foamMesh.position.y = 0.5 + (1.2 * foamTarget) / 2;
 
-        particles.forEach((p, idx) => {
-          const seed = Number(p.userData.seed ?? idx * 0.7);
-          const span = 1.8;
-          const phase = (seed + t * 0.8) % span;
-          p.position.y = 0.8 + (phase < 0 ? phase + span : phase);
-        });
+        if (instancedPool) {
+          const activeCount = isLite ? Math.floor(instancedPool.maxCount / 2) : instancedPool.maxCount;
+          for (let idx = 0; idx < activeCount; idx++) {
+            const seed = particleSeeds[idx] ?? idx * 0.7;
+            const span = 1.8;
+            const phase = (seed + t * 0.8 * Math.max(0.35, phFactor)) % span;
+            const py = 0.8 + (phase < 0 ? phase + span : phase);
+            const px = Math.sin(seed * 4.3 + t) * 0.34;
+            const pz = Math.cos(seed * 3.1) * 0.34;
+            instancedPool.setTransform(idx, px, py, pz, 0.85);
+          }
+          instancedPool.commit(activeCount);
+        }
       } else if (protoplastMesh) {
         const sucrose = curParams.sucroseConcMolar ?? 0.3;
         const shrinkage = Math.max(0.55, 1.0 - sucrose * 0.45);
         protoplastMesh.scale.set(shrinkage, shrinkage, shrinkage);
 
-        particles.forEach((p, idx) => {
-          const seed = Number(p.userData.seed ?? idx * 0.9);
-          p.position.x = Math.sin(t * 0.7 + seed) * 1.6;
-          p.position.z = Math.cos(t * 0.65 + seed * 1.3) * 1.6;
-        });
+        if (instancedPool) {
+          const activeCount = isLite ? Math.floor(instancedPool.maxCount / 2) : instancedPool.maxCount;
+          for (let idx = 0; idx < activeCount; idx++) {
+            const seed = particleSeeds[idx] ?? idx * 0.9;
+            const px = Math.sin(t * 0.7 + seed) * 1.6;
+            const pz = Math.cos(t * 0.65 + seed * 1.3) * 1.6;
+            const py = 0.5 + ((idx % 7) * 0.22);
+            instancedPool.setTransform(idx, px, py, pz, idx % 3 === 0 ? 1.15 : 0.95);
+          }
+          instancedPool.commit(activeCount);
+        }
       }
 
       if (camTransitionActive) {
@@ -1144,6 +1211,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       clearTimeout(timeoutId);
       if (dragToastTimer) clearTimeout(dragToastTimer);
       interactionManager.dispose();
+      rulerHandle.dispose();
+      particleGeo?.dispose();
+      particleMat?.dispose();
 
       teacherCollabBridge.dispose();
       if (cursorManagerRef.current) {
@@ -1316,6 +1386,14 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         </div>
       )}
 
+      {showRuler3D && (
+        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-xl bg-slate-950/90 border border-emerald-400/40 px-3 py-1.5 shadow-xl z-20 text-xs font-mono">
+          <Ruler className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="text-slate-400">Mistar 3D:</span>
+          <span className="font-bold text-emerald-300">{rulerReadout ?? '23.00 ± 0.05 cm'}</span>
+        </div>
+      )}
+
       {dragToast && (
         <div className="pointer-events-none absolute top-14 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-slate-950/90 border border-emerald-400/50 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-emerald-200">
           <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -1332,8 +1410,26 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       )}
 
       {/* Unified Top-Right Camera & Fullscreen Pill */}
-      {/* Consolidated Top-Right Capsule Bar: Snap-to-Port | 🥽 Mode VR | Presets (Iso | Depan | Atas | Fokus | ⛶) */}
+      {/* Consolidated Top-Right Capsule Bar: Ukur 3D | Snap-to-Port | 🥽 Mode VR | Presets */}
       <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20 opacity-80 hover:opacity-100 transition-opacity">
+        <button
+          type="button"
+          data-testid="toggle-3d-ruler-btn"
+          onClick={() => {
+            labSound.playClick(700);
+            setShowRuler3D((prev) => !prev);
+          }}
+          title="Tampilkan / Sembunyikan Mistar Kaliper 3D di Meja Spesimen"
+          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+            showRuler3D
+              ? 'bg-emerald-500 text-slate-950 font-bold'
+              : 'text-emerald-300 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          <Ruler className="w-3.5 h-3.5" />
+          <span className="hidden xl:inline">Ukur 3D</span>
+        </button>
+
         <button
           type="button"
           data-testid="snap-dock-apparatus-btn"
