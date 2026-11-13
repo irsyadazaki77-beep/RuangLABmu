@@ -225,9 +225,24 @@ describe('Production Readiness — Async Persistence, Security & WebGL Disposal'
     assert.ok(chatHookSrc.includes('res.status === 429') && chatHookSrc.includes('Retry-After'));
     assert.ok(worksheetSrc.includes('res.status === 429') && worksheetSrc.includes('Retry-After'));
 
-    // 3. webglcontextrestored auto-recovery in LabErrorBoundary and all 4 *Scene3D.tsx
+    // 3. webglcontextrestored auto-recovery in LabErrorBoundary, threeStudioHost, and all 4 *Scene3D.tsx
+    const errorBoundarySrc = await fs.promises.readFile(
+      path.join(root, 'src/components/common/LabErrorBoundary.tsx'),
+      'utf-8'
+    );
+    assert.ok(
+      errorBoundarySrc.includes('webglcontextrestored') && errorBoundarySrc.includes('sceneKey'),
+      'LabErrorBoundary.tsx must listen for webglcontextrestored'
+    );
+    const studioHostSrc = await fs.promises.readFile(
+      path.join(root, 'src/utils/threeStudioHost.ts'),
+      'utf-8'
+    );
+    assert.ok(
+      studioHostSrc.includes('webglcontextrestored') && studioHostSrc.includes('onContextRestored'),
+      'threeStudioHost.ts must listen for webglcontextrestored and invoke onContextRestored'
+    );
     const sceneFiles = [
-      'src/components/common/LabErrorBoundary.tsx',
       'src/components/PhysicsScene3D.tsx',
       'src/components/ChemistryScene3D.tsx',
       'src/components/BiologyScene3D.tsx',
@@ -236,8 +251,8 @@ describe('Production Readiness — Async Persistence, Security & WebGL Disposal'
     for (const relPath of sceneFiles) {
       const content = await fs.promises.readFile(path.join(root, relPath), 'utf-8');
       assert.ok(
-        content.includes('webglcontextrestored') && content.includes('sceneKey'),
-        `${relPath} must listen for webglcontextrestored and auto-recover via sceneKey`
+        content.includes('onContextRestored') && content.includes('sceneKey'),
+        `${relPath} must wire onContextRestored to auto-recover via sceneKey`
       );
     }
 

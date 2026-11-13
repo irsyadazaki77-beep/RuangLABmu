@@ -1,18 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   createBiologicalMembraneTexture,
   createBrushedMetalTextures,
   createLabBenchTextures,
-  createStudioComposer,
-  disposeThreeSceneResources,
-  createAdaptiveFpsMonitor,
-  configureRendererForLiteMode,
   smoothCameraTransition,
+  wavelengthNmToHex,
   type CameraSyncPose,
 } from '../utils/threeStudioKit';
+import { initThreeStudioHost } from '../utils/threeStudioHost';
 import { Maximize2, Minimize2, Focus, Link2 } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
@@ -57,15 +53,6 @@ interface BiologyScene3DProps {
 }
 
 type BioCameraPreset = 'isometric' | 'front' | 'top' | 'focus';
-
-function wavelengthToHexColor(wavelengthNm: number): number {
-  if (wavelengthNm < 440) return 0x7c3aed; // Violet
-  if (wavelengthNm < 490) return 0x2563eb; // Blue
-  if (wavelengthNm < 560) return 0x16a34a; // Green
-  if (wavelengthNm < 600) return 0xeab308; // Yellow
-  if (wavelengthNm < 640) return 0xf97316; // Orange
-  return 0xdc2626; // Red
-}
 
 function createOrganelleTexture(
   type: 'nucleus' | 'mitochondria' | 'chloroplast'
@@ -180,123 +167,49 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     let timeoutId = 0;
     const width = container.clientWidth || 600;
     const height = container.clientHeight || 450;
-
-    // Three.js Scene, Camera, Renderer
     const initialColors = getSceneThemeColors(activeComfortTheme, 'Biologi');
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b0f17);
-    scene.fog = new THREE.FogExp2(0x0b0f17, 0.02);
-
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(2.8, 3.8, 7.2);
-    camera.lookAt(0, 1.2, 0);
-
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: false,
-      powerPreference: 'high-performance',
-      preserveDrawingBuffer: true,
-    });
-    renderer.setSize(width, height);
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-    renderer.setPixelRatio(pixelRatio);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.85;
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.domElement.style.touchAction = 'none';
-    const handleWebGLContextLost = (event: Event) => {
-      event.preventDefault();
-    };
-    const handleWebGLContextRestored = () => {
-      setSceneKey((prev) => prev + 1);
-    };
-    renderer.domElement.addEventListener('webglcontextlost', handleWebGLContextLost, false);
-    renderer.domElement.addEventListener('webglcontextrestored', handleWebGLContextRestored, false);
-    container.innerHTML = '';
-    container.appendChild(renderer.domElement);
-
-    const initialLite = useUIStore.getState().liteDeviceMode;
-    configureRendererForLiteMode(renderer, initialLite);
-
-    const fpsMonitor = createAdaptiveFpsMonitor(() => {
-      if (!useUIStore.getState().liteDeviceMode) {
-        useUIStore.getState().setLiteDeviceMode(true);
-        useUIStore.getState().setLiteModeNotification(
-          'Mode Hemat Daya diaktifkan otomatis agar simulasi tetap lancar di perangkatmu.'
-        );
-      }
-    }, 25, 3000);
-
-    const unsubLite = useUIStore.subscribe((state, prev) => {
-      if (state.liteDeviceMode !== prev.liteDeviceMode) {
-        configureRendererForLiteMode(renderer, state.liteDeviceMode);
-        if (!state.liteDeviceMode) {
-          fpsMonitor.resetMonitor();
-        }
-      }
-    });
-
-    const gl = renderer.getContext() as WebGL2RenderingContext;
-    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-    const glRenderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
-    const isSoftwareGl = /swiftshader|llvmpipe|softpipe|software/i.test(glRenderer);
-
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.environment = envTexture;
-    scene.environmentIntensity = 0.35;
-    pmrem.dispose();
-
-    // Post-Processing Pipeline: Hardware MSAA RenderTarget + RenderPass + Subtle Bloom + ACES OutputPass
-    const studioComposer = createStudioComposer(
-      renderer,
-      scene,
-      camera,
-      width,
-      height,
-      isSoftwareGl,
-      { strength: 0.14, radius: 0.25, threshold: 1.15 }
-    );
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
-    controls.autoRotateSpeed = 1.4;
-    controls.target.set(0, 1.3, 0);
-    controls.maxPolarAngle = Math.PI * 0.49;
-    controls.minDistance = 2.0;
-    controls.maxDistance = 20;
 
     let camTransitionActive = false;
+    const host = initThreeStudioHost({
+      container,
+      fallbackSize: { width: 600, height: 450 },
+      backgroundHex: 0x0b0f17,
+      fogDensity: 0.02,
+      camera: {
+        fov: 45,
+        near: 0.1,
+        far: 100,
+        position: [2.8, 3.8, 7.2],
+        lookAt: [0, 1.2, 0],
+      },
+      controls: {
+        target: [0, 1.3, 0],
+        maxPolarAngle: Math.PI * 0.49,
+        minDistance: 2.0,
+        maxDistance: 20,
+        autoRotateSpeed: 1.4,
+      },
+      onContextRestored: () => setSceneKey((prev) => prev + 1),
+      onUserControlsStart: () => {
+        camTransitionActive = false;
+      },
+      onCameraSyncChange: (pose) => onCameraSyncChangeRef.current?.(pose),
+    });
+    if (!host) return;
+
+    const { scene, camera, renderer, controls, fpsMonitor, isSoftwareGl } = host;
+    const gl = renderer.getContext() as WebGL2RenderingContext;
+
     const baseCamPos = new THREE.Vector3(2.8, 3.8, 7.2);
     const desiredCamPos = new THREE.Vector3(2.8, 3.8, 7.2);
     const desiredTarget = new THREE.Vector3(0, 1.3, 0);
 
-    let isApplyingExternalCam = false;
     cameraSyncHandleRef.current = {
       applyPose: (pose) => {
-        isApplyingExternalCam = true;
         camTransitionActive = false;
-        camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
-        controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
-        controls.update();
-        isApplyingExternalCam = false;
+        host.applyExternalCameraPose(pose);
       },
     };
-    const handleControlsChange = () => {
-      if (isApplyingExternalCam || !onCameraSyncChangeRef.current) return;
-      onCameraSyncChangeRef.current({
-        position: [camera.position.x, camera.position.y, camera.position.z],
-        target: [controls.target.x, controls.target.y, controls.target.z],
-      });
-    };
-    controls.addEventListener('change', handleControlsChange);
-
-    controls.addEventListener('start', () => {
-      camTransitionActive = false;
-    });
 
     const applyCameraPreset = (preset: BioCameraPreset) => {
       if (preset === 'isometric') {
@@ -469,11 +382,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       setOrbit: (orbit: boolean) => {
         controls.autoRotate = orbit;
       },
-      captureCanvas: () => {
-        const isLite = useUIStore.getState().liteDeviceMode;
-        studioComposer.render(isLite);
-        return renderer.domElement.toDataURL('image/png');
-      },
+      captureCanvas: () => host.captureSnapshot(),
       applyTheme: (colors) => {
         scene.background = new THREE.Color(0x0b0f17);
         scene.fog = new THREE.FogExp2(0x0b0f17, 0.02);
@@ -689,7 +598,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       lamp.name = '💡 Lampu Spektrum Variabel';
       apparatusGroup.add(lamp);
 
-      const lightColor = wavelengthToHexColor(latestParamsRef.current.wavelengthNm || 660);
+      const lightColor = wavelengthNmToHex(latestParamsRef.current.wavelengthNm || 660);
       lightSpot = new THREE.SpotLight(
         lightColor,
         (latestParamsRef.current.lightIntensityLux || 1200) / 300,
@@ -1066,7 +975,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         });
 
         if (lightSpot) {
-          const hex = wavelengthToHexColor(curParams.wavelengthNm || 660);
+          const hex = wavelengthNmToHex(curParams.wavelengthNm || 660);
           lightSpot.color.setHex(hex);
           lightSpot.intensity = (curParams.lightIntensityLux || 1200) / 300;
         }
@@ -1213,7 +1122,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       syncConceptLabelsRef.current = syncBioLabelsNow;
       syncBioLabelsNow();
 
-      studioComposer.render(isLite);
+      host.renderFrame(delta);
 
       if (isSoftwareGl) {
         afterDraw(animate);
@@ -1224,46 +1133,19 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
 
     animationFrameId = requestAnimationFrame(animate);
 
-    // Handle Window & Container Resize
-    let lastW = width;
-    let lastH = height;
-    const handleResize = () => {
-      if (!container || disposed) return;
-      const w = container.clientWidth || window.innerWidth || 960;
-      const h = container.clientHeight || window.innerHeight || 600;
-      if (w === lastW && h === lastH) return;
-      lastW = w;
-      lastH = h;
-      const pr = renderer.getPixelRatio();
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      studioComposer.resize(w, h, pr);
-      studioComposer.render();
-    };
-
-    const resizeObserver = new ResizeObserver(() => handleResize());
-    resizeObserver.observe(container);
-    window.addEventListener('resize', handleResize);
-
     return () => {
       disposed = true;
-      unsubLite();
       cancelAnimationFrame(animationFrameId);
       clearTimeout(timeoutId);
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('mousemove', handlePointerMove);
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
-      controls.dispose();
 
       teacherCollabBridge.dispose();
       if (cursorManagerRef.current) {
         cursorManagerRef.current.dispose();
       }
 
-      // Dispose Post-Processing & Organelle/Bench Textures
-      studioComposer.dispose();
+      // Dispose Organelle/Bench Textures
       bioBenchTex?.dispose();
       bioMetalTex?.dispose();
       nucleusTex?.dispose();
@@ -1274,16 +1156,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       chloroBump?.dispose();
       protoMembraneTex?.dispose();
       protoBump?.dispose();
-      controls.removeEventListener('change', handleControlsChange);
       cameraSyncHandleRef.current = null;
-      renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
-      renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
-
-      // Deep Three.js GPU resource disposal (geometries, materials, textures, renderer)
-      disposeThreeSceneResources(scene, renderer, envTexture);
-      if (renderer.domElement.parentElement) {
-        renderer.domElement.parentElement.removeChild(renderer.domElement);
-      }
+      host.dispose();
     };
   }, [mode, sceneKey]);
 

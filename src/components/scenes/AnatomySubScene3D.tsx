@@ -1,16 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Eye, Layers, Sparkles, X } from 'lucide-react';
 import {
-  configureRendererForLiteMode,
   createBiologicalMembraneTexture,
-  createStudioComposer,
-  disposeThreeSceneResources,
   smoothCameraTransition,
   type CameraSyncPose,
 } from '../../utils/threeStudioKit';
+import { initThreeStudioHost } from '../../utils/threeStudioHost';
 import {
   calculateCardiovascularHeart,
   calculateRespiratoryLungs,
@@ -285,105 +281,41 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
-    while (container.firstChild) container.removeChild(container.firstChild);
 
     const width = container.clientWidth || 720;
     const height = container.clientHeight || 460;
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b0f17);
-    scene.fog = new THREE.FogExp2(0x0b0f17, 0.045);
+    const host = initThreeStudioHost({
+      container,
+      fallbackSize: { width: 720, height: 460 },
+      backgroundHex: 0x0b0f17,
+      fogDensity: 0.045,
+      camera: {
+        fov: 44,
+        near: 0.1,
+        far: 100,
+        position: [0, 1.3, 5.2],
+      },
+      controls: {
+        target: [0, 0.1, 0],
+      },
+      onContextRestored: () => setSceneKey((prev) => prev + 1),
+      onCameraSyncChange: (pose) => onCameraSyncChangeRef.current?.(pose),
+    });
+    if (!host) return;
 
-    const camera = new THREE.PerspectiveCamera(44, width / height, 0.1, 100);
-    camera.position.set(0, 1.3, 5.2);
+    const { scene, camera, renderer, controls, fpsMonitor } = host;
 
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        powerPreference: 'high-performance',
-        preserveDrawingBuffer: true,
-      });
-    } catch {
-      return;
-    }
-    renderer.setSize(width, height);
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-    renderer.setPixelRatio(pixelRatio);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.85;
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.domElement.style.touchAction = 'none';
-    const handleWebGLContextLost = (event: Event) => {
-      event.preventDefault();
-    };
-    const handleWebGLContextRestored = () => {
-      setSceneKey((prev) => prev + 1);
-    };
-    renderer.domElement.addEventListener('webglcontextlost', handleWebGLContextLost, false);
-    renderer.domElement.addEventListener('webglcontextrestored', handleWebGLContextRestored, false);
-    container.appendChild(renderer.domElement);
-
-    const gl = renderer.getContext() as WebGL2RenderingContext;
-    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-    const glRenderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
-    const isSoftwareGl = /swiftshader|llvmpipe|softpipe|software/i.test(glRenderer);
-
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.environment = envTexture;
-    scene.environmentIntensity = 0.35;
-    pmrem.dispose();
-
-    const studioComposer = createStudioComposer(
-      renderer,
-      scene,
-      camera,
-      width,
-      height,
-      isSoftwareGl,
-      { strength: 0.14, radius: 0.25, threshold: 1.15 }
-    );
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
-    controls.target.set(0, 0.1, 0);
-
-    let isApplyingExternalCam = false;
     cameraSyncHandleRef.current = {
       applyPose: (pose) => {
-        isApplyingExternalCam = true;
         cameraLerpRef.current.active = false;
-        camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
-        controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
-        controls.update();
-        isApplyingExternalCam = false;
+        host.applyExternalCameraPose(pose);
       },
     };
-    const handleControlsChange = () => {
-      if (isApplyingExternalCam || !onCameraSyncChangeRef.current) return;
-      onCameraSyncChangeRef.current({
-        position: [camera.position.x, camera.position.y, camera.position.z],
-        target: [controls.target.x, controls.target.y, controls.target.z],
-      });
-    };
-    controls.addEventListener('change', handleControlsChange);
     const teacherCollabBridge = attachTeacherCollabBridge({
       scene,
       camera,
       controls,
       domElement: renderer.domElement,
-    });
-
-    configureRendererForLiteMode(renderer, useUIStore.getState().liteDeviceMode);
-    let currentLite = useUIStore.getState().liteDeviceMode;
-    const unsubLite = useUIStore.subscribe((state) => {
-      if (state.liteDeviceMode !== currentLite) {
-        currentLite = state.liteDeviceMode;
-        configureRendererForLiteMode(renderer, currentLite);
-      }
     });
 
     scene.add(new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 0.45));
@@ -922,7 +854,9 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         return;
       }
       lastRenderStamp = nowStamp;
-      const dt = Math.min(clock.getDelta(), 0.05) * (playingRef.current ? timeScaleRef.current : 0);
+      fpsMonitor.recordFrame(nowStamp);
+      const rawDt = Math.min(clock.getDelta(), 0.05);
+      const dt = rawDt * (playingRef.current ? timeScaleRef.current : 0);
       const elapsed = clock.getElapsedTime();
       const extRef = externalSimTimeRef.current;
       const effectiveT =
@@ -1078,48 +1012,17 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       }
       updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
 
-      studioComposer.render(useUIStore.getState().liteDeviceMode);
+      host.renderFrame(rawDt);
     };
     animate();
 
-    let lastW = width;
-    let lastH = height;
-    const handleResize = () => {
-      if (!container) return;
-      const w = container.clientWidth || 720;
-      const h = container.clientHeight || 460;
-      if (w === lastW && h === lastH) return;
-      lastW = w;
-      lastH = h;
-      const pr = renderer.getPixelRatio();
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      studioComposer.resize(w, h, pr);
-      studioComposer.render(useUIStore.getState().liteDeviceMode);
-    };
-    const resizeObserver = new ResizeObserver(() => handleResize());
-    resizeObserver.observe(container);
-    window.addEventListener('resize', handleResize);
-
     return () => {
-      unsubLite();
       cancelAnimationFrame(animId);
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', handleResize);
-      controls.removeEventListener('change', handleControlsChange);
       cameraSyncHandleRef.current = null;
       renderer.domElement.removeEventListener('mousedown', onPointerDown);
-      renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
-      renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
       teacherCollabBridge.dispose();
-      controls.dispose();
-      studioComposer.dispose();
       disposableBioTextures.forEach((tex) => tex.dispose());
-      disposeThreeSceneResources(scene, renderer, envTexture);
-      if (renderer.domElement.parentElement) {
-        renderer.domElement.parentElement.removeChild(renderer.domElement);
-      }
+      host.dispose();
     };
   }, [mode, sceneKey]);
 

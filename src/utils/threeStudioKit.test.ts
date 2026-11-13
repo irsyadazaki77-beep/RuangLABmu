@@ -3,13 +3,19 @@ import test from 'node:test';
 import * as THREE from 'three';
 import {
   buildGraduationTicks,
+  captureComposerSnapshot,
   computeMsaaSamples,
   createBeakerProfilePoints,
   createBiologicalMembraneTexture,
   createErlenmeyerProfilePoints,
   createFunnelProfilePoints,
   createGraduatedScaleTexture,
+  createVectorArrowGroup,
+  disposeThreeSceneResources,
+  orientAndScaleVectorArrow,
   smoothCameraTransition,
+  wavelengthNmToHex,
+  type StudioComposerHandle,
 } from './threeStudioKit';
 
 test('computeMsaaSamples returns 0 for software GL and clamps hardware MSAA up to 4', () => {
@@ -87,5 +93,65 @@ test('createGraduatedScaleTexture and createBiologicalMembraneTexture gracefully
   // In Node environment without DOM document, both return null safely without throwing
   assert.equal(createGraduatedScaleTexture(50, 'mL', 10), null);
   assert.equal(createBiologicalMembraneTexture('#15803d', '#4ade80'), null);
+});
+
+test('createVectorArrowGroup and orientAndScaleVectorArrow position, hide on zero length, and scale cleanly', () => {
+  const arrow = createVectorArrowGroup(0x38bdf8, 0.35);
+  assert.ok(arrow.getObjectByName('shaft'));
+  assert.ok(arrow.getObjectByName('head'));
+
+  orientAndScaleVectorArrow(arrow, new THREE.Vector3(1, 2, 3), new THREE.Vector3(1, 0, 0), 2.5);
+  assert.equal(arrow.visible, true);
+  assert.equal(arrow.position.x, 1);
+  assert.equal(arrow.position.y, 2);
+  assert.equal(arrow.position.z, 3);
+
+  const shaft = arrow.getObjectByName('shaft') as THREE.Mesh;
+  assert.ok(Math.abs(shaft.scale.y - (2.5 - 0.34)) < 1e-6);
+
+  orientAndScaleVectorArrow(arrow, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0), 0.01);
+  assert.equal(arrow.visible, false);
+});
+
+test('wavelengthNmToHex maps visible spectrum boundaries accurately', () => {
+  assert.equal(wavelengthNmToHex(400), 0xaa00ff);
+  assert.equal(wavelengthNmToHex(532), 0x50ff00);
+  assert.equal(wavelengthNmToHex(660), 0xff0000);
+  assert.equal(wavelengthNmToHex(200), 0x000000);
+});
+
+test('captureComposerSnapshot renders a fresh frame synchronously before calling toDataURL', () => {
+  const calls: Array<{ lite?: boolean; dt?: number }> = [];
+  const mockRenderer = {
+    domElement: {
+      toDataURL: (mime: string) => `data:${mime};base64,MOCK`,
+    },
+  } as unknown as THREE.WebGLRenderer;
+  const mockComposer = {
+    render: (lite?: boolean, dt?: number) => {
+      calls.push({ lite, dt });
+    },
+  } as unknown as StudioComposerHandle;
+
+  const url = captureComposerSnapshot(mockRenderer, mockComposer, true);
+  assert.equal(url, 'data:image/png;base64,MOCK');
+  assert.deepEqual(calls, [{ lite: true, dt: 0 }]);
+});
+
+test('disposeThreeSceneResources disposes all scene geometries, materials, textures, and clears scene', () => {
+  const scene = new THREE.Scene();
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  const tex = new THREE.Texture();
+  const mat = new THREE.MeshStandardMaterial({ map: tex });
+  const mesh = new THREE.Mesh(geo, mat);
+  scene.add(mesh);
+
+  const envTex = new THREE.Texture();
+  const stats = disposeThreeSceneResources(scene, null, envTex);
+
+  assert.equal(stats.geometriesDisposed, 1);
+  assert.equal(stats.materialsDisposed, 1);
+  assert.equal(stats.texturesDisposed, 2);
+  assert.equal(scene.children.length, 0);
 });
 

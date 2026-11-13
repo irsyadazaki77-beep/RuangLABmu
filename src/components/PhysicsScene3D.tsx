@@ -1,19 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
   createBrushedMetalTextures,
   createGraduatedScaleTexture,
-  createStudioComposer,
   createStudioWorkbenchGroup,
-  disposeThreeSceneResources,
-  createAdaptiveFpsMonitor,
-  configureRendererForLiteMode,
+  createVectorArrowGroup as createArrowGroup,
+  orientAndScaleVectorArrow as orientAndScaleArrow,
   smoothCameraTransition,
+  wavelengthNmToHex as wavelengthToHex,
   type CameraSyncPose,
 } from '../utils/threeStudioKit';
+import { initThreeStudioHost } from '../utils/threeStudioHost';
 import {
   PhysicsParams,
   PhysicsMetrics,
@@ -60,87 +58,6 @@ interface PhysicsScene3DProps {
 }
 
 type CameraPreset = 'isometric' | 'front' | 'top' | 'focus';
-
-function createArrowGroup(colorHex: number): THREE.Group {
-  const group = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({
-    color: colorHex,
-    roughness: 0.25,
-    metalness: 0.2,
-    emissive: colorHex,
-    emissiveIntensity: 0.28,
-  });
-  const shaftGeo = new THREE.CylinderGeometry(0.055, 0.055, 1, 12);
-  shaftGeo.translate(0, 0.5, 0);
-  const shaft = new THREE.Mesh(shaftGeo, mat);
-  shaft.name = 'shaft';
-
-  const headGeo = new THREE.ConeGeometry(0.16, 0.36, 14);
-  headGeo.translate(0, 0.18, 0);
-  const head = new THREE.Mesh(headGeo, mat);
-  head.name = 'head';
-
-  group.add(shaft, head);
-  return group;
-}
-
-function orientAndScaleArrow(
-  arrow: THREE.Group,
-  origin: THREE.Vector3,
-  dir: THREE.Vector3,
-  length: number
-) {
-  if (length < 0.08 || dir.lengthSq() < 1e-6) {
-    arrow.visible = false;
-    return;
-  }
-  arrow.visible = true;
-  arrow.position.copy(origin);
-  const normDir = dir.clone().normalize();
-  const quat = new THREE.Quaternion().setFromUnitVectors(
-    new THREE.Vector3(0, 1, 0),
-    normDir
-  );
-  arrow.quaternion.copy(quat);
-
-  const shaftLen = Math.max(0.1, length - 0.34);
-  const shaft = arrow.getObjectByName('shaft') as THREE.Mesh;
-  const head = arrow.getObjectByName('head') as THREE.Mesh;
-  if (shaft) {
-    shaft.scale.set(1, shaftLen, 1);
-  }
-  if (head) {
-    head.position.set(0, shaftLen, 0);
-  }
-}
-
-function wavelengthToHex(wavelengthNm: number): number {
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  if (wavelengthNm >= 380 && wavelengthNm < 440) {
-    r = -(wavelengthNm - 440) / (440 - 380);
-    b = 1;
-  } else if (wavelengthNm >= 440 && wavelengthNm < 490) {
-    g = (wavelengthNm - 440) / (490 - 440);
-    b = 1;
-  } else if (wavelengthNm >= 490 && wavelengthNm < 510) {
-    g = 1;
-    b = -(wavelengthNm - 510) / (510 - 490);
-  } else if (wavelengthNm >= 510 && wavelengthNm < 580) {
-    r = (wavelengthNm - 510) / (580 - 510);
-    g = 1;
-  } else if (wavelengthNm >= 580 && wavelengthNm < 645) {
-    r = 1;
-    g = -(wavelengthNm - 645) / (645 - 580);
-  } else if (wavelengthNm >= 645 && wavelengthNm <= 780) {
-    r = 1;
-  }
-  const ir = Math.round(Math.min(255, Math.max(0, r * 255)));
-  const ig = Math.round(Math.min(255, Math.max(0, g * 255)));
-  const ib = Math.round(Math.min(255, Math.max(0, b * 255)));
-  return (ir << 16) | (ig << 8) | ib;
-}
 
 interface MotionTrailSystem {
   group: THREE.Group;
@@ -342,120 +259,47 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     const width = container.clientWidth || 760;
     const height = container.clientHeight || 380;
-
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      powerPreference: 'high-performance',
-      preserveDrawingBuffer: true,
-    });
-    renderer.setSize(width, height);
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-    renderer.setPixelRatio(pixelRatio);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.85;
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.domElement.style.touchAction = 'none';
-    const handleWebGLContextLost = (event: Event) => {
-      event.preventDefault();
-    };
-    const handleWebGLContextRestored = () => {
-      setSceneKey((prev) => prev + 1);
-    };
-    renderer.domElement.addEventListener('webglcontextlost', handleWebGLContextLost, false);
-    renderer.domElement.addEventListener('webglcontextrestored', handleWebGLContextRestored, false);
-    container.innerHTML = '';
-    container.appendChild(renderer.domElement);
-
-    const initialLite = useUIStore.getState().liteDeviceMode;
-    configureRendererForLiteMode(renderer, initialLite);
-
-    const fpsMonitor = createAdaptiveFpsMonitor(() => {
-      if (!useUIStore.getState().liteDeviceMode) {
-        useUIStore.getState().setLiteDeviceMode(true);
-        useUIStore.getState().setLiteModeNotification(
-          'Mode Hemat Daya diaktifkan otomatis agar simulasi tetap lancar di perangkatmu.'
-        );
-      }
-    }, 25, 3000);
-
-    const unsubLite = useUIStore.subscribe((state, prev) => {
-      if (state.liteDeviceMode !== prev.liteDeviceMode) {
-        configureRendererForLiteMode(renderer, state.liteDeviceMode);
-        if (!state.liteDeviceMode) {
-          fpsMonitor.resetMonitor();
-        }
-      }
-    });
-
-    const gl = renderer.getContext() as WebGL2RenderingContext;
-    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-    const glRenderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
-    const isSoftwareGl = /swiftshader|llvmpipe|softpipe|software/i.test(glRenderer);
-
     const initialThemeColors = getSceneThemeColors(activeComfortTheme, 'Fisika');
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b0f17);
-    scene.fog = new THREE.FogExp2(0x0b0f17, 0.014);
-
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.environment = envTexture;
-    scene.environmentIntensity = 0.35;
-    pmrem.dispose();
-
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 250);
-    camera.position.set(4.8, 6.2, 12.8);
-
-    // Post-Processing Pipeline: Hardware MSAA RenderTarget + RenderPass + Subtle Bloom + ACES OutputPass
-    const studioComposer = createStudioComposer(
-      renderer,
-      scene,
-      camera,
-      width,
-      height,
-      isSoftwareGl,
-      { strength: 0.14, radius: 0.25, threshold: 1.15 }
-    );
-
-    // Bounded OrbitControls (Tahap 4)
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
-    controls.autoRotateSpeed = 1.4;
-    controls.target.set(0, 1.4, 0);
-    controls.maxPolarAngle = Math.PI * 0.48;
-    controls.minDistance = 1.2;
-    controls.maxDistance = 18;
 
     let camTransitionActive = false;
+    const host = initThreeStudioHost({
+      container,
+      fallbackSize: { width: 760, height: 380 },
+      backgroundHex: 0x0b0f17,
+      fogDensity: 0.014,
+      camera: {
+        fov: 45,
+        near: 0.1,
+        far: 250,
+        position: [4.8, 6.2, 12.8],
+      },
+      controls: {
+        target: [0, 1.4, 0],
+        maxPolarAngle: Math.PI * 0.48,
+        minDistance: 1.2,
+        maxDistance: 18,
+        autoRotateSpeed: 1.4,
+      },
+      onContextRestored: () => setSceneKey((prev) => prev + 1),
+      onUserControlsStart: () => {
+        camTransitionActive = false;
+      },
+      onCameraSyncChange: (pose) => onCameraSyncChangeRef.current?.(pose),
+    });
+    if (!host) return;
+
+    const { scene, camera, renderer, controls, fpsMonitor, isSoftwareGl } = host;
+    const gl = renderer.getContext() as WebGL2RenderingContext;
+
     const desiredCamPos = new THREE.Vector3(4.8, 6.2, 12.8);
     const desiredTarget = new THREE.Vector3(0, 1.4, 0);
 
-    let isApplyingExternalCam = false;
     cameraSyncHandleRef.current = {
       applyPose: (pose) => {
-        isApplyingExternalCam = true;
         camTransitionActive = false;
-        camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
-        controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
-        controls.update();
-        isApplyingExternalCam = false;
+        host.applyExternalCameraPose(pose);
       },
     };
-    const handleControlsChange = () => {
-      if (isApplyingExternalCam || !onCameraSyncChangeRef.current) return;
-      onCameraSyncChangeRef.current({
-        position: [camera.position.x, camera.position.y, camera.position.z],
-        target: [controls.target.x, controls.target.y, controls.target.z],
-      });
-    };
-    controls.addEventListener('change', handleControlsChange);
-
-    controls.addEventListener('start', () => {
-      camTransitionActive = false;
-    });
 
     const applyCameraPreset = (preset: CameraPreset) => {
       if (preset === 'isometric') {
@@ -532,11 +376,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       setOrbit: (orbit: boolean) => {
         controls.autoRotate = orbit;
       },
-      captureCanvas: () => {
-        const isLite = useUIStore.getState().liteDeviceMode;
-        studioComposer.render(isLite);
-        return renderer.domElement.toDataURL('image/png');
-      },
+      captureCanvas: () => host.captureSnapshot(),
       applyTheme: (colors) => {
         scene.background = new THREE.Color(0x0b0f17);
         scene.fog = new THREE.FogExp2(0x0b0f17, 0.014);
@@ -1648,6 +1488,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     };
 
     let lastRenderTimestamp = 0;
+    let lastTickMs = performance.now();
     let prevSimTime = -1;
     let lastCollisionImpactIndex = -1;
 
@@ -1666,6 +1507,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         }
         lastRenderTimestamp = nowMs - (delta % 33.3);
       }
+
+      const frameDt = Math.min((nowMs - lastTickMs) / 1000, 0.05);
+      lastTickMs = nowMs;
 
       const {
         params: p,
@@ -2234,7 +2078,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       syncConceptLabelsRef.current = syncConceptLabelsNow;
       syncConceptLabelsNow();
 
-      studioComposer.render(isLite);
+      host.renderFrame(frameDt);
 
       if (isSoftwareGl) {
         afterDraw(tick);
@@ -2316,58 +2160,25 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     window.addEventListener('pointerup', handlePointerUp);
     renderer.domElement.addEventListener('pointermove', handlePointerMove);
 
-    let lastW = width;
-    let lastH = height;
-    const handleResize = () => {
-      if (!container || disposed) return;
-      const w = container.clientWidth || 960;
-      const h = container.clientHeight || 500;
-      if (w === lastW && h === lastH) return;
-      lastW = w;
-      lastH = h;
-      const pr = renderer.getPixelRatio();
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      studioComposer.resize(w, h, pr);
-      studioComposer.render();
-    };
-    const resizeObserver = new ResizeObserver(() => handleResize());
-    resizeObserver.observe(container);
-    window.addEventListener('resize', handleResize);
-
     return () => {
       disposed = true;
       unsubAiAction();
-      unsubLite();
       cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', handlePointerUp);
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
-      renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
-      renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
       teacherCollabBridge.dispose();
       cursorManager.dispose();
-      controls.removeEventListener('change', handleControlsChange);
       cameraSyncHandleRef.current = null;
-      controls.dispose();
 
-      // Dispose Post-Processing, Workbench & Textures
-      studioComposer.dispose();
+      // Dispose Workbench & Custom Textures
       workbench.dispose();
       metalTex?.dispose();
       rampScaleTex?.dispose();
       airTrackScaleTex?.dispose();
       fringeTexture.dispose();
-
-      // Deep Three.js GPU resource disposal (geometries, materials, textures, renderer)
-      disposeThreeSceneResources(scene, renderer, envTexture);
-      if (renderer.domElement.parentElement) {
-        renderer.domElement.parentElement.removeChild(renderer.domElement);
-      }
+      host.dispose();
     };
   }, [sceneKey]);
 

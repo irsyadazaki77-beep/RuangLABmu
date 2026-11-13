@@ -980,7 +980,7 @@ export interface StudioComposerHandle {
   renderTarget: THREE.WebGLRenderTarget;
   bloomPass: UnrealBloomPass;
   resize: (width: number, height: number, pixelRatio: number) => void;
-  render: (liteDeviceMode?: boolean) => void;
+  render: (liteDeviceMode?: boolean, dt?: number) => void;
   dispose: () => void;
 }
 
@@ -1064,9 +1064,10 @@ export function createStudioComposer(
     renderTarget,
     bloomPass,
     resize,
-    render: (liteDeviceMode?: boolean) => {
+    render: (liteDeviceMode?: boolean, dt = 0.016) => {
+      const safeDt = Number.isFinite(dt) ? Math.min(0.05, Math.max(0, dt)) : 0.016;
       xrRig.updateSpatialRaycasters();
-      sandboxVisuals.updatePerFrame(0.016);
+      sandboxVisuals.updatePerFrame(safeDt);
       if (renderer.xr?.isPresenting || liteDeviceMode) {
         renderer.render(scene, camera);
       } else {
@@ -1160,5 +1161,115 @@ export function disposeThreeSceneResources(
     materialsDisposed,
     texturesDisposed,
   };
+}
+
+/**
+ * Renders a synchronous frame immediately before extracting a PNG data URL,
+ * eliminating the need for `preserveDrawingBuffer: true` on WebGLRenderer.
+ */
+export function captureComposerSnapshot(
+  renderer: THREE.WebGLRenderer,
+  studioComposer: StudioComposerHandle,
+  isLite: boolean
+): string | null {
+  try {
+    studioComposer.render(isLite, 0);
+    return renderer.domElement.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Creates a standardized 3D vector arrow group (`shaft` + `head`) used across Physics and Astronomy scenes.
+ */
+export function createVectorArrowGroup(
+  colorHex: number,
+  emissiveIntensity = 0.28
+): THREE.Group {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    roughness: 0.25,
+    metalness: 0.2,
+    emissive: colorHex,
+    emissiveIntensity,
+  });
+  const shaftGeo = new THREE.CylinderGeometry(0.055, 0.055, 1, 12);
+  shaftGeo.translate(0, 0.5, 0);
+  const shaft = new THREE.Mesh(shaftGeo, mat);
+  shaft.name = 'shaft';
+
+  const headGeo = new THREE.ConeGeometry(0.16, 0.36, 14);
+  headGeo.translate(0, 0.18, 0);
+  const head = new THREE.Mesh(headGeo, mat);
+  head.name = 'head';
+
+  group.add(shaft, head);
+  return group;
+}
+
+/**
+ * Orients and scales a 3D vector arrow created by `createVectorArrowGroup`.
+ */
+export function orientAndScaleVectorArrow(
+  arrow: THREE.Group,
+  origin: THREE.Vector3,
+  dir: THREE.Vector3,
+  length: number
+): void {
+  if (length < 0.08 || dir.lengthSq() < 1e-6) {
+    arrow.visible = false;
+    return;
+  }
+  arrow.visible = true;
+  arrow.position.copy(origin);
+  const normDir = dir.clone().normalize();
+  const quat = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(0, 1, 0),
+    normDir
+  );
+  arrow.quaternion.copy(quat);
+
+  const shaftLen = Math.max(0.1, length - 0.34);
+  const shaft = arrow.getObjectByName('shaft') as THREE.Mesh | undefined;
+  const head = arrow.getObjectByName('head') as THREE.Mesh | undefined;
+  if (shaft) {
+    shaft.scale.set(1, shaftLen, 1);
+  }
+  if (head) {
+    head.position.set(0, shaftLen, 0);
+  }
+}
+
+/**
+ * Converts a visible-spectrum wavelength in nanometers (380..780nm) to a 24-bit RGB hex integer.
+ */
+export function wavelengthNmToHex(wavelengthNm: number): number {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (wavelengthNm >= 380 && wavelengthNm < 440) {
+    r = -(wavelengthNm - 440) / (440 - 380);
+    b = 1;
+  } else if (wavelengthNm >= 440 && wavelengthNm < 490) {
+    g = (wavelengthNm - 440) / (490 - 440);
+    b = 1;
+  } else if (wavelengthNm >= 490 && wavelengthNm < 510) {
+    g = 1;
+    b = -(wavelengthNm - 510) / (510 - 490);
+  } else if (wavelengthNm >= 510 && wavelengthNm < 580) {
+    r = (wavelengthNm - 510) / (580 - 510);
+    g = 1;
+  } else if (wavelengthNm >= 580 && wavelengthNm < 645) {
+    r = 1;
+    g = -(wavelengthNm - 645) / (645 - 580);
+  } else if (wavelengthNm >= 645 && wavelengthNm <= 780) {
+    r = 1;
+  }
+  const ir = Math.round(Math.min(255, Math.max(0, r * 255)));
+  const ig = Math.round(Math.min(255, Math.max(0, g * 255)));
+  const ib = Math.round(Math.min(255, Math.max(0, b * 255)));
+  return (ir << 16) | (ig << 8) | ib;
 }
 
