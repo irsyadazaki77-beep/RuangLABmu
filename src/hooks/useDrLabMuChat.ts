@@ -32,6 +32,7 @@ export function executeDrLabMuUIAction(action: DrLabMuUIAction): void {
     }
     case 'HIGHLIGHT_SLIDER': {
       labStore.highlightParamSlider(action.paramKey, action.durationMs);
+      emitLabEvent(LAB_EVENTS.AI_UI_ACTION, action);
       break;
     }
     case 'SET_SIMULATION_STATE': {

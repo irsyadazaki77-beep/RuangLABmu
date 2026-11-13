@@ -243,3 +243,54 @@ test('threeMeasurementTools pure NST helpers and 3D instrument handles work clea
   probe3d.dispose();
 });
 
+test('FASE 4: multi-module rig disposal leaves 0 leaked WebGL geometries and textures on renderer.info.memory', () => {
+  const memory = { geometries: 0, textures: 0 };
+  const trackGeo = <T extends THREE.BufferGeometry>(geo: T): T => {
+    memory.geometries++;
+    geo.addEventListener('dispose', () => {
+      memory.geometries = Math.max(0, memory.geometries - 1);
+    });
+    return geo;
+  };
+  const trackTex = <T extends THREE.Texture>(tex: T): T => {
+    memory.textures++;
+    tex.addEventListener('dispose', () => {
+      memory.textures = Math.max(0, memory.textures - 1);
+    });
+    return tex;
+  };
+
+  for (const liteMode of [false, true, false]) {
+    const scene = new THREE.Scene();
+    const vesselGeo = trackGeo(new THREE.CylinderGeometry(0.8, 0.8, 2.0, 24));
+    const glassMat = createBorosilicateGlassMaterial(liteMode);
+    const mapTex = trackTex(new THREE.Texture());
+    const roughTex = trackTex(new THREE.Texture());
+    const benchMat = new THREE.MeshStandardMaterial({ map: mapTex, roughnessMap: roughTex });
+
+    const vessel = new THREE.Mesh(vesselGeo, glassMat);
+    const bench = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(5, 0.2, 3)), benchMat);
+    scene.add(vessel, bench);
+
+    const particleGeo = trackGeo(new THREE.SphereGeometry(0.04, 8, 8));
+    const particleMat = new THREE.MeshStandardMaterial();
+    createInstancedParticlePool(24, particleGeo, particleMat, scene);
+
+    const envTex = trackTex(new THREE.Texture());
+    const mockRenderer = {
+      info: { memory },
+      renderLists: { dispose: () => {} },
+      dispose: () => {},
+    } as unknown as THREE.WebGLRenderer;
+
+    assert.ok(memory.geometries >= 3);
+    assert.ok(memory.textures >= 3);
+
+    disposeThreeSceneResources(scene, mockRenderer, envTex);
+
+    assert.equal(mockRenderer.info.memory.geometries, 0);
+    assert.equal(mockRenderer.info.memory.textures, 0);
+    assert.equal(scene.children.length, 0);
+  }
+});
+

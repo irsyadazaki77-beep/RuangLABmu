@@ -4,8 +4,11 @@ import * as THREE from 'three';
 import {
   MultiApparatusEngine,
   computePortDistance3D,
+  findSceneObjectByParamKey,
+  resolveAiCameraTargetPosition,
   triggerDomainApparatusSnap,
 } from './multiApparatusEngine';
+import { executeDrLabMuUIAction } from '../../hooks/useDrLabMuChat';
 import { computeDraggedParameterValue } from '../threeInteractionHelper';
 import {
   evaluateAdaptiveScaffolding,
@@ -389,5 +392,38 @@ describe('Fase 2: MultiApparatusEngine & AdaptiveScaffoldingEngine', () => {
     assert.strictEqual(docked?.targetPortId, 'neck-in');
 
     engine.clearPortAnchors();
+  });
+
+  it('FASE 4: Dr. LabMu 3D scaffolding halo helpers resolve visible parameter meshes, camera targets, and slider highlights', () => {
+    const scene = new THREE.Scene();
+    const hiddenGroup = new THREE.Group();
+    hiddenGroup.visible = false;
+    const hiddenMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+    hiddenMesh.userData = { draggableParam: 'titrantAddedMl' };
+    hiddenGroup.add(hiddenMesh);
+
+    const visibleGroup = new THREE.Group();
+    visibleGroup.position.set(1.2, 2.1, -0.4);
+    const activeMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+    activeMesh.userData = { draggableParam: 'titrantAddedMl' };
+    visibleGroup.add(activeMesh);
+
+    scene.add(hiddenGroup, visibleGroup);
+
+    const found = findSceneObjectByParamKey(scene, 'titrantAddedMl');
+    assert.strictEqual(found, activeMesh);
+    assert.strictEqual(findSceneObjectByParamKey(scene, 'nonExistentParam'), null);
+
+    assert.deepStrictEqual(resolveAiCameraTargetPosition('burette_tip'), [0, 1.85, 0]);
+    assert.deepStrictEqual(resolveAiCameraTargetPosition('pendulum_bob'), [0.6, 2.4, 0]);
+    assert.deepStrictEqual(resolveAiCameraTargetPosition('left_ventricle'), [0.35, 0.35, 0.2]);
+    assert.deepStrictEqual(resolveAiCameraTargetPosition('planet_focus'), [0, 0.5, 0]);
+
+    executeDrLabMuUIAction({
+      type: 'HIGHLIGHT_SLIDER',
+      paramKey: 'titrantAddedMl',
+      durationMs: 2500,
+    });
+    assert.strictEqual(useLabStore.getState().highlightedParamKey, 'titrantAddedMl');
   });
 });

@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { useLabStore, ApparatusDockingConnection } from '../../stores/useLabStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../labEventBus';
 import { labSound } from '../soundEngine';
+import type { DrLabMuCameraTarget } from '../drLabMuActions';
 
 export type ApparatusNodeType = 'source' | 'modifier' | 'detector';
 export type ApparatusPortType = 'fluid' | 'electric' | 'optical';
@@ -671,6 +672,51 @@ export function triggerDomainApparatusSnap(
 }
 
 /**
+ * Mencari objek 3D visible yang terkait dengan parameter tertentu (`draggableParam` / `paramKey`)
+ * untuk sinkronisasi halo penyorot Dr. LabMu (`HIGHLIGHT_SLIDER`).
+ */
+export function findSceneObjectByParamKey(
+  root: THREE.Object3D,
+  paramKey: string
+): THREE.Object3D | null {
+  if (!paramKey) return null;
+  let matched: THREE.Object3D | null = null;
+
+  root.traverse((obj) => {
+    if (matched) return;
+    const ud = obj.userData as { draggableParam?: string; paramKey?: string } | undefined;
+    if (ud?.draggableParam !== paramKey && ud?.paramKey !== paramKey) return;
+
+    let cur: THREE.Object3D | null = obj;
+    while (cur) {
+      if (!cur.visible) return;
+      cur = cur.parent;
+    }
+    matched = obj;
+  });
+
+  return matched;
+}
+
+/**
+ * Memetakan target kamera fokus Dr. LabMu (`DrLabMuCameraTarget`) ke koordinat fokus 3D default.
+ */
+export function resolveAiCameraTargetPosition(
+  target: DrLabMuCameraTarget
+): [number, number, number] {
+  switch (target) {
+    case 'burette_tip':
+      return [0, 1.85, 0];
+    case 'pendulum_bob':
+      return [0.6, 2.4, 0];
+    case 'left_ventricle':
+      return [0.35, 0.35, 0.2];
+    case 'planet_focus':
+      return [0, 0.5, 0];
+  }
+}
+
+/**
  * Mengintegrasikan visualisasi Snap-to-Port (cincin hijau menyala + gelombang kunci + konduit) dan
  * Level 3 Adaptive Scaffolding (Smooth Camera Lerp + Pulse Highlight) ke scene Three.js.
  */
@@ -763,6 +809,42 @@ export function attachMultiApparatusAndScaffoldingVisuals(
     }
   );
 
+  // Subscribe to Dr. LabMu Hands-On UI Actions (`HIGHLIGHT_SLIDER`, `FOCUS_CAMERA`, `TOGGLE_XRAY`)
+  const aiTargetWorldPos = new THREE.Vector3();
+  const unsubAiAction = subscribeLabEvent(LAB_EVENTS.AI_UI_ACTION, (action) => {
+    if (!action) return;
+
+    if (action.type === 'HIGHLIGHT_SLIDER') {
+      const targetObj = findSceneObjectByParamKey(scene, action.paramKey);
+      if (targetObj) {
+        targetObj.updateWorldMatrix(true, false);
+        targetObj.getWorldPosition(aiTargetWorldPos);
+        focusHaloMat.color.setHex(0xf59e0b);
+        focusHaloMat.emissive.setHex(0xf59e0b);
+        focusHaloMesh.position.set(
+          aiTargetWorldPos.x,
+          Math.max(0.25, aiTargetWorldPos.y),
+          aiTargetWorldPos.z
+        );
+        focusHaloMesh.visible = true;
+        focusHighlightTimer = Math.max(2.0, Math.min(8.0, action.durationMs / 1000));
+      }
+    } else if (action.type === 'FOCUS_CAMERA') {
+      const [fx, fy, fz] = resolveAiCameraTargetPosition(action.target);
+      focusHaloMat.color.setHex(0x38bdf8);
+      focusHaloMat.emissive.setHex(0x38bdf8);
+      focusHaloMesh.position.set(fx, Math.max(0.25, fy), fz);
+      focusHaloMesh.visible = true;
+      focusHighlightTimer = 4.5;
+    } else if (action.type === 'TOGGLE_XRAY' && action.enabled) {
+      focusHaloMat.color.setHex(0x38bdf8);
+      focusHaloMat.emissive.setHex(0x38bdf8);
+      focusHaloMesh.position.set(0, 0.35, 0);
+      focusHaloMesh.visible = true;
+      focusHighlightTimer = 3.2;
+    }
+  });
+
   // Subscribe to Apparatus Docked events to show green lock ring, shockwave & medium conduit
   let dockFlashTimer = 0;
   const unsubDocked = subscribeLabEvent(LAB_EVENTS.APPARATUS_DOCKED, (detail) => {
@@ -849,6 +931,7 @@ export function attachMultiApparatusAndScaffoldingVisuals(
   const dispose = () => {
     unsubFocus();
     unsubDocked();
+    unsubAiAction();
     scene.remove(overlayGroup);
     snapRingGeo.dispose();
     snapRingMat.dispose();

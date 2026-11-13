@@ -224,4 +224,73 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
       await studentContext.close();
     }
   });
+
+  test('Skenario 5 (Fase 4 WebGL 3D & Lite 3T): Switch Fisika/Kimia/Biologi, Alat Ukur 3D, Snap-to-Port & Toggle Lite 3T tanpa error WebGL', async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/');
+
+    // 1. Fisika: masuk simulasi -> uji Alat Ukur 3D (Mistar & Busur) + Snap-to-Port + drag canvas
+    await page.getByRole('button', { name: 'Fisika', exact: true }).click();
+    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+    await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
+
+    const cockpit3D = page.getByTestId('main-3d-cockpit');
+    await expect(cockpit3D).toBeVisible();
+    await expect(page.getByTestId('lab-webgl-error-fallback')).toHaveCount(0);
+
+    await page.getByTestId('toggle-3d-measure-btn').click();
+    await expect(page.getByText(/Mistar:/i)).toBeVisible();
+    await expect(page.getByText(/Busur:/i)).toBeVisible();
+    await page.getByTestId('snap-dock-apparatus-btn').click();
+
+    // Drag sedikit pada kanvas 3D Fisika
+    const physCanvas = page.getByTestId('physics-simulation-canvas');
+    const physBox = await physCanvas.boundingBox();
+    if (physBox) {
+      await page.mouse.move(physBox.x + physBox.width * 0.5, physBox.y + physBox.height * 0.5);
+      await page.mouse.down();
+      await page.mouse.move(physBox.x + physBox.width * 0.55, physBox.y + physBox.height * 0.45);
+      await page.mouse.up();
+    }
+
+    // 2. Toggle Mode Hemat Daya 3T (Lite Mode) melalui menu Pengaturan
+    await page.getByTestId('settings-popover-trigger-btn').click();
+    const liteToggleBtn = page.getByTestId('lite-device-mode-toggle-btn');
+    await expect(liteToggleBtn).toBeVisible();
+    await liteToggleBtn.click();
+    await expect(liteToggleBtn).toContainText(/AKTIF/i);
+    await page.keyboard.press('Escape');
+
+    // 3. Pindah ke Kimia dalam Lite 3T Mode -> uji Probe Digital 3D & Snap-to-Port
+    await page.getByRole('button', { name: 'Kembali ke Katalog Laboratorium' }).click();
+    await page.getByRole('button', { name: 'Kimia', exact: true }).click();
+    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+    await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
+
+    await expect(page.getByTestId('lab-webgl-error-fallback')).toHaveCount(0);
+    await page.getByTestId('toggle-3d-probe-btn').click();
+    await expect(page.getByText(/Sensor Probe 3D:/i)).toBeVisible();
+    await page.getByTestId('snap-dock-apparatus-btn').click();
+
+    // 4. Pindah ke Biologi -> uji Mistar 3D & kanvas tanpa error WebGL
+    await page.getByRole('button', { name: 'Kembali ke Katalog Laboratorium' }).click();
+    await page.getByRole('button', { name: 'Biologi', exact: true }).click();
+    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+    await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
+
+    await expect(page.getByTestId('lab-webgl-error-fallback')).toHaveCount(0);
+    await expect(cockpit3D.locator('canvas').first()).toBeVisible();
+    const bioRulerBtn = page.getByTestId('toggle-3d-ruler-btn');
+    if (await bioRulerBtn.isVisible()) {
+      await bioRulerBtn.click();
+      await expect(page.getByText(/Mistar 3D:/i)).toBeVisible();
+    }
+
+    expect(pageErrors).toEqual([]);
+  });
 });
