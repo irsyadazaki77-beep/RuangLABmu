@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import {
   Camera,
   Eye,
@@ -14,9 +14,10 @@ import {
   LabNotification,
   ExperimentRecord,
 } from '../utils/scienceEngine';
-import { PhysicsScene3D } from './PhysicsScene3D';
 import { LabErrorBoundary } from './common/LabErrorBoundary';
 import { labSound } from '../utils/soundEngine';
+
+const PhysicsScene3D = React.lazy(() => import('./PhysicsScene3D'));
 import { useSimulationWorker } from '../hooks/useSimulationWorker';
 import { SpatialCursorPayload, ParameterLockPayload } from '../utils/collabProtocol';
 import {
@@ -36,7 +37,10 @@ import {
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
-import { getPhysicsParameterFeedback } from '../utils/pedagogicalHelpers';
+import {
+  getPhysicsParameterFeedback,
+  normalizeEducationLevel,
+} from '../utils/pedagogicalHelpers';
 
 export interface PhysicsLabViewProps {
   params: PhysicsParams;
@@ -50,7 +54,7 @@ export interface PhysicsLabViewProps {
   ) => void;
   onPushNotification: (notif: LabNotification) => void;
   onSyncWithGroup?: (summary: string) => void;
-  academicLevel?: AcademicLevel;
+  academicLevel?: AcademicLevel | string;
   currentUserId?: string;
   remoteCursors?: Record<string, SpatialCursorPayload>;
   paramLocks?: Record<string, ParameterLockPayload>;
@@ -94,17 +98,12 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   params,
   onChangeParams,
   onRecordExperiment,
-  onPushNotification,
-  academicLevel = 'sma',
+  academicLevel,
   remoteCursors,
-  paramLocks,
   onEmitCursor,
-  onAcquireLock,
-  onReleaseLock,
   records = [],
   onProceedToAnalysis,
   hypothesisNote,
-  onChangeHypothesisNote,
   zenMode = false,
   onCapture3DSnapshot,
   snapshotCount = 0,
@@ -117,7 +116,10 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   const [hazardModalDismissed, setHazardModalDismissed] = useState<boolean>(false);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
 
-  const { playbackSpeed } = useLabStore();
+  const { playbackSpeed, academicLevel: storeAcademicLevel } = useLabStore();
+  const effectiveEducationLevel = normalizeEducationLevel(
+    academicLevel ?? storeAcademicLevel
+  );
 
   // Web Worker for determinism
   const simWorker = useSimulationWorker(params.mode, params as any);
@@ -355,29 +357,40 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       }
       canvas={
         <LabErrorBoundary domain="Fisika" sceneName="PhysicsScene3D">
-          <PhysicsScene3D
-            params={params}
-            metrics={metrics}
-            instant={instant}
-            simTime={simTime}
-            simTimeRef={simTimeRef}
-            showVectorOverlay={showVectorOverlay}
-            simFrame={simWorker.currentFrame}
-            remoteCursors={remoteCursors}
-            onEmitCursor={onEmitCursor}
-            onUpdateParam={(key, val) => handleParamUpdate({ [key]: val })}
-            snapshotCount={snapshotCount}
-            onCaptureSnapshot={(dataUrl) => {
-              setShutterFlash(true);
-              setTimeout(() => setShutterFlash(false), 240);
-              onCapture3DSnapshot?.(
-                dataUrl,
-                'Hukum Newton & Mekanika 3D',
-                `m=${params.mass}kg, F=${params.appliedForce}N`,
-                `a = ${metrics.acceleration} m/s²`
-              );
-            }}
-          />
+          <Suspense
+            fallback={
+              <div className="w-full h-full min-h-[320px] flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 p-6 gap-3">
+                <div className="w-9 h-9 rounded-full border-2 border-sky-400 border-t-transparent animate-spin" />
+                <p className="text-xs font-mono font-semibold text-sky-300">
+                  Menyiapkan Ruang Laboratorium 3D...
+                </p>
+              </div>
+            }
+          >
+            <PhysicsScene3D
+              params={params}
+              metrics={metrics}
+              instant={instant}
+              simTime={simTime}
+              simTimeRef={simTimeRef}
+              showVectorOverlay={showVectorOverlay}
+              simFrame={simWorker.currentFrame}
+              remoteCursors={remoteCursors}
+              onEmitCursor={onEmitCursor}
+              onUpdateParam={(key, val) => handleParamUpdate({ [key]: val })}
+              snapshotCount={snapshotCount}
+              onCaptureSnapshot={(dataUrl) => {
+                setShutterFlash(true);
+                setTimeout(() => setShutterFlash(false), 240);
+                onCapture3DSnapshot?.(
+                  dataUrl,
+                  'Hukum Newton & Mekanika 3D',
+                  `m=${params.mass}kg, F=${params.appliedForce}N`,
+                  `a = ${metrics.acceleration} m/s²`
+                );
+              }}
+            />
+          </Suspense>
         </LabErrorBoundary>
       }
       safetyModal={
@@ -485,7 +498,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={5}
                     max={50}
                     step={1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'initialVelocity', v, lvl)}
                     onChange={(v) => handleParamUpdate({ initialVelocity: v })}
                   />
@@ -496,7 +509,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={10}
                     max={85}
                     step={1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'launchAngle', v, lvl)}
                     onChange={(v) => handleParamUpdate({ launchAngle: v })}
                   />
@@ -507,7 +520,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0}
                     max={40}
                     step={1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'initialHeight', v, lvl)}
                     onChange={(v) => handleParamUpdate({ initialHeight: v })}
                   />
@@ -518,7 +531,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={25}
                     step={0.5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
@@ -532,7 +545,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={10}
                     max={400}
                     step={5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'springConstantK', v, lvl)}
                     onChange={(v) => handleParamUpdate({ springConstantK: v })}
                   />
@@ -543,7 +556,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={-2.0}
                     max={2.0}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'springDisplacement', v, lvl)}
                     onChange={(v) => handleParamUpdate({ springDisplacement: v })}
                   />
@@ -554,7 +567,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={25}
                     step={0.5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
@@ -565,7 +578,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0}
                     max={2.0}
                     step={0.05}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'dampingCoeff', v, lvl)}
                     onChange={(v) => handleParamUpdate({ dampingCoeff: v })}
                   />
@@ -580,7 +593,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.3}
                     max={2.5}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'pendulumLength', v, lvl)}
                     onChange={(v) => handleParamUpdate({ pendulumLength: v })}
                   />
@@ -592,7 +605,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={5}
                     max={85}
                     step={1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'pendulumAngle', v, lvl)}
                     onChange={(v) => handleParamUpdate({ pendulumAngle: v })}
                   />
@@ -603,7 +616,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={20}
                     step={0.5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
@@ -617,7 +630,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={25}
                     step={0.5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
@@ -628,7 +641,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={1}
                     max={30}
                     step={1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'initialVelocity', v, lvl)}
                     onChange={(v) => handleParamUpdate({ initialVelocity: v })}
                   />
@@ -639,7 +652,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={25}
                     step={0.5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'collisionMass2', v, lvl)}
                     onChange={(v) => handleParamUpdate({ collisionMass2: v })}
                   />
@@ -650,7 +663,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0}
                     max={1.0}
                     step={0.05}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'restitutionCoeff', v, lvl)}
                     onChange={(v) => handleParamUpdate({ restitutionCoeff: v })}
                   />
@@ -664,7 +677,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.05}
                     max={2.0}
                     step={0.05}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'fluidViscosity', v, lvl)}
                     onChange={(v) => handleParamUpdate({ fluidViscosity: v, fluidViscosityPaS: v })}
                   />
@@ -675,7 +688,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={1}
                     max={20}
                     step={0.5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'sphereRadius', v, lvl)}
                     onChange={(v) => handleParamUpdate({ sphereRadius: v, sphereRadiusMm: v })}
                   />
@@ -686,7 +699,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={2000}
                     max={9000}
                     step={100}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'sphereDensity', v, lvl)}
                     onChange={(v) => handleParamUpdate({ sphereDensity: v, sphereDensityKgM3: v })}
                   />
@@ -700,7 +713,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={1}
                     max={24}
                     step={1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'circuitVoltage', v, lvl)}
                     onChange={(v) => handleParamUpdate({ circuitVoltage: v, circuitVoltageV: v })}
                   />
@@ -711,7 +724,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={10}
                     max={500}
                     step={5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'resistorRx', v, lvl)}
                     onChange={(v) => handleParamUpdate({ resistorRx: v, bridgeRx: v })}
                   />
@@ -722,7 +735,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={10}
                     max={500}
                     step={5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'resistorR3', v, lvl)}
                     onChange={(v) => handleParamUpdate({ resistorR3: v, bridgeR3: v })}
                   />
@@ -736,7 +749,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={400}
                     max={700}
                     step={10}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'lightWavelength', v, lvl)}
                     onChange={(v) => handleParamUpdate({ lightWavelength: v })}
                   />
@@ -747,7 +760,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.05}
                     max={0.8}
                     step={0.05}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'slitDistance', v, lvl)}
                     onChange={(v) => handleParamUpdate({ slitDistance: v })}
                   />
@@ -758,7 +771,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={3.0}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'screenDistance', v, lvl)}
                     onChange={(v) => handleParamUpdate({ screenDistance: v })}
                   />
@@ -772,7 +785,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={200}
                     max={700}
                     step={10}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'lightWavelength', v, lvl)}
                     onChange={(v) => handleParamUpdate({ lightWavelength: v })}
                   />
@@ -783,7 +796,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={2.0}
                     max={5.5}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'targetMetalWorkFunction', v, lvl)}
                     onChange={(v) => handleParamUpdate({ targetMetalWorkFunction: v })}
                   />
@@ -794,7 +807,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0}
                     max={5.0}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'stoppingPotential', v, lvl)}
                     onChange={(v) => handleParamUpdate({ stoppingPotential: v })}
                   />
@@ -808,7 +821,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={1}
                     max={50}
                     step={1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
@@ -819,7 +832,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={100}
                     max={5000}
                     step={100}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'secondaryMass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ secondaryMass: v })}
                   />
@@ -830,7 +843,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={1}
                     max={30}
                     step={0.5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'separationDistance', v, lvl)}
                     onChange={(v) => handleParamUpdate({ separationDistance: v })}
                   />
@@ -845,7 +858,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={30}
                     step={0.5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
@@ -858,7 +871,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={-150}
                     max={250}
                     step={5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'appliedForce', v, lvl)}
                     onChange={(v) => handleParamUpdate({ appliedForce: v })}
                   />
@@ -871,7 +884,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0}
                     max={60}
                     step={1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'inclineAngle', v, lvl)}
                     onChange={(v) => handleParamUpdate({ inclineAngle: v })}
                   />
@@ -884,7 +897,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0}
                     max={0.8}
                     step={0.05}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'frictionCoeffKinetic', v, lvl)}
                     onChange={(v) => handleParamUpdate({ frictionCoeffKinetic: v })}
                   />

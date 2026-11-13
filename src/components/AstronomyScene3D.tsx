@@ -8,6 +8,7 @@ import {
   disposeThreeSceneResources,
   createAdaptiveFpsMonitor,
   configureRendererForLiteMode,
+  smoothCameraTransition,
 } from '../utils/threeStudioKit';
 import {
   AstronomyParams,
@@ -196,7 +197,6 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   onUpdateParam,
   onPlanetClick,
   onCaptureSnapshot,
-  snapshotCount = 0,
   comfortTheme,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
@@ -217,6 +217,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
+  const activePresetRef = useRef<CameraPreset>('isometric');
+  activePresetRef.current = activePreset;
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
   const [sceneKey, setSceneKey] = useState<number>(0);
 
@@ -299,7 +301,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     const initialLite = useUIStore.getState().liteDeviceMode;
     configureRendererForLiteMode(renderer, initialLite);
 
-    const fpsMonitor = createAdaptiveFpsMonitor((avgFps) => {
+    const fpsMonitor = createAdaptiveFpsMonitor(() => {
       if (!useUIStore.getState().liteDeviceMode) {
         useUIStore.getState().setLiteDeviceMode(true);
         useUIStore.getState().setLiteModeNotification(
@@ -502,19 +504,27 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     );
     sunMesh.add(sunCorona);
 
-    // Reference Planet Orbits
-    SOLAR_PLANET_PRESETS.slice(0, 8).forEach((pl) => {
+    // Reference Planet Orbits (3D Inclined Ellipses)
+    SOLAR_PLANET_PRESETS.slice(0, 8).forEach((pl, idx) => {
       const refR = Math.min(8.6, Math.max(2.1, 2.0 + Math.log10(pl.semiMajorAxisAu + 0.7) * 4.2));
-      const ringGeo = new THREE.RingGeometry(refR - 0.02, refR + 0.02, 64);
-      ringGeo.rotateX(-Math.PI / 2);
+      const ecc = Math.min(0.35, pl.eccentricity ?? 0.02);
+      const incRad = (((idx % 5) - 2) * 1.8 * Math.PI) / 180;
+      const pts: THREE.Vector3[] = [];
+      for (let s = 0; s < 64; s++) {
+        const th = (s / 64) * Math.PI * 2;
+        const rx = refR * Math.cos(th) - refR * ecc;
+        const rz = refR * Math.sqrt(1 - ecc * ecc) * Math.sin(th);
+        const ry = Math.sin(th + idx * 0.6) * refR * Math.sin(incRad);
+        pts.push(new THREE.Vector3(rx, ry, rz));
+      }
+      const refGeo = new THREE.BufferGeometry().setFromPoints(pts);
       solarGroup.add(
-        new THREE.Mesh(
-          ringGeo,
-          new THREE.MeshBasicMaterial({
+        new THREE.LineLoop(
+          refGeo,
+          new THREE.LineBasicMaterial({
             color: 0x334155,
-            side: THREE.DoubleSide,
             transparent: true,
-            opacity: 0.3,
+            opacity: 0.35,
           })
         )
       );
@@ -917,20 +927,24 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       // Rotate Asteroid Belt smoothly
       asteroidBeltGroup.rotation.y = elapsed * 0.045;
 
-      // 1. Kepler Orbit
+      // 1. Kepler Orbit (3D Inclined Elliptical Trajectory)
       if (p.mode === 'solar-kepler') {
         const a = p.customSemiMajorAxisAu || 1.0;
         const e = p.customEccentricity ?? 0.017;
         const b = a * Math.sqrt(Math.max(0.01, 1 - e * e));
         const c = a * e;
+        const incRad = ((3.2 + e * 14.0) * Math.PI) / 180;
+        const scaledR = Math.min(8.6, 2.0 + Math.log10(Math.max(0.2, a)) * 3.5);
 
         const posAttr = orbitGeo.getAttribute('position') as THREE.BufferAttribute;
         for (let i = 0; i < 96; i++) {
           const theta = (i / 96) * Math.PI * 2;
           const x = a * Math.cos(theta) - c;
           const z = b * Math.sin(theta);
-          const scaledR = Math.min(8.6, 2.0 + Math.log10(Math.max(0.2, a)) * 3.5);
-          posAttr.setXYZ(i, (x / a) * scaledR, 0, (z / b) * scaledR);
+          const ox = (x / a) * scaledR;
+          const oz = (z / b) * scaledR;
+          const oy = Math.sin(theta) * scaledR * Math.sin(incRad);
+          posAttr.setXYZ(i, ox, oy, oz);
         }
         posAttr.needsUpdate = true;
 
@@ -938,12 +952,24 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         const curM = (t * meanMotion) % (Math.PI * 2);
         const curX = a * Math.cos(curM) - c;
         const curZ = b * Math.sin(curM);
-        const scaledR = Math.min(8.6, 2.0 + Math.log10(Math.max(0.2, a)) * 3.5);
-        planetMesh.position.set((curX / a) * scaledR, 0, (curZ / b) * scaledR);
+        const px = (curX / a) * scaledR;
+        const pz = (curZ / b) * scaledR;
+        const py = Math.sin(curM) * scaledR * Math.sin(incRad);
+        planetMesh.position.set(px, py, pz);
         planetMesh.rotation.y = elapsed * 0.6;
 
+        if (activePresetRef.current === 'focus' && !isDragging) {
+          desiredTarget.copy(planetMesh.position);
+          desiredCamPos.set(px + 1.85, py + 1.35, pz + 3.15);
+          camTransitionActive = true;
+        }
+
         if (showConceptLabelsRef.current) {
-          const tanDir = new THREE.Vector3(-Math.sin(curM) * scaledR, 0, Math.cos(curM) * (b / a) * scaledR);
+          const tanDir = new THREE.Vector3(
+            -Math.sin(curM) * scaledR,
+            Math.cos(curM) * scaledR * Math.sin(incRad),
+            Math.cos(curM) * (b / a) * scaledR
+          );
           orientAndScaleArrow(keplerVelArrow, planetMesh.position, tanDir, 1.8);
           const gravDir = planetMesh.position.clone().negate();
           orientAndScaleArrow(keplerGravArrow, planetMesh.position, gravDir, 1.5);
@@ -1023,15 +1049,13 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       );
 
       if (camTransitionActive) {
-        camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamPos.x, 6, 0.016);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamPos.y, 6, 0.016);
-        camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamPos.z, 6, 0.016);
-        controls.target.x = THREE.MathUtils.damp(controls.target.x, desiredTarget.x, 6, 0.016);
-        controls.target.y = THREE.MathUtils.damp(controls.target.y, desiredTarget.y, 6, 0.016);
-        controls.target.z = THREE.MathUtils.damp(controls.target.z, desiredTarget.z, 6, 0.016);
-        if (camera.position.distanceToSquared(desiredCamPos) < 0.01) {
-          camTransitionActive = false;
-        }
+        camTransitionActive = smoothCameraTransition(
+          camera,
+          controls,
+          desiredCamPos,
+          desiredTarget,
+          0.12
+        );
       }
 
       controls.update();
@@ -1290,6 +1314,17 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         </div>
       )}
 
+      {/* Visual Scale Comparison Badge for Orbital Readability */}
+      <div
+        data-testid="astronomy-scale-badge"
+        className="pointer-events-none absolute bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-lg bg-slate-950/80 backdrop-blur-md border border-slate-700/60 px-2.5 py-1 text-[10px] font-mono text-slate-300 shadow-md"
+      >
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+        <span>
+          Skala Visual: Diameter planet diperbesar ~1.500× terhadap jarak orbit (AU) · Inklinasi 3D aktif
+        </span>
+      </div>
+
       {/* Consolidated Top-Right Capsule Bar: Snap-to-Port | 🥽 Mode VR | Presets (Iso | Depan | Atas | Fokus | ⛶) */}
       <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20 opacity-80 hover:opacity-100 transition-opacity">
         <button
@@ -1381,3 +1416,6 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     </div>
   );
 };
+
+export default AstronomyScene3D;
+

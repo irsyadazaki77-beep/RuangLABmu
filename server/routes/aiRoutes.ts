@@ -15,6 +15,14 @@ import {
 } from '../../src/utils/collabProtocol';
 import type { LabServerState } from '../state/labServerState';
 import { applyCustomMissionToRoom } from '../ws/collabSocketServer';
+import {
+  validateConversationalDrLabMuPayload,
+  validateDrLabMuAskPayload,
+  validateGenerateMissionPayload,
+  validateRoomMissionPayload,
+  validateVisionDiagnosePayload,
+  type ValidatedGenerateMissionPayload,
+} from '../utils/routePayloadValidators';
 
 const DR_LABMU_SYSTEM_INSTRUCTION = `# ROLE & IDENTITAS
 Nama Anda adalah "Dr. LabMu", asisten mentor laboratorium sains virtual cerdas di platform RuangLABmu. Anda menguasai bidang Fisika, Kimia, Biologi, dan Astronomi untuk jenjang SMP, SMA, hingga Perguruan Tinggi.
@@ -48,14 +56,9 @@ export interface AiRoutesDeps {
 }
 
 async function buildCustomMissionScenario(
-  body: Record<string, unknown>
+  input: ValidatedGenerateMissionPayload
 ): Promise<CustomAIMissionPayload> {
-  const moduleId = String(body.moduleId || 'acid-base-titration').trim();
-  const caseStudyPrompt = String(
-    body.caseStudyPrompt || body.storyPrompt || body.prompt || ''
-  ).trim();
-  const teacherName = String(body.teacherName || 'Dr. Hendra Kusuma').trim();
-  const roomId = String(body.roomId || 'LAB-ALPHA').trim().toUpperCase();
+  const { moduleId, caseStudyPrompt, teacherName, roomId } = input;
   const blueprint = resolveModuleBlueprint(moduleId);
 
   if (process.env.GEMINI_API_KEY && caseStudyPrompt) {
@@ -168,20 +171,18 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
     ['/api/generate-mission', '/api/ai/generate-mission'],
     async (req, res) => {
       try {
-        const body = (req.body || {}) as Record<string, unknown>;
-        const caseStudyPrompt = String(
-          body.caseStudyPrompt || body.storyPrompt || body.prompt || ''
-        ).trim();
-        if (!caseStudyPrompt) {
+        const check = validateGenerateMissionPayload(req.body);
+        if (!check.ok) {
           res.status(400).json({
-            error:
-              'Deskripsi studi kasus cerita wajib diisi untuk membuat misi praktikum AI.',
+            error: check.error,
+            code: check.code,
+            details: check.details,
           });
           return;
         }
 
-        const mission = await buildCustomMissionScenario(body);
-        const shouldPublish = body.publishToRoom !== false;
+        const mission = await buildCustomMissionScenario(check.data);
+        const shouldPublish = check.data.publishToRoom;
         let updatedRoom: LabRoom | undefined;
         if (shouldPublish) {
           updatedRoom = applyCustomMissionToRoom(
@@ -215,8 +216,17 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
 
   router.post('/api/rooms/:roomId/mission', (req, res) => {
     try {
-      const { roomId } = req.params;
-      const { mission, teacherName } = req.body || {};
+      const check = validateRoomMissionPayload(req.params.roomId, req.body);
+      if (!check.ok) {
+        res.status(400).json({
+          error: check.error,
+          code: check.code,
+          details: check.details,
+        });
+        return;
+      }
+
+      const { roomId, mission, teacherName } = check.data;
       const updatedRoom = applyCustomMissionToRoom(
         state.activeLabRooms,
         roomId,
@@ -243,16 +253,19 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
 
   router.post(['/api/dr-labmu/ask', '/api/assistant'], async (req, res) => {
     try {
-      if (
-        req.body &&
-        (req.body.mode === 'generate-mission' ||
-          req.body.action === 'generate-mission' ||
-          typeof req.body.caseStudyPrompt === 'string')
-      ) {
-        const mission = await buildCustomMissionScenario(
-          req.body as Record<string, unknown>
-        );
-        const shouldPublish = req.body.publishToRoom !== false;
+      const check = validateDrLabMuAskPayload(req.body);
+      if (!check.ok) {
+        res.status(400).json({
+          error: check.error,
+          code: check.code,
+          details: check.details,
+        });
+        return;
+      }
+
+      if (check.data.kind === 'mission' && check.data.missionInput) {
+        const mission = await buildCustomMissionScenario(check.data.missionInput);
+        const shouldPublish = check.data.missionInput.publishToRoom;
         let updatedRoom: LabRoom | undefined;
         if (shouldPublish) {
           updatedRoom = applyCustomMissionToRoom(
@@ -278,9 +291,12 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
         return;
       }
 
-      const telemetry = normalizeDrLabMuRequest(req.body);
+      const telemetry = normalizeDrLabMuRequest(check.data.rawBody);
       if (!telemetry) {
-        res.status(400).json({ error: 'Invalid telemetry payload' });
+        res.status(400).json({
+          error: 'Invalid telemetry payload',
+          code: 'INVALID_PAYLOAD',
+        });
         return;
       }
 
@@ -340,8 +356,22 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
 
   router.post('/api/ai/dr-labmu', async (req, res) => {
     try {
-      const { message, telemetry } = req.body || {};
-      const activeQuery = (message || telemetry?.studentQuery || '').trim();
+      const check = validateConversationalDrLabMuPayload(req.body);
+      if (!check.ok) {
+        res.status(400).json({
+          error: check.error,
+          code: check.code,
+          details: check.details,
+        });
+        return;
+      }
+
+      const { message, telemetry } = check.data;
+      const telemetryQuery =
+        telemetry && typeof telemetry.studentQuery === 'string'
+          ? telemetry.studentQuery.trim()
+          : '';
+      const activeQuery = (message || telemetryQuery).trim();
 
       if (process.env.GEMINI_API_KEY && activeQuery) {
         try {
@@ -374,16 +404,19 @@ ${activeQuery.slice(0, 600)}
       }
 
       if (telemetry) {
-        const localStructured = generateSocraticDrLabMuResponse({
-          ...telemetry,
-          studentQuery: activeQuery,
-        });
-        res.json({
-          reply: localStructured.formattedText,
-          structured: localStructured,
-          source: 'local-socratic',
-        });
-        return;
+        const normalizedTelemetry = normalizeDrLabMuRequest({ telemetry });
+        if (normalizedTelemetry) {
+          const localStructured = generateSocraticDrLabMuResponse({
+            ...normalizedTelemetry,
+            studentQuery: activeQuery,
+          });
+          res.json({
+            reply: localStructured.formattedText,
+            structured: localStructured,
+            source: 'local-socratic',
+          });
+          return;
+        }
       }
 
       res.json({
@@ -400,19 +433,25 @@ ${activeQuery.slice(0, 600)}
 
   router.post('/api/ai/vision-diagnose', async (req, res) => {
     try {
-      const { image, telemetry, studentQuery } = req.body || {};
-      if (!image) {
+      const check = validateVisionDiagnosePayload(req.body);
+      if (!check.ok) {
         res.status(400).json({
-          error: 'Data gambar tangkapan layar 3D tidak ditemukan.',
+          error: check.error,
+          code: check.code,
+          details: check.details,
         });
         return;
       }
 
-      const activeQuery =
-        (studentQuery || '').trim() ||
-        'Periksa penataan alat laboratorium 3D saya dan berikan analisis saintifik.';
-      const domain = telemetry?.domain || 'Fisika';
-      const topic = telemetry?.topic || 'Laboratorium Sains 3D';
+      const { image, telemetry, studentQuery: activeQuery } = check.data;
+      const domain =
+        telemetry && typeof telemetry.domain === 'string' && telemetry.domain.trim()
+          ? telemetry.domain.trim()
+          : 'Fisika';
+      const topic =
+        telemetry && typeof telemetry.topic === 'string' && telemetry.topic.trim()
+          ? telemetry.topic.trim()
+          : 'Laboratorium Sains 3D';
 
       if (process.env.GEMINI_API_KEY) {
         try {

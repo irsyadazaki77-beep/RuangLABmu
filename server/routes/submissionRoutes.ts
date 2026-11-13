@@ -4,6 +4,10 @@ import path from 'path';
 import { rateLimit } from 'express-rate-limit';
 import { AsyncSubmissionStore } from '../../src/utils/submissionPersistence';
 import type { LabServerState, ServerNotification } from '../state/labServerState';
+import {
+  validateCreateSubmissionPayload,
+  validateGradeSubmissionPayload,
+} from '../utils/routePayloadValidators';
 
 export interface LabSubmissionRecord {
   id: string;
@@ -169,15 +173,17 @@ export async function createSubmissionRouter({
 
   router.post('/api/submissions', (req, res) => {
     try {
-      const payload = req.body;
-      if (!payload || !payload.studentName || !payload.moduleId) {
+      const check = validateCreateSubmissionPayload(req.body);
+      if (!check.ok) {
         res.status(400).json({
-          error:
-            'Data laporan praktikum tidak lengkap (studentName & moduleId required)',
+          error: check.error,
+          code: check.code,
+          details: check.details,
         });
         return;
       }
 
+      const payload = check.data;
       const id =
         payload.id ||
         `SUB-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
@@ -185,25 +191,17 @@ export async function createSubmissionRouter({
         id,
         studentName: payload.studentName,
         studentId: payload.studentId,
-        roomId: payload.roomId || 'LAB-ALPHA',
-        domain: payload.domain || 'Fisika',
+        roomId: payload.roomId,
+        domain: payload.domain,
         moduleId: payload.moduleId,
-        submittedAt: payload.submittedAt || new Date().toISOString(),
-        hypothesisText: payload.hypothesisText || '',
-        observationData: Array.isArray(payload.observationData)
-          ? payload.observationData
-          : [],
-        regressionMetrics: payload.regressionMetrics || {
-          rSquared: 0.98,
-          slope: 1.0,
-          equation: 'y = mx + c',
-        },
-        quizAnswers: Array.isArray(payload.quizAnswers) ? payload.quizAnswers : [],
-        quizScore: Number(payload.quizScore ?? 100),
-        conclusionText: payload.conclusionText || '',
-        telemetryLog: Array.isArray(payload.telemetryLog)
-          ? payload.telemetryLog
-          : undefined,
+        submittedAt: payload.submittedAt,
+        hypothesisText: payload.hypothesisText,
+        observationData: payload.observationData,
+        regressionMetrics: payload.regressionMetrics,
+        quizAnswers: payload.quizAnswers,
+        quizScore: payload.quizScore,
+        conclusionText: payload.conclusionText,
+        telemetryLog: payload.telemetryLog,
         teacherGrade: payload.teacherGrade,
       };
 
@@ -246,17 +244,17 @@ export async function createSubmissionRouter({
 
   router.patch('/api/submissions/:id/grade', (req, res) => {
     try {
-      const { id } = req.params;
-      const { score, feedback } = req.body || {};
-      const numScore = Number(score);
-
-      if (Number.isNaN(numScore) || numScore < 0 || numScore > 100) {
-        res
-          .status(400)
-          .json({ error: 'Nilai harus berupa angka antara 0 dan 100' });
+      const check = validateGradeSubmissionPayload(req.params.id, req.body);
+      if (!check.ok) {
+        res.status(400).json({
+          error: check.error,
+          code: check.code,
+          details: check.details,
+        });
         return;
       }
 
+      const { id, score, feedback } = check.data;
       const item = submissionsList.find((s) => s.id === id);
       if (!item) {
         res.status(404).json({ error: 'Laporan tidak ditemukan' });
@@ -264,8 +262,8 @@ export async function createSubmissionRouter({
       }
 
       item.teacherGrade = {
-        score: numScore,
-        feedback: String(feedback || '').trim(),
+        score,
+        feedback,
         gradedAt: new Date().toISOString(),
       };
       persistSubmissions();

@@ -122,30 +122,47 @@ export const GRAVITY_PRESETS = [
   { id: 'zero-g', name: 'Mikrogravitasi Orbit (g = 0.05 m/s²)', g: 0.05 },
 ];
 
+function finiteOr(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function safeRound(value: number, decimals: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Number(value.toFixed(decimals));
+}
+
 export function calculatePhysicsMetrics(params: PhysicsParams): PhysicsMetrics {
-  const m1 = Math.max(0.1, params.mass);
-  const g = Math.max(0, params.gravity);
-  const thetaRad = (params.inclineAngle * Math.PI) / 180;
-  const launchRad = (params.launchAngle * Math.PI) / 180;
+  const m1 = Math.max(finiteOr(params.mass, 1.0), 1e-6);
+  const g = Math.max(finiteOr(params.gravity, 9.81), 0);
+  const gSafe = Math.max(g, 1e-6);
+  const inclineAngle = finiteOr(params.inclineAngle, 0);
+  const launchAngle = finiteOr(params.launchAngle, 0);
+  const appliedForce = finiteOr(params.appliedForce, 0);
+  const frictionStatic = Math.max(finiteOr(params.frictionCoeffStatic, 0), 0);
+  const frictionKinetic = Math.max(finiteOr(params.frictionCoeffKinetic, 0), 0);
+  const initialVelocity = finiteOr(params.initialVelocity, 0);
+
+  const thetaRad = (inclineAngle * Math.PI) / 180;
+  const launchRad = (launchAngle * Math.PI) / 180;
 
   const weightForce = m1 * g;
   const normalForce = weightForce * Math.cos(thetaRad);
   const gravityParallel = weightForce * Math.sin(thetaRad);
 
-  const drivingForce = params.appliedForce - gravityParallel;
-  const maxStaticFriction = params.frictionCoeffStatic * normalForce;
-  const kineticFrictionMag = params.frictionCoeffKinetic * normalForce;
+  const drivingForce = appliedForce - gravityParallel;
+  const maxStaticFriction = frictionStatic * normalForce;
+  const kineticFrictionMag = frictionKinetic * normalForce;
 
   let frictionForce = 0;
   let netForce = 0;
   let isMoving = false;
 
-  if (Math.abs(drivingForce) > maxStaticFriction || Math.abs(params.initialVelocity) > 0.01) {
+  if (Math.abs(drivingForce) > maxStaticFriction || Math.abs(initialVelocity) > 0.01) {
     isMoving = true;
     const direction =
       Math.abs(drivingForce) > 0.001
         ? Math.sign(drivingForce)
-        : Math.sign(params.initialVelocity || 1);
+        : Math.sign(initialVelocity || 1);
     frictionForce = -direction * kineticFrictionMag;
     netForce = drivingForce + frictionForce;
   } else {
@@ -154,27 +171,29 @@ export function calculatePhysicsMetrics(params: PhysicsParams): PhysicsMetrics {
     netForce = 0;
   }
 
-  const acceleration = netForce / m1;
+  const acceleration = netForce / Math.max(m1, 1e-6);
 
   // Universal Gravitation
   const G_CONST = 6.6743e-11;
-  const r = Math.max(0.5, params.separationDistance);
-  const universalGravityForce = ((G_CONST * m1 * params.secondaryMass) / (r * r)) * 1e6; // µN
+  const r = Math.max(finiteOr(params.separationDistance, 1.0), 1e-6);
+  const secondaryMass = Math.max(finiteOr(params.secondaryMass, 0), 0);
+  const universalGravityForce =
+    ((G_CONST * m1 * secondaryMass) / Math.max(r * r, 1e-6)) * 1e6; // µN
 
   // Projectile Kinematics
-  const v0 = Math.max(0, params.initialVelocity);
+  const v0 = Math.max(0, initialVelocity);
   const v0y = v0 * Math.sin(launchRad);
   const v0x = v0 * Math.cos(launchRad);
-  const h0 = Math.max(0, params.initialHeight);
+  const h0 = Math.max(0, finiteOr(params.initialHeight, 0));
 
   let maxProjectileHeight = h0;
   let timeOfFlight = 0;
   let projectileRange = 0;
 
   if (g > 0.001) {
-    maxProjectileHeight = h0 + (v0y * v0y) / (2 * g);
-    const discriminant = v0y * v0y + 2 * g * h0;
-    timeOfFlight = (v0y + Math.sqrt(Math.max(0, discriminant))) / g;
+    maxProjectileHeight = h0 + (v0y * v0y) / Math.max(2 * gSafe, 1e-6);
+    const discriminant = Math.max(0, v0y * v0y + 2 * gSafe * h0);
+    timeOfFlight = (v0y + Math.sqrt(discriminant)) / gSafe;
     projectileRange = v0x * timeOfFlight;
   } else {
     timeOfFlight = 10;
@@ -182,17 +201,18 @@ export function calculatePhysicsMetrics(params: PhysicsParams): PhysicsMetrics {
     projectileRange = v0x * 10;
   }
 
-  const escapeVelocitySurface = Math.sqrt(2 * g * 6.371e6) / 1000;
+  const escapeVelocitySurface = Math.sqrt(Math.max(0, 2 * g * 6.371e6)) / 1000;
 
   // 1D Collision & Momentum Conservation Calculations
-  const m2 = Math.max(0.1, params.collisionMass2 || 3.0);
-  const u1 = params.initialVelocity;
-  const u2 = params.velocity2Initial ?? -2.0;
-  const e = Math.max(0, Math.min(1, params.restitutionCoeff ?? 1.0));
+  const m2 = Math.max(finiteOr(params.collisionMass2, 3.0), 1e-6);
+  const totalCollisionMass = Math.max(m1 + m2, 1e-6);
+  const u1 = initialVelocity;
+  const u2 = finiteOr(params.velocity2Initial, -2.0);
+  const e = Math.max(0, Math.min(1, finiteOr(params.restitutionCoeff, 1.0)));
 
   const initialTotalMomentum = m1 * u1 + m2 * u2;
-  const v1Final = (m1 * u1 + m2 * u2 + m2 * e * (u2 - u1)) / (m1 + m2);
-  const v2Final = (m1 * u1 + m2 * u2 + m1 * e * (u1 - u2)) / (m1 + m2);
+  const v1Final = (m1 * u1 + m2 * u2 + m2 * e * (u2 - u1)) / totalCollisionMass;
+  const v2Final = (m1 * u1 + m2 * u2 + m1 * e * (u1 - u2)) / totalCollisionMass;
   const finalTotalMomentum = m1 * v1Final + m2 * v2Final;
 
   const kineticEnergyInitial = 0.5 * m1 * u1 * u1 + 0.5 * m2 * u2 * u2;
@@ -202,115 +222,127 @@ export function calculatePhysicsMetrics(params: PhysicsParams): PhysicsMetrics {
     kineticEnergyInitial > 0.0001
       ? Math.max(
           0,
-          ((kineticEnergyInitial - kineticEnergyFinal) / kineticEnergyInitial) * 100
+          ((kineticEnergyInitial - kineticEnergyFinal) /
+            Math.max(kineticEnergyInitial, 1e-6)) *
+            100
         )
       : 0;
 
   // Spring Hooke Oscillation Calculations
-  const k = Math.max(5, params.springConstantK || 120);
-  const xDisp = params.springDisplacement ?? 0.8;
+  const k = Math.max(finiteOr(params.springConstantK, 120), 1e-6);
+  const xDisp = finiteOr(params.springDisplacement, 0.8);
   const springRestoringForce = -k * xDisp;
   const springPotentialEnergy = 0.5 * k * xDisp * xDisp;
-  const angularFrequency = Math.sqrt(k / m1);
-  const oscillationPeriod = (2 * Math.PI) / angularFrequency;
+  const angularFrequency = Math.max(Math.sqrt(Math.max(k / Math.max(m1, 1e-6), 1e-6)), 1e-6);
+  const oscillationPeriod = (2 * Math.PI) / Math.max(angularFrequency, 1e-6);
 
   // Advanced physics calculations
-  const pLength = Math.max(0.1, params.pendulumLength ?? 1.0);
-  const pendulumPeriod = 2 * Math.PI * Math.sqrt(pLength / Math.max(0.01, g));
-  const pendulumFrequency = 1 / pendulumPeriod;
+  const pLength = Math.max(finiteOr(params.pendulumLength, 1.0), 1e-6);
+  const pendulumPeriod = Math.max(
+    2 * Math.PI * Math.sqrt(Math.max(pLength / gSafe, 1e-6)),
+    1e-6
+  );
+  const pendulumFrequency = 1 / Math.max(pendulumPeriod, 1e-6);
 
-  const rStokesM = Math.max(0.001, (params.sphereRadiusMm ?? params.sphereRadius ?? 5) / 1000);
-  const etaStokes = Math.max(0.01, params.fluidViscosityPaS ?? params.fluidViscosity ?? 0.8);
-  const rhoSphere = params.sphereDensityKgM3 ?? params.sphereDensity ?? 7800;
-  const rhoFluid = params.fluidDensityKgM3 ?? params.fluidDensity ?? 1260;
+  const rStokesM =
+    Math.max(finiteOr(params.sphereRadiusMm ?? params.sphereRadius, 5), 1e-6) / 1000;
+  const etaStokes = Math.max(
+    finiteOr(params.fluidViscosityPaS ?? params.fluidViscosity, 0.8),
+    1e-6
+  );
+  const rhoSphere = finiteOr(params.sphereDensityKgM3 ?? params.sphereDensity, 7800);
+  const rhoFluid = finiteOr(params.fluidDensityKgM3 ?? params.fluidDensity, 1260);
   const stokesTerminalVelocity = Math.max(
     0,
-    (2 * rStokesM * rStokesM * (rhoSphere - rhoFluid) * g) / (9 * etaStokes)
+    (2 * rStokesM * rStokesM * (rhoSphere - rhoFluid) * g) /
+      Math.max(9 * etaStokes, 1e-6)
   );
   const stokesDragForce = 6 * Math.PI * etaStokes * rStokesM * stokesTerminalVelocity;
 
-  const vCircuit = params.circuitVoltageV ?? params.circuitVoltage ?? 12;
-  const r1 = Math.max(1, params.bridgeR1 ?? params.resistorR1 ?? 100);
-  const r2 = Math.max(1, params.bridgeR2 ?? params.resistorR2 ?? 200);
-  const r3 = Math.max(1, params.bridgeR3 ?? params.resistorR3 ?? 150);
-  const rx = Math.max(1, params.bridgeRx ?? params.resistorRx ?? 300);
-  const rTop = r1 + r2;
-  const rBot = r3 + rx;
-  const rEq = (rTop * rBot) / (rTop + rBot);
+  const vCircuit = finiteOr(params.circuitVoltageV ?? params.circuitVoltage, 12);
+  const r1 = Math.max(finiteOr(params.bridgeR1 ?? params.resistorR1, 100), 1e-6);
+  const r2 = Math.max(finiteOr(params.bridgeR2 ?? params.resistorR2, 200), 1e-6);
+  const r3 = Math.max(finiteOr(params.bridgeR3 ?? params.resistorR3, 150), 1e-6);
+  const rx = Math.max(finiteOr(params.bridgeRx ?? params.resistorRx, 300), 1e-6);
+  const rTop = Math.max(r1 + r2, 1e-6);
+  const rBot = Math.max(r3 + rx, 1e-6);
+  const rEq = Math.max((rTop * rBot) / Math.max(rTop + rBot, 1e-6), 1e-6);
   const circuitCurrent = vCircuit / rEq;
   const vA = vCircuit * (r2 / rTop);
   const vB = vCircuit * (rx / rBot);
   const galvanometerCurrent = (Math.abs(vA - vB) / 50) * 1000;
   const bridgeBalanced = Math.abs(r1 * rx - r2 * r3) < 0.5;
 
-  const slitDistM = Math.max(1e-5, (params.slitDistance ?? 0.25) / 1000);
-  const screenDistM = Math.max(0.1, params.screenDistance ?? 1.5);
-  const lambdaM = Math.max(380, params.lightWavelength ?? 532) * 1e-9;
-  const fringeSpacingMm = ((lambdaM * screenDistM) / slitDistM) * 1000;
+  const slitDistMm = Math.max(finiteOr(params.slitDistance, 0.25), 1e-6);
+  const screenDistM = Math.max(finiteOr(params.screenDistance, 1.5), 1e-6);
+  const lambdaNm = Math.max(finiteOr(params.lightWavelength, 532), 1e-6);
+  const fringeSpacingMm = (lambdaNm * 1e-6 * screenDistM * 1000) / slitDistMm;
 
   const hPlanckEv = 4.135667696e-15;
-  const fPhotonHz = (params.photonFrequency ?? 7.5) * 1e14;
+  const fPhotonHz = Math.max(finiteOr(params.photonFrequency, 7.5), 0) * 1e14;
   const ePhotonEv = hPlanckEv * fPhotonHz;
-  const workFuncEv = params.targetMetalWorkFunction ?? 2.28;
+  const workFuncEv = Math.max(finiteOr(params.targetMetalWorkFunction, 2.28), 0);
   const photoelectricMaxKe = Math.max(0, ePhotonEv - workFuncEv);
   const photoelectricStoppingVoltage = photoelectricMaxKe;
   const photoelectricEmitted = ePhotonEv > workFuncEv;
 
   return {
-    weightForce: Number(weightForce.toFixed(3)),
-    normalForce: Number(normalForce.toFixed(3)),
-    gravityParallel: Number(gravityParallel.toFixed(3)),
-    maxStaticFriction: Number(maxStaticFriction.toFixed(3)),
-    frictionForce: Number(frictionForce.toFixed(3)),
-    netForce: Number(netForce.toFixed(3)),
-    acceleration: Number(acceleration.toFixed(3)),
+    weightForce: safeRound(weightForce, 3),
+    normalForce: safeRound(normalForce, 3),
+    gravityParallel: safeRound(gravityParallel, 3),
+    maxStaticFriction: safeRound(maxStaticFriction, 3),
+    frictionForce: safeRound(frictionForce, 3),
+    netForce: safeRound(netForce, 3),
+    acceleration: safeRound(acceleration, 3),
     isMoving,
-    universalGravityForce: Number(universalGravityForce.toFixed(4)),
-    escapeVelocitySurface: Number(escapeVelocitySurface.toFixed(2)),
-    maxProjectileHeight: Number(maxProjectileHeight.toFixed(2)),
-    projectileRange: Number(projectileRange.toFixed(2)),
-    timeOfFlight: Number(timeOfFlight.toFixed(2)),
-    initialTotalMomentum: Number(initialTotalMomentum.toFixed(2)),
-    finalTotalMomentum: Number(finalTotalMomentum.toFixed(2)),
-    v1Final: Number(v1Final.toFixed(2)),
-    v2Final: Number(v2Final.toFixed(2)),
-    kineticEnergyInitial: Number(kineticEnergyInitial.toFixed(2)),
-    kineticEnergyFinal: Number(kineticEnergyFinal.toFixed(2)),
-    energyLossPct: Number(energyLossPct.toFixed(1)),
-    springRestoringForce: Number(springRestoringForce.toFixed(2)),
-    springPotentialEnergy: Number(springPotentialEnergy.toFixed(2)),
-    oscillationPeriod: Number(oscillationPeriod.toFixed(2)),
-    angularFrequency: Number(angularFrequency.toFixed(2)),
-    pendulumPeriod: Number(pendulumPeriod.toFixed(2)),
-    pendulumFrequency: Number(pendulumFrequency.toFixed(2)),
-    stokesTerminalVelocity: Number(stokesTerminalVelocity.toFixed(3)),
-    stokesDragForce: Number(stokesDragForce.toFixed(4)),
-    circuitCurrent: Number(circuitCurrent.toFixed(3)),
-    galvanometerCurrent: Number(galvanometerCurrent.toFixed(2)),
+    universalGravityForce: safeRound(universalGravityForce, 4),
+    escapeVelocitySurface: safeRound(escapeVelocitySurface, 2),
+    maxProjectileHeight: safeRound(maxProjectileHeight, 2),
+    projectileRange: safeRound(projectileRange, 2),
+    timeOfFlight: safeRound(timeOfFlight, 2),
+    initialTotalMomentum: safeRound(initialTotalMomentum, 2),
+    finalTotalMomentum: safeRound(finalTotalMomentum, 2),
+    v1Final: safeRound(v1Final, 2),
+    v2Final: safeRound(v2Final, 2),
+    kineticEnergyInitial: safeRound(kineticEnergyInitial, 2),
+    kineticEnergyFinal: safeRound(kineticEnergyFinal, 2),
+    energyLossPct: safeRound(energyLossPct, 1),
+    springRestoringForce: safeRound(springRestoringForce, 2),
+    springPotentialEnergy: safeRound(springPotentialEnergy, 2),
+    oscillationPeriod: safeRound(oscillationPeriod, 2),
+    angularFrequency: safeRound(angularFrequency, 2),
+    pendulumPeriod: safeRound(pendulumPeriod, 2),
+    pendulumFrequency: safeRound(pendulumFrequency, 2),
+    stokesTerminalVelocity: safeRound(stokesTerminalVelocity, 3),
+    stokesDragForce: safeRound(stokesDragForce, 4),
+    circuitCurrent: safeRound(circuitCurrent, 3),
+    galvanometerCurrent: safeRound(galvanometerCurrent, 2),
     bridgeBalanced,
-    fringeSpacingMm: Number(fringeSpacingMm.toFixed(2)),
-    photoelectricMaxKe: Number(photoelectricMaxKe.toFixed(2)),
-    photoelectricStoppingVoltage: Number(photoelectricStoppingVoltage.toFixed(2)),
+    fringeSpacingMm: safeRound(fringeSpacingMm, 2),
+    photoelectricMaxKe: safeRound(photoelectricMaxKe, 2),
+    photoelectricStoppingVoltage: safeRound(photoelectricStoppingVoltage, 2),
     photoelectricEmitted,
   };
 }
 
 export function evaluateKinematicsAtTime(params: PhysicsParams, t: number): KinematicsInstant {
   const metrics = calculatePhysicsMetrics(params);
-  const time = Math.max(0, t);
-  const m = Math.max(0.1, params.mass);
-  const g = Math.max(0, params.gravity);
+  const time = Math.max(0, finiteOr(t, 0));
+  const m = Math.max(finiteOr(params.mass, 1.0), 1e-6);
+  const g = Math.max(0, finiteOr(params.gravity, 9.81));
+  const initialVelocity = finiteOr(params.initialVelocity, 0);
+  const initialHeight = finiteOr(params.initialHeight, 0);
 
   if (params.mode === 'projectile-gravity') {
-    const launchRad = (params.launchAngle * Math.PI) / 180;
-    const v0x = params.initialVelocity * Math.cos(launchRad);
-    const v0y = params.initialVelocity * Math.sin(launchRad);
+    const launchRad = (finiteOr(params.launchAngle, 0) * Math.PI) / 180;
+    const v0x = initialVelocity * Math.cos(launchRad);
+    const v0y = initialVelocity * Math.sin(launchRad);
     const effectiveTime = g > 0.001 ? Math.min(time, metrics.timeOfFlight) : time;
 
     const posX = v0x * effectiveTime;
     const posY = Math.max(
       0,
-      params.initialHeight +
+      initialHeight +
         v0y * effectiveTime -
         0.5 * g * effectiveTime * effectiveTime
     );
@@ -320,32 +352,32 @@ export function evaluateKinematicsAtTime(params: PhysicsParams, t: number): Kine
       posY <= 0 && effectiveTime >= metrics.timeOfFlight && g > 0.001
         ? 0
         : v0y - g * effectiveTime;
-    const speed = Math.sqrt(velX * velX + velY * velY);
+    const speed = Math.sqrt(Math.max(0, velX * velX + velY * velY));
     const ke = 0.5 * m * speed * speed;
     const pe = m * g * posY;
 
     return {
-      time: Number(effectiveTime.toFixed(2)),
-      positionX: Number(posX.toFixed(2)),
-      positionY: Number(posY.toFixed(2)),
-      velocityX: Number(velX.toFixed(2)),
-      velocityY: Number(velY.toFixed(2)),
-      speed: Number(speed.toFixed(2)),
-      acceleration: Number((-g).toFixed(2)),
-      kineticEnergy: Number(ke.toFixed(2)),
-      potentialEnergy: Number(pe.toFixed(2)),
-      totalMechanicalEnergy: Number((ke + pe).toFixed(2)),
-      momentum: Number((m * speed).toFixed(2)),
+      time: safeRound(effectiveTime, 2),
+      positionX: safeRound(posX, 2),
+      positionY: safeRound(posY, 2),
+      velocityX: safeRound(velX, 2),
+      velocityY: safeRound(velY, 2),
+      speed: safeRound(speed, 2),
+      acceleration: safeRound(-g, 2),
+      kineticEnergy: safeRound(ke, 2),
+      potentialEnergy: safeRound(pe, 2),
+      totalMechanicalEnergy: safeRound(ke + pe, 2),
+      momentum: safeRound(m * speed, 2),
     };
   }
 
   if (params.mode === 'spring-hooke') {
-    const k = Math.max(5, params.springConstantK || 120);
-    const A = params.springDisplacement ?? 0.8;
-    const b = Math.max(0, params.dampingCoeff ?? 0.15);
-    const gamma = b / (2 * m);
-    const omega0 = Math.sqrt(k / m);
-    const omegaD = Math.sqrt(Math.max(0.01, omega0 * omega0 - gamma * gamma));
+    const k = Math.max(finiteOr(params.springConstantK, 120), 1e-6);
+    const A = finiteOr(params.springDisplacement, 0.8);
+    const b = Math.max(0, finiteOr(params.dampingCoeff, 0.15));
+    const gamma = b / Math.max(2 * m, 1e-6);
+    const omega0 = Math.sqrt(Math.max(k / m, 1e-6));
+    const omegaD = Math.sqrt(Math.max(1e-6, omega0 * omega0 - gamma * gamma));
     const envelope = Math.exp(-gamma * time);
     const posX = A * envelope * Math.cos(omegaD * time);
     const velX = -A * envelope * (gamma * Math.cos(omegaD * time) + omegaD * Math.sin(omegaD * time));
@@ -354,36 +386,36 @@ export function evaluateKinematicsAtTime(params: PhysicsParams, t: number): Kine
     const pe = 0.5 * k * posX * posX;
 
     return {
-      time: Number(time.toFixed(2)),
-      positionX: Number(posX.toFixed(2)),
+      time: safeRound(time, 2),
+      positionX: safeRound(posX, 2),
       positionY: 0,
-      velocityX: Number(velX.toFixed(2)),
+      velocityX: safeRound(velX, 2),
       velocityY: 0,
-      speed: Number(Math.abs(velX).toFixed(2)),
-      acceleration: Number(accX.toFixed(2)),
-      kineticEnergy: Number(ke.toFixed(2)),
-      potentialEnergy: Number(pe.toFixed(2)),
-      totalMechanicalEnergy: Number((ke + pe).toFixed(2)),
-      momentum: Number((m * Math.abs(velX)).toFixed(2)),
+      speed: safeRound(Math.abs(velX), 2),
+      acceleration: safeRound(accX, 2),
+      kineticEnergy: safeRound(ke, 2),
+      potentialEnergy: safeRound(pe, 2),
+      totalMechanicalEnergy: safeRound(ke + pe, 2),
+      momentum: safeRound(m * Math.abs(velX), 2),
     };
   }
 
   if (params.mode === 'collision-momentum') {
     const collisionTime = 1.5;
     const isAfterImpact = time >= collisionTime;
-    const vCurrent = isAfterImpact ? metrics.v1Final : params.initialVelocity;
+    const vCurrent = isAfterImpact ? metrics.v1Final : initialVelocity;
     const posX = isAfterImpact
-      ? params.initialVelocity * collisionTime +
-        metrics.v1Final * (time - collisionTime)
-      : params.initialVelocity * time;
+      ? initialVelocity * collisionTime +
+        metrics.v1Final * Math.max(time - collisionTime, 1e-6)
+      : initialVelocity * time;
 
     return {
-      time: Number(time.toFixed(2)),
-      positionX: Number(posX.toFixed(2)),
+      time: safeRound(time, 2),
+      positionX: safeRound(posX, 2),
       positionY: 0,
-      velocityX: Number(vCurrent.toFixed(2)),
+      velocityX: safeRound(vCurrent, 2),
       velocityY: 0,
-      speed: Number(Math.abs(vCurrent).toFixed(2)),
+      speed: safeRound(Math.abs(vCurrent), 2),
       acceleration: 0,
       kineticEnergy: isAfterImpact
         ? metrics.kineticEnergyFinal
@@ -397,9 +429,9 @@ export function evaluateKinematicsAtTime(params: PhysicsParams, t: number): Kine
   }
 
   if (params.mode === 'pendulum-harmonic') {
-    const L = Math.max(0.1, params.pendulumLength ?? 1.0);
-    const theta0Rad = ((params.pendulumAngle ?? 25) * Math.PI) / 180;
-    const omega = Math.sqrt(g / L);
+    const L = Math.max(finiteOr(params.pendulumLength, 1.0), 1e-6);
+    const theta0Rad = (finiteOr(params.pendulumAngle, 25) * Math.PI) / 180;
+    const omega = Math.sqrt(Math.max(g, 0) / Math.max(L, 1e-6));
     const thetaT = theta0Rad * Math.cos(omega * time) * Math.exp(-0.02 * time);
     const angVel = -theta0Rad * omega * Math.sin(omega * time) * Math.exp(-0.02 * time);
     const posX = L * Math.sin(thetaT);
@@ -408,44 +440,45 @@ export function evaluateKinematicsAtTime(params: PhysicsParams, t: number): Kine
     const ke = 0.5 * m * speed * speed;
     const pe = m * g * (posY + L);
     return {
-      time: Number(time.toFixed(2)),
-      positionX: Number(posX.toFixed(3)),
-      positionY: Number(posY.toFixed(3)),
-      velocityX: Number((speed * Math.cos(thetaT)).toFixed(3)),
-      velocityY: Number((speed * Math.sin(thetaT)).toFixed(3)),
-      speed: Number(speed.toFixed(3)),
-      acceleration: Number((L * angVel * angVel).toFixed(2)),
-      kineticEnergy: Number(ke.toFixed(2)),
-      potentialEnergy: Number(pe.toFixed(2)),
-      totalMechanicalEnergy: Number((ke + pe).toFixed(2)),
-      momentum: Number((m * speed).toFixed(2)),
-      pendulumAngleRad: thetaT,
-      pendulumAngularVelocity: angVel,
+      time: safeRound(time, 2),
+      positionX: safeRound(posX, 3),
+      positionY: safeRound(posY, 3),
+      velocityX: safeRound(speed * Math.cos(thetaT), 3),
+      velocityY: safeRound(speed * Math.sin(thetaT), 3),
+      speed: safeRound(speed, 3),
+      acceleration: safeRound(L * angVel * angVel, 2),
+      kineticEnergy: safeRound(ke, 2),
+      potentialEnergy: safeRound(pe, 2),
+      totalMechanicalEnergy: safeRound(ke + pe, 2),
+      momentum: safeRound(m * speed, 2),
+      pendulumAngleRad: safeRound(thetaT, 6),
+      pendulumAngularVelocity: safeRound(angVel, 6),
     };
   }
 
   const a = metrics.acceleration;
-  const v0 = params.initialVelocity;
+  const v0 = initialVelocity;
   const s = v0 * time + 0.5 * a * time * time;
   const v = v0 + a * time;
-  const thetaRad = (params.inclineAngle * Math.PI) / 180;
+  const thetaRad = (finiteOr(params.inclineAngle, 0) * Math.PI) / 180;
   const posX = s * Math.cos(thetaRad);
-  const posY = Math.max(0, params.initialHeight + s * Math.sin(thetaRad));
+  const posY = Math.max(0, initialHeight + s * Math.sin(thetaRad));
   const speed = Math.abs(v);
   const ke = 0.5 * m * speed * speed;
   const pe = m * g * posY;
 
   return {
-    time: Number(time.toFixed(2)),
-    positionX: Number(posX.toFixed(2)),
-    positionY: Number(posY.toFixed(2)),
-    velocityX: Number((v * Math.cos(thetaRad)).toFixed(2)),
-    velocityY: Number((v * Math.sin(thetaRad)).toFixed(2)),
-    speed: Number(speed.toFixed(2)),
-    acceleration: Number(a.toFixed(2)),
-    kineticEnergy: Number(ke.toFixed(2)),
-    potentialEnergy: Number(pe.toFixed(2)),
-    totalMechanicalEnergy: Number((ke + pe).toFixed(2)),
-    momentum: Number((m * speed).toFixed(2)),
+    time: safeRound(time, 2),
+    positionX: safeRound(posX, 2),
+    positionY: safeRound(posY, 2),
+    velocityX: safeRound(v * Math.cos(thetaRad), 2),
+    velocityY: safeRound(v * Math.sin(thetaRad), 2),
+    speed: safeRound(speed, 2),
+    acceleration: safeRound(a, 2),
+    kineticEnergy: safeRound(ke, 2),
+    potentialEnergy: safeRound(pe, 2),
+    totalMechanicalEnergy: safeRound(ke + pe, 2),
+    momentum: safeRound(m * speed, 2),
   };
 }
+

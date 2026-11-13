@@ -437,6 +437,177 @@ export function createGraduationScaleTexture(
 }
 
 /**
+ * Generates a sharp transparent graduated scale texture (mL for burette/beaker, cm for physics track/ruler).
+ */
+export function createGraduatedScaleTexture(
+  maxVal: number,
+  unit: string,
+  steps = 20,
+  options?: {
+    invertTopToBottom?: boolean;
+    strokeColor?: string;
+    width?: number;
+    height?: number;
+  }
+): THREE.CanvasTexture | null {
+  const safeMax = Math.max(1, Number.isFinite(maxVal) ? maxVal : 50);
+  const safeSteps = Math.max(2, Math.round(Number.isFinite(steps) ? steps : 20));
+  const minorStep = safeMax / safeSteps;
+  const majorInterval = Math.max(1, Math.round(safeSteps / 5));
+  const majorStep = minorStep * majorInterval;
+
+  return createGraduationScaleTexture({
+    maxValue: safeMax,
+    majorStep,
+    minorStep,
+    unit,
+    invertTopToBottom: options?.invertTopToBottom ?? false,
+    strokeColor: options?.strokeColor ?? 'rgba(226, 240, 255, 0.94)',
+    width: options?.width ?? 256,
+    height: options?.height ?? 512,
+  });
+}
+
+export type BiologicalMembraneTexture = THREE.CanvasTexture & {
+  bumpMap?: THREE.CanvasTexture;
+};
+
+/**
+ * Generates an organic cellular/cristae procedural CanvasTexture (+ companion bumpMap)
+ * for mitochondria, chloroplasts, nuclei, and biological tissues so they never look like flat plastic capsules.
+ */
+export function createBiologicalMembraneTexture(
+  baseColor: string | number,
+  accentColor: string | number
+): BiologicalMembraneTexture | null {
+  if (typeof document === 'undefined') return null;
+  const size = 256;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = size;
+  bumpCanvas.height = size;
+  const bCtx = bumpCanvas.getContext('2d');
+
+  if (!ctx || !bCtx) return null;
+
+  const base = new THREE.Color(baseColor);
+  const accent = new THREE.Color(accentColor);
+  const darkBase = base.clone().multiplyScalar(0.58);
+
+  const grad = ctx.createRadialGradient(size * 0.45, size * 0.45, 18, size * 0.5, size * 0.5, size * 0.72);
+  grad.addColorStop(0, accent.clone().lerp(base, 0.35).getStyle());
+  grad.addColorStop(0.55, base.getStyle());
+  grad.addColorStop(1, darkBase.getStyle());
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  bCtx.fillStyle = 'rgb(124,124,124)';
+  bCtx.fillRect(0, 0, size, size);
+
+  // Undulating cristae / endomembrane folds
+  for (let y = 14; y < size - 10; y += 20) {
+    const phase = seededNoise(y, 3, 19) * Math.PI * 2;
+    const foldColor = accent.clone().lerp(new THREE.Color('#ffffff'), 0.22);
+    ctx.strokeStyle = `rgba(${Math.round(foldColor.r * 255)},${Math.round(foldColor.g * 255)},${Math.round(foldColor.b * 255)},0.48)`;
+    ctx.lineWidth = 4.5;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(
+      size * 0.3,
+      y + Math.sin(phase) * 14,
+      size * 0.7,
+      y - Math.cos(phase) * 14,
+      size,
+      y
+    );
+    ctx.stroke();
+
+    bCtx.strokeStyle = 'rgb(196,196,196)';
+    bCtx.lineWidth = 5;
+    bCtx.beginPath();
+    bCtx.moveTo(0, y);
+    bCtx.bezierCurveTo(
+      size * 0.3,
+      y + Math.sin(phase) * 14,
+      size * 0.7,
+      y - Math.cos(phase) * 14,
+      size,
+      y
+    );
+    bCtx.stroke();
+  }
+
+  // Cellular vesicles, thylakoid grana & membrane pores
+  for (let i = 0; i < 48; i += 1) {
+    const cx = seededNoise(i, 7, 13) * size;
+    const cy = seededNoise(i, 11, 29) * size;
+    const rx = 5 + seededNoise(i, 5, 37) * 14;
+    const ry = 4 + seededNoise(i, 9, 43) * 10;
+    const rot = seededNoise(i, 15, 53) * Math.PI;
+
+    const cellTint = i % 2 === 0 ? accent : darkBase;
+    ctx.strokeStyle = `rgba(${Math.round(cellTint.r * 255)},${Math.round(cellTint.g * 255)},${Math.round(cellTint.b * 255)},0.42)`;
+    ctx.fillStyle = `rgba(${Math.round(accent.r * 255)},${Math.round(accent.g * 255)},${Math.round(accent.b * 255)},0.18)`;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, rot, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    bCtx.fillStyle = i % 2 === 0 ? 'rgb(168,168,168)' : 'rgb(96,96,96)';
+    bCtx.beginPath();
+    bCtx.ellipse(cx, cy, rx * 0.85, ry * 0.85, rot, 0, Math.PI * 2);
+    bCtx.fill();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas) as BiologicalMembraneTexture;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+
+  const bumpTex = new THREE.CanvasTexture(bumpCanvas);
+  bumpTex.wrapS = THREE.RepeatWrapping;
+  bumpTex.wrapT = THREE.RepeatWrapping;
+  bumpTex.colorSpace = THREE.NoColorSpace;
+  bumpTex.needsUpdate = true;
+  tex.bumpMap = bumpTex;
+
+  return tex;
+}
+
+/**
+ * Smoothly interpolates camera position and OrbitControls target using Vector3.lerp.
+ * Returns true while transition is still in progress, or false once settled at the target.
+ */
+export function smoothCameraTransition(
+  camera: { position: THREE.Vector3 },
+  controls: { target: THREE.Vector3; update?: () => void },
+  targetPos: THREE.Vector3,
+  targetLookAt: THREE.Vector3,
+  alpha = 0.12
+): boolean {
+  const safeAlpha = Math.min(1, Math.max(0.01, Number.isFinite(alpha) ? alpha : 0.12));
+  camera.position.lerp(targetPos, safeAlpha);
+  controls.target.lerp(targetLookAt, safeAlpha);
+
+  const posDistSq = camera.position.distanceToSquared(targetPos);
+  const targetDistSq = controls.target.distanceToSquared(targetLookAt);
+  if (posDistSq < 0.0025 && targetDistSq < 0.0025) {
+    camera.position.copy(targetPos);
+    controls.target.copy(targetLookAt);
+    return false;
+  }
+  return true;
+}
+
+/**
  * Generates procedural banded/cloudy/cratered planet surface textures so celestial spheres have organic detail.
  */
 export function createPlanetSurfaceTexture(options: {

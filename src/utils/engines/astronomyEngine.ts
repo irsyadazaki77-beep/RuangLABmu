@@ -214,49 +214,71 @@ export const SOLAR_PLANET_PRESETS: SolarPlanetPreset[] = [
   },
 ];
 
+function finiteAstroOr(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function safeAstroRound(value: number, decimals: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Number(value.toFixed(decimals));
+}
+
 export function calculateAstronomyMetrics(
   params: AstronomyParams
 ): AstronomyMetrics {
   // 1. Solar System & Kepler Orbit Calculations
-  const a = Math.max(0.1, params.customSemiMajorAxisAu || 1.0);
-  const e = Math.max(0, Math.min(0.95, params.customEccentricity ?? 0.017));
-  const mStar = Math.max(0.1, params.centralStarMassSolar || 1.0);
+  const a = Math.max(finiteAstroOr(params.customSemiMajorAxisAu, 1.0), 1e-6);
+  const e = Math.max(0, Math.min(0.95, finiteAstroOr(params.customEccentricity, 0.017)));
+  const mStar = Math.max(finiteAstroOr(params.centralStarMassSolar, 1.0), 1e-6);
 
-  const orbitalPeriodYears = Math.sqrt((a * a * a) / mStar);
+  const aCubed = Math.max(a * a * a, 1e-6);
+  const orbitalPeriodYears = Math.sqrt(Math.max(aCubed / mStar, 1e-6));
   const perihelionAu = a * (1 - e);
   const aphelionAu = a * (1 + e);
 
   // Earth mean orbital velocity is 29.78 km/s at a = 1 AU, M = 1 M_sun
-  const meanOrbitalVelocityKms = 29.78 * Math.sqrt(mStar / a);
+  const meanOrbitalVelocityKms = 29.78 * Math.sqrt(Math.max(mStar / a, 1e-6));
+  const oneMinusE = Math.max(1 - e, 1e-6);
+  const onePlusE = Math.max(1 + e, 1e-6);
   const perihelionVelocityKms =
-    meanOrbitalVelocityKms * Math.sqrt((1 + e) / Math.max(0.02, 1 - e));
+    meanOrbitalVelocityKms * Math.sqrt(Math.max(onePlusE / oneMinusE, 1e-6));
   const aphelionVelocityKms =
-    meanOrbitalVelocityKms * Math.sqrt(Math.max(0.02, 1 - e) / (1 + e));
+    meanOrbitalVelocityKms * Math.sqrt(Math.max(oneMinusE / onePlusE, 1e-6));
   const keplerRatioT2OverA3 =
-    (orbitalPeriodYears * orbitalPeriodYears) / (a * a * a);
+    (orbitalPeriodYears * orbitalPeriodYears) / aCubed;
 
   // 2. Milky Way Galaxy Rotation Curve & Sgr A* Calculations
-  const rKpc = Math.max(0.3, params.galactocentricRadiusKpc || 8.2);
-  const bulgeDiskFactor = Math.max(0.2, params.bulgeDiskMassFactor || 1.0);
-  const dmFraction = Math.max(0, params.darkMatterHaloFraction ?? 1.0);
-  const sgrAMassMillion = Math.max(1.0, params.sgrAStarMassMillionSolar || 4.15);
+  const rKpc = Math.max(finiteAstroOr(params.galactocentricRadiusKpc, 8.2), 1e-6);
+  const bulgeDiskFactor = Math.max(finiteAstroOr(params.bulgeDiskMassFactor, 1.0), 1e-6);
+  const dmFraction = Math.max(0, finiteAstroOr(params.darkMatterHaloFraction, 1.0));
+  const sgrAMassMillion = Math.max(finiteAstroOr(params.sgrAStarMassMillionSolar, 4.15), 1e-6);
 
   // Luminous bulge + disk mass profile (rises up to ~3.5 kpc then falls as r^-1/2)
   const bulgeRadiusScale = 2.2;
+  const bulgeDenom = Math.max(
+    Math.pow(rKpc * rKpc + bulgeRadiusScale * bulgeRadiusScale, 0.75),
+    1e-6
+  );
   const luminousVelocitySq =
     bulgeDiskFactor *
-    ((235 * 235 * rKpc) / Math.pow(rKpc * rKpc + bulgeRadiusScale * bulgeRadiusScale, 0.75)) *
+    ((235 * 235 * rKpc) / bulgeDenom) *
     (3.2 / Math.max(2.5, rKpc));
   const keplerianVelocityKms = Math.sqrt(Math.max(400, luminousVelocitySq));
 
   // Isothermal Dark Matter Halo contribution maintains ~220-238 km/s flat curve at large R
-  const haloAsymptoticV = 215 * Math.sqrt(dmFraction);
+  const haloAsymptoticV = 215 * Math.sqrt(Math.max(0, dmFraction));
   const dmVelocitySq =
     haloAsymptoticV *
     haloAsymptoticV *
     (1 - (2.5 / Math.max(0.5, rKpc)) * Math.atan(rKpc / 2.5));
-  const observedDarkMatterVelocityKms = Math.sqrt(
-    keplerianVelocityKms * keplerianVelocityKms + Math.max(0, dmVelocitySq)
+  const observedDarkMatterVelocityKms = Math.max(
+    Math.sqrt(
+      Math.max(
+        keplerianVelocityKms * keplerianVelocityKms + Math.max(0, dmVelocitySq),
+        1e-6
+      )
+    ),
+    1e-6
   );
   const velocityAnomalyKms = Math.max(
     0,
@@ -265,26 +287,28 @@ export function calculateAstronomyMetrics(
 
   // T_gal (Myr): 1 kpc = 3.086e16 km, 1 Myr = 3.154e13 s => T(Myr) ≈ 977.8 * (2*pi*R_kpc) / v_kms
   const galacticOrbitalPeriodMyr =
-    (977.8 * 2 * Math.PI * rKpc) / Math.max(10, observedDarkMatterVelocityKms);
+    (977.8 * 2 * Math.PI * rKpc) / Math.max(observedDarkMatterVelocityKms, 1e-6);
 
   // Enclosed Mass M(<R) = v^2 * R / G (in units of 10^9 M_sun, G ≈ 4.301e-6 kpc (km/s)^2 / M_sun)
   const enclosedMassBillionSolar =
     (observedDarkMatterVelocityKms * observedDarkMatterVelocityKms * rKpc) /
-    (4.301e-6 * 1e9);
+    Math.max(4.301e-6 * 1e9, 1e-6);
 
   // Schwarzschild radius R_s = 2.95 km * (M / M_sun)
   const sgrASchwarzschildRadiusMillionKm =
     (2.95 * sgrAMassMillion * 1e6) / 1e6;
 
   // 3. Stellar H-R Diagram & Exoplanet Transit Photometry
-  const tEff = Math.max(2500, params.starEffectiveTempK || 5778);
-  const rStar = Math.max(0.08, params.starRadiusSolar || 1.0);
-  const rPlanetEarth = Math.max(0.2, params.exoplanetRadiusEarth || 1.0);
-  const dPlanetAu = Math.max(0.02, params.exoplanetOrbitAu || 1.0);
+  const tEff = Math.max(finiteAstroOr(params.starEffectiveTempK, 5778), 1e-6);
+  const rStar = Math.max(finiteAstroOr(params.starRadiusSolar, 1.0), 1e-6);
+  const rPlanetEarth = Math.max(finiteAstroOr(params.exoplanetRadiusEarth, 1.0), 1e-6);
+  const dPlanetAu = Math.max(finiteAstroOr(params.exoplanetOrbitAu, 1.0), 1e-6);
 
   // Stefan-Boltzmann L/L_sun = (R/R_sun)^2 * (T/5778)^4
-  const stellarLuminositySolar =
-    rStar * rStar * Math.pow(tEff / 5778, 4);
+  const stellarLuminositySolar = Math.max(
+    rStar * rStar * Math.pow(tEff / 5778, 4),
+    1e-6
+  );
 
   let spectralClass: 'O' | 'B' | 'A' | 'F' | 'G' | 'K' | 'M' = 'G';
   let starColorHex = '#FDE047';
@@ -314,65 +338,71 @@ export function calculateAstronomyMetrics(
   // Approximate main-sequence lifetime tau ≈ 10 Gyr * (L / L_sun)^(-0.7)
   const mainSequenceLifetimeGyr = Math.min(
     200,
-    10 * Math.pow(Math.max(0.001, stellarLuminositySolar), -0.65)
+    10 * Math.pow(Math.max(stellarLuminositySolar, 1e-6), -0.65)
   );
 
   // Transit depth: R_sun = 109.1 R_earth => (Rp / R*) = (rPlanetEarth) / (109.1 * rStar)
-  const radiusRatio = rPlanetEarth / (109.1 * rStar);
+  const radiusRatio = rPlanetEarth / Math.max(109.1 * rStar, 1e-6);
   const transitDepthPct = Math.min(25, radiusRatio * radiusRatio * 100);
   const transitDepthPpm = Math.round(transitDepthPct * 10000);
 
-  const habitableZoneInnerAu = Math.sqrt(stellarLuminositySolar / 1.1);
-  const habitableZoneOuterAu = Math.sqrt(stellarLuminositySolar / 0.53);
+  const habitableZoneInnerAu = Math.sqrt(Math.max(stellarLuminositySolar / 1.1, 1e-6));
+  const habitableZoneOuterAu = Math.sqrt(Math.max(stellarLuminositySolar / 0.53, 1e-6));
   const isInHabitableZone =
     dPlanetAu >= habitableZoneInnerAu && dPlanetAu <= habitableZoneOuterAu;
 
   // Advanced astronomy modules
-  const tWienK = Math.max(1000, params.starEffectiveTempK || 5800);
-  const wienPeakWavelengthNm = 2.89777e6 / tWienK;
+  const tWienK = Math.max(finiteAstroOr(params.starEffectiveTempK, 5800), 1e-6);
+  const wienPeakWavelengthNm = 2.89777e6 / Math.max(tWienK, 1e-6);
 
-  const dHubbleMpc = Math.max(1, params.galaxyDistanceMpc ?? 150);
-  const h0Hubble = params.hubbleConstantH0 ?? 70;
+  const dHubbleMpc = Math.max(finiteAstroOr(params.galaxyDistanceMpc, 150), 1e-6);
+  const h0Hubble = Math.max(finiteAstroOr(params.hubbleConstantH0, 70), 1e-6);
   const hubbleRecessionVelocityKmS = h0Hubble * dHubbleMpc;
   const hubbleRedshiftZ = hubbleRecessionVelocityKmS / 299792;
-  const restLambdaNm = params.restWavelengthNm ?? 393.4;
+  const restLambdaNm = Math.max(finiteAstroOr(params.restWavelengthNm, 393.4), 1e-6);
   const hubbleObservedWavelengthNm = restLambdaNm * (1 + hubbleRedshiftZ);
+  const rawSurfaceFlux = 5.670374e-8 * Math.pow(tWienK, 4);
 
   return {
-    orbitalPeriodYears: Number(orbitalPeriodYears.toFixed(3)),
-    perihelionAu: Number(perihelionAu.toFixed(3)),
-    aphelionAu: Number(aphelionAu.toFixed(3)),
-    meanOrbitalVelocityKms: Number(meanOrbitalVelocityKms.toFixed(2)),
-    perihelionVelocityKms: Number(perihelionVelocityKms.toFixed(2)),
-    aphelionVelocityKms: Number(aphelionVelocityKms.toFixed(2)),
-    keplerRatioT2OverA3: Number(keplerRatioT2OverA3.toFixed(3)),
-    keplerianVelocityKms: Number(keplerianVelocityKms.toFixed(1)),
-    observedDarkMatterVelocityKms: Number(
-      observedDarkMatterVelocityKms.toFixed(1)
+    orbitalPeriodYears: safeAstroRound(orbitalPeriodYears, 3),
+    perihelionAu: safeAstroRound(perihelionAu, 3),
+    aphelionAu: safeAstroRound(aphelionAu, 3),
+    meanOrbitalVelocityKms: safeAstroRound(meanOrbitalVelocityKms, 2),
+    perihelionVelocityKms: safeAstroRound(perihelionVelocityKms, 2),
+    aphelionVelocityKms: safeAstroRound(aphelionVelocityKms, 2),
+    keplerRatioT2OverA3: safeAstroRound(keplerRatioT2OverA3, 3),
+    keplerianVelocityKms: safeAstroRound(keplerianVelocityKms, 1),
+    observedDarkMatterVelocityKms: safeAstroRound(
+      observedDarkMatterVelocityKms,
+      1
     ),
-    velocityAnomalyKms: Number(velocityAnomalyKms.toFixed(1)),
-    galacticOrbitalPeriodMyr: Number(galacticOrbitalPeriodMyr.toFixed(1)),
-    enclosedMassBillionSolar: Number(enclosedMassBillionSolar.toFixed(2)),
-    sgrASchwarzschildRadiusMillionKm: Number(
-      sgrASchwarzschildRadiusMillionKm.toFixed(2)
+    velocityAnomalyKms: safeAstroRound(velocityAnomalyKms, 1),
+    galacticOrbitalPeriodMyr: safeAstroRound(galacticOrbitalPeriodMyr, 1),
+    enclosedMassBillionSolar: safeAstroRound(enclosedMassBillionSolar, 2),
+    sgrASchwarzschildRadiusMillionKm: safeAstroRound(
+      sgrASchwarzschildRadiusMillionKm,
+      2
     ),
     spectralClass,
     starColorHex,
-    stellarLuminositySolar: Number(stellarLuminositySolar.toFixed(3)),
-    mainSequenceLifetimeGyr: Number(mainSequenceLifetimeGyr.toFixed(2)),
-    transitDepthPct: Number(transitDepthPct.toFixed(4)),
+    stellarLuminositySolar: safeAstroRound(stellarLuminositySolar, 3),
+    mainSequenceLifetimeGyr: safeAstroRound(mainSequenceLifetimeGyr, 2),
+    transitDepthPct: safeAstroRound(transitDepthPct, 4),
     transitDepthPpm,
-    habitableZoneInnerAu: Number(habitableZoneInnerAu.toFixed(2)),
-    habitableZoneOuterAu: Number(habitableZoneOuterAu.toFixed(2)),
+    habitableZoneInnerAu: safeAstroRound(habitableZoneInnerAu, 2),
+    habitableZoneOuterAu: safeAstroRound(habitableZoneOuterAu, 2),
     isInHabitableZone,
-    wienPeakWavelengthNm: Number(wienPeakWavelengthNm.toFixed(1)),
-    peakWavelengthNm: Number(wienPeakWavelengthNm.toFixed(1)),
-    surfaceFluxWPerM2: Number((5.670374e-8 * Math.pow(tWienK, 4)).toPrecision(4)),
-    hubbleRecessionVelocityKmS: Number(hubbleRecessionVelocityKmS.toFixed(1)),
-    recessionVelocityKms: Number(hubbleRecessionVelocityKmS.toFixed(1)),
-    hubbleRedshiftZ: Number(hubbleRedshiftZ.toFixed(4)),
-    redshiftZ: Number(hubbleRedshiftZ.toFixed(4)),
-    hubbleObservedWavelengthNm: Number(hubbleObservedWavelengthNm.toFixed(2)),
-    hubbleAgeBillionYears: Number((977.8 / Math.max(1, h0Hubble)).toFixed(1)),
+    wienPeakWavelengthNm: safeAstroRound(wienPeakWavelengthNm, 1),
+    peakWavelengthNm: safeAstroRound(wienPeakWavelengthNm, 1),
+    surfaceFluxWPerM2: Number.isFinite(rawSurfaceFlux)
+      ? Number(rawSurfaceFlux.toPrecision(4))
+      : 0,
+    hubbleRecessionVelocityKmS: safeAstroRound(hubbleRecessionVelocityKmS, 1),
+    recessionVelocityKms: safeAstroRound(hubbleRecessionVelocityKmS, 1),
+    hubbleRedshiftZ: safeAstroRound(hubbleRedshiftZ, 4),
+    redshiftZ: safeAstroRound(hubbleRedshiftZ, 4),
+    hubbleObservedWavelengthNm: safeAstroRound(hubbleObservedWavelengthNm, 2),
+    hubbleAgeBillionYears: safeAstroRound(977.8 / Math.max(h0Hubble, 1e-6), 1),
   };
 }
+

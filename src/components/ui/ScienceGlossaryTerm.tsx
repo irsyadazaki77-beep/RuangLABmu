@@ -1,7 +1,11 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, Sparkles, X } from 'lucide-react';
-import { getGlossaryEntry } from '../../utils/pedagogicalHelpers';
+import {
+  computeGlossaryPopoverPosition,
+  getGlossaryEntry,
+  type GlossaryPopoverPosition,
+} from '../../utils/pedagogicalHelpers';
 import { labSound } from '../../utils/soundEngine';
 
 export interface ScienceGlossaryTermProps {
@@ -20,51 +24,64 @@ export const ScienceGlossaryTerm: React.FC<ScienceGlossaryTermProps> = ({
   const entry = getGlossaryEntry(term);
   const [isOpen, setIsOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number; placeAbove: boolean }>({
+  const [coords, setCoords] = useState<GlossaryPopoverPosition>({
     top: 0,
     left: 0,
+    width: 310,
     placeAbove: false,
   });
 
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const closeTimeoutRef = useRef<number | null>(null);
+  const suppressNextFocusOpenRef = useRef<boolean>(false);
   const tooltipId = useId();
 
-  const updatePosition = () => {
+  const updatePosition = useCallback(() => {
     if (!triggerRef.current || typeof window === 'undefined') return;
     const rect = triggerRef.current.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const popWidth = Math.min(310, vw - 24);
-    const estHeight = 188;
+    setCoords(
+      computeGlossaryPopoverPosition(
+        rect,
+        window.innerWidth,
+        window.innerHeight
+      )
+    );
+  }, []);
 
-    const placeAbove = rect.bottom + estHeight + 12 > vh && rect.top - estHeight - 12 > 8;
-    const rawLeft = rect.left + rect.width / 2 - popWidth / 2;
-    const clampedLeft = Math.max(12, Math.min(vw - popWidth - 12, rawLeft));
-    const top = placeAbove ? Math.max(12, rect.top - 8) : Math.min(vh - 20, rect.bottom + 8);
-
-    setCoords({ top, left: clampedLeft, placeAbove });
-  };
-
-  const openPopover = () => {
+  const clearPendingClose = useCallback(() => {
     if (closeTimeoutRef.current !== null) {
       window.clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
     }
+  }, []);
+
+  const openPopover = useCallback(() => {
+    clearPendingClose();
     updatePosition();
     setIsOpen(true);
-  };
+  }, [clearPendingClose, updatePosition]);
 
-  const scheduleClose = () => {
+  const closePopover = useCallback(
+    (restoreFocusToTrigger = false) => {
+      clearPendingClose();
+      setPinned(false);
+      setIsOpen(false);
+      if (restoreFocusToTrigger && triggerRef.current) {
+        suppressNextFocusOpenRef.current = true;
+        triggerRef.current.focus();
+      }
+    },
+    [clearPendingClose]
+  );
+
+  const scheduleClose = useCallback(() => {
     if (pinned) return;
-    if (closeTimeoutRef.current !== null) {
-      window.clearTimeout(closeTimeoutRef.current);
-    }
+    clearPendingClose();
     closeTimeoutRef.current = window.setTimeout(() => {
       setIsOpen(false);
     }, 140);
-  };
+  }, [clearPendingClose, pinned]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -78,14 +95,18 @@ export const ScienceGlossaryTerm: React.FC<ScienceGlossaryTermProps> = ({
       ) {
         return;
       }
-      setPinned(false);
-      setIsOpen(false);
+      closePopover(false);
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setPinned(false);
-        setIsOpen(false);
+        e.stopPropagation();
+        const activeInsidePopover = Boolean(
+          popoverRef.current &&
+            document.activeElement &&
+            popoverRef.current.contains(document.activeElement)
+        );
+        closePopover(activeInsidePopover);
       }
     };
 
@@ -101,15 +122,11 @@ export const ScienceGlossaryTerm: React.FC<ScienceGlossaryTermProps> = ({
       window.removeEventListener('resize', handleScrollOrResize);
       window.removeEventListener('scroll', handleScrollOrResize, true);
     };
-  }, [isOpen]);
+  }, [isOpen, updatePosition, closePopover]);
 
   useEffect(() => {
-    return () => {
-      if (closeTimeoutRef.current !== null) {
-        window.clearTimeout(closeTimeoutRef.current);
-      }
-    };
-  }, []);
+    return () => clearPendingClose();
+  }, [clearPendingClose]);
 
   if (!entry) {
     return <span className={className}>{displayLabel ?? term}</span>;
@@ -123,29 +140,58 @@ export const ScienceGlossaryTerm: React.FC<ScienceGlossaryTermProps> = ({
   const popoverMutedClass =
     themeMode === 'dark' ? 'text-slate-300' : 'text-[var(--comfort-muted)]';
 
+  const handleToggleActivate = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    labSound.playClick(660);
+    if (isOpen && pinned) {
+      closePopover(false);
+    } else {
+      setPinned(true);
+      openPopover();
+    }
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLElement>) => {
+    const nextFocus = e.relatedTarget as Node | null;
+    if (
+      nextFocus &&
+      (triggerRef.current?.contains(nextFocus) || popoverRef.current?.contains(nextFocus))
+    ) {
+      return;
+    }
+    scheduleClose();
+  };
+
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
         data-testid={`glossary-term-${entry.id}`}
+        aria-controls={isOpen ? tooltipId : undefined}
         aria-describedby={isOpen ? tooltipId : undefined}
         aria-expanded={isOpen}
         onMouseEnter={openPopover}
         onMouseLeave={scheduleClose}
-        onFocus={openPopover}
-        onBlur={scheduleClose}
-        onClick={(e) => {
-          e.stopPropagation();
-          labSound.playClick(660);
-          if (isOpen && pinned) {
-            setPinned(false);
-            setIsOpen(false);
-          } else {
-            setPinned(true);
-            openPopover();
+        onFocus={() => {
+          if (suppressNextFocusOpenRef.current) {
+            suppressNextFocusOpenRef.current = false;
+            return;
+          }
+          openPopover();
+        }}
+        onBlur={handleBlur}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && isOpen) {
+            e.preventDefault();
+            e.stopPropagation();
+            closePopover(false);
+          } else if (e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            handleToggleActivate(e);
           }
         }}
+        onClick={handleToggleActivate}
         title={`Ketuk atau arahkan kursor untuk arti "${entry.term}"`}
         className={`inline-flex items-center gap-0.5 border-b border-dotted border-sky-500/80 dark:border-sky-400/80 font-semibold text-inherit cursor-help hover:text-sky-600 dark:hover:text-sky-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded-xs transition-colors ${className}`}
       >
@@ -162,11 +208,13 @@ export const ScienceGlossaryTerm: React.FC<ScienceGlossaryTermProps> = ({
             data-testid={`glossary-popover-${entry.id}`}
             onMouseEnter={openPopover}
             onMouseLeave={scheduleClose}
+            onBlur={handleBlur}
             style={{
               position: 'fixed',
               top: coords.top,
               left: coords.left,
-              width: 'min(310px, calc(100vw - 24px))',
+              width: `${coords.width}px`,
+              maxWidth: 'calc(100vw - 24px)',
               transform: coords.placeAbove ? 'translateY(-100%)' : 'none',
               zIndex: 9999,
             }}
@@ -187,10 +235,9 @@ export const ScienceGlossaryTerm: React.FC<ScienceGlossaryTermProps> = ({
                 aria-label="Tutup kamus istilah"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setPinned(false);
-                  setIsOpen(false);
+                  closePopover(true);
                 }}
-                className="p-0.5 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
+                className="p-0.5 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
               >
                 <X className="w-3.5 h-3.5" />
               </button>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { Suspense } from 'react';
 import { labSound } from './utils/soundEngine';
 import { useLabStore } from './stores/useLabStore';
 import { useUIStore } from './stores/useUIStore';
@@ -6,21 +6,21 @@ import { useCollabStore } from './stores/useCollabStore';
 import { STUDENT_PROFILES } from './stores/initialLabParams';
 import { TopNavigationHeader } from './components/layout/TopNavigationHeader';
 import { MainLabWorkspace } from './components/layout/MainLabWorkspace';
-import { GlobalModalPortal } from './components/layout/GlobalModalPortal';
-import { CommandPaletteModal } from './components/ui/CommandPaletteModal';
 import { PWAInstallBanner } from './components/ui/PWAInstallBanner';
 import { ExamSessionController } from './components/exam/ExamSessionController';
-import { StudentPortfolioModal } from './components/portfolio/StudentPortfolioModal';
-import { AICustomMissionBuilderModal } from './components/teacher/AICustomMissionBuilderModal';
-import { LabOnboardingTour } from './components/ui/LabOnboardingTour';
 import { useLabSession } from './hooks/useLabSession';
 import { useUrlRouterSync } from './hooks/useUrlRouterSync';
-import {
-  GamificationProfile,
-  loadGamificationProfile,
-  recordK3Compliance,
-  subscribeGamification,
-} from './services/gamificationEngine';
+import { recordK3Compliance } from './services/gamificationEngine';
+
+const GlobalModalPortal = React.lazy(() =>
+  import('./components/layout/GlobalModalPortal').then((m) => ({ default: m.GlobalModalPortal }))
+);
+const CommandPaletteModal = React.lazy(() =>
+  import('./components/ui/CommandPaletteModal').then((m) => ({ default: m.CommandPaletteModal }))
+);
+const LabOnboardingTour = React.lazy(() =>
+  import('./components/ui/LabOnboardingTour').then((m) => ({ default: m.LabOnboardingTour }))
+);
 import { buildSubmissionTelemetryTimeline } from './utils/telemetryRecorder';
 import {
   computeRecordsRegressionSummary,
@@ -36,20 +36,9 @@ export default function App() {
   useUrlRouterSync();
 
   const { setActiveDomain, setWorkflowStep, isSubmissionLocked, setSubmissionLocked } = useLabStore();
-  const { activeModal, closeModal, onboardingTourOpen, setOnboardingTourOpen } = useUIStore();
+  const { onboardingTourOpen, setOnboardingTourOpen } = useUIStore();
   const { activeRoomId } = useCollabStore();
   const session = useLabSession();
-
-  const [gamificationProfile, setGamificationProfile] = useState<GamificationProfile>(() =>
-    loadGamificationProfile()
-  );
-
-  useEffect(() => {
-    setGamificationProfile(loadGamificationProfile());
-    return subscribeGamification((nextProfile) => {
-      setGamificationProfile(nextProfile);
-    });
-  }, []);
 
   const {
     currentExperimentModule,
@@ -165,6 +154,10 @@ export default function App() {
         studentProfiles={STUDENT_PROFILES}
         selectedProfileIdx={selectedProfileIdx}
         onSelectProfileIdx={setSelectedProfileIdx}
+        records={records}
+        capturedSnapshots={capturedSnapshots}
+        bestRSquared={recordsRegression.rSquared}
+        latestLksScore={latestLksScore}
       />
 
       {/* 2. Exam Controller Wrapper + Workspace Laboratorium Utama */}
@@ -290,52 +283,29 @@ export default function App() {
         />
       </ExamSessionController>
 
-      {/* 3. Global Modal Portal Terpusat (K3, Safety, Quiz & Report) */}
-      <GlobalModalPortal
-        experiment={currentExperimentModule}
-        activeTier={activeTierLabel}
-        reportData={reportData}
-        onProceedToLab={() => {
-          recordK3Compliance(currentExperimentModule.id);
-          setWorkflowStep(2);
-        }}
-      />
+      {/* 3. Global Modal Portal Terpusat, Onboarding Tour & Command Palette */}
+      <Suspense fallback={null}>
+        <GlobalModalPortal
+          experiment={currentExperimentModule}
+          activeTier={activeTierLabel}
+          reportData={reportData}
+          onProceedToLab={() => {
+            recordK3Compliance(currentExperimentModule.id);
+            setWorkflowStep(2);
+          }}
+        />
 
-      {/* 4. Dashboard Portofolio Sains & STEM Radar (PILAR 4) */}
-      <StudentPortfolioModal
-        isOpen={activeModal === 'portfolio'}
-        onClose={closeModal}
-        studentName={currentProfile.name}
-        studentGroup={currentProfile.group}
-        profile={gamificationProfile}
-        records={records}
-        snapshots={capturedSnapshots}
-        bestRSquared={recordsRegression.rSquared}
-        lksGraded={lksGraded}
-        latestLksScore={latestLksScore}
-        activeModuleTitle={currentExperimentModule.title}
-      />
+        {onboardingTourOpen && (
+          <LabOnboardingTour
+            isOpen={onboardingTourOpen}
+            onClose={() => setOnboardingTourOpen(false)}
+          />
+        )}
 
-      {/* 5. Interactive Spotlight Onboarding Tour (PILAR 5) */}
-      <LabOnboardingTour
-        isOpen={onboardingTourOpen}
-        onClose={() => setOnboardingTourOpen(false)}
-      />
+        <CommandPaletteModal onSelectModule={handleSelectCatalogModule} />
+      </Suspense>
 
-      {/* 6. Global Spotlight Command Palette (Ctrl+K / Cmd+K) */}
-      <CommandPaletteModal onSelectModule={handleSelectCatalogModule} />
-
-      {/* 7. AI Custom Mission Builder Modal untuk Guru */}
-      <AICustomMissionBuilderModal
-        isOpen={activeModal === 'ai-mission-builder'}
-        onClose={closeModal}
-        teacherName={
-          useCollabStore.getState().teacherName || 'Dr. Hendra Kusuma'
-        }
-        onSelectModule={handleSelectCatalogModule}
-      />
-
-      {/* 8. In-App PWA Offline Install Banner */}
+      {/* 4. In-App PWA Offline Install Banner */}
       <PWAInstallBanner />
     </div>
   );

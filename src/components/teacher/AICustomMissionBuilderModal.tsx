@@ -584,3 +584,6 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
     </div>
   );
 };
+
+export default AICustomMissionBuilderModal;
+

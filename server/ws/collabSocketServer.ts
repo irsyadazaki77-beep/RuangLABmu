@@ -17,6 +17,7 @@ import type {
   ServerNotification,
   StudentProgress,
 } from '../state/labServerState';
+import { buildRoomReconnectSnapshot } from '../utils/collabReconnectSync';
 
 export interface ExtWebSocket extends WebSocket {
   socketId: string;
@@ -228,6 +229,7 @@ export function createCollabSocketServer(
             role,
             userId,
             groupId,
+            isReconnect,
           } = msg.payload;
           const roomId = (rawRoomId || '').toUpperCase().trim();
           const room = activeLabRooms.get(roomId);
@@ -258,7 +260,7 @@ export function createCollabSocketServer(
             return;
           }
 
-          if (ws.roomId && activeLabRooms.has(ws.roomId)) {
+          if (ws.roomId && ws.roomId !== roomId && activeLabRooms.has(ws.roomId)) {
             const prev = activeLabRooms.get(ws.roomId)!;
             delete prev.clients[ws.socketId];
             broadcastRoom(ws.roomId, { type: 'ROOM_STATE_SYNC', payload: { room: prev } });
@@ -266,9 +268,18 @@ export function createCollabSocketServer(
 
           const clientRole =
             role === 'teacher' || role === 'Pengajar' ? 'teacher' : 'student';
+          const resolvedUserId = userId || ws.userId || `user-${Date.now()}`;
+
+          // Remove stale client entries for the same userId inside this room on reconnect
+          for (const [existingSockId, existingClient] of Object.entries(room.clients)) {
+            if (existingSockId !== ws.socketId && existingClient.userId === resolvedUserId) {
+              delete room.clients[existingSockId];
+            }
+          }
+
           const roomClient: LabRoomClient = {
             socketId: ws.socketId,
-            userId: userId || ws.userId || `user-${Date.now()}`,
+            userId: resolvedUserId,
             name: name || ws.userName || 'Siswa',
             role: clientRole,
             groupId: groupId || ws.groupId,
@@ -277,20 +288,26 @@ export function createCollabSocketServer(
 
           room.clients[ws.socketId] = roomClient;
           ws.roomId = roomId;
+          ws.userId = roomClient.userId;
           ws.userName = roomClient.name;
+          ws.groupId = roomClient.groupId;
           ws.role = clientRole === 'teacher' ? 'Pengajar' : 'Siswa';
           if (clientRole === 'teacher') {
             room.teacherSocketId = ws.socketId;
             room.teacherName = roomClient.name;
           }
 
-          ws.send(
-            JSON.stringify({
-              type: 'ROOM_JOINED',
-              payload: { room, client: roomClient },
-            })
+          pruneExpiredLocks();
+          const snapshot = buildRoomReconnectSnapshot(
+            room,
+            roomClient,
+            parameterLocks,
+            Boolean(isReconnect)
           );
-          broadcastRoom(roomId, { type: 'ROOM_STATE_SYNC', payload: { room } });
+
+          ws.send(JSON.stringify(snapshot.roomJoinedMessage));
+          ws.send(JSON.stringify(snapshot.paramLocksSyncMessage));
+          broadcastRoom(roomId, snapshot.roomStateSyncMessage);
         } else if (msg.type === 'ROOM_LEAVE') {
           if (ws.roomId && activeLabRooms.has(ws.roomId)) {
             const room = activeLabRooms.get(ws.roomId)!;

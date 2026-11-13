@@ -8,6 +8,7 @@ import {
   StudentLiveTelemetry,
   LabRoom,
   CustomAIMissionPayload,
+  ParameterLockPayload,
 } from '../utils/collabProtocol';
 
 export interface BackendSyncState {
@@ -328,6 +329,54 @@ export function parseAndValidateWsMessage(rawData: unknown): ValidatedWsMessage 
   }
 }
 
+export interface ActiveRoomSessionCredentials {
+  roomId: string;
+  pin: string;
+  role: 'teacher' | 'student';
+}
+
+export function buildReconnectRoomJoinMessage(
+  session: ActiveRoomSessionCredentials | null,
+  fallbackRoomId: string | null,
+  fallbackPin: string | null,
+  identity: {
+    userId: string;
+    name: string;
+    role: 'Siswa' | 'Pengajar';
+    groupId: string;
+  }
+): {
+  type: 'ROOM_JOIN';
+  payload: {
+    roomId: string;
+    pin: string;
+    name: string;
+    role: 'teacher' | 'student';
+    userId: string;
+    groupId: string;
+    isReconnect: true;
+  };
+} | null {
+  const roomId = (session?.roomId || fallbackRoomId || '').toUpperCase().trim();
+  const pin = session?.pin ?? fallbackPin;
+  if (!roomId || typeof pin !== 'string' || !pin.trim()) {
+    return null;
+  }
+
+  return {
+    type: 'ROOM_JOIN',
+    payload: {
+      roomId,
+      pin: pin.trim(),
+      name: identity.name,
+      role: session?.role || (identity.role === 'Pengajar' ? 'teacher' : 'student'),
+      userId: identity.userId,
+      groupId: identity.groupId,
+      isReconnect: true,
+    },
+  };
+}
+
 export function useBackendSync(
   studentName: string,
   groupId: string,
@@ -347,6 +396,7 @@ export function useBackendSync(
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const outboxQueueRef = useRef<OfflineOutboxQueue>(new OfflineOutboxQueue());
+  const activeRoomSessionRef = useRef<ActiveRoomSessionCredentials | null>(null);
 
   // 1. Initial REST Hydration
   useEffect(() => {
@@ -424,13 +474,16 @@ export function useBackendSync(
         useCollabStore.getState().setWsConnected(true);
         attemptCount = 0;
 
-        const activeRoomId = useCollabStore.getState().activeRoomId;
+        const storeSnapshot = useCollabStore.getState();
+        const activeRoomId = storeSnapshot.activeRoomId;
+        const userId = `user-${studentName.replace(/\s+/g, '-').toLowerCase()}`;
+
         // 1. Identify client session
         socket.send(
           JSON.stringify({
             type: 'client:identify',
             payload: {
-              userId: `user-${studentName.replace(/\s+/g, '-').toLowerCase()}`,
+              userId,
               userName: studentName,
               role,
               groupId,
@@ -441,7 +494,24 @@ export function useBackendSync(
           })
         );
 
-        // 2. Sequentially flush any offline outbox events queued while reconnecting
+        // 2. Automatically re-join active room on reconnect so server restores
+        //    room membership, teacherSocketId, freeze state, customMission & paramLocks
+        const reconnectJoinMsg = buildReconnectRoomJoinMessage(
+          activeRoomSessionRef.current,
+          storeSnapshot.activeRoomId,
+          storeSnapshot.roomPin,
+          {
+            userId,
+            name: studentName,
+            role,
+            groupId,
+          }
+        );
+        if (reconnectJoinMsg && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify(reconnectJoinMsg));
+        }
+
+        // 3. Sequentially flush any offline outbox events queued while reconnecting
         outboxQueueRef.current.flush((serializedMsg) => {
           if (socket.readyState === WebSocket.OPEN) {
             socket.send(serializedMsg);
@@ -468,9 +538,19 @@ export function useBackendSync(
           if (Array.isArray(payload.notifications)) {
             setNotifications(payload.notifications as LabNotification[]);
           }
+          if (Array.isArray(payload.paramLocks)) {
+            useCollabStore
+              .getState()
+              .syncLocks(payload.paramLocks as ParameterLockPayload[]);
+          }
         } else if (type === 'ROOM_CREATED' && isPlainObject(payload.room)) {
           const room = payload.room as unknown as LabRoom;
           const store = useCollabStore.getState();
+          activeRoomSessionRef.current = {
+            roomId: room.roomId,
+            pin: room.pin,
+            role: 'teacher',
+          };
           store.setActiveRoom(room);
           store.closeRoomModal();
           setNotifications((prev) => [
@@ -491,25 +571,54 @@ export function useBackendSync(
         } else if (type === 'ROOM_JOINED' && isPlainObject(payload.room)) {
           const room = payload.room as unknown as LabRoom;
           const store = useCollabStore.getState();
+          const joinedClientRole =
+            isPlainObject(payload.client) && payload.client.role === 'teacher'
+              ? 'teacher'
+              : role === 'Pengajar'
+              ? 'teacher'
+              : 'student';
+          activeRoomSessionRef.current = {
+            roomId: room.roomId,
+            pin: room.pin,
+            role: joinedClientRole,
+          };
           store.setActiveRoom(room);
           store.closeRoomModal();
-          setNotifications((prev) => [
-            {
-              id: `notif-join-${Date.now()}`,
-              timestamp: new Date().toLocaleTimeString('id-ID', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-              }),
-              severity: 'nominal',
-              domain: 'Kolaborasi',
-              title: `Bergabung ke Meja [${room.roomId}]`,
-              message: `Anda telah terhubung ke meja praktikum bersama ${Object.keys(room.clients || {}).length} peserta.`,
-            },
-            ...prev.slice(0, 24),
-          ]);
+          if (Array.isArray(payload.paramLocks)) {
+            store.syncLocks(payload.paramLocks as ParameterLockPayload[]);
+          }
+          if (!payload.isReconnect) {
+            setNotifications((prev) => [
+              {
+                id: `notif-join-${Date.now()}`,
+                timestamp: new Date().toLocaleTimeString('id-ID', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                }),
+                severity: 'nominal',
+                domain: 'Kolaborasi',
+                title: `Bergabung ke Meja [${room.roomId}]`,
+                message: `Anda telah terhubung ke meja praktikum bersama ${Object.keys(room.clients || {}).length} peserta.`,
+              },
+              ...prev.slice(0, 24),
+            ]);
+          }
         } else if (type === 'ROOM_STATE_SYNC' && isPlainObject(payload.room)) {
           useCollabStore.getState().setActiveRoom(payload.room as unknown as LabRoom);
+        } else if (type === 'PARAM_LOCKS_SYNC' && Array.isArray(payload.locks)) {
+          useCollabStore
+            .getState()
+            .syncLocks(payload.locks as ParameterLockPayload[]);
+        } else if (type === 'PARAM_LOCK_ACQUIRE') {
+          useCollabStore
+            .getState()
+            .setLock(
+              String(payload.paramKey),
+              payload as unknown as ParameterLockPayload
+            );
+        } else if (type === 'PARAM_LOCK_RELEASE') {
+          useCollabStore.getState().releaseLock(String(payload.paramKey));
         } else if (type === 'ROOM_MISSION_UPDATED') {
           const store = useCollabStore.getState();
           if (isPlainObject(payload.room)) {
@@ -535,6 +644,9 @@ export function useBackendSync(
             ]);
           }
         } else if (type === 'ROOM_ERROR' && typeof payload.message === 'string') {
+          if (payload.code === 'ROOM_NOT_FOUND' || payload.code === 'INVALID_PIN') {
+            activeRoomSessionRef.current = null;
+          }
           useCollabStore.getState().setRoomError(payload.message);
         } else if (type === 'TEACHER_FREEZE_TOGGLE') {
           useCollabStore
@@ -794,11 +906,17 @@ export function useBackendSync(
   const joinRoom = useCallback(
     (roomId: string, pin: string, joinAsRole?: 'teacher' | 'student') => {
       useCollabStore.getState().setRoomError(null);
+      const resolvedRole = joinAsRole || (role === 'Pengajar' ? 'teacher' : 'student');
+      activeRoomSessionRef.current = {
+        roomId: roomId.toUpperCase().trim(),
+        pin: pin.trim(),
+        role: resolvedRole,
+      };
       sendWs('ROOM_JOIN', {
         roomId,
         pin,
         name: studentName,
-        role: joinAsRole || (role === 'Pengajar' ? 'teacher' : 'student'),
+        role: resolvedRole,
         userId: `user-${studentName.replace(/\s+/g, '-').toLowerCase()}`,
         groupId,
       });
@@ -807,6 +925,7 @@ export function useBackendSync(
   );
 
   const leaveRoom = useCallback(() => {
+    activeRoomSessionRef.current = null;
     sendWs('ROOM_LEAVE', {});
     useCollabStore.getState().leaveRoom();
   }, [sendWs]);

@@ -41,7 +41,6 @@ export const ExamSessionController: React.FC<ExamSessionControllerProps> = ({
   studentName,
   studentGroup,
   moduleId,
-  domain,
   ws,
   isSubmissionLocked,
   onLockSubmission,

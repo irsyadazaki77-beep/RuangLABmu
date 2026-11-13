@@ -10,12 +10,13 @@ import {
   createBuretteClampAssembly,
   createErlenmeyerProfilePoints,
   createFunnelProfilePoints,
-  createGraduationScaleTexture,
+  createGraduatedScaleTexture,
   createStudioComposer,
   createStudioWorkbenchGroup,
   disposeThreeSceneResources,
   createAdaptiveFpsMonitor,
   configureRendererForLiteMode,
+  smoothCameraTransition,
 } from '../utils/threeStudioKit';
 import {
   ChemistryParams,
@@ -159,7 +160,6 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   onEmitCursor,
   onUpdateParam,
   onCaptureSnapshot,
-  snapshotCount = 0,
   comfortTheme,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
@@ -264,7 +264,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const initialLite = useUIStore.getState().liteDeviceMode;
     configureRendererForLiteMode(renderer, initialLite);
 
-    const fpsMonitor = createAdaptiveFpsMonitor((avgFps) => {
+    const fpsMonitor = createAdaptiveFpsMonitor(() => {
       if (!useUIStore.getState().liteDeviceMode) {
         useUIStore.getState().setLiteDeviceMode(true);
         useUIStore.getState().setLiteModeNotification(
@@ -406,19 +406,10 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
     // Shared PBR Materials & Refractive Borosilicate Glass Material
     const metalTex = createBrushedMetalTextures();
-    const buretteScaleTex = createGraduationScaleTexture({
-      maxValue: 50,
-      majorStep: 10,
-      minorStep: 5,
-      unit: 'mL',
+    const buretteScaleTex = createGraduatedScaleTexture(50, 'mL', 25, {
       invertTopToBottom: true,
     });
-    const beakerScaleTex = createGraduationScaleTexture({
-      maxValue: 250,
-      majorStep: 50,
-      minorStep: 25,
-      unit: 'mL',
-    });
+    const beakerScaleTex = createGraduatedScaleTexture(250, 'mL', 25);
 
     const darkFrameMat = new THREE.MeshStandardMaterial({
       color: 0x1e293b,
@@ -502,6 +493,31 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     );
     calLiquid.position.set(0, 1.12, 0);
     thermoGroup.add(calLiquid);
+
+    // Concave Meniscus Ring inside Calorimeter Beaker
+    const calMeniscusRing = new THREE.Mesh(
+      new THREE.TorusGeometry(1.31, 0.024, 12, 36),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xbae6fd,
+        transparent: true,
+        opacity: 0.62,
+        roughness: 0.08,
+        transmission: 0.5,
+      })
+    );
+    calMeniscusRing.rotation.x = Math.PI / 2;
+    calMeniscusRing.position.set(0, 1.91, 0);
+    thermoGroup.add(calMeniscusRing);
+
+    if (beakerScaleTex) {
+      const calScaleSleeve = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.43, 1.43, 1.8, 36, 1, true),
+        graduationOverlayMat(beakerScaleTex)
+      );
+      calScaleSleeve.position.set(0, 1.35, 0);
+      calScaleSleeve.rotation.y = -Math.PI * 0.42;
+      thermoGroup.add(calScaleSleeve);
+    }
 
     const calLid = new THREE.Mesh(
       new THREE.CylinderGeometry(1.52, 1.52, 0.18, 40),
@@ -595,7 +611,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     buretteFunnel.position.set(0, 6.38, 0);
     titrationGroup.add(buretteFunnel);
 
-    // Titrant liquid inside burette
+    // Titrant liquid inside burette + Concave Meniscus Ring at top of column
     const buretteLiquidMat = createLiquidWobbleMaterial(0x38bdf8, 0.75);
     liquidShaderMaterials.push(buretteLiquidMat);
     const buretteLiquid = new THREE.Mesh(
@@ -604,6 +620,19 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     );
     buretteLiquid.position.set(0, 4.4, 0);
     titrationGroup.add(buretteLiquid);
+
+    const buretteMeniscusRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.142, 0.015, 12, 28),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xe0f2fe,
+        transparent: true,
+        opacity: 0.82,
+        roughness: 0.06,
+      })
+    );
+    buretteMeniscusRing.rotation.x = Math.PI / 2;
+    buretteMeniscusRing.position.set(0, 6.26, 0);
+    titrationGroup.add(buretteMeniscusRing);
 
     // Stopcock PTFE valve body + Brass tap handle with 3D Positional Audio Emitter
     const stopcockBody = new THREE.Mesh(
@@ -624,12 +653,39 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const buretSoundEmitter = labSound.createPositionalSoundEmitter(camera, 'titration-drop');
     stopcock.add(buretSoundEmitter.sound);
 
+    // Falling Titrant Droplet from Burette Tip -> Erlenmeyer Surface
+    const fallingDropMat = new THREE.MeshPhysicalMaterial({
+      color: 0x7dd3fc,
+      transparent: true,
+      opacity: 0.88,
+      roughness: 0.05,
+      transmission: 0.75,
+      ior: 1.33,
+    });
+    const fallingDropMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.036, 14, 14),
+      fallingDropMat
+    );
+    fallingDropMesh.scale.set(0.82, 1.38, 0.82);
+    fallingDropMesh.position.set(0, 1.82, 0);
+    titrationGroup.add(fallingDropMesh);
+
     // True Thick-Walled Lathe Erlenmeyer Flask at bottom
     const flaskGeo = buildLatheFromProfile(createErlenmeyerProfilePoints(1.24, 0.38, 2.15, 0.045), 48);
     const flaskMesh = new THREE.Mesh(flaskGeo, glassMat);
     flaskMesh.position.set(0, 0.56, 0);
     flaskMesh.castShadow = true;
     titrationGroup.add(flaskMesh);
+
+    if (beakerScaleTex) {
+      const flaskScaleMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.76, 1.12, 1.15, 32, 1, true),
+        graduationOverlayMat(beakerScaleTex)
+      );
+      flaskScaleMesh.position.set(0, 1.16, 0);
+      flaskScaleMesh.rotation.y = -Math.PI * 0.45;
+      titrationGroup.add(flaskScaleMesh);
+    }
 
     // Analyte Solution inside flask with dynamic meniscus & surface wobble shader
     const analyteLiquidMat = createLiquidWobbleMaterial(0xf8fafc, 0.82);
@@ -640,6 +696,67 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     );
     analyteSolution.position.set(0, 1.06, 0);
     titrationGroup.add(analyteSolution);
+
+    // Concave Meniscus Ring at top of Erlenmeyer liquid column
+    const flaskMeniscusMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.72,
+      roughness: 0.08,
+    });
+    const flaskMeniscusRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.675, 0.022, 12, 36),
+      flaskMeniscusMat
+    );
+    flaskMeniscusRing.rotation.x = Math.PI / 2;
+    flaskMeniscusRing.position.set(0, 1.54, 0);
+    titrationGroup.add(flaskMeniscusRing);
+
+    // Radial Indicator Color Spread Disc + Expanding Ripple Rings on Liquid Surface
+    const radialColorDiscMat = new THREE.MeshBasicMaterial({
+      color: 0xf472b6,
+      transparent: true,
+      opacity: 0.45,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const radialColorDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(0.64, 32),
+      radialColorDiscMat
+    );
+    radialColorDisc.rotation.x = -Math.PI / 2;
+    radialColorDisc.position.set(0, 1.543, 0);
+    titrationGroup.add(radialColorDisc);
+
+    const rippleRingMat1 = new THREE.MeshBasicMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.65,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const rippleRing1 = new THREE.Mesh(
+      new THREE.RingGeometry(0.06, 0.095, 32),
+      rippleRingMat1
+    );
+    rippleRing1.rotation.x = -Math.PI / 2;
+    rippleRing1.position.set(0, 1.546, 0);
+    titrationGroup.add(rippleRing1);
+
+    const rippleRingMat2 = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const rippleRing2 = new THREE.Mesh(
+      new THREE.RingGeometry(0.06, 0.09, 32),
+      rippleRingMat2
+    );
+    rippleRing2.rotation.x = -Math.PI / 2;
+    rippleRing2.position.set(0, 1.547, 0);
+    titrationGroup.add(rippleRing2);
 
     // 3D Universal pH Scale Strip beside Erlenmeyer (shown when Label Konsep is active)
     const phScaleCanvas = document.createElement('canvas');
@@ -1118,13 +1235,57 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         mat.uniforms.uWobbleAmp.value = totalWobble;
       }
 
-      // 1. Titration color & volume update
+      // 1. Titration color, meniscus, falling droplets & surface ripples update
       if (p.mode === 'acid-base-titration') {
         analyteLiquidMat.uniforms.uColor.value.setStyle(m.indicatorColorHex);
+        flaskMeniscusMat.color.setStyle(m.indicatorColorHex);
+        radialColorDiscMat.color.setStyle(m.indicatorColorHex);
+
         const vb = p.titrantAddedMl ?? 0;
-        const level = Math.max(0.1, 4.0 * (1 - vb / 50));
-        buretteLiquid.scale.set(1, level / 4.0, 1);
-        buretteLiquid.position.set(0, 2.4 + level / 2, 0);
+        const level = Math.max(0.1, 3.8 * (1 - vb / 50));
+        buretteLiquid.scale.set(1, level / 3.8, 1);
+        const liquidCenterY = 2.45 + level / 2;
+        buretteLiquid.position.set(0, liquidCenterY, 0);
+        buretteMeniscusRing.position.set(0, liquidCenterY + level / 2 - 0.02, 0);
+
+        // Animate droplet falling from burette tip (y=1.92) to Erlenmeyer liquid surface (y=1.54)
+        const dropRate = reacting || wobbleBoost > 0.01 ? 2.4 : vb > 0 ? 1.15 : 0;
+        if (dropRate > 0 && vb < 50) {
+          const dropPhase = (elapsed * dropRate) % 1.0;
+          fallingDropMesh.visible = dropPhase < 0.72;
+          if (fallingDropMesh.visible) {
+            const fallProgress = dropPhase / 0.72;
+            const dropY = 1.92 - fallProgress * fallProgress * 0.39;
+            fallingDropMesh.position.set(0, dropY, 0);
+          }
+
+          // Ripple rings & radial color bloom triggered at droplet impact (phase >= 0.72 or continuous wave)
+          const ripplePhase1 = ((elapsed * dropRate - 0.72 + 1.0) % 1.0);
+          const ripplePhase2 = ((elapsed * dropRate - 0.32 + 1.0) % 1.0);
+          rippleRing1.visible = true;
+          rippleRing1.scale.setScalar(0.35 + ripplePhase1 * 5.8);
+          rippleRingMat1.opacity = Math.max(0, (1 - ripplePhase1) * 0.68);
+
+          rippleRing2.visible = !isLite;
+          if (!isLite) {
+            rippleRing2.scale.setScalar(0.35 + ripplePhase2 * 5.8);
+            rippleRingMat2.opacity = Math.max(0, (1 - ripplePhase2) * 0.45);
+          }
+
+          // Radial indicator color spread from impact center outward
+          const radialPulse = 0.35 + 0.65 * Math.sin(ripplePhase1 * Math.PI);
+          radialColorDisc.visible = true;
+          radialColorDisc.scale.setScalar(0.28 + ripplePhase1 * 0.72);
+          radialColorDiscMat.opacity = 0.25 + radialPulse * 0.35;
+        } else {
+          fallingDropMesh.visible = false;
+          rippleRing1.visible = false;
+          rippleRing2.visible = false;
+          radialColorDisc.visible = vb > 0;
+          radialColorDisc.scale.setScalar(0.95);
+          radialColorDiscMat.opacity = 0.32;
+        }
+
         phScaleGroup.visible = showConceptLabelsRef.current;
         const phFrac = Math.min(1, Math.max(0, (m.currentPh ?? 7) / 14));
         phPointerMesh.position.y = -1.15 + phFrac * 2.3;
@@ -1142,7 +1303,12 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         pressureNeedle.rotation.z = -needleAngle;
 
         const speed = Math.sqrt((p.gasTemperatureK ?? 300) / 300) * 0.04;
-        gasParticles.forEach((part) => {
+        gasParticles.forEach((part, idx) => {
+          if (isLite && idx >= 12) {
+            part.mesh.visible = false;
+            return;
+          }
+          part.mesh.visible = true;
           part.mesh.position.addScaledVector(part.vel, speed);
           if (part.mesh.position.y > pistonY - 0.2 || part.mesh.position.y < 0.6) {
             part.vel.y *= -1;
@@ -1183,7 +1349,9 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       if (showBubbles) {
         const bPos = bubbleGeo.getAttribute('position') as THREE.BufferAttribute;
         const rateMultiplier = reacting ? 1.8 : 0.85;
-        for (let i = 0; i < BUBBLE_COUNT; i++) {
+        const activeBubbles = isLite ? Math.floor(BUBBLE_COUNT / 2) : BUBBLE_COUNT;
+        bubbleGeo.setDrawRange(0, activeBubbles);
+        for (let i = 0; i < activeBubbles; i++) {
           let bx = bPos.getX(i);
           let by = bPos.getY(i) + bubbleSpeeds[i] * dt * rateMultiplier;
           let bz = bPos.getZ(i);
@@ -1202,12 +1370,12 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
             maxY = 2.15;
           } else if (p.mode === 'acid-base-titration') {
             centerX = 0;
-            minY = 0.35;
-            maxY = 1.25;
+            minY = 0.6;
+            maxY = 1.45;
           } else {
             centerX = 0;
-            minY = 0.35;
-            maxY = 1.75;
+            minY = 0.45;
+            maxY = 1.82;
           }
 
           if (by > maxY || by < minY) {
@@ -1231,15 +1399,13 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       );
 
       if (camTransitionActive) {
-        camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamPos.x, 6, 0.016);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamPos.y, 6, 0.016);
-        camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamPos.z, 6, 0.016);
-        controls.target.x = THREE.MathUtils.damp(controls.target.x, desiredTarget.x, 6, 0.016);
-        controls.target.y = THREE.MathUtils.damp(controls.target.y, desiredTarget.y, 6, 0.016);
-        controls.target.z = THREE.MathUtils.damp(controls.target.z, desiredTarget.z, 6, 0.016);
-        if (camera.position.distanceToSquared(desiredCamPos) < 0.01) {
-          camTransitionActive = false;
-        }
+        camTransitionActive = smoothCameraTransition(
+          camera,
+          controls,
+          desiredCamPos,
+          desiredTarget,
+          0.14
+        );
       }
 
       controls.update();
@@ -1613,3 +1779,6 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     </div>
   );
 };
+
+export default ChemistryScene3D;
+

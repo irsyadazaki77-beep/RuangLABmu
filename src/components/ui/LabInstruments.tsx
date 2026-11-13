@@ -16,7 +16,10 @@ import {
 import { labSound } from '../../utils/soundEngine';
 import { InstrumentCalibrationConfig } from '../../utils/uncertaintyEngine';
 import { SciFormula } from './ScientificNotation';
-import type { EducationLevel } from '../../utils/pedagogicalHelpers';
+import {
+  normalizeEducationLevel,
+  type EducationLevel,
+} from '../../utils/pedagogicalHelpers';
 import { useLabStore } from '../../stores/useLabStore';
 import { ScienceGlossaryTerm } from './ScienceGlossaryTerm';
 
@@ -424,7 +427,9 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const storeAcademicLevel = useLabStore((s) => s.academicLevel);
-  const effectiveLevel: EducationLevel = educationLevel ?? storeAcademicLevel ?? 'sma';
+  const effectiveLevel: EducationLevel = normalizeEducationLevel(
+    educationLevel ?? storeAcademicLevel
+  );
   const safeVal = Number.isFinite(value) ? value : min;
   const feedbackText = dynamicFeedback ? dynamicFeedback(safeVal, effectiveLevel) : '';
   const fillPct = Math.min(

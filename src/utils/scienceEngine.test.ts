@@ -956,6 +956,147 @@ test('Anatomi & Fisiologi Tubuh Manusia 3D: Kardiovaskular (Poiseuille & EKG), S
   assert.ok(neuralFrame.scalars!.conductionVelocityMs > 50);
 });
 
+test('Division-by-Zero Protection: Physics & Astronomy Engines never return NaN or Infinity on 0, negative, or ultra-small (1e-9) inputs', () => {
+  const physicsModes: PhysicsParams['mode'][] = [
+    'newton-incline',
+    'projectile-gravity',
+    'orbital-gravity',
+    'collision-momentum',
+    'spring-hooke',
+    'pendulum-harmonic',
+    'stokes-viscosity',
+    'ohm-wheatstone',
+    'optics-young-slit',
+    'photoelectric-planck',
+  ];
 
+  const extremeScalars = [0, 1e-9, -1e-9, -5, Number.NaN];
 
+  for (const mode of physicsModes) {
+    for (const val of extremeScalars) {
+      const extremePhysics: PhysicsParams = {
+        mass: val,
+        appliedForce: val,
+        inclineAngle: val,
+        frictionCoeffStatic: val,
+        frictionCoeffKinetic: val,
+        gravity: val,
+        initialVelocity: val,
+        launchAngle: val,
+        initialHeight: val,
+        secondaryMass: val,
+        separationDistance: val,
+        collisionMass2: val,
+        velocity2Initial: val,
+        restitutionCoeff: val,
+        springConstantK: val,
+        springDisplacement: val,
+        dampingCoeff: val,
+        mode,
+        pendulumLength: val,
+        pendulumAngle: val,
+        fluidViscosity: val,
+        fluidViscosityPaS: val,
+        sphereRadius: val,
+        sphereRadiusMm: val,
+        resistorR1: val,
+        resistorR2: val,
+        resistorR3: val,
+        resistorRx: val,
+        bridgeR1: val,
+        bridgeR2: val,
+        bridgeR3: val,
+        bridgeRx: val,
+        slitDistance: val,
+        screenDistance: val,
+        lightWavelength: val,
+        targetMetalWorkFunction: val,
+        photonFrequency: val,
+        stoppingPotential: val,
+      };
 
+      const pMetrics = calculatePhysicsMetrics(extremePhysics);
+      for (const [key, metricVal] of Object.entries(pMetrics)) {
+        if (typeof metricVal === 'number') {
+          assert.equal(
+            Number.isNaN(metricVal),
+            false,
+            `PhysicsMetrics.${key} returned NaN in mode=${mode} with input=${val}`
+          );
+          assert.equal(
+            Number.isFinite(metricVal),
+            true,
+            `PhysicsMetrics.${key} returned Infinity in mode=${mode} with input=${val}`
+          );
+        }
+      }
+
+      for (const tVal of [0, 1e-9, -1, 1.5, Number.NaN]) {
+        const kin = evaluateKinematicsAtTime(extremePhysics, tVal);
+        for (const [key, kinVal] of Object.entries(kin)) {
+          if (typeof kinVal === 'number') {
+            assert.equal(
+              Number.isNaN(kinVal),
+              false,
+              `KinematicsInstant.${key} returned NaN in mode=${mode}, val=${val}, t=${tVal}`
+            );
+            assert.equal(
+              Number.isFinite(kinVal),
+              true,
+              `KinematicsInstant.${key} returned Infinity in mode=${mode}, val=${val}, t=${tVal}`
+            );
+          }
+        }
+      }
+    }
+  }
+
+  const astroModes: AstronomyParams['mode'][] = [
+    'solar-kepler',
+    'milkyway-galaxy',
+    'stellar-exoplanet',
+    'stellar-wien-spectrum',
+    'hubble-expansion',
+  ];
+
+  for (const mode of astroModes) {
+    for (const val of [0, 1e-9, -1e-9, -10, Number.NaN, 1.0]) {
+      const extremeAstro: AstronomyParams = {
+        mode,
+        selectedPlanetId: 'earth',
+        customSemiMajorAxisAu: val,
+        customEccentricity: val,
+        centralStarMassSolar: val,
+        showKeplerAreaSweep: true,
+        timeScaleSpeed: val,
+        galactocentricRadiusKpc: val,
+        bulgeDiskMassFactor: val,
+        darkMatterHaloFraction: val,
+        sgrAStarMassMillionSolar: val,
+        starEffectiveTempK: val,
+        starRadiusSolar: val,
+        exoplanetRadiusEarth: val,
+        exoplanetOrbitAu: val,
+        galaxyDistanceMpc: val,
+        hubbleConstantH0: val,
+        restWavelengthNm: val,
+      };
+
+      const aMetrics = calculateAstronomyMetrics(extremeAstro);
+      for (const [key, metricVal] of Object.entries(aMetrics)) {
+        if (typeof metricVal === 'number') {
+          assert.equal(
+            Number.isNaN(metricVal),
+            false,
+            `AstronomyMetrics.${key} returned NaN in mode=${mode} with input=${val}`
+          );
+          assert.equal(
+            Number.isFinite(metricVal),
+            true,
+            `AstronomyMetrics.${key} returned Infinity in mode=${mode} with input=${val}`
+          );
+        }
+      }
+    }
+  }
+});

@@ -1144,3 +1144,34 @@ export function projectWorldAnchorToViewport(
   };
 }
 
+export interface GlossaryPopoverPosition {
+  top: number;
+  left: number;
+  width: number;
+  placeAbove: boolean;
+}
+
+export function computeGlossaryPopoverPosition(
+  rect: { left: number; width: number; top: number; bottom: number },
+  viewportWidth: number,
+  viewportHeight: number
+): GlossaryPopoverPosition {
+  const safeVw = Math.max(240, Number.isFinite(viewportWidth) ? viewportWidth : 360);
+  const safeVh = Math.max(240, Number.isFinite(viewportHeight) ? viewportHeight : 640);
+  const gutter = 12;
+  const width = Math.min(310, Math.max(180, safeVw - gutter * 2));
+  const estHeight = 192;
+
+  const placeAbove =
+    rect.bottom + estHeight + gutter > safeVh && rect.top - estHeight - gutter > 8;
+  const rawLeft = rect.left + rect.width / 2 - width / 2;
+  const maxLeft = Math.max(gutter, safeVw - width - gutter);
+  const left = Math.max(gutter, Math.min(maxLeft, rawLeft));
+  const top = placeAbove
+    ? Math.max(gutter, rect.top - 8)
+    : Math.max(gutter, Math.min(safeVh - 20, rect.bottom + 8));
+
+  return { top, left, width, placeAbove };
+}
+
+

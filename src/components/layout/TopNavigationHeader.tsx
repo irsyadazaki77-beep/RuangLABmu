@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import {
   Atom,
   CheckCircle2,
@@ -23,22 +23,27 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ExperimentModule } from '../../registry/experimentRegistry';
+import { ExperimentRecord } from '../../utils/scienceEngine';
+import { Lab3DSnapshot } from '../ui/ScientificEnhancementSuite';
 import { labSound } from '../../utils/soundEngine';
 import { useLabStore, WorkflowStep } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCollabStore } from '../../stores/useCollabStore';
 import { buildShareableModuleUrl } from '../../hooks/useUrlRouterSync';
 import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
-import { printBlankStudentWorksheet } from '../../utils/academicReportExporter';
-const TeacherGradebookHub = lazy(() => import('../teacher/TeacherGradebookHub'));
 import {
   GamificationProfile,
   ScientificBadge,
   loadGamificationProfile,
   subscribeGamification,
 } from '../../services/gamificationEngine';
-import { BadgeNotificationModal } from '../ui/BadgeNotificationModal';
 import { setAppLanguage } from '../../i18n';
+
+const TeacherGradebookHub = React.lazy(() => import('../teacher/TeacherGradebookHub'));
+const StudentPortfolioModal = React.lazy(() => import('../portfolio/StudentPortfolioModal'));
+const BadgeNotificationModal = React.lazy(() =>
+  import('../ui/BadgeNotificationModal').then((m) => ({ default: m.BadgeNotificationModal }))
+);
 
 export interface TopNavigationHeaderProps {
   experimentModule: ExperimentModule;
@@ -49,6 +54,10 @@ export interface TopNavigationHeaderProps {
   studentProfiles: Array<{ name: string; group: string }>;
   selectedProfileIdx: number;
   onSelectProfileIdx: (idx: number) => void;
+  records?: ExperimentRecord[];
+  capturedSnapshots?: Lab3DSnapshot[];
+  bestRSquared?: number;
+  latestLksScore?: number;
 }
 
 export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
@@ -57,6 +66,12 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
   lksGraded,
   notificationsCount,
   hasLowR2Alert,
+  studentProfiles,
+  selectedProfileIdx,
+  records = [],
+  capturedSnapshots = [],
+  bestRSquared = 0,
+  latestLksScore = 0,
 }) => {
   const { t, i18n } = useTranslation();
   const activeLang: 'id' | 'en' = i18n.language?.startsWith('en') ? 'en' : 'id';
@@ -745,7 +760,9 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                       onClick={() => {
                         labSound.playClick();
                         setPrefsOpen(false);
-                        printBlankStudentWorksheet(experimentModule, 'SMA');
+                        void import('../../utils/academicReportExporter').then((m) =>
+                          m.printBlankStudentWorksheet(experimentModule, 'SMA')
+                        );
                       }}
                       title="Cetak format LKS kosong hemat tinta untuk difotokopi bagi siswa kelas"
                       className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-800 dark:text-sky-200 text-xs font-semibold cursor-pointer transition-colors"
@@ -879,17 +896,40 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         </Suspense>
       )}
 
+      {/* Dashboard Portofolio Sains & STEM Radar (Lazy-Loaded) */}
+      {activeModal === 'portfolio' && (
+        <Suspense fallback={null}>
+          <StudentPortfolioModal
+            isOpen={activeModal === 'portfolio'}
+            onClose={closeModal}
+            studentName={(studentProfiles[selectedProfileIdx] ?? studentProfiles[0])?.name || 'Alya Pratama'}
+            studentGroup={(studentProfiles[selectedProfileIdx] ?? studentProfiles[0])?.group || 'Kelompok 1'}
+            profile={gamificationProfile}
+            records={records}
+            snapshots={capturedSnapshots}
+            bestRSquared={bestRSquared}
+            lksGraded={lksGraded}
+            latestLksScore={latestLksScore}
+            activeModuleTitle={experimentModule.title}
+          />
+        </Suspense>
+      )}
+
       {/* Student Gamification & Badges Celebration Modal */}
-      <BadgeNotificationModal
-        isOpen={isBadgeModalOpen}
-        onClose={() => {
-          setIsBadgeModalOpen(false);
-          setNewlyUnlockedBadge(null);
-        }}
-        profile={gamificationProfile}
-        newlyUnlockedBadge={newlyUnlockedBadge}
-        recentXpDelta={recentXpDelta}
-      />
+      {isBadgeModalOpen && (
+        <Suspense fallback={null}>
+          <BadgeNotificationModal
+            isOpen={isBadgeModalOpen}
+            onClose={() => {
+              setIsBadgeModalOpen(false);
+              setNewlyUnlockedBadge(null);
+            }}
+            profile={gamificationProfile}
+            newlyUnlockedBadge={newlyUnlockedBadge}
+            recentXpDelta={recentXpDelta}
+          />
+        </Suspense>
+      )}
 
       {/* 3T Adaptive Lite Mode Notification Banner */}
       {liteModeNotification && (

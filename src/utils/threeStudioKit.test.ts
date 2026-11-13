@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as THREE from 'three';
 import {
   buildGraduationTicks,
   computeMsaaSamples,
   createBeakerProfilePoints,
+  createBiologicalMembraneTexture,
   createErlenmeyerProfilePoints,
   createFunnelProfilePoints,
+  createGraduatedScaleTexture,
+  smoothCameraTransition,
 } from './threeStudioKit';
 
 test('computeMsaaSamples returns 0 for software GL and clamps hardware MSAA up to 4', () => {
@@ -55,3 +59,33 @@ test('buildGraduationTicks yields properly normalized major and minor ticks', ()
   assert.equal(ticks[10].ratio, 1);
   assert.deepEqual(buildGraduationTicks(0, 10, 5), []);
 });
+
+test('smoothCameraTransition smoothly interpolates camera.position and controls.target via Vector3.lerp', () => {
+  const mockCamera = { position: new THREE.Vector3(0, 0, 10) };
+  const mockControls = { target: new THREE.Vector3(0, 0, 0) };
+  const targetPos = new THREE.Vector3(4, 6, 12);
+  const targetLookAt = new THREE.Vector3(0, 2, 0);
+
+  const stillMoving = smoothCameraTransition(mockCamera, mockControls, targetPos, targetLookAt, 0.5);
+  assert.equal(stillMoving, true);
+  assert.equal(mockCamera.position.x, 2);
+  assert.equal(mockCamera.position.y, 3);
+  assert.equal(mockCamera.position.z, 11);
+  assert.equal(mockControls.target.y, 1);
+
+  // Converge after repeated steps
+  let active = true;
+  for (let i = 0; i < 60 && active; i += 1) {
+    active = smoothCameraTransition(mockCamera, mockControls, targetPos, targetLookAt, 0.25);
+  }
+  assert.equal(active, false, 'smoothCameraTransition should snap and return false once within threshold');
+  assert.equal(mockCamera.position.distanceTo(targetPos), 0);
+  assert.equal(mockControls.target.distanceTo(targetLookAt), 0);
+});
+
+test('createGraduatedScaleTexture and createBiologicalMembraneTexture gracefully handle headless Node environment', () => {
+  // In Node environment without DOM document, both return null safely without throwing
+  assert.equal(createGraduatedScaleTexture(50, 'mL', 10), null);
+  assert.equal(createBiologicalMembraneTexture('#15803d', '#4ade80'), null);
+});
+

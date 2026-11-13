@@ -5,12 +5,13 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
   createBrushedMetalTextures,
-  createGraduationScaleTexture,
+  createGraduatedScaleTexture,
   createStudioComposer,
   createStudioWorkbenchGroup,
   disposeThreeSceneResources,
   createAdaptiveFpsMonitor,
   configureRendererForLiteMode,
+  smoothCameraTransition,
 } from '../utils/threeStudioKit';
 import {
   PhysicsParams,
@@ -240,7 +241,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   onEmitCursor,
   onUpdateParam,
   onCaptureSnapshot,
-  snapshotCount = 0,
   comfortTheme,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
@@ -262,6 +262,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [hudCollapsed] = useState(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
+  const [followCamEnabled, setFollowCamEnabled] = useState<boolean>(true);
+  const followCamRef = useRef<boolean>(true);
+  followCamRef.current = followCamEnabled;
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
   const [sceneKey, setSceneKey] = useState<number>(0);
 
@@ -352,7 +355,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const initialLite = useUIStore.getState().liteDeviceMode;
     configureRendererForLiteMode(renderer, initialLite);
 
-    const fpsMonitor = createAdaptiveFpsMonitor((avgFps) => {
+    const fpsMonitor = createAdaptiveFpsMonitor(() => {
       if (!useUIStore.getState().liteDeviceMode) {
         useUIStore.getState().setLiteDeviceMode(true);
         useUIStore.getState().setLiteModeNotification(
@@ -501,11 +504,11 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     // Shared PBR Materials & Precision Textures
     const metalTex = createBrushedMetalTextures();
-    const rampScaleTex = createGraduationScaleTexture({
-      maxValue: 200,
-      majorStep: 50,
-      minorStep: 10,
-      unit: 'cm',
+    const rampScaleTex = createGraduatedScaleTexture(200, 'cm', 20, {
+      width: 256,
+      height: 512,
+    });
+    const airTrackScaleTex = createGraduatedScaleTexture(120, 'cm', 24, {
       width: 256,
       height: 512,
     });
@@ -742,6 +745,14 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     springWall.castShadow = true;
     springGroup.add(springWall);
 
+    const springTrackBed = new THREE.Mesh(
+      new RoundedBoxGeometry(10.8, 0.21, 2.2, 3, 0.03),
+      darkFrameMat
+    );
+    springTrackBed.position.set(0.2, 0.105, 0);
+    springTrackBed.receiveShadow = true;
+    springGroup.add(springTrackBed);
+
     const COIL_POINTS = 96;
     const coilPositions = new Float32Array(COIL_POINTS * 3);
     const coilGeo = new THREE.BufferGeometry();
@@ -944,51 +955,174 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     circuitTable.receiveShadow = true;
     wheatstoneGroup.add(circuitTable);
 
-    // DC Power Supply
+    // DC Power Supply sitting flush on circuitTable (y = 0.2)
     const powerSupplyBox = new THREE.Mesh(
       new THREE.BoxGeometry(2.2, 1.4, 1.6),
       darkFrameMat
     );
-    powerSupplyBox.position.set(-3.2, 0.8, -1.8);
+    powerSupplyBox.position.set(-3.2, 0.9, -1.8);
     powerSupplyBox.castShadow = true;
     powerSupplyBox.userData = { draggableParam: 'circuitVoltage', min: 1, max: 24, step: 1, label: 'Tegangan Sumber V' };
     wheatstoneGroup.add(powerSupplyBox);
 
-    // Resistor cylinders arranged in diamond
-    const resistorMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
-    const r1Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.2, 16), resistorMat);
-    r1Mesh.rotation.z = Math.PI / 4;
-    r1Mesh.position.set(-1.4, 0.35, 0.8);
-    const r2Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.2, 16), resistorMat);
-    r2Mesh.rotation.z = -Math.PI / 4;
-    r2Mesh.position.set(1.4, 0.35, 0.8);
-    const r3Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.2, 16), resistorMat);
-    r3Mesh.rotation.z = -Math.PI / 4;
-    r3Mesh.position.set(-1.4, 0.35, -0.8);
-    const rxMesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.2, 0.2, 1.2, 16),
-      new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 })
-    );
-    rxMesh.rotation.z = Math.PI / 4;
-    rxMesh.position.set(1.4, 0.35, -0.8);
-    rxMesh.castShadow = true;
-    rxMesh.userData = { draggableParam: 'resistorRx', min: 10, max: 1000, step: 10, label: 'Resistor Rx (Ohm)' };
-    wheatstoneGroup.add(r1Mesh, r2Mesh, r3Mesh, rxMesh);
+    // Binding Post Terminals on Bridge Nodes (Left: A, Top: B, Bottom: D, Right: C)
+    const nodePositions = {
+      left: new THREE.Vector3(-2.35, 0.28, 0),
+      top: new THREE.Vector3(0, 0.28, -1.65),
+      bottom: new THREE.Vector3(0, 0.28, 1.65),
+      right: new THREE.Vector3(2.35, 0.28, 0),
+    };
+    const postGeo = new THREE.CylinderGeometry(0.1, 0.12, 0.26, 16);
+    Object.values(nodePositions).forEach((pos) => {
+      const post = new THREE.Mesh(postGeo, brassMat);
+      post.position.copy(pos);
+      post.castShadow = true;
+      wheatstoneGroup.add(post);
+    });
 
-    // Galvanometer at center
+    // Resistor cylinders arranged in diamond with metallic axial leads resting on posts
+    const resistorMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.35, metalness: 0.2 });
+    const createResistorAssembly = (
+      x: number,
+      z: number,
+      rotY: number,
+      bodyColorMat: THREE.Material,
+      draggable?: Record<string, unknown>
+    ) => {
+      const rGroup = new THREE.Group();
+      rGroup.position.set(x, 0.34, z);
+      rGroup.rotation.y = rotY;
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.2, 18), bodyColorMat);
+      body.rotation.z = Math.PI / 2;
+      body.castShadow = true;
+      if (draggable) body.userData = draggable;
+      const lead = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.2, 12), brushedSteelMat);
+      lead.rotation.z = Math.PI / 2;
+      const band1 = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.186, 0.186, 0.09, 18),
+        new THREE.MeshBasicMaterial({ color: 0x1e293b })
+      );
+      band1.rotation.z = Math.PI / 2;
+      band1.position.x = -0.32;
+      const band2 = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.186, 0.186, 0.09, 18),
+        new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+      );
+      band2.rotation.z = Math.PI / 2;
+      band2.position.x = 0.28;
+      rGroup.add(lead, body, band1, band2);
+      return rGroup;
+    };
+
+    const r1Assembly = createResistorAssembly(-1.18, 0.82, Math.atan2(1.65, 2.35), resistorMat);
+    const r2Assembly = createResistorAssembly(1.18, 0.82, -Math.atan2(1.65, 2.35), resistorMat);
+    const r3Assembly = createResistorAssembly(-1.18, -0.82, -Math.atan2(1.65, 2.35), resistorMat);
+    const rxAssembly = createResistorAssembly(
+      1.18,
+      -0.82,
+      Math.atan2(1.65, 2.35),
+      new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3, metalness: 0.15 }),
+      { draggableParam: 'resistorRx', min: 10, max: 1000, step: 10, label: 'Resistor Rx (Ohm)' }
+    );
+    wheatstoneGroup.add(r1Assembly, r2Assembly, r3Assembly, rxAssembly);
+
+    // Realistic Curved Electrical Wires (THREE.TubeGeometry + CatmullRomCurve3)
+    const addCurvedWire = (pts: THREE.Vector3[], colorHex: number, radius = 0.042) => {
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const wireGeo = new THREE.TubeGeometry(curve, 28, radius, 10, false);
+      const wireMat = new THREE.MeshStandardMaterial({
+        color: colorHex,
+        roughness: 0.42,
+        metalness: 0.15,
+      });
+      const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+      wireMesh.castShadow = true;
+      wheatstoneGroup.add(wireMesh);
+    };
+
+    // Red positive lead from DC Power Supply to Left Bridge Node
+    addCurvedWire(
+      [
+        new THREE.Vector3(-2.4, 0.68, -1.1),
+        new THREE.Vector3(-2.85, 0.92, -0.55),
+        new THREE.Vector3(-2.6, 0.52, -0.15),
+        new THREE.Vector3(-2.35, 0.34, 0),
+      ],
+      0xef4444
+    );
+    // Blue/Black negative return lead from Right Bridge Node to DC Power Supply
+    addCurvedWire(
+      [
+        new THREE.Vector3(-2.1, 0.68, -1.1),
+        new THREE.Vector3(-0.6, 0.76, -2.25),
+        new THREE.Vector3(1.65, 0.62, -1.85),
+        new THREE.Vector3(2.35, 0.34, 0),
+      ],
+      0x0ea5e9
+    );
+    // Center Galvanometer sense leads (Top Node B -> Galvo, Bottom Node D -> Galvo)
+    addCurvedWire(
+      [
+        new THREE.Vector3(0, 0.34, -1.65),
+        new THREE.Vector3(-0.28, 0.64, -1.15),
+        new THREE.Vector3(-0.18, 0.46, -0.72),
+      ],
+      0x10b981,
+      0.034
+    );
+    addCurvedWire(
+      [
+        new THREE.Vector3(0, 0.34, 1.65),
+        new THREE.Vector3(0.28, 0.64, 1.15),
+        new THREE.Vector3(0.18, 0.46, 0.72),
+      ],
+      0xf59e0b,
+      0.034
+    );
+
+    // 3D Galvanometer at center with Calibrated Dial & Pivoting 3D Needle
     const galvoBox = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.9, 0.9, 0.35, 32),
+      new THREE.CylinderGeometry(0.92, 0.96, 0.36, 32),
       brushedSteelMat
     );
-    galvoBox.position.set(0, 0.3, 0);
+    galvoBox.position.set(0, 0.38, 0);
     galvoBox.castShadow = true;
     wheatstoneGroup.add(galvoBox);
 
-    const galvoNeedle = new THREE.Mesh(
-      new THREE.BoxGeometry(0.04, 0.02, 1.2),
-      new THREE.MeshBasicMaterial({ color: 0xef4444 })
+    const galvoDialFace = new THREE.Mesh(
+      new THREE.CircleGeometry(0.78, 32),
+      new THREE.MeshBasicMaterial({ color: 0x0f172a })
     );
-    galvoNeedle.position.set(0, 0.5, 0);
+    galvoDialFace.rotation.x = -Math.PI / 2;
+    galvoDialFace.position.set(0, 0.565, 0);
+    wheatstoneGroup.add(galvoDialFace);
+
+    const galvoZeroTick = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.04, 0.24),
+      new THREE.MeshBasicMaterial({ color: 0x10b981 })
+    );
+    galvoZeroTick.rotation.x = -Math.PI / 2;
+    galvoZeroTick.position.set(0, 0.57, -0.54);
+    wheatstoneGroup.add(galvoZeroTick);
+
+    const galvoNeedle = new THREE.Group();
+    galvoNeedle.position.set(0, 0.58, 0.15);
+    const galvoNeedlePointer = new THREE.Mesh(
+      new THREE.ConeGeometry(0.065, 0.78, 12),
+      new THREE.MeshStandardMaterial({
+        color: 0xef4444,
+        emissive: 0xef4444,
+        emissiveIntensity: 0.45,
+        roughness: 0.25,
+      })
+    );
+    galvoNeedlePointer.rotation.x = -Math.PI / 2;
+    galvoNeedlePointer.position.set(0, 0, -0.34);
+    const galvoPivotCap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.11, 0.08, 16),
+      brassMat
+    );
+    galvoNeedle.add(galvoNeedlePointer, galvoPivotCap);
     wheatstoneGroup.add(galvoNeedle);
 
     // =========================================================
@@ -1005,7 +1139,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     optBenchRail.receiveShadow = true;
     youngSlitGroup.add(optBenchRail);
 
-    // Laser Emitter Housing at left
+    // Laser Emitter Housing at left + Grounded Optical Post Pedestal (zero floating)
     const laserEmitter = new THREE.Mesh(
       new THREE.BoxGeometry(1.6, 1.2, 1.0),
       brushedSteelMat
@@ -1015,6 +1149,14 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     laserEmitter.userData = { draggableParam: 'lightWavelength', min: 400, max: 700, step: 10, label: 'Panjang Gelombang λ' };
     youngSlitGroup.add(laserEmitter);
 
+    const laserMountPost = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.14, 0.22, 0.52, 16),
+      darkFrameMat
+    );
+    laserMountPost.position.set(-4.8, 0.42, 0);
+    laserMountPost.castShadow = true;
+    youngSlitGroup.add(laserMountPost);
+
     const laserBeamLine = new THREE.Mesh(
       new THREE.CylinderGeometry(0.035, 0.035, 3.2, 12),
       new THREE.MeshBasicMaterial({ color: 0x10b981 })
@@ -1023,7 +1165,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     laserBeamLine.position.set(-2.8, 1.2, 0);
     youngSlitGroup.add(laserBeamLine);
 
-    // Double Slit Aperture Plate
+    // Double Slit Aperture Plate + Grounded Post
     const slitPlateGroup = new THREE.Group();
     slitPlateGroup.position.set(-1.2, 1.2, 0);
     youngSlitGroup.add(slitPlateGroup);
@@ -1036,7 +1178,14 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     slitPlate.userData = { draggableParam: 'slitDistance', min: 0.05, max: 0.8, step: 0.02, label: 'Jarak Celah d' };
     slitPlateGroup.add(slitPlate);
 
-    // Screen
+    const slitMountPost = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.16, 0.28, 16),
+      brushedSteelMat
+    );
+    slitMountPost.position.set(0, -0.98, 0);
+    slitPlateGroup.add(slitMountPost);
+
+    // Screen + Grounded Post
     const screenCarrier = new THREE.Group();
     screenCarrier.position.set(3.8, 1.4, 0);
     youngSlitGroup.add(screenCarrier);
@@ -1054,7 +1203,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     );
     projScreen.rotation.y = -Math.PI / 2;
     projScreen.userData = { draggableParam: 'screenDistance', min: 0.5, max: 3.0, step: 0.1, label: 'Jarak Layar L' };
-    screenCarrier.add(projScreen);
+    const screenMountPost = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.18, 0.26, 16),
+      brushedSteelMat
+    );
+    screenMountPost.position.set(0, -1.2, 0);
+    screenCarrier.add(projScreen, screenMountPost);
 
     // =========================================================
     // 8. PHOTOELECTRIC PLANCK 3D GROUP
@@ -1069,6 +1223,19 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     peBase.position.set(0, 0.1, 0);
     peBase.receiveShadow = true;
     photoelectricGroup.add(peBase);
+
+    // Dual cradle mounts supporting the glass phototube flush onto peBase (zero floating)
+    const peCradleLeft = new THREE.Mesh(
+      new RoundedBoxGeometry(0.32, 0.42, 1.2, 2, 0.03),
+      darkFrameMat
+    );
+    peCradleLeft.position.set(-1.1, 0.38, 0);
+    const peCradleRight = new THREE.Mesh(
+      new RoundedBoxGeometry(0.32, 0.42, 1.2, 2, 0.03),
+      darkFrameMat
+    );
+    peCradleRight.position.set(1.1, 0.38, 0);
+    photoelectricGroup.add(peCradleLeft, peCradleRight);
 
     // Glass Phototube bulb
     const peBulb = new THREE.Mesh(
@@ -1111,35 +1278,130 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     }
 
     // =========================================================
-    // 8b. 1D COLLISION MOMENTUM 3D GROUP
+    // 8b. 1D COLLISION MOMENTUM 3D GROUP (AIR-TRACK GLIDER CARTS)
     // =========================================================
     const collisionGroup = new THREE.Group();
     scene.add(collisionGroup);
 
     const airTrackRail = new THREE.Mesh(
-      new THREE.BoxGeometry(11.4, 0.24, 1.8),
+      new RoundedBoxGeometry(11.4, 0.28, 1.85, 3, 0.03),
       darkFrameMat
     );
-    airTrackRail.position.set(0, 0.12, 0);
+    airTrackRail.position.set(0, 0.14, 0);
     airTrackRail.receiveShadow = true;
     collisionGroup.add(airTrackRail);
 
-    const cart1Mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.55, 28, 28),
-      primaryMassMat
+    // Anodized V-ridge aluminum air-track extrusion & graduated cm ruler strip
+    const airTrackRidge = new THREE.Mesh(
+      new RoundedBoxGeometry(11.3, 0.12, 0.72, 2, 0.02),
+      brushedSteelMat
     );
-    cart1Mesh.position.set(-3.2, 0.79, 0);
-    cart1Mesh.castShadow = true;
-    cart1Mesh.userData = { draggableParam: 'initialVelocity', min: 1, max: 30, step: 1, label: 'Kecepatan Awal v₁' };
+    airTrackRidge.position.set(0, 0.32, 0);
+    airTrackRidge.receiveShadow = true;
+    collisionGroup.add(airTrackRidge);
+
+    if (airTrackScaleTex) {
+      const airTrackRuler = new THREE.Mesh(
+        new THREE.PlaneGeometry(10.8, 0.24),
+        new THREE.MeshBasicMaterial({
+          map: airTrackScaleTex,
+          transparent: true,
+          opacity: 0.9,
+          depthWrite: false,
+        })
+      );
+      airTrackRuler.rotation.z = -Math.PI / 2;
+      airTrackRuler.position.set(0, 0.15, 0.935);
+      collisionGroup.add(airTrackRuler);
+    }
+
+    // Helper: Composite Precision Dynamics Cart / Glider Air-Track (Trapezoidal Saddle + Spring Bumpers + Photogate Flag)
+    const createAirTrackGliderCart = (
+      hullMat: THREE.Material,
+      facingSign: 1 | -1,
+      draggable: Record<string, unknown>
+    ) => {
+      const cartGroup = new THREE.Group();
+
+      // 1. Primary precision glider saddle hull
+      const hullMesh = new THREE.Mesh(
+        new RoundedBoxGeometry(1.18, 0.44, 0.92, 3, 0.045),
+        hullMat
+      );
+      hullMesh.position.set(0, 0.02, 0);
+      hullMesh.castShadow = true;
+      hullMesh.receiveShadow = true;
+      hullMesh.userData = draggable;
+      cartGroup.add(hullMesh);
+
+      // 2. Trapezoidal beveled top mass deck & photogate optical interruption fin
+      const topDeck = new THREE.Mesh(
+        new RoundedBoxGeometry(0.86, 0.16, 0.74, 2, 0.025),
+        brushedSteelMat
+      );
+      topDeck.position.set(0, 0.31, 0);
+      topDeck.castShadow = true;
+      topDeck.userData = draggable;
+      const flagFin = new THREE.Mesh(
+        new BoxGeometry(0.22, 0.34, 0.05),
+        darkFrameMat
+      );
+      flagFin.position.set(0, 0.52, 0);
+      cartGroup.add(topDeck, flagFin);
+
+      // 3. Low-friction air-cushion skirt rails hugging the track ridge
+      const skirtGeo = new THREE.BoxGeometry(1.16, 0.16, 0.09);
+      const skirtFront = new THREE.Mesh(skirtGeo, darkFrameMat);
+      skirtFront.position.set(0, -0.22, 0.41);
+      const skirtBack = new THREE.Mesh(skirtGeo, darkFrameMat);
+      skirtBack.position.set(0, -0.22, -0.41);
+      cartGroup.add(skirtFront, skirtBack);
+
+      // 4. Precision spring bumper assembly on impact face
+      const bumperStem = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 0.24, 14),
+        brushedSteelMat
+      );
+      bumperStem.rotation.z = Math.PI / 2;
+      bumperStem.position.set(facingSign * 0.68, 0.02, 0);
+
+      const bumperCoil = new THREE.Mesh(
+        new THREE.TorusGeometry(0.12, 0.032, 10, 20),
+        brassMat
+      );
+      bumperCoil.rotation.y = Math.PI / 2;
+      bumperCoil.position.set(facingSign * 0.68, 0.02, 0);
+
+      const bumperPlate = new THREE.Mesh(
+        new RoundedBoxGeometry(0.06, 0.32, 0.62, 2, 0.015),
+        brushedSteelMat
+      );
+      bumperPlate.position.set(facingSign * 0.81, 0.02, 0);
+      bumperPlate.castShadow = true;
+      cartGroup.add(bumperStem, bumperCoil, bumperPlate);
+
+      return cartGroup;
+    };
+
+    const { BoxGeometry } = THREE;
+    const cart1Mesh = createAirTrackGliderCart(primaryMassMat, 1, {
+      draggableParam: 'initialVelocity',
+      min: 1,
+      max: 30,
+      step: 1,
+      label: 'Kecepatan Awal v₁',
+    });
+    cart1Mesh.position.set(-3.2, 0.62, 0);
     collisionGroup.add(cart1Mesh);
 
-    const cart2Mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.55, 28, 28),
-      brassMat
-    );
-    cart2Mesh.position.set(2.4, 0.79, 0);
-    cart2Mesh.castShadow = true;
-    cart2Mesh.userData = { draggableParam: 'collisionMass2', min: 0.5, max: 25, step: 0.5, label: 'Massa Benda m₂' };
+    const cart2Mesh = createAirTrackGliderCart(brassMat, -1, {
+      draggableParam: 'collisionMass2',
+      min: 0.5,
+      max: 25,
+      step: 0.5,
+      label: 'Massa Benda m₂',
+    });
+    cart2Mesh.position.set(2.4, 0.62, 0);
     collisionGroup.add(cart2Mesh);
 
     const collVec1 = createArrowGroup(0x38bdf8);
@@ -1466,6 +1728,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         projectileBall.position.set(curX, curY, 0);
         projectileMotionTrail.pushSample(projectileBall.position);
         targetRing.position.set(-5.2 + m.projectileRange * scaleX, 0.03, 0);
+
+        if (followCamRef.current && !camTransitionActive && !isDragging) {
+          const followTargetX = THREE.MathUtils.clamp(curX * 0.45, -3.2, 3.8);
+          const followTargetY = THREE.MathUtils.clamp(Math.max(1.2, curY * 0.55), 1.1, 4.2);
+          controls.target.x = THREE.MathUtils.lerp(controls.target.x, followTargetX, 0.08);
+          controls.target.y = THREE.MathUtils.lerp(controls.target.y, followTargetY, 0.08);
+        }
       }
 
       // 3. Spring update
@@ -1526,13 +1795,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         }
       }
 
-      // 4b. 1D Collision Momentum update
+      // 4b. 1D Collision Momentum update (Glider Air-Track)
       else if (p.mode === 'collision-momentum') {
         const cycle = (t % 3.4);
-        const r1 = 0.42 + Math.min(0.35, p.mass * 0.015);
-        const r2 = 0.42 + Math.min(0.35, (p.collisionMass2 || 2) * 0.015);
-        cart1Mesh.scale.setScalar(r1 / 0.55);
-        cart2Mesh.scale.setScalar(r2 / 0.55);
+        const r1 = 0.46 + Math.min(0.32, p.mass * 0.014);
+        const r2 = 0.46 + Math.min(0.32, (p.collisionMass2 || 2) * 0.014);
+        cart1Mesh.scale.set(r1 / 0.52, 1, 1);
+        cart2Mesh.scale.set(r2 / 0.52, 1, 1);
 
         const v1Init = p.initialVelocity !== 0 ? p.initialVelocity : 8;
         const v2Init = p.velocity2Initial ?? -4;
@@ -1554,19 +1823,20 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           x2 = Math.max(-5.0, Math.min(5.0, r2 + curV2 * 0.22 * postT));
         }
 
-        cart1Mesh.position.set(x1, 0.24 + r1, 0);
-        cart2Mesh.position.set(x2, 0.24 + r2, 0);
+        // Seated flush on air-track ridge at y = 0.56
+        cart1Mesh.position.set(x1, 0.56, 0);
+        cart2Mesh.position.set(x2, 0.56, 0);
 
         if (showVec) {
           orientAndScaleArrow(
             collVec1,
-            new THREE.Vector3(x1, 0.24 + r1 * 2.1, 0),
+            new THREE.Vector3(x1, 1.38, 0),
             new THREE.Vector3(curV1 >= 0 ? 1 : -1, 0, 0),
             Math.min(2.2, Math.abs(curV1) * 0.14)
           );
           orientAndScaleArrow(
             collVec2,
-            new THREE.Vector3(x2, 0.24 + r2 * 2.1, 0),
+            new THREE.Vector3(x2, 1.38, 0),
             new THREE.Vector3(curV2 >= 0 ? 1 : -1, 0, 0),
             Math.min(2.2, Math.abs(curV2) * 0.14)
           );
@@ -1613,11 +1883,21 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         }
       }
 
-      // 6. Wheatstone update
+      // 6. Wheatstone update (Signed Galvanometer Deflection)
       else if (p.mode === 'ohm-wheatstone') {
         const ig = m.galvanometerCurrent ?? 0;
-        const needleAngle = Math.max(-0.6, Math.min(0.6, (ig / 50) * Math.PI * 0.4));
-        galvoNeedle.rotation.y = needleAngle + Math.sin(nowSec * 6) * 0.015;
+        const r1Val = Math.max(1, p.resistorR1 ?? 100);
+        const r2Val = Math.max(1, p.resistorR2 ?? 100);
+        const r3Val = Math.max(1, p.resistorR3 ?? 100);
+        const rxVal = Math.max(1, p.resistorRx ?? 100);
+        const vDiff = (r2Val / (r1Val + r2Val)) - (rxVal / (r3Val + rxVal));
+        const dirSign = Math.abs(vDiff) < 1e-4 ? 0 : Math.sign(vDiff);
+        const targetNeedleAngle = Math.max(-0.68, Math.min(0.68, dirSign * (ig / 45) * Math.PI * 0.42));
+        galvoNeedle.rotation.y = THREE.MathUtils.lerp(
+          galvoNeedle.rotation.y,
+          targetNeedleAngle + (dirSign !== 0 ? Math.sin(nowSec * 6) * 0.012 : 0),
+          0.16
+        );
       }
 
       // 7. Young's slit update
@@ -1688,15 +1968,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       );
 
       if (camTransitionActive) {
-        camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamPos.x, 6, 0.016);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamPos.y, 6, 0.016);
-        camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamPos.z, 6, 0.016);
-        controls.target.x = THREE.MathUtils.damp(controls.target.x, desiredTarget.x, 6, 0.016);
-        controls.target.y = THREE.MathUtils.damp(controls.target.y, desiredTarget.y, 6, 0.016);
-        controls.target.z = THREE.MathUtils.damp(controls.target.z, desiredTarget.z, 6, 0.016);
-        if (camera.position.distanceToSquared(desiredCamPos) < 0.01) {
-          camTransitionActive = false;
-        }
+        camTransitionActive = smoothCameraTransition(
+          camera,
+          controls,
+          desiredCamPos,
+          desiredTarget,
+          0.14
+        );
       }
 
       controls.update();
@@ -1991,6 +2269,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       workbench.dispose();
       metalTex?.dispose();
       rampScaleTex?.dispose();
+      airTrackScaleTex?.dispose();
       fringeTexture.dispose();
 
       // Deep Three.js GPU resource disposal (geometries, materials, textures, renderer)
@@ -2125,6 +2404,24 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
               {preset.label}
             </button>
           ))}
+          {(params.mode === 'projectile-gravity' || (params.mode as string) === 'projectile-motion') && (
+            <button
+              type="button"
+              data-testid="projectile-follow-cam-toggle"
+              onClick={() => {
+                labSound.playClick(680);
+                setFollowCamEnabled((prev) => !prev);
+              }}
+              title="Follow Cam: Ikuti lintasan proyektil secara halus"
+              className={`px-2 py-1 text-[10px] font-mono rounded-lg transition-colors cursor-pointer ${
+                followCamEnabled
+                  ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/40 font-semibold'
+                  : 'text-slate-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Follow
+            </button>
+          )}
           {!hudCollapsed && showVectorOverlay && (
             <span className="hidden xl:flex items-center gap-1 px-2 text-[10px] font-mono text-emerald-300 border-l border-white/15">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -2152,3 +2449,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     </div>
   );
 };
+
+export default PhysicsScene3D;
+

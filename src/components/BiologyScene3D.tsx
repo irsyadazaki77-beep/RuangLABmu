@@ -3,12 +3,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
+  createBiologicalMembraneTexture,
   createBrushedMetalTextures,
   createLabBenchTextures,
   createStudioComposer,
   disposeThreeSceneResources,
   createAdaptiveFpsMonitor,
   configureRendererForLiteMode,
+  smoothCameraTransition,
 } from '../utils/threeStudioKit';
 import { Maximize2, Minimize2, Focus, Link2 } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
@@ -60,62 +62,16 @@ function wavelengthToHexColor(wavelengthNm: number): number {
   return 0xdc2626; // Red
 }
 
-function createOrganelleTexture(type: 'nucleus' | 'mitochondria' | 'chloroplast'): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    if (type === 'nucleus') {
-      const grad = ctx.createRadialGradient(128, 128, 16, 128, 128, 128);
-      grad.addColorStop(0, '#c084fc');
-      grad.addColorStop(0.55, '#7e22ce');
-      grad.addColorStop(1, '#3b0764');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, 256, 256);
-      // Chromatin fine network lines
-      ctx.strokeStyle = 'rgba(243, 232, 255, 0.55)';
-      ctx.lineWidth = 3;
-      for (let i = 0; i < 24; i++) {
-        ctx.beginPath();
-        ctx.arc(
-          40 + ((i * 53) % 176),
-          40 + ((i * 71) % 176),
-          14 + (i % 12),
-          0,
-          Math.PI * 1.4
-        );
-        ctx.stroke();
-      }
-    } else if (type === 'mitochondria') {
-      ctx.fillStyle = '#ea580c';
-      ctx.fillRect(0, 0, 256, 256);
-      // Cristae folded inner membrane stripes
-      ctx.strokeStyle = '#fef08a';
-      ctx.lineWidth = 6;
-      for (let y = 16; y < 240; y += 22) {
-        ctx.beginPath();
-        ctx.moveTo(20, y);
-        ctx.bezierCurveTo(90, y - 12, 166, y + 12, 236, y);
-        ctx.stroke();
-      }
-    } else {
-      ctx.fillStyle = '#15803d';
-      ctx.fillRect(0, 0, 256, 256);
-      // Grana / Thylakoid stacks
-      ctx.fillStyle = '#4ade80';
-      for (let i = 0; i < 18; i++) {
-        const gx = 32 + ((i * 61) % 192);
-        const gy = 32 + ((i * 83) % 192);
-        ctx.beginPath();
-        ctx.arc(gx, gy, 16, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
+function createOrganelleTexture(
+  type: 'nucleus' | 'mitochondria' | 'chloroplast'
+): ReturnType<typeof createBiologicalMembraneTexture> {
+  if (type === 'nucleus') {
+    return createBiologicalMembraneTexture('#7e22ce', '#e9d5ff');
   }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  if (type === 'mitochondria') {
+    return createBiologicalMembraneTexture('#ea580c', '#fef08a');
+  }
+  return createBiologicalMembraneTexture('#15803d', '#4ade80');
 }
 
 export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
@@ -124,7 +80,6 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   remoteCursors = {},
   onEmitCursor,
   onCaptureSnapshot,
-  snapshotCount = 0,
   comfortTheme,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
@@ -239,7 +194,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const initialLite = useUIStore.getState().liteDeviceMode;
     configureRendererForLiteMode(renderer, initialLite);
 
-    const fpsMonitor = createAdaptiveFpsMonitor((avgFps) => {
+    const fpsMonitor = createAdaptiveFpsMonitor(() => {
       if (!useUIStore.getState().liteDeviceMode) {
         useUIStore.getState().setLiteDeviceMode(true);
         useUIStore.getState().setLiteModeNotification(
@@ -489,19 +444,26 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const apparatusGroup = new THREE.Group();
     scene.add(apparatusGroup);
 
-    // Organelle textures & materials for interactive lens focus sharpness (Tahap 5)
     const maxAniso = renderer.capabilities.getMaxAnisotropy();
     const nucleusTex = createOrganelleTexture('nucleus');
     const mitoTex = createOrganelleTexture('mitochondria');
     const chloroTex = createOrganelleTexture('chloroplast');
-    [nucleusTex, mitoTex, chloroTex].forEach((t) => {
-      t.anisotropy = maxAniso;
+    const protoMembraneTex = createBiologicalMembraneTexture('#16a34a', '#bbf7d0');
+    [nucleusTex, mitoTex, chloroTex, protoMembraneTex].forEach((t) => {
+      if (t) t.anisotropy = maxAniso;
     });
+
+    const nucleusBump = nucleusTex?.bumpMap ?? null;
+    const mitoBump = mitoTex?.bumpMap ?? null;
+    const chloroBump = chloroTex?.bumpMap ?? null;
+    const protoBump = protoMembraneTex?.bumpMap ?? null;
 
     const nucleusMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       map: nucleusTex,
-      roughness: 0.25,
+      bumpMap: nucleusBump,
+      bumpScale: 0.025,
+      roughness: 0.28,
       emissive: 0xa855f7,
       emissiveMap: nucleusTex,
       emissiveIntensity: 0.85,
@@ -511,7 +473,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const mitoMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       map: mitoTex,
-      roughness: 0.3,
+      bumpMap: mitoBump,
+      bumpScale: 0.028,
+      roughness: 0.32,
       emissive: 0xf97316,
       emissiveMap: mitoTex,
       emissiveIntensity: 0.8,
@@ -521,7 +485,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const chloroMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       map: chloroTex,
-      roughness: 0.25,
+      bumpMap: chloroBump,
+      bumpScale: 0.024,
+      roughness: 0.26,
       emissive: 0x22c55e,
       emissiveMap: chloroTex,
       emissiveIntensity: 0.9,
@@ -788,14 +754,17 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       cellWall.name = '🧱 Dinding Selulosa Kaku';
       apparatusGroup.add(cellWall);
 
-      // Inner Plasma Membrane & Protoplast (Translucent so Condenser Light & Organelles shine through)
+      // Inner Plasma Membrane & Protoplast (Translucent with cellular membrane bump relief)
       const protoGeo = new THREE.BoxGeometry(2.1, 1.5, 1.3);
       const protoMat = new THREE.MeshPhysicalMaterial({
         color: 0x86efac,
+        map: protoMembraneTex,
+        bumpMap: protoBump,
+        bumpScale: 0.015,
         transparent: true,
-        opacity: 0.42,
-        roughness: 0.15,
-        transmission: 0.72,
+        opacity: 0.44,
+        roughness: 0.16,
+        transmission: 0.7,
         thickness: 0.5,
       });
       protoplastMesh = new THREE.Mesh(protoGeo, protoMat);
@@ -1069,15 +1038,13 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       }
 
       if (camTransitionActive) {
-        camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamPos.x, 6, 0.016);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamPos.y, 6, 0.016);
-        camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamPos.z, 6, 0.016);
-        controls.target.x = THREE.MathUtils.damp(controls.target.x, desiredTarget.x, 6, 0.016);
-        controls.target.y = THREE.MathUtils.damp(controls.target.y, desiredTarget.y, 6, 0.016);
-        controls.target.z = THREE.MathUtils.damp(controls.target.z, desiredTarget.z, 6, 0.016);
-        if (camera.position.distanceToSquared(desiredCamPos) < 0.01) {
-          camTransitionActive = false;
-        }
+        camTransitionActive = smoothCameraTransition(
+          camera,
+          controls,
+          desiredCamPos,
+          desiredTarget,
+          0.14
+        );
       }
 
       controls.update();
@@ -1238,9 +1205,14 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       studioComposer.dispose();
       bioBenchTex?.dispose();
       bioMetalTex?.dispose();
-      nucleusTex.dispose();
-      mitoTex.dispose();
-      chloroTex.dispose();
+      nucleusTex?.dispose();
+      nucleusBump?.dispose();
+      mitoTex?.dispose();
+      mitoBump?.dispose();
+      chloroTex?.dispose();
+      chloroBump?.dispose();
+      protoMembraneTex?.dispose();
+      protoBump?.dispose();
       renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
       renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
 
@@ -1314,6 +1286,88 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         visible={showConceptLabels}
         onBindSlot={bindConceptSlot}
       />
+
+      {/* Optical Microscope Eyepiece Vignette & Reticle Scale Overlay when activePreset === 'focus' */}
+      {activePreset === 'focus' && (
+        <div
+          data-testid="microscope-eyepiece-vignette"
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden"
+          style={{
+            background:
+              'radial-gradient(circle at center, rgba(2,6,23,0) 46%, rgba(2,6,23,0.45) 68%, rgba(2,6,23,0.88) 92%)',
+          }}
+        >
+          {/* Circular Optical Lens Rim + Micrometer Reticle Crosshair & Scale */}
+          <svg
+            viewBox="0 0 400 400"
+            className="w-[84%] h-[84%] max-w-[440px] max-h-[440px] opacity-75"
+            aria-hidden="true"
+          >
+            <circle
+              cx="200"
+              cy="200"
+              r="182"
+              fill="none"
+              stroke="rgba(52, 211, 153, 0.42)"
+              strokeWidth="1.5"
+              strokeDasharray="6 4"
+            />
+            <circle
+              cx="200"
+              cy="200"
+              r="190"
+              fill="none"
+              stroke="rgba(148, 163, 184, 0.28)"
+              strokeWidth="2.5"
+            />
+            {/* Horizontal micrometer reticle bar near bottom of lens */}
+            <line
+              x1="130"
+              y1="332"
+              x2="270"
+              y2="332"
+              stroke="rgba(167, 243, 208, 0.75)"
+              strokeWidth="1.5"
+            />
+            {[0, 25, 50, 75, 100].map((um, idx) => {
+              const x = 130 + idx * 35;
+              return (
+                <g key={um}>
+                  <line
+                    x1={x}
+                    y1="326"
+                    x2={x}
+                    y2="338"
+                    stroke="rgba(167, 243, 208, 0.85)"
+                    strokeWidth="1.5"
+                  />
+                  <text
+                    x={x}
+                    y="350"
+                    textAnchor="middle"
+                    fill="rgba(167, 243, 208, 0.85)"
+                    fontSize="9"
+                    fontFamily="monospace"
+                  >
+                    {um}μm
+                  </text>
+                </g>
+              );
+            })}
+            <text
+              x="200"
+              y="366"
+              textAnchor="middle"
+              fill="rgba(52, 211, 153, 0.78)"
+              fontSize="9"
+              fontFamily="monospace"
+              letterSpacing="1"
+            >
+              LENSA OKULER MIKROSKOP · 400×
+            </text>
+          </svg>
+        </div>
+      )}
 
       {/* Unified Top-Right Camera & Fullscreen Pill */}
       {/* Consolidated Top-Right Capsule Bar: Snap-to-Port | 🥽 Mode VR | Presets (Iso | Depan | Atas | Fokus | ⛶) */}
@@ -1444,3 +1498,6 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     </div>
   );
 };
+
+export default BiologyScene3D;
+

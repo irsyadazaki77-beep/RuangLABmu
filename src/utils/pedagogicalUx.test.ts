@@ -12,6 +12,7 @@ import {
   getAstronomyParameterFeedback,
   translateObservationPattern,
   projectWorldAnchorToViewport,
+  computeGlossaryPopoverPosition,
 } from './pedagogicalHelpers';
 
 test('SCIENCE_GLOSSARY contains all 10 required science terms with explanation & analogy', () => {
@@ -171,4 +172,32 @@ test('projectWorldAnchorToViewport hides small viewports, behind-camera points, 
   assert.equal(clampedRight.visible, true);
   assert.equal(clampedRight.x, 800 - 56);
   assert.equal(clampedRight.y, 48);
+});
+
+test('computeGlossaryPopoverPosition keeps popover strictly inside 360px mobile viewport', () => {
+  // Trigger at far right edge on 360px screen
+  const rightEdge = computeGlossaryPopoverPosition(
+    { left: 325, width: 24, top: 100, bottom: 120 },
+    360,
+    740
+  );
+  assert.ok(rightEdge.left >= 12);
+  assert.ok(rightEdge.left + rightEdge.width <= 360 - 12);
+
+  // Trigger at far left edge on 360px screen
+  const leftEdge = computeGlossaryPopoverPosition(
+    { left: 4, width: 24, top: 100, bottom: 120 },
+    360,
+    740
+  );
+  assert.ok(leftEdge.left >= 12);
+  assert.ok(leftEdge.left + leftEdge.width <= 360 - 12);
+
+  // Trigger near bottom flips upward cleanly
+  const nearBottom = computeGlossaryPopoverPosition(
+    { left: 160, width: 40, top: 650, bottom: 670 },
+    360,
+    740
+  );
+  assert.equal(nearBottom.placeAbove, true);
 });

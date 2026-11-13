@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import {
   Camera,
 } from 'lucide-react';
@@ -11,9 +11,10 @@ import {
   LabNotification,
   ExperimentRecord,
 } from '../utils/scienceEngine';
-import { AstronomyScene3D } from './AstronomyScene3D';
 import { LabErrorBoundary } from './common/LabErrorBoundary';
 import { labSound } from '../utils/soundEngine';
+
+const AstronomyScene3D = React.lazy(() => import('./AstronomyScene3D'));
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import {
   TactileParameterControl,
@@ -32,7 +33,10 @@ import {
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
-import { getAstronomyParameterFeedback } from '../utils/pedagogicalHelpers';
+import {
+  getAstronomyParameterFeedback,
+  normalizeEducationLevel,
+} from '../utils/pedagogicalHelpers';
 
 export interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -46,7 +50,7 @@ export interface AstronomyLabViewProps {
   ) => void;
   onPushNotification: (notif: LabNotification) => void;
   onSyncWithGroup?: (summary: string) => void;
-  academicLevel?: AcademicLevel;
+  academicLevel?: AcademicLevel | string;
   records?: ExperimentRecord[];
   activeStudentName?: string;
   activeGroupId?: string;
@@ -85,7 +89,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   params,
   onChangeParams,
   onRecordExperiment,
-  academicLevel = 'sma',
+  academicLevel,
   records = [],
   onProceedToAnalysis,
   remoteCursors,
@@ -95,6 +99,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   onCapture3DSnapshot,
   snapshotCount = 0,
 }) => {
+  const storeAcademicLevel = useLabStore((s) => s.academicLevel);
+  const effectiveEducationLevel = normalizeEducationLevel(
+    academicLevel ?? storeAcademicLevel
+  );
   const [activeCameraPreset, setActiveCameraPreset] = useState<string>('isometric');
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [focusedPlanetBadge, setFocusedPlanetBadge] = useState<string | null>(null);
@@ -230,28 +238,39 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
       }
       canvas={
         <LabErrorBoundary domain="Astronomi" sceneName="AstronomyScene3D">
-          <AstronomyScene3D
-            params={params}
-            metrics={metrics}
-            remoteCursors={remoteCursors}
-            onEmitCursor={onEmitCursor}
-            onUpdateParam={(key, val) => handleParamPatch({ [key]: val })}
-            onPlanetClick={(planetName) => {
-              setFocusedPlanetBadge(planetName);
-              labSound.playClick(720);
-            }}
-            snapshotCount={snapshotCount}
-            onCaptureSnapshot={(dataUrl) => {
-              setShutterFlash(true);
-              setTimeout(() => setShutterFlash(false), 240);
-              onCapture3DSnapshot?.(
-                dataUrl,
-                'Orbit Tata Surya & Kepler 3D',
-                `Planet: ${params.selectedPlanetId || 'Bumi'}`,
-                `v = ${metrics.meanOrbitalVelocityKms} km/s`
-              );
-            }}
-          />
+          <Suspense
+            fallback={
+              <div className="w-full h-full min-h-[320px] flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 p-6 gap-3">
+                <div className="w-9 h-9 rounded-full border-2 border-sky-400 border-t-transparent animate-spin" />
+                <p className="text-xs font-mono font-semibold text-sky-300">
+                  Menyiapkan Ruang Laboratorium 3D...
+                </p>
+              </div>
+            }
+          >
+            <AstronomyScene3D
+              params={params}
+              metrics={metrics}
+              remoteCursors={remoteCursors}
+              onEmitCursor={onEmitCursor}
+              onUpdateParam={(key, val) => handleParamPatch({ [key]: val })}
+              onPlanetClick={(planetName) => {
+                setFocusedPlanetBadge(planetName);
+                labSound.playClick(720);
+              }}
+              snapshotCount={snapshotCount}
+              onCaptureSnapshot={(dataUrl) => {
+                setShutterFlash(true);
+                setTimeout(() => setShutterFlash(false), 240);
+                onCapture3DSnapshot?.(
+                  dataUrl,
+                  'Orbit Tata Surya & Kepler 3D',
+                  `Planet: ${params.selectedPlanetId || 'Bumi'}`,
+                  `v = ${metrics.meanOrbitalVelocityKms} km/s`
+                );
+              }}
+            />
+          </Suspense>
         </LabErrorBoundary>
       }
       sidebar={
@@ -355,7 +374,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={1.0}
                     max={25.0}
                     step={0.5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'galactocentricRadiusKpc', v, lvl)
                     }
@@ -368,7 +387,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0}
                     max={1.5}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'darkMatterHaloFraction', v, lvl)
                     }
@@ -381,7 +400,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.5}
                     max={2.0}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'bulgeDiskMassFactor', v, lvl)
                     }
@@ -397,7 +416,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.5}
                     max={15.0}
                     step={0.5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'exoplanetRadiusEarth', v, lvl)
                     }
@@ -410,7 +429,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.2}
                     max={5.0}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'starRadiusSolar', v, lvl)
                     }
@@ -423,7 +442,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.05}
                     max={5.0}
                     step={0.05}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'exoplanetOrbitAu', v, lvl)
                     }
@@ -439,7 +458,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={2800}
                     max={30000}
                     step={200}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'starEffectiveTempK', v, lvl)
                     }
@@ -452,7 +471,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.2}
                     max={10.0}
                     step={0.2}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'starRadiusSolar', v, lvl)
                     }
@@ -470,7 +489,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     max={600}
                     step={10}
                     glossaryTerm="Redshift"
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'galaxyDistanceMpc', v, lvl)
                     }
@@ -483,7 +502,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={65}
                     max={78}
                     step={1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'hubbleConstantH0', v, lvl)
                     }
@@ -499,7 +518,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.2}
                     max={30}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'customSemiMajorAxisAu', v, lvl)
                     }
@@ -515,7 +534,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     max={0.9}
                     step={0.02}
                     glossaryTerm="Eksentrisitas"
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'customEccentricity', v, lvl)
                     }
@@ -529,7 +548,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.2}
                     max={5.0}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getAstronomyParameterFeedback(params.mode, 'centralStarMassSolar', v, lvl)
                     }

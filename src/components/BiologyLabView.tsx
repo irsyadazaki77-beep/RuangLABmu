@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useMemo, useEffect, useRef } from 'react';
 import {
   Camera,
 } from 'lucide-react';
@@ -6,10 +6,11 @@ import {
   EducationTier,
   getExperimentsByDomain,
 } from '../registry/experimentRegistry';
-import { BiologyScene3D } from './BiologyScene3D';
 import { LabErrorBoundary } from './common/LabErrorBoundary';
 import { SpatialCursorPayload, ParameterLockPayload } from '../utils/collabProtocol';
 import { labSound } from '../utils/soundEngine';
+
+const BiologyScene3D = React.lazy(() => import('./BiologyScene3D'));
 import {
   TactileParameterControl,
   CollapsibleLabSection,
@@ -81,7 +82,6 @@ export interface BiologyLabViewProps {
 }
 
 export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
-  activeStudentName,
   activeTier,
   onRecordExperiment,
   remoteCursors = {},
@@ -97,9 +97,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   snapshotCount = 0,
 }) => {
   const storeLevel = useLabStore((s) => s.academicLevel);
-  const effectiveEducationLevel = activeTier
-    ? normalizeEducationLevel(activeTier)
-    : storeLevel;
+  const effectiveEducationLevel = normalizeEducationLevel(activeTier ?? storeLevel);
   const biologyModules = useMemo(() => getExperimentsByDomain('biologi'), []);
   const selectedModuleId = externalModuleId || 'photosynthesis-ingenhousz';
 
@@ -219,24 +217,35 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
       onSelectCameraPreset={setActiveCameraPreset}
       canvas={
         <LabErrorBoundary domain="Biologi" sceneName="BiologyScene3D">
-          <BiologyScene3D
-            mode={currentModule.id as any}
-            params={paramsState}
-            remoteCursors={remoteCursors}
-            onEmitCursor={onEmitCursor}
-            isPlaying={isPlaying}
-            snapshotCount={snapshotCount}
-            onCaptureSnapshot={(dataUrl) => {
-              setShutterFlash(true);
-              setTimeout(() => setShutterFlash(false), 240);
-              onCapture3DSnapshot?.(
-                dataUrl,
-                currentModule.title,
-                'Eksplorasi Biologi Sel 3D',
-                `${currentModule.outputs[0]?.label} = ${currentOutputs[currentModule.outputs[0]?.key]}`
-              );
-            }}
-          />
+          <Suspense
+            fallback={
+              <div className="w-full h-full min-h-[320px] flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 p-6 gap-3">
+                <div className="w-9 h-9 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                <p className="text-xs font-mono font-semibold text-emerald-300">
+                  Menyiapkan Ruang Laboratorium 3D...
+                </p>
+              </div>
+            }
+          >
+            <BiologyScene3D
+              mode={currentModule.id as any}
+              params={paramsState}
+              remoteCursors={remoteCursors}
+              onEmitCursor={onEmitCursor}
+              isPlaying={isPlaying}
+              snapshotCount={snapshotCount}
+              onCaptureSnapshot={(dataUrl) => {
+                setShutterFlash(true);
+                setTimeout(() => setShutterFlash(false), 240);
+                onCapture3DSnapshot?.(
+                  dataUrl,
+                  currentModule.title,
+                  'Eksplorasi Biologi Sel 3D',
+                  `${currentModule.outputs[0]?.label} = ${currentOutputs[currentModule.outputs[0]?.key]}`
+                );
+              }}
+            />
+          </Suspense>
         </LabErrorBoundary>
       }
       sidebar={

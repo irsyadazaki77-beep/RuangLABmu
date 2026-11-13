@@ -121,7 +121,6 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
   hypothesisNote,
   onChangeHypothesisNote,
   onAskDrLabMu,
-  snapshots3D = [],
   onDeleteRecord,
   onExportCSV,
   onRotateGroup,

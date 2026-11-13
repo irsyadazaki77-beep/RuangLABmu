@@ -3,7 +3,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Eye, Layers, Sparkles, X } from 'lucide-react';
-import { createStudioComposer, disposeThreeSceneResources } from '../../utils/threeStudioKit';
+import {
+  createBiologicalMembraneTexture,
+  createStudioComposer,
+  disposeThreeSceneResources,
+  smoothCameraTransition,
+} from '../../utils/threeStudioKit';
 import {
   calculateCardiovascularHeart,
   calculateRespiratoryLungs,
@@ -346,6 +351,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     const outerMaterials: THREE.MeshPhysicalMaterial[] = [];
     const innerGroup = new THREE.Group();
     rootGroup.add(innerGroup);
+    const disposableBioTextures: THREE.Texture[] = [];
 
     const pinMeshes: { mesh: THREE.Mesh; halo: THREE.Mesh; pin: AnatomyPinDef }[] = [];
     const pinGroup = new THREE.Group();
@@ -442,11 +448,26 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     }
 
     if (mode === 'anatomy-cardiovascular-heart') {
+      const heartMembraneTex = createBiologicalMembraneTexture('#be123c', '#fda4af');
+      const heartBump = heartMembraneTex?.bumpMap ?? null;
+      if (heartMembraneTex) disposableBioTextures.push(heartMembraneTex);
+      if (heartBump) disposableBioTextures.push(heartBump);
+
       const myoMat = new THREE.MeshPhysicalMaterial({
-        color: 0xbe123c, roughness: 0.3, clearcoat: 0.72, clearcoatRoughness: 0.18,
-        transmission: 0.06, transparent: true, opacity: 1.0, sheen: 0.35, sheenColor: new THREE.Color(0xfda4af),
+        color: 0xffffff,
+        map: heartMembraneTex,
+        bumpMap: heartBump,
+        bumpScale: 0.018,
+        roughness: 0.3,
+        clearcoat: 0.72,
+        clearcoatRoughness: 0.18,
+        transmission: 0.06,
+        transparent: true,
+        opacity: 1.0,
+        sheen: 0.35,
+        sheenColor: new THREE.Color(0xfda4af),
       });
-      const rightMyoMat = myoMat.clone(); rightMyoMat.color.setHex(0x9f1239);
+      const rightMyoMat = myoMat.clone(); rightMyoMat.color.setHex(0xfecdd3);
       const aortaMat = myoMat.clone(); aortaMat.color.setHex(0xe11d48);
       const venaMat = myoMat.clone(); venaMat.color.setHex(0x2563eb);
       outerMaterials.push(myoMat, rightMyoMat, aortaMat, venaMat);
@@ -591,9 +612,23 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         pulStream.instanceMatrix.needsUpdate = true;
       };
     } else if (mode === 'anatomy-respiratory-lungs') {
+      const lungMembraneTex = createBiologicalMembraneTexture('#fb7185', '#fecdd3');
+      const lungBump = lungMembraneTex?.bumpMap ?? null;
+      if (lungMembraneTex) disposableBioTextures.push(lungMembraneTex);
+      if (lungBump) disposableBioTextures.push(lungBump);
+
       const lobeMat = new THREE.MeshPhysicalMaterial({
-        color: 0xfb7185, roughness: 0.28, transmission: 0.72, thickness: 0.85,
-        transparent: true, opacity: 0.8, clearcoat: 0.65, clearcoatRoughness: 0.15,
+        color: 0xffffff,
+        map: lungMembraneTex,
+        bumpMap: lungBump,
+        bumpScale: 0.016,
+        roughness: 0.28,
+        transmission: 0.72,
+        thickness: 0.85,
+        transparent: true,
+        opacity: 0.8,
+        clearcoat: 0.65,
+        clearcoatRoughness: 0.15,
       });
       outerMaterials.push(lobeMat);
 
@@ -687,8 +722,21 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         co2Mesh.instanceMatrix.needsUpdate = true;
       };
     } else {
+      const neuronMembraneTex = createBiologicalMembraneTexture('#6366f1', '#a5b4fc');
+      const neuronBump = neuronMembraneTex?.bumpMap ?? null;
+      if (neuronMembraneTex) disposableBioTextures.push(neuronMembraneTex);
+      if (neuronBump) disposableBioTextures.push(neuronBump);
+
       const somaMat = new THREE.MeshPhysicalMaterial({
-        color: 0x6366f1, roughness: 0.32, clearcoat: 0.65, transmission: 0.18, transparent: true, opacity: 1.0,
+        color: 0xffffff,
+        map: neuronMembraneTex,
+        bumpMap: neuronBump,
+        bumpScale: 0.018,
+        roughness: 0.32,
+        clearcoat: 0.65,
+        transmission: 0.18,
+        transparent: true,
+        opacity: 1.0,
       });
       const myelinMat = new THREE.MeshPhysicalMaterial({
         color: 0xfacc15, roughness: 0.28, clearcoat: 0.55, transmission: 0.35, transparent: true, opacity: 0.92,
@@ -811,11 +859,13 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       });
 
       if (cameraLerpRef.current.active) {
-        camera.position.lerp(cameraLerpRef.current.pos, 0.08);
-        controls.target.lerp(cameraLerpRef.current.target, 0.08);
-        if (camera.position.distanceTo(cameraLerpRef.current.pos) < 0.08) {
-          cameraLerpRef.current.active = false;
-        }
+        cameraLerpRef.current.active = smoothCameraTransition(
+          camera,
+          controls,
+          cameraLerpRef.current.pos,
+          cameraLerpRef.current.target,
+          0.1
+        );
       }
 
       updateFrame(elapsed, dt);
@@ -967,6 +1017,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
       controls.dispose();
       studioComposer.dispose();
+      disposableBioTextures.forEach((tex) => tex.dispose());
       disposeThreeSceneResources(scene, renderer, envTexture);
       if (renderer.domElement.parentElement) {
         renderer.domElement.parentElement.removeChild(renderer.domElement);

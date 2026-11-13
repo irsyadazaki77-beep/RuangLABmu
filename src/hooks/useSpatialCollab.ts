@@ -4,6 +4,7 @@ import {
   ParameterLockPayload,
   getUserColor,
 } from '../utils/collabProtocol';
+import { useCollabStore } from '../stores/useCollabStore';
 
 export interface UseSpatialCollabOptions {
   ws: WebSocket | null;
@@ -101,6 +102,7 @@ export function useSpatialCollab({
   userColor,
   onRemoteParamSync,
 }: UseSpatialCollabOptions): UseSpatialCollabReturn {
+  const storeLockedParameters = useCollabStore((s) => s.lockedParameters);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, SpatialCursorPayload>>({});
   const [paramLocks, setParamLocks] = useState<Record<string, ParameterLockPayload>>({});
 
@@ -173,6 +175,24 @@ export function useSpatialCollab({
       };
     }
   }, [ws, userId, userName, role, groupId, domain]);
+
+  // Hydrate paramLocks from store whenever storeLockedParameters updates (e.g. on reconnect snapshot)
+  useEffect(() => {
+    const now = Date.now();
+    const relevant: Record<string, ParameterLockPayload> = {};
+    for (const [key, lock] of Object.entries(storeLockedParameters)) {
+      if (
+        lock &&
+        typeof lock.paramKey === 'string' &&
+        (lock.groupId === groupId || useCollabStore.getState().activeRoomId) &&
+        typeof lock.expiresAt === 'number' &&
+        lock.expiresAt > now
+      ) {
+        relevant[key] = lock;
+      }
+    }
+    setParamLocks(relevant);
+  }, [storeLockedParameters, groupId]);
 
   // 60 FPS Receiver-Side LERP Interpolation Loop for Remote 3D Cursors
   useEffect(() => {

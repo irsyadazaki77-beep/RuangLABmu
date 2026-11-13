@@ -27,7 +27,6 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
   datasetTitle,
   xAxisLabel,
   y1AxisLabel,
-  y2AxisLabel,
   points,
   curveModel,
   onChangeCurveModel,

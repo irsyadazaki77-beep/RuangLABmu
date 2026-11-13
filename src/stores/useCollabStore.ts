@@ -39,6 +39,7 @@ export interface CollabState {
   updatePeers: (peerCursors: Record<string, SpatialCursorPayload>) => void;
   setLock: (paramKey: string, lock: ParameterLockPayload) => void;
   releaseLock: (paramKey: string) => void;
+  syncLocks: (locks: ParameterLockPayload[], nowMs?: number) => void;
   clearLocks: () => void;
   setRoomModal: (open: boolean, mode?: 'create' | 'join') => void;
   openRoomModal: (mode?: 'create' | 'join') => void;
@@ -133,6 +134,22 @@ export const useCollabStore = create<CollabState>((set) => ({
     set((state) => {
       const next = { ...state.lockedParameters };
       delete next[paramKey];
+      return { lockedParameters: next };
+    }),
+
+  syncLocks: (locks: ParameterLockPayload[], nowMs: number = Date.now()) =>
+    set(() => {
+      const next: Record<string, ParameterLockPayload> = {};
+      for (const lock of locks) {
+        if (
+          lock &&
+          typeof lock.paramKey === 'string' &&
+          typeof lock.expiresAt === 'number' &&
+          lock.expiresAt > nowMs
+        ) {
+          next[lock.paramKey] = lock;
+        }
+      }
       return { lockedParameters: next };
     }),
 

@@ -75,7 +75,6 @@ const DOMAIN_OPTIONS: {
 export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = ({
   domain,
   currentExperimentId,
-  activeTier,
   completedSafetyIds = [],
   onDomainChange,
   onSelectExperiment,

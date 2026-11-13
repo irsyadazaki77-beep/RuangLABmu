@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState, useMemo, useEffect } from 'react';
+import React, { Suspense, useState, useMemo, useEffect } from 'react';
 import {
   Loader2,
   Lock,
@@ -20,20 +20,14 @@ import {
   calculateChemistryMetrics,
   calculateAstronomyMetrics,
 } from '../../utils/scienceEngine';
-import {
+import type {
   GroupTaskItem,
   CollabNoteItem,
-  CollaborationAndDataSection,
 } from '../CollaborationAndDataSection';
-import { StudentProgressItem } from '../TeacherDashboardView';
-const AnalyticsAndWorksheetPanel = lazy(() =>
-  import('../AnalyticsAndWorksheetPanel').then((m) => ({ default: m.AnalyticsAndWorksheetPanel }))
-);
-import { DrLabMuAssistantPanel } from '../DrLabMuAssistantPanel';
+import type { StudentProgressItem } from '../TeacherDashboardView';
 import { LabLobbyHub } from '../LabLobbyHub';
-import { PreLabBriefingView } from '../PreLabBriefingView';
-import { HypothesisNote } from '../ui/HypothesisAndCompareDock';
-import { Lab3DSnapshot } from '../ui/ScientificEnhancementSuite';
+import type { HypothesisNote } from '../ui/HypothesisAndCompareDock';
+import type { Lab3DSnapshot } from '../ui/ScientificEnhancementSuite';
 import {
   ExperimentModule,
   EducationTier,
@@ -53,20 +47,36 @@ import { useCollabStore } from '../../stores/useCollabStore';
 import { BottomNavigationBar } from './BottomNavigationBar';
 import { LabControlDock } from '../ui/LabControlDock';
 import { labSound } from '../../utils/soundEngine';
+import { normalizeEducationLevel } from '../../utils/pedagogicalHelpers';
 
-const PhysicsLabView = lazy(() =>
+const AnalyticsAndWorksheetPanel = React.lazy(() =>
+  import('../AnalyticsAndWorksheetPanel').then((m) => ({ default: m.AnalyticsAndWorksheetPanel }))
+);
+const CollaborationAndDataSection = React.lazy(() =>
+  import('../CollaborationAndDataSection').then((m) => ({ default: m.CollaborationAndDataSection }))
+);
+const DrLabMuAssistantPanel = React.lazy(() =>
+  import('../DrLabMuAssistantPanel').then((m) => ({ default: m.DrLabMuAssistantPanel }))
+);
+const PreLabBriefingView = React.lazy(() =>
+  import('../PreLabBriefingView').then((m) => ({ default: m.PreLabBriefingView }))
+);
+const AICustomMissionBuilderModal = React.lazy(
+  () => import('../teacher/AICustomMissionBuilderModal')
+);
+const PhysicsLabView = React.lazy(() =>
   import('../PhysicsLabView').then((m) => ({ default: m.PhysicsLabView }))
 );
-const ChemistryLabView = lazy(() =>
+const ChemistryLabView = React.lazy(() =>
   import('../ChemistryLabView').then((m) => ({ default: m.ChemistryLabView }))
 );
-const BiologyLabView = lazy(() =>
+const BiologyLabView = React.lazy(() =>
   import('../BiologyLabView').then((m) => ({ default: m.BiologyLabView }))
 );
-const AstronomyLabView = lazy(() =>
+const AstronomyLabView = React.lazy(() =>
   import('../AstronomyLabView').then((m) => ({ default: m.AstronomyLabView }))
 );
-const TeacherDashboardView = lazy(() =>
+const TeacherDashboardView = React.lazy(() =>
   import('../TeacherDashboardView').then((m) => ({ default: m.TeacherDashboardView }))
 );
 
@@ -226,7 +236,9 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     setDrawerOpen,
     activeDrawerTab,
     setDrawerTab,
+    activeModal,
     openModal,
+    closeModal,
   } = useUIStore();
 
   const [queuedDrLabMuPrompt, setQueuedDrLabMuPrompt] = useState<{ id: number; prompt: string } | null>(
@@ -739,7 +751,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
                     onAcquireLock={acquireParamLock}
                     onReleaseLock={releaseParamLock}
                     onTierChange={(newTier) => {
-                      setAcademicLevel(newTier.toLowerCase() as AcademicLevel);
+                      setAcademicLevel(normalizeEducationLevel(newTier));
                     }}
                     hypothesisNote={currentModuleHypothesis}
                     onChangeHypothesisNote={onUpdateCurrentHypothesis}
@@ -893,24 +905,35 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
         recordsCount={records.length}
       />
 
-      {/* Socratic Dr. LabMu Slide-Over Drawer & Notification Center */}
-      <DrLabMuAssistantPanel
-        domain={activeScienceDomain}
-        academicLevel={academicLevel}
-        physicsParams={physicsParams}
-        chemistryParams={chemistryParams}
-        astronomyParams={astronomyParams}
-        biologyContext={biologyContext}
-        records={records}
-        notifications={notifications}
-        isOpen={drawerOpen}
-        activeTab={activeDrawerTab === 'ai' ? 'dr-labmu' : 'notifications'}
-        onOpenChange={setDrawerOpen}
-        onTabChange={(tab) => setDrawerTab(tab === 'dr-labmu' ? 'ai' : 'analytics')}
-        onInjectOutlierDemo={onInjectOutlierDemo}
-        externalPromptRequest={queuedDrLabMuPrompt}
-        wsConnected={wsConnected}
-      />
+      {/* Socratic Dr. LabMu Slide-Over Drawer & Notification Center (Lazy-Loaded) */}
+      <Suspense fallback={null}>
+        <DrLabMuAssistantPanel
+          domain={activeScienceDomain}
+          academicLevel={academicLevel}
+          physicsParams={physicsParams}
+          chemistryParams={chemistryParams}
+          astronomyParams={astronomyParams}
+          biologyContext={biologyContext}
+          records={records}
+          notifications={notifications}
+          isOpen={drawerOpen}
+          activeTab={activeDrawerTab === 'ai' ? 'dr-labmu' : 'notifications'}
+          onOpenChange={setDrawerOpen}
+          onTabChange={(tab) => setDrawerTab(tab === 'dr-labmu' ? 'ai' : 'analytics')}
+          onInjectOutlierDemo={onInjectOutlierDemo}
+          externalPromptRequest={queuedDrLabMuPrompt}
+          wsConnected={wsConnected}
+        />
+
+        {activeModal === 'ai-mission-builder' && (
+          <AICustomMissionBuilderModal
+            isOpen={activeModal === 'ai-mission-builder'}
+            onClose={closeModal}
+            teacherName={teacherName || currentProfile.name || 'Dr. Hendra Kusuma'}
+            onSelectModule={onSelectCatalogModule}
+          />
+        )}
+      </Suspense>
     </main>
   );
 };

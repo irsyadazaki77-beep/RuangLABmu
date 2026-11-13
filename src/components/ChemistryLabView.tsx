@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import {
   Camera,
 } from 'lucide-react';
@@ -12,9 +12,10 @@ import {
   LabNotification,
   ExperimentRecord,
 } from '../utils/scienceEngine';
-import { ChemistryScene3D } from './ChemistryScene3D';
 import { LabErrorBoundary } from './common/LabErrorBoundary';
 import { labSound } from '../utils/soundEngine';
+
+const ChemistryScene3D = React.lazy(() => import('./ChemistryScene3D'));
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import {
   TactileParameterControl,
@@ -33,7 +34,10 @@ import {
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
-import { getChemistryParameterFeedback } from '../utils/pedagogicalHelpers';
+import {
+  getChemistryParameterFeedback,
+  normalizeEducationLevel,
+} from '../utils/pedagogicalHelpers';
 
 export interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -47,7 +51,7 @@ export interface ChemistryLabViewProps {
   ) => void;
   onPushNotification: (notif: LabNotification) => void;
   onSyncWithGroup?: (summary: string) => void;
-  academicLevel?: AcademicLevel;
+  academicLevel?: AcademicLevel | string;
   records?: ExperimentRecord[];
   activeStudentName?: string;
   activeGroupId?: string;
@@ -86,7 +90,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   params,
   onChangeParams,
   onRecordExperiment,
-  academicLevel = 'sma',
+  academicLevel,
   records = [],
   onProceedToAnalysis,
   remoteCursors,
@@ -96,6 +100,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   onCapture3DSnapshot,
   snapshotCount = 0,
 }) => {
+  const storeAcademicLevel = useLabStore((s) => s.academicLevel);
+  const effectiveEducationLevel = normalizeEducationLevel(
+    academicLevel ?? storeAcademicLevel
+  );
   const [activeCameraPreset, setActiveCameraPreset] = useState<string>('isometric');
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [hazardModalDismissed, setHazardModalDismissed] = useState<boolean>(false);
@@ -248,28 +256,39 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
       onSelectCameraPreset={setActiveCameraPreset}
       canvas={
         <LabErrorBoundary domain="Kimia" sceneName="ChemistryScene3D">
-          <ChemistryScene3D
-            params={params}
-            metrics={metrics}
-            preset={currentPreset}
-            redoxPreset={currentRedoxPreset}
-            reactionProgress={Math.min(1, params.titrantAddedMl / Math.max(1, metrics.equivalenceVolumeMl))}
-            isReacting={params.initialTempC > 25}
-            remoteCursors={remoteCursors}
-            onEmitCursor={onEmitCursor}
-            onUpdateParam={(key, val) => handleParamChange({ [key]: val } as any)}
-            snapshotCount={snapshotCount}
-            onCaptureSnapshot={(dataUrl) => {
-              setShutterFlash(true);
-              setTimeout(() => setShutterFlash(false), 240);
-              onCapture3DSnapshot?.(
-                dataUrl,
-                'Titrasi & Reaksi Kimia 3D',
-                `Vb=${params.titrantAddedMl}mL, T=${params.initialTempC}°C`,
-                `pH = ${metrics.currentPh}`
-              );
-            }}
-          />
+          <Suspense
+            fallback={
+              <div className="w-full h-full min-h-[320px] flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 p-6 gap-3">
+                <div className="w-9 h-9 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" />
+                <p className="text-xs font-mono font-semibold text-teal-300">
+                  Menyiapkan Ruang Laboratorium 3D...
+                </p>
+              </div>
+            }
+          >
+            <ChemistryScene3D
+              params={params}
+              metrics={metrics}
+              preset={currentPreset}
+              redoxPreset={currentRedoxPreset}
+              reactionProgress={Math.min(1, params.titrantAddedMl / Math.max(1, metrics.equivalenceVolumeMl))}
+              isReacting={params.initialTempC > 25}
+              remoteCursors={remoteCursors}
+              onEmitCursor={onEmitCursor}
+              onUpdateParam={(key, val) => handleParamChange({ [key]: val } as any)}
+              snapshotCount={snapshotCount}
+              onCaptureSnapshot={(dataUrl) => {
+                setShutterFlash(true);
+                setTimeout(() => setShutterFlash(false), 240);
+                onCapture3DSnapshot?.(
+                  dataUrl,
+                  'Titrasi & Reaksi Kimia 3D',
+                  `Vb=${params.titrantAddedMl}mL, T=${params.initialTempC}°C`,
+                  `pH = ${metrics.currentPh}`
+                );
+              }}
+            />
+          </Suspense>
         </LabErrorBoundary>
       }
       safetyModal={
@@ -420,7 +439,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     max={50}
                     step={0.5}
                     glossaryTerm="Titik Ekivalen"
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'titrantAddedMl', v, lvl, {
                         equivalenceVolumeMl: metrics.equivalenceVolumeMl,
@@ -435,7 +454,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.05}
                     max={1.0}
                     step={0.05}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'titrantBaseConc', v, lvl)
                     }
@@ -448,7 +467,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.05}
                     max={1.0}
                     step={0.05}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'analyteAcidConc', v, lvl)
                     }
@@ -464,7 +483,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.01}
                     max={2.0}
                     step={0.05}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'anodeConcM', v, lvl)
                     }
@@ -477,7 +496,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.01}
                     max={2.0}
                     step={0.05}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'cathodeConcM', v, lvl)
                     }
@@ -490,7 +509,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={10}
                     max={80}
                     step={1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'initialTempC', v, lvl)
                     }
@@ -506,7 +525,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={2.0}
                     max={25.0}
                     step={0.5}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'gasVolumeL', v, lvl)
                     }
@@ -519,7 +538,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={250}
                     max={700}
                     step={10}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'gasTemperatureK', v, lvl)
                     }
@@ -532,7 +551,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.2}
                     max={2.5}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'gasMoles', v, lvl)
                     }
@@ -548,7 +567,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={400}
                     max={700}
                     step={10}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'spectroWavelengthNm', v, lvl)
                     }
@@ -561,7 +580,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.01}
                     max={0.25}
                     step={0.01}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'spectroConcMm', v, lvl)
                     }
@@ -574,7 +593,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.5}
                     max={2.0}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'spectroPathLengthCm', v, lvl)
                     }
@@ -592,7 +611,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     max={95}
                     step={1}
                     glossaryTerm="Denaturasi"
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'initialTempC', v, lvl)
                     }
@@ -605,7 +624,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.1}
                     max={3.0}
                     step={0.1}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'reactantConcentration', v, lvl)
                     }
@@ -618,7 +637,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0}
                     max={600}
                     step={20}
-                    educationLevel={academicLevel}
+                    educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) =>
                       getChemistryParameterFeedback(params.mode, 'stirringRpm', v, lvl)
                     }
