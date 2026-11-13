@@ -1,10 +1,12 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 import {
   MultiApparatusEngine,
   computePortDistance3D,
   triggerDomainApparatusSnap,
 } from './multiApparatusEngine';
+import { computeDraggedParameterValue } from '../threeInteractionHelper';
 import {
   evaluateAdaptiveScaffolding,
   resolveScaffoldingTier,
@@ -326,5 +328,66 @@ describe('Fase 2: MultiApparatusEngine & AdaptiveScaffoldingEngine', () => {
     assert.ok(alarm.primaryHz > alarm.secondaryHz);
     assert.strictEqual(shouldTriggerCooldownAudio(2000, 1000, alarm.cooldownMs), false);
     assert.strictEqual(shouldTriggerCooldownAudio(2600, 1000, alarm.cooldownMs), true);
+  });
+
+  it('FASE 2 3D ENHANCEMENT: computeDraggedParameterValue snaps steps, respects bounds, and prioritizes dominant drag axis', () => {
+    // Upward vertical drag (-deltaY = +140px out of 280px span) increases half range
+    const vUp = computeDraggedParameterValue(450, 10, -140, 400, 700, 10, 280);
+    assert.strictEqual(vUp, 600);
+
+    // Clamps strictly to [min, max]
+    assert.strictEqual(computeDraggedParameterValue(650, 500, 0, 400, 700, 10, 280), 700);
+    assert.strictEqual(computeDraggedParameterValue(450, -500, 0, 400, 700, 10, 280), 400);
+
+    // Fractional steps preserve decimal precision
+    const vPh = computeDraggedParameterValue(7.0, 14, 0, 0, 14, 0.1, 280);
+    assert.strictEqual(vPh, 7.7);
+  });
+
+  it('FASE 2 3D ENHANCEMENT: MultiApparatusEngine.bindPortAnchor & syncMeshAnchors track live THREE.Object3D world positions and snap < 0.5u', () => {
+    const engine = new MultiApparatusEngine(0.5);
+
+    engine.registerNode({
+      id: 'buret-live',
+      type: 'source',
+      ports: [{ id: 'nozzle-out', type: 'fluid', position: [0, 3, 0] }],
+      state: { volumeMl: 50, flowRateMlPerSec: 2, valveOpen: true },
+    });
+    engine.registerNode({
+      id: 'flask-live',
+      type: 'detector',
+      ports: [{ id: 'neck-in', type: 'fluid', position: [0, 1, 0] }],
+      state: { volumeMl: 25, receivedFluidMl: 0, pH: 1.0 },
+    });
+
+    const parentGroup = new THREE.Group();
+    const buretteObj = new THREE.Object3D();
+    buretteObj.position.set(0, 3.0, 0);
+    const flaskObj = new THREE.Object3D();
+    flaskObj.position.set(0, 1.0, 0);
+    parentGroup.add(buretteObj, flaskObj);
+
+    assert.strictEqual(engine.bindPortAnchor('buret-live', 'nozzle-out', buretteObj), true);
+    assert.strictEqual(engine.bindPortAnchor('flask-live', 'neck-in', flaskObj), true);
+    assert.strictEqual(engine.bindPortAnchor('missing-node', 'p', buretteObj), false);
+
+    // Distance = 2.0 (>= 0.5) -> no snap candidate yet
+    assert.strictEqual(engine.syncMeshAnchors(), null);
+
+    // Move burette mesh within 0.25 units of flask neck -> sync detects candidate & docks on release
+    buretteObj.position.set(0, 1.25, 0);
+    const candidate = engine.syncMeshAnchors();
+    assert.ok(candidate);
+    assert.strictEqual(candidate?.isWithinSnapRadius, true);
+    assert.strictEqual(candidate?.sourceNodeId, 'buret-live');
+    assert.strictEqual(candidate?.targetNodeId, 'flask-live');
+    assert.strictEqual(candidate?.distance, 0.25);
+
+    const docked = engine.commitActiveSnapOnRelease();
+    assert.ok(docked);
+    assert.strictEqual(docked?.portType, 'fluid');
+    assert.strictEqual(docked?.targetPortId, 'neck-in');
+
+    engine.clearPortAnchors();
   });
 });

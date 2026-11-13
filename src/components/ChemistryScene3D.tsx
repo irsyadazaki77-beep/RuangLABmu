@@ -25,7 +25,10 @@ import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatia
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2, Link2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
-import { triggerDomainApparatusSnap } from '../utils/engines/multiApparatusEngine';
+import {
+  globalMultiApparatusEngine,
+  triggerDomainApparatusSnap,
+} from '../utils/engines/multiApparatusEngine';
 import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
@@ -583,6 +586,13 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     buretteTip.position.set(0, 1.98, 0);
     titrationGroup.add(buretteTip);
 
+    globalMultiApparatusEngine.seedDefaultDomainNodes('Kimia');
+    const buretteNozzleAnchor = new THREE.Object3D();
+    buretteNozzleAnchor.name = 'anchor-burette-nozzle-out';
+    buretteNozzleAnchor.position.set(0, -0.24, 0);
+    buretteTip.add(buretteNozzleAnchor);
+    globalMultiApparatusEngine.bindPortAnchor('buret-titran-3d', 'nozzle-out', buretteNozzleAnchor);
+
     const buretteFunnel = new THREE.Mesh(
       buildLatheFromProfile(createFunnelProfilePoints(0.32, 0.08, 0.36, 0.22), 32),
       glassMat
@@ -655,6 +665,12 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     flaskMesh.position.set(0, 0.56, 0);
     flaskMesh.castShadow = true;
     titrationGroup.add(flaskMesh);
+
+    const flaskNeckAnchor = new THREE.Object3D();
+    flaskNeckAnchor.name = 'anchor-flask-neck-in';
+    flaskNeckAnchor.position.set(0, 2.15, 0);
+    flaskMesh.add(flaskNeckAnchor);
+    globalMultiApparatusEngine.bindPortAnchor('erlenmeyer-analit-3d', 'neck-in', flaskNeckAnchor);
 
     if (beakerScaleTex) {
       const flaskScaleMesh = new THREE.Mesh(
@@ -1662,6 +1678,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       cameraSyncHandleRef.current = null;
 
       // Dispose Studio Workbench & Textures
+      globalMultiApparatusEngine.clearPortAnchors();
       workbench.dispose();
       metalTex?.dispose();
       buretteScaleTex?.dispose();

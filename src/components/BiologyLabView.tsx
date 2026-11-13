@@ -387,6 +387,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
             <BiologyScene3D
               mode={currentModule.id as any}
               params={paramsState}
+              onUpdateParam={handleParamChange}
               remoteCursors={remoteCursors}
               onEmitCursor={onEmitCursor}
               isPlaying={isPlaying}

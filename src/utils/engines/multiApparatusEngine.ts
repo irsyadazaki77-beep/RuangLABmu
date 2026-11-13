@@ -86,6 +86,9 @@ export function parsePortEndpoint(
 
 export class MultiApparatusEngine {
   private nodes = new Map<string, ApparatusNode>();
+  private portAnchors = new Map<string, THREE.Object3D>();
+  private anchorLastPos = new Map<string, [number, number, number]>();
+  private anchorVec = new THREE.Vector3();
   private snapTolerance: number;
   private activeSnapCandidate: SnapPreviewCandidate | null = null;
   private seededDomain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | null = null;
@@ -118,11 +121,97 @@ export class MultiApparatusEngine {
 
     // Disconnect any peer ports linked to this node
     for (const port of existing.ports) {
+      const key = formatPortEndpoint(nodeId, port.id);
+      this.portAnchors.delete(key);
+      this.anchorLastPos.delete(key);
       if (port.connectedTo) {
         this.disconnectPort(nodeId, port.id);
       }
     }
     this.nodes.delete(nodeId);
+  }
+
+  /**
+   * Mengikat objek/mesh 3D nyata (`THREE.Object3D`) ke suatu port node aparatus
+   * agar koordinat dunia 3D port tersinkron otomatis saat mesh bergerak.
+   */
+  public bindPortAnchor(
+    nodeId: string,
+    portId: string,
+    object3D: THREE.Object3D
+  ): boolean {
+    const node = this.nodes.get(nodeId);
+    const port = node?.ports.find((p) => p.id === portId);
+    if (!node || !port) return false;
+
+    const key = formatPortEndpoint(nodeId, portId);
+    object3D.updateWorldMatrix(true, false);
+    object3D.getWorldPosition(this.anchorVec);
+    const initialPos: [number, number, number] = [
+      Number(this.anchorVec.x.toFixed(4)),
+      Number(this.anchorVec.y.toFixed(4)),
+      Number(this.anchorVec.z.toFixed(4)),
+    ];
+    port.position = initialPos;
+    this.portAnchors.set(key, object3D);
+    this.anchorLastPos.set(key, [...initialPos] as [number, number, number]);
+    return true;
+  }
+
+  /**
+   * Melepas semua ikatan anchor 3D (dipanggil saat cleanup scene).
+   */
+  public clearPortAnchors(): void {
+    this.portAnchors.clear();
+    this.anchorLastPos.clear();
+  }
+
+  /**
+   * Membaca `getWorldPosition()` seluruh mesh anchor 3D terikat, memperbarui `port.position`,
+   * serta mengevaluasi ulang kandidat snap magnetik (< 0.5 unit) jika ada mesh yang bergeser.
+   */
+  public syncMeshAnchors(): SnapPreviewCandidate | null {
+    if (this.portAnchors.size === 0) {
+      return this.activeSnapCandidate;
+    }
+
+    const movedNodeIds = new Set<string>();
+
+    for (const [key, object3D] of this.portAnchors.entries()) {
+      const parsed = parsePortEndpoint(key);
+      if (!parsed) continue;
+      const node = this.nodes.get(parsed.nodeId);
+      const port = node?.ports.find((p) => p.id === parsed.portId);
+      if (!node || !port) continue;
+
+      object3D.updateWorldMatrix(true, false);
+      object3D.getWorldPosition(this.anchorVec);
+      const nextPos: [number, number, number] = [
+        Number(this.anchorVec.x.toFixed(4)),
+        Number(this.anchorVec.y.toFixed(4)),
+        Number(this.anchorVec.z.toFixed(4)),
+      ];
+
+      const prevPos = this.anchorLastPos.get(key) ?? port.position;
+      if (computePortDistance3D(prevPos, nextPos) > 0.0005) {
+        port.position = nextPos;
+        this.anchorLastPos.set(key, [...nextPos] as [number, number, number]);
+        movedNodeIds.add(parsed.nodeId);
+      }
+    }
+
+    if (movedNodeIds.size > 0) {
+      let bestCandidate: SnapPreviewCandidate | null = null;
+      for (const nodeId of movedNodeIds) {
+        const candidate = this.findMagneticSnapCandidate(nodeId);
+        if (candidate && (!bestCandidate || candidate.distance < bestCandidate.distance)) {
+          bestCandidate = candidate;
+        }
+      }
+      this.activeSnapCandidate = bestCandidate;
+    }
+
+    return this.activeSnapCandidate;
   }
 
   public getNode(nodeId: string): ApparatusNode | undefined {
@@ -453,6 +542,7 @@ export class MultiApparatusEngine {
     domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' = 'Kimia'
   ): void {
     this.nodes.clear();
+    this.clearPortAnchors();
     this.seededDomain = domain;
     if (domain === 'Kimia') {
       this.registerNode({
@@ -706,8 +796,8 @@ export function attachMultiApparatusAndScaffoldingVisuals(
   const updatePerFrame = (dt: number) => {
     const safeDt = Math.min(0.1, Math.max(0.001, dt));
 
-    // Check active magnetic snap candidate from global engine
-    const snapCandidate = globalMultiApparatusEngine.getActiveSnapCandidate();
+    // Synchronize real 3D mesh anchors and evaluate magnetic snap candidates
+    const snapCandidate = globalMultiApparatusEngine.syncMeshAnchors();
     if (snapCandidate && snapCandidate.isWithinSnapRadius) {
       const [px, py, pz] = snapCandidate.snapPosition;
       snapRingMesh.position.set(px, py, pz);

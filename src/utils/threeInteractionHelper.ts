@@ -3,14 +3,17 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 export interface Interactive3DObjectOptions {
   id?: string;
-  type: 'draggable' | 'clickable';
+  interactive?: boolean;
+  type?: 'draggable' | 'clickable';
   paramKey?: string;
+  draggableParam?: string;
   min?: number;
   max?: number;
   step?: number;
   label?: string;
   hoverColor?: number;
   cursor?: string;
+  currentValue?: number;
   onClick?: (obj: THREE.Object3D, hitPoint: THREE.Vector3) => void;
   onDrag?: (deltaX: number, deltaY: number, hitPoint: THREE.Vector3) => void;
   metadata?: Record<string, unknown>;
@@ -20,40 +23,121 @@ export interface ThreeInteractionManagerOptions {
   camera: THREE.Camera;
   domElement: HTMLElement;
   controls?: OrbitControls | null;
+  sceneForCursor?: THREE.Scene | null;
+  defaultHoverColor?: number;
+  dragSpanPx?: number;
   getInteractiveObjects: () => THREE.Object3D[];
+  getParamValue?: (paramKey: string) => number | undefined;
   onHoverChange?: (object: THREE.Object3D | null, hitPoint: THREE.Vector3 | null) => void;
   onDragStart?: (object: THREE.Object3D, paramKey?: string) => void;
-  onDragUpdate?: (object: THREE.Object3D, paramKey: string, newValue: number) => void;
+  onDragUpdate?: (object: THREE.Object3D, paramKey: string, newValue: number, label?: string) => void;
   onDragEnd?: (object: THREE.Object3D, paramKey?: string) => void;
   onClick?: (object: THREE.Object3D, hitPoint: THREE.Vector3) => void;
+  onCursorMove3D?: (
+    pos: [number, number, number],
+    normal?: [number, number, number],
+    hoveredObject?: string
+  ) => void;
+}
+
+/**
+ * Pure helper to compute snapped, clamped parameter values from pointer drag deltas.
+ */
+export function computeDraggedParameterValue(
+  startValue: number,
+  deltaX: number,
+  deltaY: number,
+  min: number,
+  max: number,
+  step = 1,
+  dragSpanPx = 280
+): number {
+  const safeMin = Number.isFinite(min) ? min : 0;
+  const safeMax = Number.isFinite(max) && max > safeMin ? max : safeMin + 100;
+  const safeStep = Number.isFinite(step) && step > 0 ? step : 1;
+  const sensitivity = (safeMax - safeMin) / Math.max(40, dragSpanPx);
+  // Upward vertical drag (-deltaY) or rightward horizontal drag (+deltaX) increases value
+  const dominantDelta = Math.abs(deltaX) >= Math.abs(deltaY) ? deltaX : -deltaY;
+  const raw = startValue + dominantDelta * sensitivity;
+  const clamped = Math.max(safeMin, Math.min(safeMax, raw));
+  const stepped = Math.round(clamped / safeStep) * safeStep;
+  const finalClamped = Math.max(safeMin, Math.min(safeMax, stepped));
+  return Number(finalClamped.toFixed(safeStep >= 1 ? 0 : 3));
+}
+
+function isObjectInteractive(obj: THREE.Object3D): boolean {
+  const ud = obj.userData as Interactive3DObjectOptions | undefined;
+  if (!ud) return false;
+  return Boolean(ud.interactive || ud.draggableParam || ud.paramKey || ud.type === 'clickable');
+}
+
+function resolveInteractiveOptions(obj: THREE.Object3D): {
+  kind: 'draggable' | 'clickable';
+  paramKey?: string;
+  min: number;
+  max: number;
+  step: number;
+  label?: string;
+  hoverColor?: number;
+  cursor?: string;
+  currentValue?: number;
+  onClick?: (obj: THREE.Object3D, hitPoint: THREE.Vector3) => void;
+  onDrag?: (deltaX: number, deltaY: number, hitPoint: THREE.Vector3) => void;
+} {
+  const ud = (obj.userData || {}) as Interactive3DObjectOptions;
+  const paramKey = ud.paramKey || ud.draggableParam;
+  const kind = ud.type ?? (paramKey || ud.onDrag ? 'draggable' : 'clickable');
+  return {
+    kind,
+    paramKey,
+    min: ud.min ?? 0,
+    max: ud.max ?? 100,
+    step: ud.step ?? 1,
+    label: ud.label,
+    hoverColor: ud.hoverColor,
+    cursor: ud.cursor,
+    currentValue: ud.currentValue,
+    onClick: ud.onClick,
+    onDrag: ud.onDrag,
+  };
 }
 
 /**
  * ThreeInteractionHelper
  * Centralized utility for Three.js Raycasting, Hover Emissive Glow, and Direct Drag Manipulation.
+ * Supports both `userData.interactive` and legacy `userData.draggableParam` metadata.
  * Automatically disables OrbitControls during active drag to prevent camera jitter.
  */
 export class ThreeInteractionManager {
   private camera: THREE.Camera;
   private domElement: HTMLElement;
   private controls: OrbitControls | null = null;
+  private sceneForCursor: THREE.Scene | null = null;
+  private defaultHoverColor: number;
+  private dragSpanPx: number;
   private getInteractiveObjects: () => THREE.Object3D[];
+  private getParamValue?: (paramKey: string) => number | undefined;
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
 
   private hoveredObject: THREE.Object3D | null = null;
-  private originalEmissives = new Map<THREE.Mesh, THREE.Color>();
+  private originalEmissives = new Map<
+    THREE.Mesh,
+    { color: THREE.Color; intensity: number }
+  >();
 
   private isDragging = false;
   private dragObject: THREE.Object3D | null = null;
   private dragStartPointer = { x: 0, y: 0 };
   private dragStartValue = 0;
+  private lastCursorEmitMs = 0;
 
   private onHoverChange?: (object: THREE.Object3D | null, hitPoint: THREE.Vector3 | null) => void;
   private onDragStart?: (object: THREE.Object3D, paramKey?: string) => void;
-  private onDragUpdate?: (object: THREE.Object3D, paramKey: string, newValue: number) => void;
+  private onDragUpdate?: (object: THREE.Object3D, paramKey: string, newValue: number, label?: string) => void;
   private onDragEnd?: (object: THREE.Object3D, paramKey?: string) => void;
   private onClickCallback?: (object: THREE.Object3D, hitPoint: THREE.Vector3) => void;
+  private onCursorMove3D?: ThreeInteractionManagerOptions['onCursorMove3D'];
 
   private boundPointerMove: (e: PointerEvent) => void;
   private boundPointerDown: (e: PointerEvent) => void;
@@ -63,12 +147,17 @@ export class ThreeInteractionManager {
     this.camera = options.camera;
     this.domElement = options.domElement;
     this.controls = options.controls ?? null;
+    this.sceneForCursor = options.sceneForCursor ?? null;
+    this.defaultHoverColor = options.defaultHoverColor ?? 0x38bdf8;
+    this.dragSpanPx = options.dragSpanPx ?? 280;
     this.getInteractiveObjects = options.getInteractiveObjects;
+    this.getParamValue = options.getParamValue;
     this.onHoverChange = options.onHoverChange;
     this.onDragStart = options.onDragStart;
     this.onDragUpdate = options.onDragUpdate;
     this.onDragEnd = options.onDragEnd;
     this.onClickCallback = options.onClick;
+    this.onCursorMove3D = options.onCursorMove3D;
 
     this.boundPointerMove = this.handlePointerMove.bind(this);
     this.boundPointerDown = this.handlePointerDown.bind(this);
@@ -88,65 +177,67 @@ export class ThreeInteractionManager {
     this.camera = camera;
   }
 
-  private updatePointer(e: PointerEvent) {
+  private updatePointer(e: PointerEvent): boolean {
     const rect = this.domElement.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return false;
     this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    return true;
+  }
+
+  private resolveHitTarget(intersects: THREE.Intersection[]): THREE.Object3D | null {
+    for (const hit of intersects) {
+      let cur: THREE.Object3D | null = hit.object;
+      while (cur && cur.parent && !isObjectInteractive(cur)) {
+        cur = cur.parent;
+      }
+      if (cur && isObjectInteractive(cur)) {
+        return cur;
+      }
+      if (isObjectInteractive(hit.object)) {
+        return hit.object;
+      }
+    }
+    return intersects[0]?.object ?? null;
   }
 
   private handlePointerMove(e: PointerEvent) {
-    this.updatePointer(e);
+    if (!this.updatePointer(e)) return;
 
     if (this.isDragging && this.dragObject) {
       const deltaX = e.clientX - this.dragStartPointer.x;
       const deltaY = e.clientY - this.dragStartPointer.y;
-      const opts = this.dragObject.userData as Interactive3DObjectOptions;
+      const resolved = resolveInteractiveOptions(this.dragObject);
 
-      if (opts.paramKey && this.onDragUpdate) {
-        const min = opts.min ?? 0;
-        const max = opts.max ?? 100;
-        const step = opts.step ?? 1;
-        const sensitivity = (max - min) / 260; // 260px drag = full range
-        const computed = this.dragStartValue + deltaX * sensitivity - deltaY * sensitivity * 0.5;
-        const clamped = Math.max(min, Math.min(max, Math.round(computed / step) * step));
-        const finalVal = Number(clamped.toFixed(3));
-        this.onDragUpdate(this.dragObject, opts.paramKey, finalVal);
+      if (resolved.paramKey && this.onDragUpdate) {
+        const finalVal = computeDraggedParameterValue(
+          this.dragStartValue,
+          deltaX,
+          deltaY,
+          resolved.min,
+          resolved.max,
+          resolved.step,
+          this.dragSpanPx
+        );
+        this.onDragUpdate(this.dragObject, resolved.paramKey, finalVal, resolved.label);
       }
 
-      if (opts.onDrag) {
+      if (resolved.onDrag) {
         this.raycaster.setFromCamera(this.pointer, this.camera);
-        const hitPoint = this.raycaster.ray.origin.clone().add(this.raycaster.ray.direction.clone().multiplyScalar(5));
-        opts.onDrag(deltaX, deltaY, hitPoint);
+        const hitPoint = this.raycaster.ray.origin
+          .clone()
+          .add(this.raycaster.ray.direction.clone().multiplyScalar(5));
+        resolved.onDrag(deltaX, deltaY, hitPoint);
       }
       return;
     }
 
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const targets = this.getInteractiveObjects();
-    const intersects = this.raycaster.intersectObjects(targets, true);
+    const intersects = targets.length > 0 ? this.raycaster.intersectObjects(targets, true) : [];
 
     if (intersects.length > 0) {
-      // Find outermost interactive parent or mesh
-      let hitMesh: THREE.Object3D | null = null;
-      for (const hit of intersects) {
-        let cur: THREE.Object3D | null = hit.object;
-        while (cur && cur.parent && !cur.userData?.interactive) {
-          cur = cur.parent;
-        }
-        if (cur && cur.userData?.interactive) {
-          hitMesh = cur;
-          break;
-        }
-        if (hit.object.userData?.interactive) {
-          hitMesh = hit.object;
-          break;
-        }
-      }
-
-      if (!hitMesh && intersects[0].object) {
-        hitMesh = intersects[0].object;
-      }
-
+      const hitMesh = this.resolveHitTarget(intersects);
       const hitPoint = intersects[0].point;
 
       if (hitMesh !== this.hoveredObject) {
@@ -154,70 +245,66 @@ export class ThreeInteractionManager {
         this.applyHover(hitMesh);
       }
       this.onHoverChange?.(this.hoveredObject, hitPoint);
-    } else {
-      if (this.hoveredObject) {
-        this.clearHover();
-        this.onHoverChange?.(null, null);
+    } else if (this.hoveredObject) {
+      this.clearHover();
+      this.onHoverChange?.(null, null);
+    }
+
+    if (this.onCursorMove3D && this.sceneForCursor) {
+      const now = performance.now();
+      if (now - this.lastCursorEmitMs >= 45) {
+        const sceneHits = this.raycaster.intersectObjects(this.sceneForCursor.children, true);
+        if (sceneHits.length > 0) {
+          const hit = sceneHits[0];
+          this.onCursorMove3D(
+            [hit.point.x, hit.point.y, hit.point.z],
+            hit.face ? [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z] : undefined,
+            hit.object.name
+          );
+          this.lastCursorEmitMs = now;
+        }
       }
     }
   }
 
   private handlePointerDown(e: PointerEvent) {
-    if (e.button !== 0) return; // Only primary mouse button
-    this.updatePointer(e);
+    if (e.button !== 0) return;
+    if (!this.updatePointer(e)) return;
 
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const targets = this.getInteractiveObjects();
-    const intersects = this.raycaster.intersectObjects(targets, true);
+    const intersects = targets.length > 0 ? this.raycaster.intersectObjects(targets, true) : [];
+    if (intersects.length === 0) return;
 
-    if (intersects.length > 0) {
-      let targetObj: THREE.Object3D | null = null;
-      for (const hit of intersects) {
-        let cur: THREE.Object3D | null = hit.object;
-        while (cur && cur.parent && !cur.userData?.interactive) {
-          cur = cur.parent;
-        }
-        if (cur && cur.userData?.interactive) {
-          targetObj = cur;
-          break;
-        }
-        if (hit.object.userData?.interactive) {
-          targetObj = hit.object;
-          break;
-        }
+    const targetObj = this.resolveHitTarget(intersects);
+    if (!targetObj) return;
+
+    const resolved = resolveInteractiveOptions(targetObj);
+    if (resolved.kind === 'draggable' && (resolved.paramKey || resolved.onDrag)) {
+      this.isDragging = true;
+      this.dragObject = targetObj;
+      this.dragStartPointer = { x: e.clientX, y: e.clientY };
+      const liveVal = resolved.paramKey ? this.getParamValue?.(resolved.paramKey) : undefined;
+      this.dragStartValue =
+        typeof liveVal === 'number' && Number.isFinite(liveVal)
+          ? liveVal
+          : Number(resolved.currentValue ?? resolved.min ?? 0);
+
+      if (this.controls) {
+        this.controls.enabled = false;
       }
-
-      if (!targetObj && intersects[0].object) {
-        targetObj = intersects[0].object;
-      }
-
-      if (targetObj) {
-        const opts = targetObj.userData as Interactive3DObjectOptions;
-
-        if (opts.type === 'draggable') {
-          this.isDragging = true;
-          this.dragObject = targetObj;
-          this.dragStartPointer = { x: e.clientX, y: e.clientY };
-          this.dragStartValue = Number(targetObj.userData.currentValue ?? opts.min ?? 0);
-
-          if (this.controls) {
-            this.controls.enabled = false;
-          }
-          this.domElement.style.cursor = 'grabbing';
-          this.onDragStart?.(targetObj, opts.paramKey);
-        } else if (opts.type === 'clickable') {
-          if (opts.onClick) {
-            opts.onClick(targetObj, intersects[0].point);
-          }
-          this.onClickCallback?.(targetObj, intersects[0].point);
-        }
-      }
+      this.domElement.style.cursor = 'grabbing';
+      this.onDragStart?.(targetObj, resolved.paramKey);
+    } else {
+      resolved.onClick?.(targetObj, intersects[0].point);
+      this.onClickCallback?.(targetObj, intersects[0].point);
     }
   }
 
   private handlePointerUp(_e: PointerEvent) {
     if (this.isDragging && this.dragObject) {
-      const opts = this.dragObject.userData as Interactive3DObjectOptions;
+      const endedObj = this.dragObject;
+      const resolved = resolveInteractiveOptions(endedObj);
       this.isDragging = false;
       this.dragObject = null;
 
@@ -225,24 +312,19 @@ export class ThreeInteractionManager {
         this.controls.enabled = true;
       }
       this.domElement.style.cursor = this.hoveredObject ? 'grab' : 'default';
-      this.onDragEnd?.(this.dragObject ?? undefined as unknown as THREE.Object3D, opts.paramKey);
+      this.onDragEnd?.(endedObj, resolved.paramKey);
     }
   }
 
   private applyHover(obj: THREE.Object3D | null) {
     if (!obj) return;
     this.hoveredObject = obj;
-    const opts = obj.userData as Interactive3DObjectOptions;
+    const resolved = resolveInteractiveOptions(obj);
 
-    // Apply grab or pointer cursor
-    if (opts.type === 'draggable') {
-      this.domElement.style.cursor = opts.cursor || 'grab';
-    } else {
-      this.domElement.style.cursor = opts.cursor || 'pointer';
-    }
+    this.domElement.style.cursor =
+      resolved.cursor || (resolved.kind === 'draggable' ? 'grab' : 'pointer');
 
-    // Apply emissive glow to all child meshes
-    const glowColor = opts.hoverColor ?? 0x38bdf8;
+    const glowColor = resolved.hoverColor ?? this.defaultHoverColor;
     obj.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
@@ -250,11 +332,14 @@ export class ThreeInteractionManager {
         if (mat && 'emissive' in mat && (mat as THREE.MeshStandardMaterial).emissive) {
           const stdMat = mat as THREE.MeshStandardMaterial;
           if (!this.originalEmissives.has(mesh)) {
-            this.originalEmissives.set(mesh, stdMat.emissive.clone());
+            this.originalEmissives.set(mesh, {
+              color: stdMat.emissive.clone(),
+              intensity: typeof stdMat.emissiveIntensity === 'number' ? stdMat.emissiveIntensity : 0,
+            });
           }
           stdMat.emissive.setHex(glowColor);
           if ('emissiveIntensity' in stdMat) {
-            stdMat.emissiveIntensity = 0.45;
+            stdMat.emissiveIntensity = Math.max(0.45, stdMat.emissiveIntensity || 0);
           }
         }
       }
@@ -268,12 +353,12 @@ export class ThreeInteractionManager {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
         const mat = mesh.material;
-        if (mat && 'emissive' in mat && this.originalEmissives.has(mesh)) {
+        const saved = this.originalEmissives.get(mesh);
+        if (mat && 'emissive' in mat && saved) {
           const stdMat = mat as THREE.MeshStandardMaterial;
-          const orig = this.originalEmissives.get(mesh);
-          if (orig) stdMat.emissive.copy(orig);
+          stdMat.emissive.copy(saved.color);
           if ('emissiveIntensity' in stdMat) {
-            stdMat.emissiveIntensity = 0.0;
+            stdMat.emissiveIntensity = saved.intensity;
           }
         }
       }

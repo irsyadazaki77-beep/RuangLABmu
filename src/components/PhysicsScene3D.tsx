@@ -23,7 +23,10 @@ import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatia
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { Maximize2, Minimize2, Link2 } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
-import { triggerDomainApparatusSnap } from '../utils/engines/multiApparatusEngine';
+import {
+  globalMultiApparatusEngine,
+  triggerDomainApparatusSnap,
+} from '../utils/engines/multiApparatusEngine';
 import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
@@ -859,6 +862,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     powerSupplyBox.userData = { draggableParam: 'circuitVoltage', min: 1, max: 24, step: 1, label: 'Tegangan Sumber V' };
     wheatstoneGroup.add(powerSupplyBox);
 
+    globalMultiApparatusEngine.seedDefaultDomainNodes('Fisika');
+    const psuTerminalAnchor = new THREE.Object3D();
+    psuTerminalAnchor.name = 'anchor-psu-terminal-pos';
+    psuTerminalAnchor.position.set(1.1, 0, 0.4);
+    powerSupplyBox.add(psuTerminalAnchor);
+    globalMultiApparatusEngine.bindPortAnchor('catu-daya-dc-3d', 'terminal-pos', psuTerminalAnchor);
+
     // Binding Post Terminals on Bridge Nodes (Left: A, Top: B, Bottom: D, Right: C)
     const nodePositions = {
       left: new THREE.Vector3(-2.35, 0.28, 0),
@@ -919,6 +929,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       { draggableParam: 'resistorRx', min: 10, max: 1000, step: 10, label: 'Resistor Rx (Ohm)' }
     );
     wheatstoneGroup.add(r1Assembly, r2Assembly, r3Assembly, rxAssembly);
+
+    const resistorTerminalAnchor = new THREE.Object3D();
+    resistorTerminalAnchor.name = 'anchor-resistor-terminal-in';
+    resistorTerminalAnchor.position.set(-1.1, 0, 0);
+    r1Assembly.add(resistorTerminalAnchor);
+    globalMultiApparatusEngine.bindPortAnchor('resistor-beban-3d', 'terminal-in', resistorTerminalAnchor);
 
     // Realistic Curved Electrical Wires (THREE.TubeGeometry + CatmullRomCurve3)
     const addCurvedWire = (pts: THREE.Vector3[], colorHex: number, radius = 0.042) => {
@@ -2173,6 +2189,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       cameraSyncHandleRef.current = null;
 
       // Dispose Workbench & Custom Textures
+      globalMultiApparatusEngine.clearPortAnchors();
       workbench.dispose();
       metalTex?.dispose();
       rampScaleTex?.dispose();

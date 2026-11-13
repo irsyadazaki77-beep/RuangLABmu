@@ -9,6 +9,7 @@ import {
   type CameraSyncPose,
 } from '../utils/threeStudioKit';
 import { initThreeStudioHost } from '../utils/threeStudioHost';
+import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
 import { Maximize2, Minimize2, Focus, Link2 } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
@@ -45,6 +46,7 @@ interface BiologyScene3DProps {
   isPlaying?: boolean;
   simTime?: number;
   simTimeRef?: React.RefObject<number>;
+  onUpdateParam?: (paramKey: string, value: number) => void;
   onCaptureSnapshot?: (dataUrl: string) => void;
   snapshotCount?: number;
   comfortTheme?: ComfortThemeMode;
@@ -74,6 +76,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   isPlaying = true,
   simTime,
   simTimeRef,
+  onUpdateParam,
   onCaptureSnapshot,
   comfortTheme,
   cameraSyncPose,
@@ -99,6 +102,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   onEmitCursorRef.current = onEmitCursor;
   const onCaptureSnapshotRef = useRef(onCaptureSnapshot);
   onCaptureSnapshotRef.current = onCaptureSnapshot;
+  const onUpdateParamRef = useRef(onUpdateParam);
+  onUpdateParamRef.current = onUpdateParam;
   const latestParamsRef = useRef(params);
   latestParamsRef.current = params;
   const simTimePropRef = useRef(simTime);
@@ -108,6 +113,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
 
   const [activePreset, setActivePreset] = useState<BioCameraPreset>('isometric');
   const [clickedBadge, setClickedBadge] = useState<string | null>(null);
+  const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
   const [snapToast, setSnapToast] = useState<string | null>(null);
   const [sceneKey, setSceneKey] = useState<number>(0);
   const [lensFocus, setLensFocus] = useState<number>(75); // 0 to 100 (optimal crispness near 75-100)
@@ -541,6 +547,13 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       funnel.position.y = 0.7;
       funnel.rotation.x = Math.PI;
       funnel.name = '🎯 Corong Kaca & Tabung O₂';
+      funnel.userData = {
+        draggableParam: 'wavelengthNm',
+        min: 400,
+        max: 700,
+        step: 10,
+        label: 'Panjang Gelombang λ (nm)',
+      };
       apparatusGroup.add(funnel);
 
       const tubeGeo = new THREE.CylinderGeometry(0.22, 0.22, 1.8, 16);
@@ -596,6 +609,13 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       lamp.position.set(-3.2, 2.5, 0);
       lamp.rotation.z = -Math.PI / 3;
       lamp.name = '💡 Lampu Spektrum Variabel';
+      lamp.userData = {
+        draggableParam: 'lightIntensityLux',
+        min: 100,
+        max: 3000,
+        step: 50,
+        label: 'Intensitas Cahaya (Lux)',
+      };
       apparatusGroup.add(lamp);
 
       const lightColor = wavelengthNmToHex(latestParamsRef.current.wavelengthNm || 660);
@@ -649,6 +669,13 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       tube.position.y = 1.7;
       tube.castShadow = true;
       tube.name = '🧪 Tabung Reaksi Reaksi Katalase';
+      tube.userData = {
+        draggableParam: 'substrateConcMm',
+        min: 1,
+        max: 50,
+        step: 1,
+        label: 'Konsentrasi Substrat [S] (mM)',
+      };
       apparatusGroup.add(tube);
 
       const liquidGeo = new THREE.CylinderGeometry(0.52, 0.52, 0.6, 24);
@@ -660,6 +687,13 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       const liquid = new THREE.Mesh(liquidGeo, liquidMat);
       liquid.position.y = 0.4;
       liquid.name = 'Campuran Enzim & H₂O₂';
+      liquid.userData = {
+        draggableParam: 'solutionPH',
+        min: 2,
+        max: 12,
+        step: 0.5,
+        label: 'pH Larutan',
+      };
       apparatusGroup.add(liquid);
 
       const foamGeo = new THREE.CylinderGeometry(0.53, 0.53, 1.2, 24);
@@ -731,6 +765,13 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       protoplastMesh = new THREE.Mesh(protoGeo, protoMat);
       protoplastMesh.position.y = 1.35;
       protoplastMesh.name = '🎯 Protoplas & Membran Sel Tumbuhan';
+      protoplastMesh.userData = {
+        draggableParam: 'sucroseConcMolar',
+        min: 0.05,
+        max: 1.0,
+        step: 0.05,
+        label: 'Molaritas Sukrosa (M)',
+      };
       apparatusGroup.add(protoplastMesh);
 
       // 3D Organelles inside the Plant Cell (Nucleus, Mitochondria, Chloroplasts)
@@ -803,87 +844,51 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const conceptWorldA = new THREE.Vector3();
     const conceptWorldB = new THREE.Vector3();
 
-    // Raycaster for Pointermove & Laser pointer broadcast
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    let hoveredMesh: THREE.Mesh | null = null;
-    const origEmissive = new THREE.Color();
-
-    const handlePointerMove = (event: MouseEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(apparatusGroup.children, true);
-
-      let targetPos: [number, number, number] | null = null;
-      let targetNormal: [number, number, number] | undefined = undefined;
-      let hoveredName: string | undefined = undefined;
-
-      if (intersects.length > 0) {
-        const hit = intersects[0];
-        targetPos = [hit.point.x, hit.point.y, hit.point.z];
-        if (hit.face) {
-          targetNormal = [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z];
+    // Unified ThreeInteractionManager (hover highlight, direct 3D drag, click & spatial cursor broadcast)
+    let dragToastTimer: ReturnType<typeof setTimeout> | null = null;
+    const interactionManager = new ThreeInteractionManager({
+      camera,
+      domElement: renderer.domElement,
+      controls,
+      sceneForCursor: scene,
+      defaultHoverColor: 0x10b981,
+      getInteractiveObjects: () => apparatusGroup.children,
+      getParamValue: (paramKey) => {
+        const val = (latestParamsRef.current as unknown as Record<string, unknown>)[paramKey];
+        return typeof val === 'number' ? val : undefined;
+      },
+      onDragUpdate: (_obj, paramKey, newValue, label) => {
+        if (onUpdateParamRef.current) {
+          onUpdateParamRef.current(paramKey, newValue);
         }
-        hoveredName = hit.object.name || 'Peralatan Biologi 3D';
-        renderer.domElement.style.cursor = 'pointer';
-
-        const hitMesh = hit.object as THREE.Mesh;
-        if (hitMesh !== hoveredMesh) {
-          if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
-            (hoveredMesh.material as any).emissive.copy(origEmissive);
-          }
-          hoveredMesh = hitMesh;
-          if ((hitMesh.material as any)?.emissive) {
-            origEmissive.copy((hitMesh.material as any).emissive);
-            (hitMesh.material as any).emissive.setHex(0x10b981);
-          }
-        }
-      } else {
-        renderer.domElement.style.cursor = 'default';
-        if (hoveredMesh && (hoveredMesh.material as any)?.emissive) {
-          (hoveredMesh.material as any).emissive.copy(origEmissive);
-          hoveredMesh = null;
-        }
-
-        const hitPlane = new THREE.Vector3();
-        if (raycaster.ray.intersectPlane(groundPlane, hitPlane)) {
-          targetPos = [hitPlane.x, hitPlane.y, hitPlane.z];
-          targetNormal = [0, 1, 0];
-          hoveredName = 'Meja Laboratorium';
-        }
-      }
-
-      if (targetPos && onEmitCursorRef.current) {
-        const now = performance.now();
-        if (now - lastEmitTime >= 50) {
-          onEmitCursorRef.current(targetPos, targetNormal, hoveredName);
-          lastEmitTime = now;
-        }
-      }
-    };
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(apparatusGroup.children, true);
-      if (intersects.length > 0) {
-        const hit = intersects[0];
-        const name = hit.object.name || 'Organel Sel Tumbuhan';
+        const unitMap: Record<string, string> = {
+          wavelengthNm: 'nm',
+          lightIntensityLux: 'lux',
+          substrateConcMm: 'mM',
+          solutionPH: 'pH',
+          sucroseConcMolar: 'M',
+        };
+        const unit = unitMap[paramKey] || '';
+        const formatted = Number.isInteger(newValue) ? `${newValue}` : newValue.toFixed(2);
+        setDragToast({ label: label ?? paramKey, value: `${formatted}${unit ? ` ${unit}` : ''}` });
+        if (dragToastTimer) clearTimeout(dragToastTimer);
+      },
+      onDragEnd: () => {
+        if (dragToastTimer) clearTimeout(dragToastTimer);
+        dragToastTimer = setTimeout(() => setDragToast(null), 1600);
+      },
+      onClick: (obj) => {
+        const name = obj.name || 'Organel Sel Tumbuhan';
         setClickedBadge(name);
         labSound.playClick(680);
         setTimeout(() => setClickedBadge(null), 3500);
-      }
-    };
-
-    let lastEmitTime = 0;
-    renderer.domElement.addEventListener('mousemove', handlePointerMove);
-    renderer.domElement.addEventListener('pointerdown', handlePointerDown);
+      },
+      onCursorMove3D: (pos, normal, hoveredName) => {
+        if (onEmitCursorRef.current) {
+          onEmitCursorRef.current(pos, normal, hoveredName);
+        }
+      },
+    });
 
     // Animation Loop
     const startTimeMs = performance.now();
@@ -1137,8 +1142,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       disposed = true;
       cancelAnimationFrame(animationFrameId);
       clearTimeout(timeoutId);
-      renderer.domElement.removeEventListener('mousemove', handlePointerMove);
-      renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
+      if (dragToastTimer) clearTimeout(dragToastTimer);
+      interactionManager.dispose();
 
       teacherCollabBridge.dispose();
       if (cursorManagerRef.current) {
@@ -1308,6 +1313,14 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
               LENSA OKULER MIKROSKOP · 400×
             </text>
           </svg>
+        </div>
+      )}
+
+      {dragToast && (
+        <div className="pointer-events-none absolute top-14 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-slate-950/90 border border-emerald-400/50 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-emerald-200">
+          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-slate-300">{dragToast.label}:</span>
+          <span className="font-bold text-emerald-300">{dragToast.value}</span>
         </div>
       )}
 
