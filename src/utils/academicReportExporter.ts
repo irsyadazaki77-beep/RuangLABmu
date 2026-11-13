@@ -60,6 +60,32 @@ export interface AcademicReportData {
     hypothesisText?: string;
     reflectionText?: string;
   };
+  simLabLicense?: {
+    licenseCode: string;
+    status: string;
+    quizScore: number;
+    issuedDateStr?: string;
+  };
+  poeEvaluationSummary?: {
+    predictedTrend?: string;
+    predictedX?: number;
+    predictedY?: number;
+    actualYAtPredictedX?: number;
+    deviationPct?: number;
+  };
+  uncertaintySummary?: {
+    metricLabel: string;
+    n: number;
+    mean: number;
+    sampleStdDev: number;
+    standardErrorMean: number;
+    instrumentUncertainty: number;
+    combinedUncertainty: number;
+    relativeUncertaintyPct: number;
+    percentErrorVsTheory: number | null;
+    precisionGrade: string;
+    recommendedSignificantFigures: number;
+  };
 }
 
 export function generateAcademicReportHTML(data: AcademicReportData): string {
@@ -83,6 +109,9 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
     conclusionNotes,
     hypothesisSummary,
     snapshots3D,
+    simLabLicense,
+    poeEvaluationSummary,
+    uncertaintySummary,
   } = data;
 
   const objectives =
@@ -261,6 +290,16 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
       <td style="font-weight: bold;">Status Penilaian</td>
       <td>: ${worksheetScore ? `LKS Dinilai (${worksheetScore.score}/100 · ${worksheetScore.correctCount}/${worksheetScore.totalCount} Benar)` : 'Terverifikasi Sistem'}</td>
     </tr>
+    ${
+      simLabLicense
+        ? `
+    <tr>
+      <td style="font-weight: bold;">SIM Lab Digital (K3)</td>
+      <td colspan="3">: <strong style="font-family: monospace; color: #047857;">${simLabLicense.licenseCode}</strong> · Status: <strong>${simLabLicense.status}</strong> (Kuis K3: ${simLabLicense.quizScore}%${simLabLicense.issuedDateStr ? ` · Diterbitkan ${simLabLicense.issuedDateStr}` : ''})</td>
+    </tr>
+    `
+        : ''
+    }
   </table>
 
   <div class="section-title">I. Tujuan Praktikum</div>
@@ -293,6 +332,33 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
     <div><strong>Variabel Bebas (X):</strong> ${hypothesisSummary.independentVar || '-'}</div>
     <div><strong>Variabel Terikat (Y):</strong> ${hypothesisSummary.dependentVar || '-'}</div>
     <div style="margin-top: 4px;"><strong>Hipotesis Awal:</strong> <em>${hypothesisSummary.hypothesisText || '-'}</em></div>
+    ${
+      poeEvaluationSummary &&
+      (poeEvaluationSummary.predictedTrend ||
+        poeEvaluationSummary.predictedY !== undefined)
+        ? `
+    <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #f59e0b;">
+      <strong>Prediksi Kuantitatif (Predict–Observe–Explain / POE):</strong>
+      ${poeEvaluationSummary.predictedTrend ? `<span>Tren: <strong>${poeEvaluationSummary.predictedTrend}</strong></span>` : ''}
+      ${
+        poeEvaluationSummary.predictedX !== undefined &&
+        poeEvaluationSummary.predictedY !== undefined
+          ? ` · Koordinat Prediksi: <span style="font-family: monospace;">(X = ${poeEvaluationSummary.predictedX}, Y_pred = ${poeEvaluationSummary.predictedY})</span>`
+          : ''
+      }
+      ${
+        poeEvaluationSummary.actualYAtPredictedX !== undefined
+          ? ` vs Kurva Aktual: <span style="font-family: monospace;">Y_obs = ${poeEvaluationSummary.actualYAtPredictedX.toFixed(3)}</span>${
+              poeEvaluationSummary.deviationPct !== undefined
+                ? ` (Deviasi: <strong>${poeEvaluationSummary.deviationPct.toFixed(2)}%</strong>)`
+                : ''
+            }`
+          : ''
+      }
+    </div>
+    `
+        : ''
+    }
     ${
       hypothesisSummary.reflectionText
         ? `<div style="margin-top: 4px;"><strong>Refleksi & Evaluasi Hipotesis:</strong> ${hypothesisSummary.reflectionText}</div>`
@@ -351,6 +417,31 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
     <ul style="margin: 2px 0; padding-left: 18px;">
       ${trialComparisonSummary.keyDifferences.map((d) => `<li>${d}</li>`).join('')}
     </ul>
+  </div>
+  `
+      : ''
+  }
+
+  ${
+    uncertaintySummary && uncertaintySummary.n > 0
+      ? `
+  <div class="section-title">IV-C. Analisis Ketidakpastian &amp; Ralat Pengukuran (${uncertaintySummary.metricLabel})</div>
+  <div style="background: #eef2ff; border: 1px solid #c7d2fe; padding: 10px 14px; border-radius: 4px; font-size: 9.5pt; margin: 6px 0;">
+    <div><strong>Pelaporan Hasil Pengukuran Baku (x̄ ± Δx):</strong> <span style="font-family: monospace; font-size: 10.5pt;">${uncertaintySummary.mean.toFixed(3)} ± ${uncertaintySummary.combinedUncertainty.toFixed(3)}</span> (${uncertaintySummary.n} sampel)</div>
+    <div style="margin-top: 3px;">
+      <strong>Ralat Tipe A (Acak):</strong> Deviasi Standar s = <span style="font-family: monospace;">${uncertaintySummary.sampleStdDev.toFixed(4)}</span>, Standard Error sₓ̄ = <span style="font-family: monospace;">${uncertaintySummary.standardErrorMean.toFixed(4)}</span>
+      · <strong>Ralat Tipe B (Alat ½ NST):</strong> <span style="font-family: monospace;">${uncertaintySummary.instrumentUncertainty.toFixed(4)}</span>
+    </div>
+    <div style="margin-top: 3px;">
+      <strong>Ketidakpastian Relatif:</strong> <span style="font-family: monospace;">±${uncertaintySummary.relativeUncertaintyPct.toFixed(2)}%</span>
+      · <strong>Klasifikasi Presisi:</strong> <strong>${uncertaintySummary.precisionGrade}</strong>
+      · <strong>Angka Penting Disarankan:</strong> ${uncertaintySummary.recommendedSignificantFigures} angka penting
+      ${
+        uncertaintySummary.percentErrorVsTheory !== null
+          ? `· <strong>% Galat vs Teori:</strong> <span style="font-family: monospace;">${uncertaintySummary.percentErrorVsTheory.toFixed(2)}%</span>`
+          : ''
+      }
+    </div>
   </div>
   `
       : ''
@@ -432,6 +523,32 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
       : ''
   }
 
+  ${
+    module &&
+    ((module.commonMisconceptions && module.commonMisconceptions.length > 0) ||
+      (module.realWorldApplications && module.realWorldApplications.length > 0))
+      ? `
+  <div class="section-title">V-D. Refleksi Klinik Miskonsepsi &amp; Aplikasi Kontekstual</div>
+  <div style="background: #fff1f2; border: 1px solid #fecdd3; padding: 8px 12px; border-radius: 4px; font-size: 9.5pt; margin: 6px 0;">
+    ${
+      module.commonMisconceptions && module.commonMisconceptions.length > 0
+        ? `<div><strong>Klinik Miskonsepsi yang Harus Dihindari:</strong><ul style="margin: 3px 0 6px; padding-left: 18px;">${module.commonMisconceptions
+            .map((m) => `<li>${m}</li>`)
+            .join('')}</ul></div>`
+        : ''
+    }
+    ${
+      module.realWorldApplications && module.realWorldApplications.length > 0
+        ? `<div><strong>Aplikasi Riset &amp; Teknologi Nyata:</strong><ul style="margin: 3px 0 0; padding-left: 18px;">${module.realWorldApplications
+            .map((a) => `<li>${a}</li>`)
+            .join('')}</ul></div>`
+        : ''
+    }
+  </div>
+  `
+      : ''
+  }
+
   <div class="section-title">VI. Pembahasan Hasil & Analisis Ralat</div>
   <p style="text-align: justify; margin-top: 4px;">
     ${
@@ -501,6 +618,7 @@ export function downloadAcademicReportFile(
 - **Kelompok**: ${data.groupId}
 - **Tanggal/Waktu**: ${data.dateStr} ${data.timeStr} WIB
 - **Status Evaluasi LKS**: ${data.worksheetScore ? `${data.worksheetScore.score}/100 (${data.worksheetScore.correctCount}/${data.worksheetScore.totalCount})` : 'Terverifikasi'}
+${data.simLabLicense ? `- **SIM Lab Digital (K3)**: ${data.simLabLicense.licenseCode} (${data.simLabLicense.status}, Kuis ${data.simLabLicense.quizScore}%)` : ''}
 
 ---
 
@@ -550,6 +668,17 @@ ${
 - **R²**: ${data.regressionSummary.rSquared.toFixed(4)}
 - **Makna Parameter**: ${data.regressionSummary.expectedSlopeMeaning || '-'}`
     : 'Data belum dihitung regresi.'
+}
+${
+  data.uncertaintySummary && data.uncertaintySummary.n > 0
+    ? `\n### Analisis Ketidakpastian & Ralat (${data.uncertaintySummary.metricLabel})\n- **Pelaporan Baku**: \`${data.uncertaintySummary.mean.toFixed(3)} ± ${data.uncertaintySummary.combinedUncertainty.toFixed(3)}\` (${data.uncertaintySummary.n} sampel)\n- **Ketidakpastian Relatif**: ±${data.uncertaintySummary.relativeUncertaintyPct.toFixed(2)}% · **Presisi**: ${data.uncertaintySummary.precisionGrade} · **Angka Penting**: ${data.uncertaintySummary.recommendedSignificantFigures}${data.uncertaintySummary.percentErrorVsTheory !== null ? `\n- **% Galat vs Teori**: ${data.uncertaintySummary.percentErrorVsTheory.toFixed(2)}%` : ''}`
+    : ''
+}
+${
+  data.poeEvaluationSummary &&
+  (data.poeEvaluationSummary.predictedTrend || data.poeEvaluationSummary.predictedY !== undefined)
+    ? `\n### Evaluasi Prediksi Kuantitatif (POE)\n- **Tren Diprediksi**: ${data.poeEvaluationSummary.predictedTrend || '-'}\n- **Koordinat Prediksi**: (${data.poeEvaluationSummary.predictedX ?? '-'}, ${data.poeEvaluationSummary.predictedY ?? '-'})${data.poeEvaluationSummary.actualYAtPredictedX !== undefined ? ` vs Aktual ${data.poeEvaluationSummary.actualYAtPredictedX.toFixed(3)} (Deviasi: ${data.poeEvaluationSummary.deviationPct?.toFixed(2) ?? '-'}%)` : ''}`
+    : ''
 }
 
 ## VI. Pembahasan & Kesimpulan

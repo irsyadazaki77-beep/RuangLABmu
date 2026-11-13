@@ -21,12 +21,15 @@ import type { Lab3DSnapshot } from '../ui/ScientificEnhancementSuite';
 import {
   ExperimentModule,
   EducationTier,
+  getExperimentById,
 } from '../../registry/experimentRegistry';
 import { SpatialCursorPayload, ParameterLockPayload } from '../../utils/collabProtocol';
 import {
   MysterySampleChallenge,
   MysterySubmissionResult,
 } from '../../utils/mysteryChallengeEngine';
+import { MysteryChallengeModal } from '../exam/MysteryChallengeModal';
+import { MysteryChallengeCockpitBanner } from '../exam/MysteryChallengeCockpitBanner';
 import { useLabStore } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCollabStore } from '../../stores/useCollabStore';
@@ -135,6 +138,8 @@ export interface MainLabWorkspaceProps {
   onReplayRecord: (rec: ExperimentRecord) => void;
   onBroadcastTeacherFeedback?: (targetStudentId: string, message: string, author: string) => void;
   onBroadcastMysteryChallenge?: (challenge: MysterySampleChallenge, author: string) => void;
+  onActivateMysteryChallenge?: (challenge: MysterySampleChallenge) => void;
+  onDismissMysteryChallenge?: () => void;
   onSelectCatalogModule: (mod: ExperimentModule) => void;
   onInjectOutlierDemo: () => void;
   externalDrLabMuPrompt: { id: number; prompt: string } | null;
@@ -197,6 +202,8 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
   onReplayRecord,
   onBroadcastTeacherFeedback,
   onBroadcastMysteryChallenge,
+  onActivateMysteryChallenge,
+  onDismissMysteryChallenge,
   onSelectCatalogModule,
   onInjectOutlierDemo,
   externalDrLabMuPrompt,
@@ -718,6 +725,39 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
                   pip3DMode === 'split' ? 'lg:w-[55%]' : 'max-w-[1380px] w-full mx-auto'
                 }`}
               >
+                {records.length < 3 && (
+                  <div
+                    data-testid="stage3-data-readiness-banner"
+                    className="mb-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-200"
+                  >
+                    <span>
+                      <strong>Tip Analisis:</strong> Saat ini baru{' '}
+                      <span className="font-mono font-bold tabular-nums">{records.length}/3</span> titik data pengamatan tercatat. Tambahkan minimal 3 variasi data agar grafik regresi OLS &amp; uji LKS lebih akurat.
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          labSound.playClick();
+                          setPip3DMode('split');
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-100 font-bold text-[11px] cursor-pointer"
+                      >
+                        Buka Split 3D 45/55
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          labSound.playClick();
+                          setWorkflowStep(2);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] cursor-pointer"
+                      >
+                        Kembali ke Meja 3D
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <AnalyticsAndWorksheetPanel
                   records={records}
                   activeStudentName={currentProfile.name}

@@ -241,6 +241,67 @@ export const PRESET_MYSTERY_CHALLENGES: MysterySampleChallenge[] = [
     explanationSolution:
       'Garis teramati bergeser ke λ_obs ≈ 422.8 nm (z = 0.0747). Kecepatan resesi v ≈ 22.400 km/s. Dengan H₀ = 70 km/s/Mpc, d = 22.400 / 70 = 320 Mpc.',
   },
+
+  // 8. Biologi: Kinetika Enzim Katalase (Konstanta Michaelis Km)
+  {
+    id: 'bio-mystery-enzyme',
+    domain: 'Biologi',
+    moduleId: 'enzyme-catalase',
+    title: 'Kinetika Michaelis-Menten Enzim Katalase Misterius',
+    codename: 'BIO-CAT-KM',
+    difficulty: 'Sedang',
+    storyDescription:
+      'Sampel ekstrak enzim katalase baru ditemukan dari isolat mikroba ekstremofil. Dengan Vmax terkalibrasi 120 μmol/(L·s) pada kondisi optimum (pH 7.0, T = 37°C, V_enzim = 1.0 mL), tentukan Konstanta Michaelis (Km) enzim tersebut dalam mM.',
+    hiddenParamKey: 'kmConstantMm',
+    hiddenParamLabel: 'Konstanta Michaelis (Km)',
+    hiddenParamUnit: 'mM',
+    actualHiddenValue: 4.5,
+    acceptableTolerancePct: 6.0,
+    clues: [
+      'Gunakan modul Uji Kinetika Enzim Katalase pada kondisi optimum: pH = 7.0, suhu T = 37°C, volume enzim = 1.0 mL.',
+      'Pada kondisi ini, Vmax = 120 μmol/(L·s) dan kecepatan reaksi v = Vmax·[S] / (Km + [S]).',
+      'Saat substrat [H₂O₂] diatur tepat 9 mM, amati nilai kecepatan reaksi v (μmol/(L·s)) lalu balikkan persamaan untuk Km.',
+    ],
+    suggestedProcedure: [
+      '1. Atur pH = 7.0, T = 37°C, dan Volume Ekstrak Enzim = 1.0 mL.',
+      '2. Geser konsentrasi substrat [S] ke 9 mM dan catat laju reaksi v yang terbaca.',
+      '3. Hitung Km = [S] × ((Vmax / v) - 1) dan masukkan jawaban akhir Anda.',
+    ],
+    formulaHint: 'K_m = [S] \\left(\\frac{V_{\\max}}{v} - 1\\right)',
+    explanationSolution:
+      'Pada [S] = 9 mM, pH 7.0, T = 37°C dengan Vmax = 120 μmol/(L·s), laju reaksi terukur v = 80.0 μmol/(L·s). Maka Km = 9 × ((120 / 80) - 1) = 4.5 mM.',
+  },
+
+  // 9. Biologi: Forensik Penyempitan Arteri Koroner (Hukum Poiseuille)
+  {
+    id: 'bio-mystery-cardio',
+    domain: 'Biologi',
+    moduleId: 'anatomy-cardiovascular-heart',
+    title: 'Forensik Penyempitan Arteri Koroner (Hukum Poiseuille)',
+    codename: 'CARDIO-R-RATIO',
+    difficulty: 'Tantangan Olimpiade',
+    storyDescription:
+      'Rekam medis Doppler vaskular pasien menunjukkan Resistensi Vaskular sistemik melonjak hingga R = 5.602 PRU pada viskositas darah normal η = 3.5 cP. Tentukan rasio jari-jari pembuluh darah pasien (r / r₀) akibat plak aterosklerosis.',
+    hiddenParamKey: 'vesselRadiusRatio',
+    hiddenParamLabel: 'Rasio Radius Pembuluh (r/r₀)',
+    hiddenParamUnit: 'rasio',
+    actualHiddenValue: 0.65,
+    acceptableTolerancePct: 5.0,
+    clues: [
+      'Gunakan modul Anatomi Jantung & Sirkulasi Kardiovaskular 3D pada viskositas darah normal η = 3.5 cP.',
+      'Menurut Hukum Poiseuille ternormalisasi: R = (η / 3.5) / (r / r₀)⁴.',
+      'Geser Rasio Radius Pembuluh secara sistematis hingga Resistensi Vaskular terbaca ~5.602 PRU, atau hitung langsung akar pangkat empatnya.',
+    ],
+    suggestedProcedure: [
+      '1. Pastikan viskositas darah η tetap pada 3.5 cP.',
+      '2. Variasikan Rasio Radius Pembuluh (r/r₀) atau hitung r/r₀ = (1 / 5.602)^(1/4).',
+      '3. Verifikasi pembacaan Resistensi Vaskular (R) mendekati 5.602 PRU.',
+      '4. Masukkan nilai rasio r/r₀ (antara 0.40 hingga 1.20).',
+    ],
+    formulaHint: '\\frac{r}{r_0} = \\left(\\frac{\\eta / 3.5}{R}\\right)^{1/4}',
+    explanationSolution:
+      'Karena R = (3.5 / 3.5) / (r/r₀)⁴ = 5.602 PRU, maka (r/r₀)⁴ = 1 / 5.602 ≈ 0.1785, sehingga r/r₀ = (0.1785)^(1/4) = 0.65 (penyempitan lumen 35%).',
+  },
 ];
 
 export function evaluateMysterySubmission(

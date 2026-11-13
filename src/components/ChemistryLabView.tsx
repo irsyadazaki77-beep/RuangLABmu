@@ -94,6 +94,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   onRecordExperiment,
   academicLevel,
   records = [],
+  onDeleteRecord,
   onProceedToAnalysis,
   remoteCursors,
   onEmitCursor,
@@ -330,6 +331,11 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     <StandardLabViewShell
       domain="Kimia"
       recordsCount={records.length}
+      hypothesisText={hypothesisNote?.hypothesisText}
+      recentRecords={records}
+      onProceedToAnalysis={onProceedToAnalysis}
+      onDeleteRecord={onDeleteRecord}
+      onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
       telemetryMetrics={telemetryMetrics}
       oscilloscope={{
         primaryLabel: telemetryMetrics[0].label,

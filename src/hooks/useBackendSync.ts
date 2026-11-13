@@ -38,6 +38,7 @@ export interface UseBackendSyncReturn extends BackendSyncState {
   pushNotification: (notif: LabNotification) => void;
   broadcastTeacherFeedback: (targetStudentId: string, message: string, author: string) => void;
   broadcastMysteryChallenge: (challenge: MysterySampleChallenge, author: string) => void;
+  activateMysteryChallenge: (challenge: MysterySampleChallenge) => void;
   submitMysteryExam: (studentName: string, result: MysterySubmissionResult, challengeTitle: string) => void;
   dismissMysteryChallenge: () => void;
   createRoom: (pin: string, domain: 'physics' | 'chemistry' | 'biology' | 'astronomy', moduleId: string, customRoomId?: string) => void;
@@ -935,6 +936,10 @@ export function useBackendSync(
     setActiveMysteryChallenge(null);
   }, []);
 
+  const activateMysteryChallenge = useCallback((challenge: MysterySampleChallenge) => {
+    setActiveMysteryChallenge(challenge);
+  }, []);
+
   const createRoom = useCallback(
     (
       pin: string,
@@ -1117,6 +1122,7 @@ export function useBackendSync(
     pushNotification,
     broadcastTeacherFeedback,
     broadcastMysteryChallenge,
+    activateMysteryChallenge,
     submitMysteryExam,
     dismissMysteryChallenge,
     createRoom,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Telescope, Sliders, BarChart2, Bot } from 'lucide-react';
 import { useUIStore, MobileTab } from '../../stores/useUIStore';
+import { useLabStore } from '../../stores/useLabStore';
 import { labSound } from '../../utils/soundEngine';
 
 export interface BottomNavigationBarProps {
@@ -12,7 +13,8 @@ export const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
   recordsCount = 0,
   hasLowR2Alert = false,
 }) => {
-  const { mobileTab, setMobileTab, setDrawerTab } = useUIStore();
+  const { mobileTab, setMobileTab, setDrawerTab, setDrawerOpen } = useUIStore();
+  const setWorkflowStep = useLabStore((s) => s.setWorkflowStep);
 
   const navItems: Array<{
     id: MobileTab;
@@ -59,9 +61,15 @@ export const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
             type="button"
             onClick={() => {
               labSound.playClick();
+              if (item.id === 'worksheet') {
+                setMobileTab('canvas');
+                setWorkflowStep(3);
+                return;
+              }
               setMobileTab(item.id);
               if (item.id === 'ai') {
                 setDrawerTab('ai');
+                setDrawerOpen(true);
               }
             }}
             aria-selected={isActive}

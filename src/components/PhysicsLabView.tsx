@@ -104,6 +104,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   remoteCursors,
   onEmitCursor,
   records = [],
+  onDeleteRecord,
   onProceedToAnalysis,
   hypothesisNote,
   zenMode = false,
@@ -388,6 +389,11 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     <StandardLabViewShell
       domain="Fisika"
       recordsCount={records.length}
+      hypothesisText={hypothesisNote?.hypothesisText}
+      recentRecords={records}
+      onProceedToAnalysis={onProceedToAnalysis}
+      onDeleteRecord={onDeleteRecord}
+      onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
       telemetryMetrics={telemetryMetrics}
       oscilloscope={{
         primaryLabel: telemetryMetrics[0].label,

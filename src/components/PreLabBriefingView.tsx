@@ -16,6 +16,8 @@ import {
   History,
   Calculator,
   XCircle,
+  BadgeCheck,
+  Award,
 } from 'lucide-react';
 import {
   ExperimentModule,
@@ -37,6 +39,13 @@ import {
   recordK3Compliance,
   loadGamificationProfile,
 } from '../services/gamificationEngine';
+import {
+  LabSafetyLicense,
+  getLabSafetyLicenseForModule,
+  issueOrUpdateLabSafetyLicense,
+  MIN_PASSING_PRELAB_SCORE,
+} from '../services/labLicenseEngine';
+import { LabSafetyLicenseModal } from './ui/LabSafetyLicenseModal';
 import { InteractiveFormulaPrimer } from './ui/InteractiveFormulaPrimer';
 import { DIYLocalWisdomCard } from './ui/DIYLocalWisdomCard';
 
@@ -83,6 +92,8 @@ function cleanLatexEquation(eq: string): string {
 interface PreLabBriefingViewProps {
   experiment: ExperimentModule;
   activeTier: EducationTier;
+  studentName?: string;
+  studentGroup?: string;
   onProceedToSimulation: () => void;
   onBackToLobby: () => void;
   hypothesisNote?: HypothesisNote;
@@ -93,6 +104,8 @@ interface PreLabBriefingViewProps {
 export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
   experiment,
   activeTier,
+  studentName = 'Praktikan RuangLABmu',
+  studentGroup = 'Kelompok Mandiri',
   onProceedToSimulation,
   onBackToLobby,
   hypothesisNote,
@@ -107,6 +120,14 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
   const [k3Complied, setK3Complied] = useState<boolean>(() =>
     loadGamificationProfile().unlockedBadges.includes('K3 Guardian')
   );
+  const [activeLicense, setActiveLicense] = useState<LabSafetyLicense | null>(() =>
+    getLabSafetyLicenseForModule(experiment.id)
+  );
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    setActiveLicense(getLabSafetyLicenseForModule(experiment.id));
+  }, [experiment.id]);
 
   useEffect(() => {
     const unsubscribe = voiceNarration.subscribe((speaking) => {
@@ -118,10 +139,29 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
     };
   }, []);
 
+  const syncSafetyLicense = (nextK3: boolean, nextQuizPct: number) => {
+    const issued = issueOrUpdateLabSafetyLicense({
+      moduleId: experiment.id,
+      moduleTitle: experiment.title,
+      domain: experiment.domain,
+      studentName,
+      studentGroup,
+      tier: activeTier,
+      k3Complied: nextK3,
+      preLabQuizScorePct: nextQuizPct,
+    });
+    setActiveLicense(issued);
+    return issued;
+  };
+
   const handleComplyK3 = () => {
     labSound.playSuccessChime();
     recordK3Compliance(experiment.id);
     setK3Complied(true);
+    const currentQuizPct = quizSubmitted
+      ? calculateScore().percentage
+      : activeLicense?.preLabQuizScorePct ?? 0;
+    syncSafetyLicense(true, currentQuizPct);
   };
 
   const handleToggleK3Narration = () => {
@@ -666,6 +706,8 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
                   onClick={() => {
                     labSound.playRecordSuccess();
                     setQuizSubmitted(true);
+                    const res = calculateScore();
+                    syncSafetyLicense(k3Complied, res.percentage);
                   }}
                   disabled={Object.keys(selectedAnswers).length < experiment.preLabQuiz.length}
                   className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-semibold text-xs transition-colors disabled:opacity-40 cursor-pointer"
@@ -685,6 +727,76 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
                 </button>
               )}
 
+              {/* Status SIM Lab / Lab Safety License Card */}
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                    <BadgeCheck
+                      className={`w-4 h-4 ${
+                        activeLicense?.status === 'TERVERIFIKASI'
+                          ? 'text-emerald-500'
+                          : 'text-slate-400'
+                      }`}
+                    />
+                    <span>SIM Laboratorium K3 (Lisensi Praktikan)</span>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold ${
+                      activeLicense?.status === 'TERVERIFIKASI'
+                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                        : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30'
+                    }`}
+                  >
+                    {activeLicense?.status === 'TERVERIFIKASI'
+                      ? 'TERVERIFIKASI'
+                      : 'MENUNGGU SYARAT'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                    <CheckCircle2
+                      className={`w-3.5 h-3.5 shrink-0 ${
+                        k3Complied ? 'text-emerald-500' : 'text-slate-400'
+                      }`}
+                    />
+                    <span>1. Patuh SOP K3</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                    <Award
+                      className={`w-3.5 h-3.5 shrink-0 ${
+                        (quizResult?.percentage ?? activeLicense?.preLabQuizScorePct ?? 0) >=
+                        MIN_PASSING_PRELAB_SCORE
+                          ? 'text-emerald-500'
+                          : 'text-slate-400'
+                      }`}
+                    />
+                    <span>
+                      2. Kuis ≥ {MIN_PASSING_PRELAB_SCORE}% (
+                      {quizResult?.percentage ?? activeLicense?.preLabQuizScorePct ?? 0}%)
+                    </span>
+                  </div>
+                </div>
+
+                {activeLicense?.status === 'TERVERIFIKASI' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      labSound.playSuccessChime();
+                      setIsLicenseModalOpen(true);
+                    }}
+                    className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <BadgeCheck className="w-4 h-4" />
+                    <span>Buka &amp; Cetak SIM Lab ({activeLicense.licenseId})</span>
+                  </button>
+                ) : (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Klik <strong>&quot;Saya Patuh K3&quot;</strong> dan selesaikan Kuis Pra-Lab (minimal skor {MIN_PASSING_PRELAB_SCORE}%) untuk menerbitkan kartu SIM Lab ber-QR Code.
+                  </p>
+                )}
+              </div>
+
               <button
                 type="button"
                 onClick={() => {
@@ -701,6 +813,12 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
           </section>
         </div>
       </div>
+
+      <LabSafetyLicenseModal
+        isOpen={isLicenseModalOpen}
+        license={activeLicense}
+        onClose={() => setIsLicenseModalOpen(false)}
+      />
     </div>
   );
 };

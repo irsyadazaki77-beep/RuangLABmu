@@ -90,6 +90,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   onEmitCursor,
   onBiologyContextChange,
   records = [],
+  onDeleteRecord,
   selectedModuleId: externalModuleId,
   onSelectModuleId,
   onProceedToAnalysis,
@@ -276,6 +277,11 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     <StandardLabViewShell
       domain="Biologi"
       recordsCount={records.length}
+      hypothesisText={hypothesisNote?.hypothesisText}
+      recentRecords={records}
+      onProceedToAnalysis={onProceedToAnalysis}
+      onDeleteRecord={onDeleteRecord}
+      onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
       telemetryMetrics={telemetryMetrics}
       oscilloscope={{
         primaryLabel: currentModule.outputs[0]?.label || 'Laju O₂',

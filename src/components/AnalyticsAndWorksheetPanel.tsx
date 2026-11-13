@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -8,12 +8,16 @@ import {
   DataPointMultiAxis,
   ExperimentRecord,
   CurveModelType,
+  calculateCurveFitting,
 } from '../utils/scienceEngine';
 import { labSound } from '../utils/soundEngine';
 import {
   AcademicReportData,
   openPrintableAcademicReport,
 } from '../utils/academicReportExporter';
+import { computeMeasurementErrorSummary } from '../utils/uncertaintyEngine';
+import { getLabSafetyLicenseForModule } from '../services/labLicenseEngine';
+import { getExperimentById } from '../registry/experimentRegistry';
 import { AcademicReportPreviewModal } from './ui/AcademicReportPreviewModal';
 import {
   HypothesisNote,
@@ -23,6 +27,7 @@ import {
 import type { Lab3DSnapshot } from './ui/ScientificEnhancementSuite';
 
 import { RegressionChartSection } from './analytics/RegressionChartSection';
+import { UncertaintyAnalysisCard } from './analytics/UncertaintyAnalysisCard';
 import { DataObservationTable } from './analytics/DataObservationTable';
 import { StudentWorksheetForm } from './analytics/StudentWorksheetForm';
 import { PostLabMasteryQuiz } from './analytics/PostLabMasteryQuiz';
@@ -141,6 +146,23 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
   const [showCompareDock, setShowCompareDock] = useState<boolean>(false);
   const [showHypothesisDock, setShowHypothesisDock] = useState<boolean>(false);
   const [reportModalData, setReportModalData] = useState<AcademicReportData | null>(null);
+  const [uncertaintyTheoryInput, setUncertaintyTheoryInput] = useState<string>('');
+  const [uncertaintyNstInput, setUncertaintyNstInput] = useState<string>('');
+
+  const poePrediction = useMemo(() => {
+    if (!hypothesisNote) return null;
+    const rawX = hypothesisNote.predictedX?.trim() ?? '';
+    const rawY = hypothesisNote.predictedY?.trim() ?? '';
+    if (!rawX || !rawY) return null;
+    const xVal = Number(rawX);
+    const yVal = Number(rawY);
+    if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) return null;
+    return {
+      x: xVal,
+      y: yVal,
+      trend: hypothesisNote.predictedTrend,
+    };
+  }, [hypothesisNote]);
 
   // Custom data points from actual recorded trials
   const customRecordPoints: DataPointMultiAxis[] = records
@@ -168,8 +190,40 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
     onExportChartNotification('PDF');
 
     const now = new Date();
+    const resolvedModule = moduleId ? getExperimentById(moduleId) : undefined;
+    const simLicense = moduleId
+      ? getLabSafetyLicenseForModule(activeStudentName, moduleId)
+      : null;
+
+    const fit =
+      activeDataset.points.length >= 2
+        ? calculateCurveFitting(
+            activeDataset.points.map((p) => ({ x: p.x, y: p.y1 })),
+            curveModel
+          )
+        : undefined;
+
+    const theoryNum = uncertaintyTheoryInput.trim()
+      ? Number(uncertaintyTheoryInput.trim())
+      : undefined;
+    const nstNum = uncertaintyNstInput.trim()
+      ? Number(uncertaintyNstInput.trim())
+      : undefined;
+    const errorStats = computeMeasurementErrorSummary(
+      activeDataset.points.map((p) => p.y1),
+      theoryNum !== undefined && Number.isFinite(theoryNum) ? theoryNum : undefined,
+      nstNum !== undefined && Number.isFinite(nstNum) && nstNum > 0 ? nstNum : undefined
+    );
+
+    const poeActualY =
+      poePrediction && fit ? fit.evaluateAt(poePrediction.x) : undefined;
+    const poeDeviationPct =
+      poePrediction && poeActualY !== undefined && Math.abs(poeActualY) > 1e-9
+        ? (Math.abs(poePrediction.y - poeActualY) / Math.abs(poeActualY)) * 100
+        : undefined;
+
     const reportPayload: AcademicReportData = {
-      experimentTitle: activeDataset.title,
+      experimentTitle: resolvedModule?.title || activeDataset.title,
       studentName: activeStudentName,
       groupId: activeGroupId,
       tier: 'SMA',
@@ -182,9 +236,65 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
         hour: '2-digit',
         minute: '2-digit',
       }),
-      domain: records[0]?.domain || 'Fisika & Sains',
+      domain: domain || records[0]?.domain || 'Fisika & Sains',
+      module: resolvedModule,
       records,
-      discussionNotes: `Grafik data analitik menunjukkan korelasi kuat antar variabel dengan kurva model regresi ${curveModel}.`,
+      regressionSummary: fit
+        ? {
+            slope: fit.slopeM,
+            intercept: fit.interceptC,
+            rSquared: fit.rSquared,
+            formula: fit.equationString,
+            modelLabel: fit.modelLabel,
+            equationString: fit.equationString,
+            expectedSlopeMeaning: resolvedModule?.defaultRegressionAxes?.expectedSlopeMeaning,
+          }
+        : undefined,
+      hypothesisSummary: hypothesisNote
+        ? {
+            independentVar: hypothesisNote.independentVar,
+            dependentVar: hypothesisNote.dependentVar,
+            hypothesisText: hypothesisNote.hypothesisText,
+            reflectionText: hypothesisNote.reflectionText,
+          }
+        : undefined,
+      simLabLicense: simLicense
+        ? {
+            licenseCode: simLicense.licenseCode,
+            status: simLicense.status,
+            quizScore: simLicense.quizScore,
+            issuedDateStr: simLicense.issuedDateStr,
+          }
+        : undefined,
+      poeEvaluationSummary:
+        poePrediction || hypothesisNote?.predictedTrend
+          ? {
+              predictedTrend: hypothesisNote?.predictedTrend,
+              predictedX: poePrediction?.x,
+              predictedY: poePrediction?.y,
+              actualYAtPredictedX: poeActualY,
+              deviationPct: poeDeviationPct,
+            }
+          : undefined,
+      uncertaintySummary:
+        errorStats.n > 0
+          ? {
+              metricLabel: activeDataset.y1AxisLabel,
+              n: errorStats.n,
+              mean: errorStats.mean,
+              sampleStdDev: errorStats.sampleStdDev,
+              standardErrorMean: errorStats.standardErrorMean,
+              instrumentUncertainty: errorStats.instrumentUncertainty,
+              combinedUncertainty: errorStats.combinedUncertainty,
+              relativeUncertaintyPct: errorStats.relativeUncertaintyPct,
+              percentErrorVsTheory: errorStats.percentErrorVsTheory,
+              precisionGrade: errorStats.precisionGrade,
+              recommendedSignificantFigures: errorStats.recommendedSignificantFigures,
+            }
+          : undefined,
+      discussionNotes: `Grafik data analitik menunjukkan kesesuaian kurva model regresi ${curveModel}${
+        fit ? ` (R² = ${fit.rSquared.toFixed(4)})` : ''
+      } dengan ketidakpastian gabungan ±${errorStats.combinedUncertainty.toFixed(3)} (${errorStats.precisionGrade}).`,
       conclusionNotes: conclusionText,
     };
 
@@ -310,7 +420,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
         <ExperimentTrialComparePanel records={records} />
       )}
 
-      {/* 1. Interactive SVG Regression Curve with Outlier Toggle & Tooltip */}
+      {/* 1. Interactive SVG Regression Curve with Outlier Toggle, POE Prediction & Tooltip */}
       <RegressionChartSection
         datasetTitle={activeDataset.title}
         xAxisLabel={activeDataset.xAxisLabel}
@@ -319,9 +429,25 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
         points={activeDataset.points}
         curveModel={curveModel}
         onChangeCurveModel={setCurveModel}
+        poePrediction={poePrediction}
+        onAskDrLabMuAboutPoe={(deviationPct, predictedY, actualY) =>
+          onAskDrLabMu?.(
+            `Prediksi POE saya bernilai Y = ${predictedY.toFixed(2)}, sedangkan hasil kurva observasi bernilai ${actualY.toFixed(2)} (deviasi ${deviationPct.toFixed(1)}%). Apa penyebab fisis perbedaan antara dugaan awal dan data eksperimen ini?`
+          )
+        }
         onAskDrLabMuAboutOutlier={() =>
           onAskDrLabMu?.('Bagaimana pengaruh titik outlier pada kurva regresi data praktikum saya?')
         }
+      />
+
+      {/* 1B. Quantitative Measurement Uncertainty & Error Analysis (Type A + Type B) */}
+      <UncertaintyAnalysisCard
+        metricLabel={activeDataset.y1AxisLabel}
+        values={activeDataset.points.map((p) => p.y1)}
+        theoreticalInput={uncertaintyTheoryInput}
+        onChangeTheoreticalInput={setUncertaintyTheoryInput}
+        nstInput={uncertaintyNstInput}
+        onChangeNstInput={setUncertaintyNstInput}
       />
 
       {/* 2. Observation Records Table */}

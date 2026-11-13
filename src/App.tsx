@@ -87,11 +87,13 @@ export default function App() {
     pushNotification,
     broadcastTeacherFeedback,
     broadcastMysteryChallenge,
+    activateMysteryChallenge,
     createNote,
     createTask,
     toggleTask,
     handleCapture3DSnapshot,
     submitMysteryExam,
+    dismissMysteryChallenge,
     handleUpdateCurrentHypothesis,
     handleSelectCatalogModule,
     createRoom,
@@ -222,6 +224,8 @@ export default function App() {
           onDeleteSnapshot={(id) => setCapturedSnapshots((prev) => prev.filter((s) => s.id !== id))}
           onBroadcastTeacherFeedback={broadcastTeacherFeedback}
           onBroadcastMysteryChallenge={broadcastMysteryChallenge}
+          onActivateMysteryChallenge={activateMysteryChallenge}
+          onDismissMysteryChallenge={dismissMysteryChallenge}
           onReplayRecord={(rec) => {
             labSound.playClick();
             const restored = parseReplayParameters(rec);

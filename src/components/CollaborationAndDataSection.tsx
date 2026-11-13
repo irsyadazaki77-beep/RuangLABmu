@@ -24,6 +24,9 @@ import {
   AcademicReportData,
   downloadAcademicReportFile,
 } from '../utils/academicReportExporter';
+import { computeMeasurementErrorSummary } from '../utils/uncertaintyEngine';
+import { getLabSafetyLicenseForModule } from '../services/labLicenseEngine';
+import { getExperimentById } from '../registry/experimentRegistry';
 import { AcademicReportPreviewModal } from './ui/AcademicReportPreviewModal';
 import {
   HypothesisNote,
@@ -74,6 +77,7 @@ interface CollaborationAndDataSectionProps {
   onDeleteSnapshot?: (id: string) => void;
   onReplayRecord?: (rec: ExperimentRecord) => void;
   students?: StudentProgressItem[];
+  moduleId?: string;
 }
 
 export const CollaborationAndDataSection: React.FC<
@@ -93,6 +97,7 @@ export const CollaborationAndDataSection: React.FC<
   onBackToCatalog,
   hypothesisNote,
   onChangeHypothesisNote,
+  moduleId,
   snapshots3D = [],
   onDeleteSnapshot,
   onReplayRecord,
@@ -141,6 +146,21 @@ export const CollaborationAndDataSection: React.FC<
       .filter((r) => r.numericX !== undefined && r.numericY1 !== undefined)
       .map((r, idx) => ({ x: r.numericX ?? idx + 1, y: r.numericY1 ?? 0 }));
     const reg = pts.length >= 2 ? calculateLinearRegression(pts) : undefined;
+    const resolvedModule = moduleId ? getExperimentById(moduleId) : undefined;
+    const simLicense = moduleId
+      ? getLabSafetyLicenseForModule(activeStudentName, moduleId)
+      : null;
+    const errorStats = computeMeasurementErrorSummary(pts.map((p) => p.y));
+
+    const predXNum = hypothesisNote?.predictedX?.trim() ? Number(hypothesisNote.predictedX.trim()) : NaN;
+    const predYNum = hypothesisNote?.predictedY?.trim() ? Number(hypothesisNote.predictedY.trim()) : NaN;
+    const hasValidPoeCoords = Number.isFinite(predXNum) && Number.isFinite(predYNum);
+    const actualYAtPredX =
+      hasValidPoeCoords && reg ? reg.slopeM * predXNum + reg.interceptC : undefined;
+    const poeDevPct =
+      hasValidPoeCoords && actualYAtPredX !== undefined && Math.abs(actualYAtPredX) > 1e-9
+        ? (Math.abs(predYNum - actualYAtPredX) / Math.abs(actualYAtPredX)) * 100
+        : undefined;
 
     const trialDiffSummary =
       activeRecs.length >= 2
@@ -159,7 +179,7 @@ export const CollaborationAndDataSection: React.FC<
         : undefined;
 
     return {
-      experimentTitle: expTitle,
+      experimentTitle: resolvedModule?.title || expTitle,
       studentName: activeStudentName,
       groupId: activeGroupId,
       tier: 'SMA',
@@ -173,6 +193,7 @@ export const CollaborationAndDataSection: React.FC<
         minute: '2-digit',
       }),
       domain: domainStr,
+      module: resolvedModule,
       records: activeRecs,
       snapshots3D,
       regressionSummary: reg
@@ -183,6 +204,7 @@ export const CollaborationAndDataSection: React.FC<
             formula: reg.equationString,
             modelLabel: 'Regresi Linier OLS',
             equationString: reg.equationString,
+            expectedSlopeMeaning: resolvedModule?.defaultRegressionAxes?.expectedSlopeMeaning,
           }
         : undefined,
       trialComparisonSummary: trialDiffSummary,
@@ -194,6 +216,40 @@ export const CollaborationAndDataSection: React.FC<
             reflectionText: hypothesisNote.reflectionText,
           }
         : undefined,
+      simLabLicense: simLicense
+        ? {
+            licenseCode: simLicense.licenseCode,
+            status: simLicense.status,
+            quizScore: simLicense.quizScore,
+            issuedDateStr: simLicense.issuedDateStr,
+          }
+        : undefined,
+      poeEvaluationSummary:
+        hasValidPoeCoords || hypothesisNote?.predictedTrend
+          ? {
+              predictedTrend: hypothesisNote?.predictedTrend,
+              predictedX: hasValidPoeCoords ? predXNum : undefined,
+              predictedY: hasValidPoeCoords ? predYNum : undefined,
+              actualYAtPredictedX: actualYAtPredX,
+              deviationPct: poeDevPct,
+            }
+          : undefined,
+      uncertaintySummary:
+        errorStats.n > 0
+          ? {
+              metricLabel: resolvedModule?.defaultRegressionAxes?.yKey || 'Metrik Utama (Y1)',
+              n: errorStats.n,
+              mean: errorStats.mean,
+              sampleStdDev: errorStats.sampleStdDev,
+              standardErrorMean: errorStats.standardErrorMean,
+              instrumentUncertainty: errorStats.instrumentUncertainty,
+              combinedUncertainty: errorStats.combinedUncertainty,
+              relativeUncertaintyPct: errorStats.relativeUncertaintyPct,
+              percentErrorVsTheory: errorStats.percentErrorVsTheory,
+              precisionGrade: errorStats.precisionGrade,
+              recommendedSignificantFigures: errorStats.recommendedSignificantFigures,
+            }
+          : undefined,
       discussionNotes: notes.map((n) => `[${n.author}]: ${n.text}`).join('\n\n'),
       conclusionNotes:
         hypothesisNote?.reflectionText?.trim() ||

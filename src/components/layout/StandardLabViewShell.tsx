@@ -8,6 +8,11 @@ import {
 import { CompactTelemetryRibbon, TelemetryRibbonMetric } from '../ui/CompactTelemetryRibbon';
 import { InteractiveFormulaPrimer } from '../ui/InteractiveFormulaPrimer';
 import {
+  ActiveHypothesisBanner,
+  LiveObservationFeedCard,
+} from '../ui/LiveObservationStrip';
+import type { ExperimentRecord } from '../../utils/scienceEngine';
+import {
   checkImmersiveVRSupport,
   subscribeWebXRState,
   WebXRStateSnapshot,
@@ -66,6 +71,11 @@ export interface StandardLabViewShellProps {
   dualModeActive?: boolean;
   onToggleDualMode?: () => void;
   dualViewport?: React.ReactNode;
+  hypothesisText?: string;
+  recentRecords?: ExperimentRecord[];
+  onProceedToAnalysis?: () => void;
+  onBackToPreLab?: () => void;
+  onDeleteRecord?: (id: string) => void;
 }
 
 export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
@@ -83,6 +93,11 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
   dualModeActive = false,
   onToggleDualMode,
   dualViewport,
+  hypothesisText,
+  recentRecords,
+  onProceedToAnalysis,
+  onBackToPreLab,
+  onDeleteRecord,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const shellRootRef = useRef<HTMLDivElement | null>(null);
@@ -96,7 +111,9 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
   const activeModuleId = useLabStore((s) => s.activeModuleId);
   const workflowStep = useLabStore((s) => s.workflowStep);
   const isCompactPiPStage = workflowStep !== 2;
-  const { sidebarWidthPx, setSidebarWidthPx } = useUIStore();
+  const { sidebarWidthPx, setSidebarWidthPx, mobileTab } = useUIStore();
+  const hideCanvasOnMobile = !isDesktopViewport && !isCompactPiPStage && mobileTab === 'variables';
+  const hideSidebarOnMobile = !isDesktopViewport && !isCompactPiPStage && mobileTab !== 'variables';
 
   useEffect(() => {
     void checkImmersiveVRSupport();
@@ -168,7 +185,9 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
       {/* 2. Middle Left Area: Ribbon & 3D Canvas Container */}
       <div
         ref={containerRef}
-        className={`flex-1 relative flex flex-col min-w-0 h-full overflow-hidden ${
+        className={`flex-1 relative flex-col min-w-0 h-full overflow-hidden ${
+          hideCanvasOnMobile ? 'hidden lg:flex' : 'flex'
+        } ${
           isFullscreen ? 'fixed inset-0 z-50 bg-slate-950' : ''
         }`}
       >
@@ -306,13 +325,22 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
         </div>
       )}
 
-      {/* 4. Right Area: Resizable Sidebar Parameter & Interactive Formula Primer */}
+      {/* 4. Right Area: Resizable Sidebar Parameter, Hypothesis Continuity & Live Data Log */}
       {!zenMode && (
         <aside
           data-testid="resizable-parameter-sidebar"
           style={isDesktopViewport ? { width: `${sidebarWidthPx}px` } : undefined}
-          className="w-full lg:shrink-0 border-t lg:border-t-0 bg-[var(--comfort-surface)] overflow-y-auto p-4 space-y-3.5 transition-[width] duration-75"
+          className={`w-full flex-1 lg:flex-initial lg:shrink-0 border-t lg:border-t-0 bg-[var(--comfort-surface)] overflow-y-auto p-4 space-y-3.5 transition-[width] duration-75 ${
+            hideSidebarOnMobile ? 'hidden lg:block' : 'block'
+          }`}
         >
+          {!isCompactPiPStage && (hypothesisText !== undefined || onBackToPreLab) && (
+            <ActiveHypothesisBanner
+              hypothesisText={hypothesisText}
+              domain={domain}
+              onEditPreLab={onBackToPreLab}
+            />
+          )}
           {/* PILAR 3: Interactive Formula Concept Primer ala Brilliant.org */}
           <InteractiveFormulaPrimer
             moduleId={activeModuleId}
@@ -320,6 +348,15 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
             defaultExpanded={false}
           />
           {sidebar}
+          {!isCompactPiPStage && recentRecords !== undefined && (
+            <LiveObservationFeedCard
+              domain={domain}
+              records={recentRecords}
+              totalRecordsCount={recordsCount}
+              onDeleteRecord={onDeleteRecord}
+              onProceedToAnalysis={onProceedToAnalysis}
+            />
+          )}
         </aside>
       )}
     </div>

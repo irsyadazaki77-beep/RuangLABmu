@@ -12,6 +12,12 @@ import {
 import { labSound } from '../../utils/soundEngine';
 import { ScienceGlossaryTerm } from '../ui/ScienceGlossaryTerm';
 
+export interface PoePredictionPoint {
+  x: number;
+  y: number;
+  trend?: string;
+}
+
 export interface RegressionChartSectionProps {
   datasetTitle: string;
   xAxisLabel: string;
@@ -21,6 +27,8 @@ export interface RegressionChartSectionProps {
   curveModel: CurveModelType;
   onChangeCurveModel: (model: CurveModelType) => void;
   onAskDrLabMuAboutOutlier?: () => void;
+  poePrediction?: PoePredictionPoint | null;
+  onAskDrLabMuAboutPoe?: (deviationPct: number, predictedY: number, actualY: number) => void;
 }
 
 export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
@@ -31,6 +39,8 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
   curveModel,
   onChangeCurveModel,
   onAskDrLabMuAboutOutlier,
+  poePrediction,
+  onAskDrLabMuAboutPoe,
 }) => {
   // Set of point indices excluded as outliers
   const [excludedIndices, setExcludedIndices] = useState<Set<number>>(new Set());
@@ -75,10 +85,50 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
   const plotW = svgWidth - padLeft - padRight;
   const plotH = svgHeight - padTop - padBottom;
 
-  const minX = useMemo(() => Math.min(...points.map((p) => p.x), 0), [points]);
-  const maxX = useMemo(() => Math.max(...points.map((p) => p.x), minX + 1), [points, minX]);
-  const minY1 = useMemo(() => Math.min(0, ...points.map((p) => p.y1)), [points]);
-  const maxY1 = useMemo(() => Math.max(...points.map((p) => p.y1), minY1 + 1) * 1.15, [points, minY1]);
+  const hasPoePoint = Boolean(
+    poePrediction &&
+      Number.isFinite(poePrediction.x) &&
+      Number.isFinite(poePrediction.y)
+  );
+
+  const minX = useMemo(() => {
+    const vals = points.map((p) => p.x);
+    if (hasPoePoint && poePrediction) vals.push(poePrediction.x);
+    return Math.min(...vals, 0);
+  }, [points, hasPoePoint, poePrediction]);
+
+  const maxX = useMemo(() => {
+    const vals = points.map((p) => p.x);
+    if (hasPoePoint && poePrediction) vals.push(poePrediction.x);
+    return Math.max(...vals, minX + 1);
+  }, [points, minX, hasPoePoint, poePrediction]);
+
+  const minY1 = useMemo(() => {
+    const vals = points.map((p) => p.y1);
+    if (hasPoePoint && poePrediction) vals.push(poePrediction.y);
+    return Math.min(0, ...vals);
+  }, [points, hasPoePoint, poePrediction]);
+
+  const maxY1 = useMemo(() => {
+    const vals = points.map((p) => p.y1);
+    if (hasPoePoint && poePrediction) vals.push(poePrediction.y);
+    return Math.max(...vals, minY1 + 1) * 1.15;
+  }, [points, minY1, hasPoePoint, poePrediction]);
+
+  const poeEvaluation = useMemo(() => {
+    if (!hasPoePoint || !poePrediction || points.length < 2) return null;
+    const expectedActualY = regression.evaluateAt(poePrediction.x);
+    const diff = Math.abs(poePrediction.y - expectedActualY);
+    const denom = Math.max(1e-6, Math.abs(expectedActualY));
+    const deviationPct = expectedActualY !== 0 ? (diff / denom) * 100 : diff * 100;
+    return {
+      predictedX: poePrediction.x,
+      predictedY: poePrediction.y,
+      actualY: Number(expectedActualY.toFixed(3)),
+      deviationPct: Number(deviationPct.toFixed(1)),
+      isAccurate: deviationPct <= 10,
+    };
+  }, [hasPoePoint, poePrediction, points.length, regression]);
 
   const toScreenX = (xVal: number) =>
     padLeft + ((xVal - minX) / Math.max(1e-6, maxX - minX)) * plotW;
@@ -399,6 +449,44 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
               </g>
             );
           })}
+
+          {/* POE Student Hypothesis Prediction Overlay */}
+          {hasPoePoint && poePrediction && (
+            <g>
+              {points.length >= 2 && (
+                <line
+                  x1={toScreenX(poePrediction.x)}
+                  y1={toScreenY1(poePrediction.y)}
+                  x2={toScreenX(poePrediction.x)}
+                  y2={toScreenY1(regression.evaluateAt(poePrediction.x))}
+                  stroke="#f59e0b"
+                  strokeWidth="1.8"
+                  strokeDasharray="4 4"
+                />
+              )}
+              <polygon
+                points={`${toScreenX(poePrediction.x)},${toScreenY1(poePrediction.y) - 9} ${
+                  toScreenX(poePrediction.x) + 9
+                },${toScreenY1(poePrediction.y)} ${toScreenX(poePrediction.x)},${
+                  toScreenY1(poePrediction.y) + 9
+                } ${toScreenX(poePrediction.x) - 9},${toScreenY1(poePrediction.y)}`}
+                fill="#f59e0b"
+                stroke="#ffffff"
+                strokeWidth="2"
+              />
+              <text
+                x={toScreenX(poePrediction.x)}
+                y={toScreenY1(poePrediction.y) - 14}
+                fill="#fbbf24"
+                fontSize="10"
+                fontFamily="monospace"
+                fontWeight="bold"
+                textAnchor="middle"
+              >
+                ◆ Prediksi POE ({poePrediction.x}, {poePrediction.y})
+              </text>
+            </g>
+          )}
         </svg>
 
         {/* Hover Tooltip Overlay */}
@@ -443,13 +531,56 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
         )}
       </div>
 
+      {/* POE Prediction vs Reality Comparison Banner */}
+      {poeEvaluation && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border text-xs ${
+            poeEvaluation.isAccurate
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200'
+              : 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-200'
+          }`}
+        >
+          <div className="space-y-0.5">
+            <div className="font-bold flex items-center gap-1.5">
+              <span>◆ Evaluasi Prediksi POE (Predict–Observe–Explain):</span>
+              <span className="font-mono">
+                Selisih {poeEvaluation.deviationPct}%
+              </span>
+            </div>
+            <p className="text-[11px] opacity-90">
+              Pada X = <strong>{poeEvaluation.predictedX}</strong>, Anda memprediksi Y ={' '}
+              <strong>{poeEvaluation.predictedY}</strong>, sedangkan kurva regresi riil 3D menunjukkan Y ≈{' '}
+              <strong>{poeEvaluation.actualY}</strong>.{' '}
+              {poeEvaluation.isAccurate
+                ? 'Intuisi dan perhitungan hipotesis Anda sangat akurat!'
+                : 'Terdapat selisih signifikan antara intuisi awal dengan kenyataan eksperimen—tinjau ulang faktor gaya/variabel non-liniernya.'}
+            </p>
+          </div>
+          {!poeEvaluation.isAccurate && onAskDrLabMuAboutPoe && (
+            <button
+              type="button"
+              onClick={() =>
+                onAskDrLabMuAboutPoe(
+                  poeEvaluation.deviationPct,
+                  poeEvaluation.predictedY,
+                  poeEvaluation.actualY
+                )
+              }
+              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] cursor-pointer whitespace-nowrap shadow-2xs"
+            >
+              Bedah Selisih dengan Dr. LabMu →
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Outlier Alert & Dr. LabMu Advice */}
       {excludedIndices.size > 0 && (
         <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
             <span>
-              <strong>{excludedIndices.size} Titik Outlier Dikecualikan:</strong> Nilai $R^2$ diperbarui secara otomatis tanpa memperhitungkan galat anomali tersebut.
+              <strong>{excludedIndices.size} Titik Outlier Dikecualikan:</strong> Nilai R² diperbarui secara otomatis tanpa memperhitungkan galat anomali tersebut.
             </span>
           </div>
           {onAskDrLabMuAboutOutlier && (

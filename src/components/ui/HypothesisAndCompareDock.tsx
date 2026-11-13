@@ -21,6 +21,9 @@ export interface HypothesisNote {
   dependentVar: string;
   hypothesisText: string;
   reflectionText: string;
+  predictedTrend?: 'naik-linier' | 'naik-kurva' | 'turun' | 'konstan';
+  predictedX?: string;
+  predictedY?: string;
   pinnedRecordIds?: string[];
   updatedAt: string;
 }
@@ -394,6 +397,78 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
           placeholder="Contoh: Jika gaya dorong F diperbesar pada massa tetap, maka percepatan a meningkat sebanding lurus sesuai F = m·a..."
           className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs leading-relaxed focus:outline-none focus:border-sky-500"
         />
+      </div>
+
+      {/* POE Quantitative Prediction Box */}
+      <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/90 dark:border-amber-800/60 space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-[11px] font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Tantangan Prediksi Kuantitatif (Metode POE: Predict–Observe–Explain)</span>
+          </div>
+          <span className="text-[10px] font-mono text-amber-700 dark:text-amber-400">
+            Ditampilkan di Grafik Analitik
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div>
+            <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Tren Kurva Prediksi
+            </label>
+            <select
+              value={note.predictedTrend || 'naik-linier'}
+              onChange={(e) =>
+                onChangeNote({
+                  ...note,
+                  predictedTrend: e.target.value as HypothesisNote['predictedTrend'],
+                })
+              }
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-amber-300/80 dark:border-amber-800/70 text-slate-900 dark:text-white text-xs focus:outline-none cursor-pointer"
+            >
+              <option value="naik-linier">↗ Naik Linier (Proporsional)</option>
+              <option value="naik-kurva">⤴ Naik Melengkung (Non-Linier)</option>
+              <option value="turun">↘ Menurun Terbalik</option>
+              <option value="konstan">→ Konstan / Stasioner</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Titik Uji X ({note.independentVar || defaultIndependentVar})
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={note.predictedX ?? ''}
+              onChange={(e) =>
+                onChangeNote({
+                  ...note,
+                  predictedX: e.target.value,
+                })
+              }
+              placeholder="Misal: 30"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-amber-300/80 dark:border-amber-800/70 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Prediksi Output Y ({note.dependentVar || defaultDependentVar})
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={note.predictedY ?? ''}
+              onChange={(e) =>
+                onChangeNote({
+                  ...note,
+                  predictedY: e.target.value,
+                })
+              }
+              placeholder="Misal: 7.5"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-amber-300/80 dark:border-amber-800/70 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Reflection / Empirical Verification Textarea */}

@@ -93,6 +93,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   onRecordExperiment,
   academicLevel,
   records = [],
+  onDeleteRecord,
   onProceedToAnalysis,
   remoteCursors,
   onEmitCursor,
@@ -294,6 +295,11 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
     <StandardLabViewShell
       domain="Astronomi"
       recordsCount={records.length}
+      hypothesisText={hypothesisNote?.hypothesisText}
+      recentRecords={records}
+      onProceedToAnalysis={onProceedToAnalysis}
+      onDeleteRecord={onDeleteRecord}
+      onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
       telemetryMetrics={telemetryMetrics}
       oscilloscope={{
         primaryLabel: telemetryMetrics[0].label,

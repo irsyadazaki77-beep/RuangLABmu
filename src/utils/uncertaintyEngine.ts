@@ -198,4 +198,127 @@ export function formatMeasurementWithUncertainty(
   return `(${measuredValue} ± ${uncertainty})${unitSuffix}${errorSuffix}`;
 }
 
+export interface MeasurementErrorSummary {
+  n: number;
+  mean: number;
+  min: number;
+  max: number;
+  sampleStdDev: number;
+  standardErrorMean: number; // Type A uncertainty u_A = s / sqrt(n)
+  instrumentUncertainty: number; // Type B uncertainty u_B = NST / 2
+  combinedUncertainty: number; // sqrt(u_A^2 + u_B^2)
+  relativeUncertaintyPct: number; // (combinedUncertainty / |mean|) * 100
+  percentErrorVsTheory?: number; // |mean - theory| / |theory| * 100
+  precisionGrade:
+    | 'Sangat Presisi'
+    | 'Presisi Baik'
+    | 'Cukup Presisi'
+    | 'Perlu Pengulangan'
+    | 'Data Belum Mencukupi';
+  recommendedSignificantFigures: number;
+}
+
+/**
+ * Computes Type A (statistical std dev / standard error) and Type B (1/2 NST)
+ * uncertainties plus relative uncertainty & percent error against theory.
+ */
+export function computeMeasurementErrorSummary(
+  rawValues: number[],
+  theoreticalValue?: number,
+  nst = 0.01
+): MeasurementErrorSummary {
+  const values = rawValues.filter((v) => Number.isFinite(v));
+  const n = values.length;
+  const safeNst = Math.max(0, Number.isFinite(nst) ? nst : 0.01);
+  const instrumentUncertainty = Number((safeNst / 2).toFixed(5));
+
+  if (n === 0) {
+    return {
+      n: 0,
+      mean: 0,
+      min: 0,
+      max: 0,
+      sampleStdDev: 0,
+      standardErrorMean: 0,
+      instrumentUncertainty,
+      combinedUncertainty: instrumentUncertainty,
+      relativeUncertaintyPct: 0,
+      percentErrorVsTheory: undefined,
+      precisionGrade: 'Data Belum Mencukupi',
+      recommendedSignificantFigures: 2,
+    };
+  }
+
+  const sum = values.reduce((acc, v) => acc + v, 0);
+  const mean = sum / n;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+
+  let sampleStdDev = 0;
+  let standardErrorMean = 0;
+  if (n >= 2) {
+    const sqDiffSum = values.reduce((acc, v) => acc + (v - mean) ** 2, 0);
+    sampleStdDev = Math.sqrt(sqDiffSum / (n - 1));
+    standardErrorMean = sampleStdDev / Math.sqrt(n);
+  }
+
+  const combinedUncertainty = Math.sqrt(
+    standardErrorMean ** 2 + instrumentUncertainty ** 2
+  );
+  const denom = Math.max(1e-9, Math.abs(mean));
+  const relativeUncertaintyPct =
+    mean !== 0 ? (combinedUncertainty / denom) * 100 : 0;
+
+  let percentErrorVsTheory: number | undefined = undefined;
+  if (
+    theoreticalValue !== undefined &&
+    Number.isFinite(theoreticalValue) &&
+    theoreticalValue !== 0
+  ) {
+    percentErrorVsTheory =
+      (Math.abs(mean - theoreticalValue) / Math.abs(theoreticalValue)) * 100;
+  } else if (theoreticalValue === 0) {
+    percentErrorVsTheory = Math.abs(mean) * 100;
+  }
+
+  let precisionGrade: MeasurementErrorSummary['precisionGrade'] = 'Sangat Presisi';
+  if (n < 2) {
+    precisionGrade = 'Data Belum Mencukupi';
+  } else if (relativeUncertaintyPct <= 1.0) {
+    precisionGrade = 'Sangat Presisi';
+  } else if (relativeUncertaintyPct <= 5.0) {
+    precisionGrade = 'Presisi Baik';
+  } else if (relativeUncertaintyPct <= 10.0) {
+    precisionGrade = 'Cukup Presisi';
+  } else {
+    precisionGrade = 'Perlu Pengulangan';
+  }
+
+  // Standard rule of significant figures based on relative uncertainty
+  let recommendedSignificantFigures = 4;
+  if (relativeUncertaintyPct >= 10) {
+    recommendedSignificantFigures = 2;
+  } else if (relativeUncertaintyPct >= 1) {
+    recommendedSignificantFigures = 3;
+  }
+
+  return {
+    n,
+    mean: Number(mean.toFixed(4)),
+    min: Number(min.toFixed(4)),
+    max: Number(max.toFixed(4)),
+    sampleStdDev: Number(sampleStdDev.toFixed(4)),
+    standardErrorMean: Number(standardErrorMean.toFixed(4)),
+    instrumentUncertainty,
+    combinedUncertainty: Number(combinedUncertainty.toFixed(4)),
+    relativeUncertaintyPct: Number(relativeUncertaintyPct.toFixed(2)),
+    percentErrorVsTheory:
+      percentErrorVsTheory !== undefined
+        ? Number(percentErrorVsTheory.toFixed(2))
+        : undefined,
+    precisionGrade,
+    recommendedSignificantFigures,
+  };
+}
+
 

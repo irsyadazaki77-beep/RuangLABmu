@@ -32,6 +32,7 @@ import { useUIStore } from '../../stores/useUIStore';
 import { useCollabStore } from '../../stores/useCollabStore';
 import { buildShareableModuleUrl } from '../../hooks/useUrlRouterSync';
 import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
+import { getDomainAccentTokens } from '../../utils/layoutFlowHelpers';
 import {
   GamificationProfile,
   ScientificBadge,
@@ -86,7 +87,11 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     setWorkflowStep,
     userRole,
     setUserRole,
+    academicLevel,
   } = useLabStore();
+  const domainAccent = getDomainAccentTokens(experimentModule.domain);
+  const tierShortLabel =
+    academicLevel === 'smp' ? 'SMP' : academicLevel === 'mahasiswa' ? 'MHS' : 'SMA';
 
   const [isGradebookOpen, setIsGradebookOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
@@ -283,16 +288,16 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             >
               <span>{t('nav.backToCatalog')}</span>
             </button>
-            <div className="hidden 2xl:flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px] pl-1.5 border-l border-stone-200 dark:border-slate-800">
-              <span className="font-mono text-[10px] font-bold uppercase text-sky-600 dark:text-sky-400 shrink-0">
-                {experimentModule.domain}
-              </span>
-              <span className="text-slate-400 dark:text-slate-600">·</span>
+            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px] xl:max-w-[250px] pl-2 border-l border-stone-200 dark:border-slate-800">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${domainAccent.dotClass}`} />
               <span
                 className="font-semibold text-slate-800 dark:text-slate-200 truncate"
-                title={experimentModule.title}
+                title={`${experimentModule.domain} · ${experimentModule.title}`}
               >
                 {experimentModule.title}
+              </span>
+              <span className="hidden xl:inline-flex px-1.5 py-0.2 rounded font-mono text-[10px] font-bold bg-stone-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-stone-200 dark:border-slate-700 shrink-0">
+                {tierShortLabel}
               </span>
             </div>
           </>
