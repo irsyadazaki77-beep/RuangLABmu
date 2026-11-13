@@ -24,8 +24,10 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 # Install only production runtime dependencies required by externalized server packages (express, ws)
-COPY package.json package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi && npm cache clean --force
+COPY package.json ./
+RUN node -e "const p=require('./package.json'); require('fs').writeFileSync('package.json', JSON.stringify({name:p.name,version:p.version,private:true,dependencies:{express:p.dependencies.express,ws:p.dependencies.ws}}))" \
+  && npm install --omit=dev --no-package-lock \
+  && npm cache clean --force
 
 # Copy compiled frontend assets and bundled server from builder stage
 COPY --from=builder /app/dist ./dist

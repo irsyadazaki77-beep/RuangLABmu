@@ -63,6 +63,7 @@ Setiap percakapan akan menyertakan data telemetri lab dalam format JSON:
 export interface AiRoutesDeps {
   state: LabServerState;
   broadcastAll: (payload: unknown) => void;
+  broadcastRoom?: (roomId: string, payload: unknown) => void;
 }
 
 async function buildCustomMissionScenario(
@@ -156,8 +157,19 @@ Buat skenario misi praktikum kontekstual berbahasa Indonesia dalam format JSON t
   });
 }
 
-export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.Router {
+export function createAiRouter({
+  state,
+  broadcastAll,
+  broadcastRoom,
+}: AiRoutesDeps): express.Router {
   const router = express.Router();
+  const emitRoomMission = (roomId: string, payload: unknown) => {
+    if (broadcastRoom) {
+      broadcastRoom(roomId, payload);
+    } else {
+      broadcastAll(payload);
+    }
+  };
 
   const aiAssistantLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -201,7 +213,7 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
             mission,
             mission.createdByTeacher
           );
-          broadcastAll({
+          emitRoomMission(updatedRoom.roomId, {
             type: 'ROOM_MISSION_UPDATED',
             payload: {
               roomId: updatedRoom.roomId,
@@ -243,7 +255,7 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
         (mission as CustomAIMissionPayload | null) ?? null,
         teacherName
       );
-      broadcastAll({
+      emitRoomMission(updatedRoom.roomId, {
         type: 'ROOM_MISSION_UPDATED',
         payload: {
           roomId: updatedRoom.roomId,
@@ -284,7 +296,7 @@ export function createAiRouter({ state, broadcastAll }: AiRoutesDeps): express.R
             mission,
             mission.createdByTeacher
           );
-          broadcastAll({
+          emitRoomMission(updatedRoom.roomId, {
             type: 'ROOM_MISSION_UPDATED',
             payload: {
               roomId: updatedRoom.roomId,

@@ -72,9 +72,9 @@ describe('Server Utils: LAN Network Detection & Port Fallback', () => {
     const resolvedExecDist = resolvePortableDistDir(
       '/workspace/app',
       '/usb-drive/release/RuangLABmu-Sekolah-win.exe',
-      (candidate) => candidate.startsWith('/usb-drive/release/dist')
+      (candidate) => candidate.replace(/\\/g, '/').startsWith('/usb-drive/release/dist')
     );
-    assert.equal(resolvedExecDist, '/usb-drive/release/dist');
+    assert.equal(resolvedExecDist.replace(/\\/g, '/'), '/usb-drive/release/dist');
 
     const winPlan = resolvePortableBuildPlan({
       rootDir: '/workspace/app',

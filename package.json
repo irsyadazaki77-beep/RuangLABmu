@@ -14,7 +14,7 @@
     "build:portable": "tsx scripts/build-portable.ts",
     "start": "node -e \"process.env.NODE_ENV='production'; require('./dist-server/server.cjs')\"",
     "preview": "vite preview",
-    "clean": "rm -rf dist dist-server release",
+    "clean": "node -e \"const fs=require('fs');['dist','dist-server','release'].forEach(d=>fs.rmSync(d,{recursive:true,force:true}))\"",
     "lint": "tsc --noEmit",
     "test": "tsx --test src/utils/*.test.ts src/utils/engines/*.test.ts server/utils/*.test.ts",
     "test:e2e": "playwright test"

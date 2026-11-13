@@ -120,11 +120,11 @@ async function startServer() {
   await state.hydrateServerState();
 
   const server = http.createServer(app);
-  const { broadcastAll } = createCollabSocketServer(server, state);
+  const { broadcastAll, broadcastRoom } = createCollabSocketServer(server, state);
 
   app.use(createLabRouter({ state, getPort: () => activePort }));
   app.use(await createSubmissionRouter({ rootDir: ROOT_DIR, state, broadcastAll }));
-  app.use(createAiRouter({ state, broadcastAll }));
+  app.use(createAiRouter({ state, broadcastAll, broadcastRoom }));
 
   const useStaticDist =
     process.env.NODE_ENV === 'production' || isPortableBinary;
