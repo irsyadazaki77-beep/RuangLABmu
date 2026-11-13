@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import {
   TrendingUp,
   AlertTriangle,
-  Sparkles,
   Info,
 } from 'lucide-react';
 import {
@@ -11,6 +10,7 @@ import {
   calculateCurveFitting,
 } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
+import { ScienceGlossaryTerm } from '../ui/ScienceGlossaryTerm';
 
 export interface RegressionChartSectionProps {
   datasetTitle: string;
@@ -140,7 +140,9 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
           </select>
 
           <div className="px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 flex items-center gap-2">
-            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">R² =</span>
+            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <ScienceGlossaryTerm term="R²" displayLabel="R²" /> =
+            </span>
             <span
               className={`font-mono text-xs font-bold ${
                 regression.rSquared >= 0.95
@@ -158,15 +160,20 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
 
       {/* Regression Equation Badge & Interactive Outlier Guide */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs bg-slate-50 dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800/80 font-mono">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-slate-500 dark:text-slate-400 font-sans font-bold">Persamaan:</span>
           <span className="text-sky-600 dark:text-sky-300 font-bold">{regression.equationString}</span>
+          <span className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
+            (<ScienceGlossaryTerm term="Slope/Gradien" />)
+          </span>
         </div>
 
-        <div className="flex items-center gap-3 text-[11px] font-sans">
+        <div className="flex flex-wrap items-center gap-3 text-[11px] font-sans">
           <span className="text-slate-500 flex items-center gap-1">
             <Info className="w-3.5 h-3.5 text-sky-400" />
-            Klik titik untuk Kecualikan / Sertakan Outlier:
+            <span>
+              Klik titik untuk Kecualikan / Sertakan <ScienceGlossaryTerm term="Outlier" />:
+            </span>
           </span>
           <span className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-300">
             <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> Solid = Included
@@ -302,8 +309,6 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             const sy = toScreenY1(p.y1);
             const isExcluded = excludedIndices.has(idx);
             const isHovered = hoveredPointIdx === idx;
-            const yPred = regression.evaluateAt(p.x);
-            const residual = p.y1 - yPred;
 
             return (
               <g

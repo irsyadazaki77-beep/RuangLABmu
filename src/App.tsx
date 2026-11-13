@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { labSound } from './utils/soundEngine';
 import { useLabStore } from './stores/useLabStore';
 import { useUIStore } from './stores/useUIStore';

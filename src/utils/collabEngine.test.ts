@@ -1,9 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { getUserColor, ParameterLockPayload, SpatialCursorPayload } from './collabProtocol';
-import { loadPersistedState, flushSaveStateNow, scheduleSaveState } from './statePersistence';
+import { loadPersistedState, flushSaveStateNow } from './statePersistence';
 
 test('CollabProtocol: getUserColor deterministic palette and teacher role', () => {
   assert.equal(getUserColor('Alya Pratama'), '#38bdf8');

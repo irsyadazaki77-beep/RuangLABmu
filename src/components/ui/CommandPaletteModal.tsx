@@ -61,7 +61,6 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   } = useLabStore();
 
   const {
-    toggleDrawer,
     setDrawerTab,
     toggleZenMode,
     setComfortPrefs,

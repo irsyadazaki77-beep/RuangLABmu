@@ -9,7 +9,6 @@ import {
   createOfflinePacket,
   verifyAndParseRlabPacket,
   convertPacketToSubmission,
-  computePacketChecksum,
 } from './offlinePacketProtocol';
 import os from 'os';
 
@@ -35,6 +34,7 @@ describe('3T-Ready Architecture: Pillar 1 - Adaptive FPS Monitor & Lite Mode', (
     }
 
     assert.equal(alertTriggered, false, '60 FPS simulation should not trigger low FPS alert');
+    assert.equal(reportedFps, 0, 'Callback should not report low FPS during 60 FPS simulation');
   });
 
   it('detects low FPS (< 25 FPS) over sample window and fires callback', () => {

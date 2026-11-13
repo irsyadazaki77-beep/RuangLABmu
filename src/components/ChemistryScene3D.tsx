@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -32,6 +32,12 @@ import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
+import {
+  ConceptLabelDomRef,
+  ConceptLabelToggleButton,
+  ConceptLabelsLayer,
+  updateProjectedConceptLabels,
+} from './ui/ConceptLabelsOverlay';
 
 interface ChemistryScene3DProps {
   params: ChemistryParams;
@@ -157,11 +163,21 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   comfortTheme,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
+  const showConceptLabels = useUIStore((s) => s.showConceptLabels);
+  const showConceptLabelsRef = useRef(showConceptLabels);
+  showConceptLabelsRef.current = showConceptLabels;
+
   const activeComfortTheme = comfortTheme ?? storeComfortTheme;
   const themeColors = getSceneThemeColors(activeComfortTheme, 'Kimia');
 
   const mountRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const conceptDomRef = useRef<Record<string, ConceptLabelDomRef>>({});
+  const bindConceptSlot = useCallback((id: string, dom: ConceptLabelDomRef | null) => {
+    if (dom) conceptDomRef.current[id] = dom;
+    else delete conceptDomRef.current[id];
+  }, []);
+
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
@@ -295,7 +311,6 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       isSoftwareGl,
       { strength: 0.14, radius: 0.25, threshold: 1.15 }
     );
-    const { composer } = studioComposer;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -626,6 +641,43 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     analyteSolution.position.set(0, 1.06, 0);
     titrationGroup.add(analyteSolution);
 
+    // 3D Universal pH Scale Strip beside Erlenmeyer (shown when Label Konsep is active)
+    const phScaleCanvas = document.createElement('canvas');
+    phScaleCanvas.width = 96;
+    phScaleCanvas.height = 512;
+    const phCtx = phScaleCanvas.getContext('2d');
+    if (phCtx) {
+      const grad = phCtx.createLinearGradient(0, 512, 0, 0);
+      grad.addColorStop(0.0, '#ef4444'); // pH 0
+      grad.addColorStop(0.25, '#f59e0b'); // pH 3.5
+      grad.addColorStop(0.5, '#22c55e'); // pH 7
+      grad.addColorStop(0.75, '#0ea5e9'); // pH 10.5
+      grad.addColorStop(1.0, '#8b5cf6'); // pH 14
+      phCtx.fillStyle = grad;
+      phCtx.fillRect(0, 0, 96, 512);
+      phCtx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      phCtx.font = 'bold 20px monospace';
+      phCtx.fillText('14', 60, 26);
+      phCtx.fillText('7', 68, 262);
+      phCtx.fillText('0', 68, 502);
+    }
+    const phScaleTex = new THREE.CanvasTexture(phScaleCanvas);
+    phScaleTex.colorSpace = THREE.SRGBColorSpace;
+    const phScaleGroup = new THREE.Group();
+    phScaleGroup.position.set(2.05, 1.9, 0);
+    const phScalePlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.36, 2.4),
+      new THREE.MeshBasicMaterial({ map: phScaleTex, side: THREE.DoubleSide })
+    );
+    const phPointerMesh = new THREE.Mesh(
+      new THREE.ConeGeometry(0.11, 0.24, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    phPointerMesh.rotation.z = -Math.PI / 2;
+    phPointerMesh.position.set(-0.28, 0, 0.02);
+    phScaleGroup.add(phScalePlane, phPointerMesh);
+    titrationGroup.add(phScaleGroup);
+
     // =========================================================
     // 3. ELECTROCHEMISTRY GALVANIC CELL 3D GROUP
     // =========================================================
@@ -932,6 +984,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const dragMouse = new THREE.Vector2();
     let hoveredMesh: THREE.Mesh | null = null;
     const origEmissive = new THREE.Color();
+    const conceptProjVec = new THREE.Vector3();
 
     const getInteractiveMeshes = (): THREE.Object3D[] => {
       const list: THREE.Object3D[] = [];
@@ -1072,6 +1125,9 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         const level = Math.max(0.1, 4.0 * (1 - vb / 50));
         buretteLiquid.scale.set(1, level / 4.0, 1);
         buretteLiquid.position.set(0, 2.4 + level / 2, 0);
+        phScaleGroup.visible = showConceptLabelsRef.current;
+        const phFrac = Math.min(1, Math.max(0, (m.currentPh ?? 7) / 14));
+        phPointerMesh.position.y = -1.15 + phFrac * 2.3;
       }
 
       // 2. Gas Boyle update
@@ -1187,6 +1243,99 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       }
 
       controls.update();
+
+      const showLabels = showConceptLabelsRef.current;
+      const cDom = conceptDomRef.current;
+      const cw = container.clientWidth || width;
+      const ch = container.clientHeight || height;
+      const cEntries = [
+        { dom: cDom.c1, worldPos: new THREE.Vector3(), text: '', active: false },
+        { dom: cDom.c2, worldPos: new THREE.Vector3(), text: '', active: false },
+        { dom: cDom.c3, worldPos: new THREE.Vector3(), text: '', active: false },
+      ];
+      if (showLabels) {
+        if (p.mode === 'acid-base-titration') {
+          cEntries[0] = {
+            dom: cDom.c1,
+            worldPos: new THREE.Vector3(0, 3.3, 0),
+            text: `Buret Titran: Vb = ${(p.titrantAddedMl ?? 0).toFixed(1)} mL ↓`,
+            active: true,
+          };
+          cEntries[1] = {
+            dom: cDom.c2,
+            worldPos: new THREE.Vector3(0, 1.35, 0),
+            text: `Larutan Analit pH ${(m.currentPh ?? 7).toFixed(2)}`,
+            active: true,
+          };
+          cEntries[2] = {
+            dom: cDom.c3,
+            worldPos: new THREE.Vector3(2.05, 3.25, 0),
+            text: `Skala pH (Ekivalen: ${(m.equivalenceVolumeMl ?? 25).toFixed(1)} mL)`,
+            active: true,
+          };
+        } else if (p.mode === 'reaction-kinetics-arrhenius') {
+          cEntries[0] = {
+            dom: cDom.c1,
+            worldPos: new THREE.Vector3(0, 2.85, 0),
+            text: `T = ${p.kineticsTempC ?? 25} °C · Laju v = ${(m.reactionRate ?? 0).toFixed(3)} M/s`,
+            active: true,
+          };
+          cEntries[1] = {
+            dom: cDom.c2,
+            worldPos: new THREE.Vector3(0, 0.9, 1.6),
+            text: `Pemanas & Pengaduk Magnetik`,
+            active: true,
+          };
+        } else if (p.mode === 'thermo-calorimetry') {
+          cEntries[0] = {
+            dom: cDom.c1,
+            worldPos: new THREE.Vector3(0.6, 4.1, 0),
+            text: `Termometer T = ${(m.finalTempC ?? p.initialTempC ?? 25).toFixed(1)} °C`,
+            active: true,
+          };
+          cEntries[2] = {
+            dom: cDom.c3,
+            worldPos: new THREE.Vector3(0, 1.5, 0),
+            text: `Kalor Q = ${(m.heatReleasedJoules ?? 0).toFixed(0)} J`,
+            active: true,
+          };
+        } else if (isRedox) {
+          cEntries[0] = {
+            dom: cDom.c1,
+            worldPos: new THREE.Vector3(-1.8, 2.55, 0),
+            text: `Anoda (-) Oksidasi`,
+            active: true,
+          };
+          cEntries[2] = {
+            dom: cDom.c3,
+            worldPos: new THREE.Vector3(1.8, 2.55, 0),
+            text: `Katoda (+) Reduksi · E = ${(m.nernstCellPotentialE ?? 1.1).toFixed(2)} V`,
+            active: true,
+          };
+        } else if (p.mode === 'ideal-gas-boyle') {
+          cEntries[0] = {
+            dom: cDom.c1,
+            worldPos: new THREE.Vector3(0, pistonHead.position.y + 0.55, 0),
+            text: `Piston Gas: V = ${(p.gasVolumeL ?? 10).toFixed(1)} L`,
+            active: true,
+          };
+          cEntries[1] = {
+            dom: cDom.c2,
+            worldPos: new THREE.Vector3(2.2, 3.35, 0),
+            text: `Tekanan P = ${(m.gasPressureAtm ?? 1).toFixed(2)} atm`,
+            active: true,
+          };
+        } else if (p.mode === 'spectrophotometry-beer') {
+          cEntries[2] = {
+            dom: cDom.c3,
+            worldPos: new THREE.Vector3(-0.8, 3.9, 0.4),
+            text: `Kuvet Sampel A = ${(m.spectroAbsorbance ?? 0).toFixed(2)}`,
+            active: true,
+          };
+        }
+      }
+      updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
+
       studioComposer.render(isLite);
 
       if (isSoftwareGl) {
@@ -1309,6 +1458,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       metalTex?.dispose();
       buretteScaleTex?.dispose();
       beakerScaleTex?.dispose();
+      phScaleTex.dispose();
       bubbleTex.dispose();
 
       // Deep Three.js GPU resource disposal (geometries, materials, textures, renderer)
@@ -1352,6 +1502,16 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         ref={mountRef}
         data-testid="chemistry-simulation-canvas"
         className="w-full h-full block touch-none"
+      />
+
+      <ConceptLabelsLayer
+        slots={[
+          { id: 'c1', accentHex: '#14b8a6' },
+          { id: 'c2', accentHex: '#f59e0b' },
+          { id: 'c3', accentHex: '#38bdf8' },
+        ]}
+        visible={showConceptLabels}
+        onBindSlot={bindConceptSlot}
       />
 
       {/* Interactive Raycaster Drag Toast */}
@@ -1434,6 +1594,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           ))}
           <span className="mx-1 h-3.5 w-px bg-white/15" aria-hidden="true" />
         </div>
+
+        <ConceptLabelToggleButton accentClass="bg-teal-500 text-slate-950 font-bold" />
 
         <button
           type="button"

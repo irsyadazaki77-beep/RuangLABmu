@@ -8,13 +8,9 @@ import {
   ClipboardList,
   Download,
   FileCheck2,
-  HelpCircle,
   Radio,
-  Flame,
   Clock,
   MessageSquare,
-  Sparkles,
-  ChevronRight,
   X,
   Compass,
   AlertCircle,
@@ -33,7 +29,6 @@ import {
 } from '../utils/mysteryChallengeEngine';
 import {
   buildRadarLanes,
-  RadarLaneSummary,
   StudentRadarCard,
 } from '../utils/telemetryRadar';
 import { ClassLeaderboardCard } from './ui/ScientificEnhancementSuite';
@@ -89,7 +84,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
   const [customDomain, setCustomDomain] = useState<'Fisika' | 'Kimia' | 'Astronomi'>('Kimia');
   const [customCodename, setCustomCodename] = useState<string>('SAMPEL-KUSTOM-09');
   const [customTitle, setCustomTitle] = useState<string>('Uji Konsentrasi Larutan Asam X');
-  const [customParamLabel, setCustomParamLabel] = useState<string>('Molaritas Asam (M_a)');
+  const [customParamLabel] = useState<string>('Molaritas Asam (M_a)');
   const [customSecretValue, setCustomSecretValue] = useState<string>('0.32');
   const [customUnit, setCustomUnit] = useState<string>('M');
   const [customTolerancePct, setCustomTolerancePct] = useState<string>('5');

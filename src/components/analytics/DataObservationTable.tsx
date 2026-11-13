@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Table,
   Trash2,
   Download,
   Database,
@@ -9,6 +8,7 @@ import {
 import { ExperimentRecord } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
 import { exportTableToCSV, CSVColumnDef } from '../../utils/csvExporter';
+import { ScienceGlossaryTerm } from '../ui/ScienceGlossaryTerm';
 
 export interface DataObservationTableProps {
   records: ExperimentRecord[];
@@ -58,16 +58,26 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
           </div>
         </div>
 
-        {records.length > 0 && (
-          <button
-            type="button"
-            onClick={handleDownloadCSV}
-            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Unduh CSV (.csv)</span>
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+            <span>Kamus:</span>
+            <ScienceGlossaryTerm term="R²" />
+            <span>·</span>
+            <ScienceGlossaryTerm term="Slope/Gradien" />
+            <span>·</span>
+            <ScienceGlossaryTerm term="Outlier" />
+          </div>
+          {records.length > 0 && (
+            <button
+              type="button"
+              onClick={handleDownloadCSV}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Unduh CSV (.csv)</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Table Container */}

@@ -176,6 +176,11 @@ class VoiceNarrationEngine {
    * Stop any current narration immediately
    */
   public stop(): void {
+    if (this.activeUtterance) {
+      this.activeUtterance.onend = null;
+      this.activeUtterance.onerror = null;
+      this.activeUtterance = null;
+    }
     if (this.isSupported()) {
       try {
         window.speechSynthesis.cancel();
@@ -184,7 +189,6 @@ class VoiceNarrationEngine {
       }
     }
     this.setSpeaking(false);
-    this.activeUtterance = null;
   }
 
   /**

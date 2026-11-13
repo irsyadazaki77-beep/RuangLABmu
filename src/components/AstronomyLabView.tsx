@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   Camera,
-  Sliders,
-  Telescope,
 } from 'lucide-react';
 import {
   AstronomyParams,
@@ -34,6 +32,7 @@ import {
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
+import { getAstronomyParameterFeedback } from '../utils/pedagogicalHelpers';
 
 export interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -356,6 +355,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={1.0}
                     max={25.0}
                     step={0.5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'galactocentricRadiusKpc', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ galactocentricRadiusKpc: v })}
                   />
                   <TactileParameterControl
@@ -365,6 +368,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0}
                     max={1.5}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'darkMatterHaloFraction', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ darkMatterHaloFraction: v })}
                   />
                   <TactileParameterControl
@@ -374,6 +381,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.5}
                     max={2.0}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'bulgeDiskMassFactor', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ bulgeDiskMassFactor: v })}
                   />
                 </>
@@ -386,6 +397,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.5}
                     max={15.0}
                     step={0.5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'exoplanetRadiusEarth', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ exoplanetRadiusEarth: v })}
                   />
                   <TactileParameterControl
@@ -395,6 +410,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.2}
                     max={5.0}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'starRadiusSolar', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ starRadiusSolar: v })}
                   />
                   <TactileParameterControl
@@ -404,6 +423,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.05}
                     max={5.0}
                     step={0.05}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'exoplanetOrbitAu', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ exoplanetOrbitAu: v })}
                   />
                 </>
@@ -416,6 +439,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={2800}
                     max={30000}
                     step={200}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'starEffectiveTempK', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ starEffectiveTempK: v })}
                   />
                   <TactileParameterControl
@@ -425,18 +452,28 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.2}
                     max={10.0}
                     step={0.2}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'starRadiusSolar', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ starRadiusSolar: v })}
                   />
                 </>
               ) : params.mode === 'hubble-expansion' ? (
                 <>
                   <TactileParameterControl
+                    id="astro-hubble-distance"
                     label="Jarak Galaksi Jauh (d)"
                     unit="Mpc"
                     value={params.galaxyDistanceMpc ?? 120}
                     min={20}
                     max={600}
                     step={10}
+                    glossaryTerm="Redshift"
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'galaxyDistanceMpc', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ galaxyDistanceMpc: v })}
                   />
                   <TactileParameterControl
@@ -446,6 +483,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={65}
                     max={78}
                     step={1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'hubbleConstantH0', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ hubbleConstantH0: v })}
                   />
                 </>
@@ -458,16 +499,26 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.2}
                     max={30}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'customSemiMajorAxisAu', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ customSemiMajorAxisAu: v })}
                   />
 
                   <TactileParameterControl
+                    id="astro-eccentricity"
                     label="Eksentrisitas Orbit (e)"
                     unit=""
                     value={params.customEccentricity}
                     min={0}
                     max={0.9}
                     step={0.02}
+                    glossaryTerm="Eksentrisitas"
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'customEccentricity', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ customEccentricity: v })}
                   />
 
@@ -478,6 +529,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                     min={0.2}
                     max={5.0}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getAstronomyParameterFeedback(params.mode, 'centralStarMassSolar', v, lvl)
+                    }
                     onChange={(v) => handleParamPatch({ centralStarMassSolar: v })}
                   />
                 </>

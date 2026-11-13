@@ -1,13 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
-  TrendingUp,
-  FileSpreadsheet,
-  FileText,
-  HelpCircle,
   ArrowLeft,
   ArrowRight,
   GitCompareArrows,
-  Sparkles,
 } from 'lucide-react';
 import {
   DataPointMultiAxis,
@@ -277,8 +272,8 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
 
       {/* Dataset Picker Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-100/80 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-slate-700 dark:text-slate-300">Pilih Sumber Dataset:</span>
+        <div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto">
+          <span className="font-bold text-slate-700 dark:text-slate-300 shrink-0">Pilih Sumber Dataset:</span>
           <select
             value={selectedDatasetKey}
             onChange={(e) => {
@@ -286,7 +281,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
               setHasManualDatasetChoice(true);
               setSelectedDatasetKey(e.target.value);
             }}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-200 cursor-pointer"
+            className="min-w-0 max-w-full w-full sm:w-auto px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-200 cursor-pointer"
           >
             {customRecordPoints.length >= 2 && (
               <option value="custom-records">

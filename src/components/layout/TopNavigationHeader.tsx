@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   Atom,
   CheckCircle2,
@@ -75,6 +75,25 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
   const [isGradebookOpen, setIsGradebookOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [shareToastVisible, setShareToastVisible] = useState(false);
+  const prefsContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!prefsOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (prefsContainerRef.current && !prefsContainerRef.current.contains(e.target as Node)) {
+        setPrefsOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPrefsOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [prefsOpen]);
 
   // Gamification state & celebration modal
   const [gamificationProfile, setGamificationProfile] = useState<GamificationProfile>(() =>
@@ -209,7 +228,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 h-14 shrink-0 flex items-center justify-between gap-2 px-3 sm:px-5 bg-white/85 dark:bg-slate-950/85 backdrop-blur-md border-b border-stone-200/80 dark:border-slate-800 text-slate-900 dark:text-slate-100 z-40 select-none transition-colors duration-200">
+    <header className="sticky top-0 h-14 shrink-0 flex items-center justify-between gap-1.5 sm:gap-2 px-2 sm:px-5 bg-white/85 dark:bg-slate-950/85 backdrop-blur-md border-b border-stone-200/80 dark:border-slate-800 text-slate-900 dark:text-slate-100 z-40 select-none transition-colors duration-200">
       {/* Zone 1: Brand Identity ("RuangLABmu") & Back to Catalog */}
       <div className="flex items-center gap-2 shrink-0 min-w-0">
         <button
@@ -224,7 +243,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           <span className="w-8 h-8 rounded-xl bg-sky-600 flex items-center justify-center shadow-xs shrink-0">
             <Atom className="w-4 h-4 text-white" />
           </span>
-          <span className="font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white whitespace-nowrap">
+          <span className={`font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white whitespace-nowrap ${!isLobbyMode ? 'hidden sm:inline' : ''}`}>
             RuangLABmu
           </span>
           {isLobbyMode && (
@@ -243,7 +262,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                 setIsLobbyMode(true);
               }}
               aria-label="Kembali ke Katalog Laboratorium"
-              className="text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-sky-600 dark:hover:text-white bg-stone-100 dark:bg-slate-900 border border-stone-200 dark:border-slate-800 hover:border-stone-300 dark:hover:border-slate-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0"
+              className="text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-sky-600 dark:hover:text-white bg-stone-100 dark:bg-slate-900 border border-stone-200 dark:border-slate-800 hover:border-stone-300 dark:hover:border-slate-700 px-2 sm:px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0"
             >
               <span>{t('nav.backToCatalog')}</span>
             </button>
@@ -354,7 +373,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                 : 'Mode Luring Mandiri'
             }`}
             title="Klik untuk detail koneksi & status penyimpanan data"
-            className={`px-2.5 py-1 flex items-center gap-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all whitespace-nowrap shrink-0 shadow-2xs ${
+            className={`px-2 sm:px-2.5 py-1 flex items-center gap-1 sm:gap-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all whitespace-nowrap shrink-0 shadow-2xs ${
               connectivityMode === 'online-cloud'
                 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/35 hover:bg-emerald-500/20'
                 : connectivityMode === 'lan-hotspot'
@@ -372,11 +391,16 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
               }`}
             />
             <span className="font-bold">
-              {connectivityMode === 'online-cloud'
-                ? 'Online'
-                : connectivityMode === 'lan-hotspot'
-                ? 'LAN Kelas'
-                : 'Luring'}
+              {connectivityMode === 'online-cloud' ? (
+                'Online'
+              ) : connectivityMode === 'lan-hotspot' ? (
+                <>
+                  <span className="sm:hidden">LAN</span>
+                  <span className="hidden sm:inline">LAN Kelas</span>
+                </>
+              ) : (
+                'Luring'
+              )}
             </span>
           </button>
 
@@ -499,14 +523,14 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           <span className="font-mono text-[11px] font-bold tabular-nums">
             Lv.{gamificationProfile.level}
           </span>
-          <span className="text-slate-400 dark:text-slate-500">·</span>
-          <span className="font-bold">
+          <span className="hidden sm:inline text-slate-400 dark:text-slate-500">·</span>
+          <span className="hidden sm:inline font-bold">
             {userRole === 'pengajar' ? 'Guru' : 'Siswa'}
           </span>
         </button>
 
         {/* GRUP 3: Unified Popover Menu "⚙️ Pengaturan & Alat" (SettingsPopover) */}
-        <div className="relative">
+        <div ref={prefsContainerRef} className="relative">
           <button
             type="button"
             data-testid="settings-popover-trigger-btn"
@@ -529,7 +553,6 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
 
           {prefsOpen && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setPrefsOpen(false)} />
               <div
                 data-testid="settings-popover-menu"
                 className="absolute right-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-2xl p-3.5 space-y-3 z-50 text-xs animate-fade-in"
@@ -818,7 +841,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           }}
           aria-label={drawerOpen ? 'Tutup Asisten Dr. LabMu' : 'Buka Asisten Dr. LabMu'}
           title="[A] Tanya Dr. LabMu (Asisten Sokratik AI)"
-          className={`relative px-2.5 py-1 flex items-center gap-1.5 rounded-lg border font-semibold text-xs transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
+          className={`relative px-2 sm:px-2.5 py-1 flex items-center gap-1 sm:gap-1.5 rounded-lg border font-semibold text-xs transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
             drawerOpen
               ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
               : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-stone-200 dark:border-slate-800 hover:border-sky-500/50 dark:hover:border-slate-700'

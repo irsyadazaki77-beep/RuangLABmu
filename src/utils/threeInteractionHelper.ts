@@ -43,7 +43,6 @@ export class ThreeInteractionManager {
 
   private hoveredObject: THREE.Object3D | null = null;
   private originalEmissives = new Map<THREE.Mesh, THREE.Color>();
-  private originalRoughness = new Map<THREE.Mesh, number>();
 
   private isDragging = false;
   private dragObject: THREE.Object3D | null = null;

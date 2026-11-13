@@ -93,7 +93,6 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
               const isCurrent = currentStep === st.num;
               const isPast = currentStep > st.num;
               const isFuture = currentStep < st.num;
-              const Icon = st.icon;
 
               return (
                 <React.Fragment key={st.num}>

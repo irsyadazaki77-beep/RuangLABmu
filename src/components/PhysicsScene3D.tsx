@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -28,6 +28,12 @@ import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
+import {
+  ConceptLabelDomRef,
+  ConceptLabelToggleButton,
+  ConceptLabelsLayer,
+  updateProjectedConceptLabels,
+} from './ui/ConceptLabelsOverlay';
 
 interface PhysicsScene3DProps {
   params: PhysicsParams;
@@ -238,11 +244,21 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   comfortTheme,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
+  const showConceptLabels = useUIStore((s) => s.showConceptLabels);
+  const showConceptLabelsRef = useRef(showConceptLabels);
+  showConceptLabelsRef.current = showConceptLabels;
+
   const activeComfortTheme = comfortTheme ?? storeComfortTheme;
   const themeColors = getSceneThemeColors(activeComfortTheme, 'Fisika');
 
   const mountRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const conceptDomRef = useRef<Record<string, ConceptLabelDomRef>>({});
+  const bindConceptSlot = useCallback((id: string, dom: ConceptLabelDomRef | null) => {
+    if (dom) conceptDomRef.current[id] = dom;
+    else delete conceptDomRef.current[id];
+  }, []);
+
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [hudCollapsed] = useState(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
@@ -284,6 +300,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   useEffect(() => {
     cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Fisika'));
   }, [activeComfortTheme]);
+
+  const syncConceptLabelsRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    syncConceptLabelsRef.current?.();
+  }, [params, metrics, showConceptLabels]);
 
   useEffect(() => {
     const handleGlobalSnapshot = () => {
@@ -377,7 +399,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       isSoftwareGl,
       { strength: 0.14, radius: 0.25, threshold: 1.15 }
     );
-    const { composer } = studioComposer;
 
     // Bounded OrbitControls (Tahap 4)
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -746,6 +767,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     springMassBlock.userData = { draggableParam: 'springDisplacement', min: -2.0, max: 2.0, step: 0.1, label: 'Simpangan x' };
     springGroup.add(springMassBlock);
 
+    const springForceArrow = createArrowGroup(0x10b981);
+    springGroup.add(springForceArrow);
+
     // =========================================================
     // 4. PENDULUM HARMONIC 3D GROUP + REALTIME MOTION TRAIL
     // =========================================================
@@ -800,6 +824,10 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     // Real-time Neon Motion Trail for Pendulum Bob
     const pendulumMotionTrail = createMotionTrailSystem(48, 0xf59e0b);
     pendulumGroup.add(pendulumMotionTrail.group);
+
+    const pendRestoringArrow = createArrowGroup(0x10b981);
+    const pendGravityArrow = createArrowGroup(0xf43f5e);
+    pendulumGroup.add(pendRestoringArrow, pendGravityArrow);
 
     // Semicircular protractor degree scale
     const protractorGeo = new THREE.RingGeometry(0.5, 0.7, 32, 1, 0, Math.PI);
@@ -1199,6 +1227,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const origEmissive = new THREE.Color();
     const gizmoWorldPos = new THREE.Vector3();
     const pendBobWorldPos = new THREE.Vector3();
+    const conceptProjVec = new THREE.Vector3();
+    const conceptBlockWorldPos = new THREE.Vector3();
+    const conceptPivotWorldPos = new THREE.Vector3();
 
     const getInteractiveMeshes = (): THREE.Object3D[] => {
       const list: THREE.Object3D[] = [];
@@ -1308,7 +1339,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         params: p,
         metrics: m,
         simTime: baseTime,
-        showVectorOverlay: showVec,
+        showVectorOverlay: rawShowVec,
       } = latestRef.current;
 
       const nowSec = performance.now() / 1000;
@@ -1356,6 +1387,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           (sMesh.material as THREE.MeshBasicMaterial).opacity = (1 - cycle) * 0.55;
         });
       }
+
+      const showLabels = showConceptLabelsRef.current;
+      const showVec = rawShowVec || showLabels;
 
       // 1. Incline & General Mechanics update
       if (inclineGroup.visible) {
@@ -1446,6 +1480,17 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         springRings.forEach((ring, idx) => {
           ring.position.set(-4.95 + ((idx + 0.5) / springRings.length) * span, 0.87, 0);
         });
+        if (showVec) {
+          const fSpring = -(p.springConstantK) * liveX;
+          orientAndScaleArrow(
+            springForceArrow,
+            new THREE.Vector3(massX, 1.85, 0),
+            new THREE.Vector3(fSpring >= 0 ? 1 : -1, 0, 0),
+            Math.min(2.4, Math.abs(fSpring) / 60)
+          );
+        } else {
+          springForceArrow.visible = false;
+        }
       }
 
       // 4. Pendulum update + Real-time Motion Trail
@@ -1460,6 +1505,25 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         pendBob.position.set(0, -L * 1.5, 0);
         pendBob.getWorldPosition(pendBobWorldPos);
         pendulumMotionTrail.pushSample(pendBobWorldPos);
+
+        if (showVec) {
+          orientAndScaleArrow(
+            pendGravityArrow,
+            pendBobWorldPos,
+            new THREE.Vector3(0, -1, 0),
+            0.95
+          );
+          const signT = thetaRad >= 0 ? 1 : -1;
+          orientAndScaleArrow(
+            pendRestoringArrow,
+            pendBobWorldPos,
+            new THREE.Vector3(-Math.cos(thetaRad) * signT, -Math.sin(thetaRad) * signT, 0),
+            Math.min(1.6, Math.abs(Math.sin(thetaRad)) * 2.2)
+          );
+        } else {
+          pendGravityArrow.visible = false;
+          pendRestoringArrow.visible = false;
+        }
       }
 
       // 4b. 1D Collision Momentum update
@@ -1543,6 +1607,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         if (showVec) {
           orientAndScaleArrow(stokesGravArrow, new THREE.Vector3(0, yPos, 0), new THREE.Vector3(0, -1, 0), 1.2);
           orientAndScaleArrow(stokesDragArrow, new THREE.Vector3(0, yPos, 0), new THREE.Vector3(0, 1, 0), Math.min(1.8, (m.stokesDragForce ?? 0.05) * 8));
+        } else {
+          stokesGravArrow.visible = false;
+          stokesDragArrow.visible = false;
         }
       }
 
@@ -1633,6 +1700,175 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       }
 
       controls.update();
+
+      const syncConceptLabelsNow = () => {
+        const { params: curP, metrics: curM } = latestRef.current;
+        const activeLabels = showConceptLabelsRef.current;
+        const cDom = conceptDomRef.current;
+        const cw = container.clientWidth || width;
+        const ch = container.clientHeight || height;
+        const cEntries = [
+          { dom: cDom.c1, worldPos: new THREE.Vector3(), text: '', active: false },
+          { dom: cDom.c2, worldPos: new THREE.Vector3(), text: '', active: false },
+          { dom: cDom.c3, worldPos: new THREE.Vector3(), text: '', active: false },
+          { dom: cDom.c4, worldPos: new THREE.Vector3(), text: '', active: false },
+        ];
+
+        if (activeLabels) {
+          if (inclineGroup.visible) {
+            massBox.getWorldPosition(conceptBlockWorldPos);
+            cEntries[0] = {
+              dom: cDom.c1,
+              worldPos: conceptBlockWorldPos.clone().add(new THREE.Vector3(0, 1.35, 0)),
+              text: `Gaya Dorong F = ${curP.appliedForce.toFixed(0)} N`,
+              active: true,
+            };
+            cEntries[1] = {
+              dom: cDom.c2,
+              worldPos: conceptBlockWorldPos.clone().add(new THREE.Vector3(-0.9, 0.35, 0)),
+              text: `Gesek fₖ = ${curM.frictionForce.toFixed(1)} N`,
+              active: true,
+            };
+            cEntries[2] = {
+              dom: cDom.c3,
+              worldPos: conceptBlockWorldPos.clone().add(new THREE.Vector3(0.75, 0.9, 0)),
+              text: `Normal N = ${curM.normalForce.toFixed(1)} N`,
+              active: true,
+            };
+            cEntries[3] = {
+              dom: cDom.c4,
+              worldPos: conceptBlockWorldPos.clone().add(new THREE.Vector3(0.4, -0.75, 0)),
+              text: `Berat W = ${curM.weightForce.toFixed(1)} N`,
+              active: true,
+            };
+          } else if (curP.mode === 'pendulum-harmonic') {
+            pendPivotGroup.getWorldPosition(conceptPivotWorldPos);
+            pendBob.getWorldPosition(pendBobWorldPos);
+            cEntries[0] = {
+              dom: cDom.c1,
+              worldPos: conceptPivotWorldPos.clone().add(new THREE.Vector3(-0.45, -0.35, 0)),
+              text: `Panjang Tali L = ${(curP.pendulumLength ?? 1.2).toFixed(2)} m`,
+              active: true,
+            };
+            cEntries[2] = {
+              dom: cDom.c3,
+              worldPos: pendBobWorldPos.clone().add(new THREE.Vector3(0.55, 0.25, 0)),
+              text: `Gaya Pemulih · Periode T = ${(curM.pendulumPeriod ?? 0).toFixed(2)} s`,
+              active: true,
+            };
+            cEntries[3] = {
+              dom: cDom.c4,
+              worldPos: pendBobWorldPos.clone().add(new THREE.Vector3(0, -0.65, 0)),
+              text: `Gravitasi g = ${curP.gravity.toFixed(1)} m/s²`,
+              active: true,
+            };
+          } else if (curP.mode === 'spring-hooke') {
+            const sp = springMassBlock.position;
+            cEntries[2] = {
+              dom: cDom.c3,
+              worldPos: new THREE.Vector3(sp.x, sp.y + 1.35, sp.z),
+              text: `Gaya Pegas Fₚ = -k·Δx · k = ${curP.springConstantK} N/m`,
+              active: true,
+            };
+            cEntries[0] = {
+              dom: cDom.c1,
+              worldPos: new THREE.Vector3(sp.x, sp.y + 0.5, sp.z),
+              text: `Massa m = ${curP.mass.toFixed(1)} kg`,
+              active: true,
+            };
+          } else if (curP.mode === 'projectile-gravity' || (curP.mode as string) === 'projectile-motion') {
+            cEntries[0] = {
+              dom: cDom.c1,
+              worldPos: projectileBall.position.clone().add(new THREE.Vector3(0, 0.55, 0)),
+              text: `Proyektil v₀ = ${curP.initialVelocity} m/s · θ = ${curP.launchAngle}°`,
+              active: true,
+            };
+            cEntries[2] = {
+              dom: cDom.c3,
+              worldPos: targetRing.position.clone().add(new THREE.Vector3(0, 0.45, 0)),
+              text: `Jarak Jatuh R = ${curM.projectileRange.toFixed(1)} m`,
+              active: true,
+            };
+          } else if (curP.mode === 'collision-momentum') {
+            cEntries[0] = {
+              dom: cDom.c1,
+              worldPos: cart1Mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)),
+              text: `Momentum p₁ = ${(curP.mass * curM.v1Final).toFixed(1)} kg·m/s`,
+              active: true,
+            };
+            cEntries[1] = {
+              dom: cDom.c2,
+              worldPos: cart2Mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)),
+              text: `Momentum p₂ = ${((curP.collisionMass2 || 2) * curM.v2Final).toFixed(1)} kg·m/s`,
+              active: true,
+            };
+          } else if (curP.mode === 'stokes-viscosity') {
+            cEntries[0] = {
+              dom: cDom.c1,
+              worldPos: stokesSphere.position.clone().add(new THREE.Vector3(0, 0.75, 0)),
+              text: `Gaya Hambat Stokes ↑ · vₜ = ${(curM.stokesTerminalVelocity ?? 0).toFixed(2)} m/s`,
+              active: true,
+            };
+            cEntries[3] = {
+              dom: cDom.c4,
+              worldPos: stokesSphere.position.clone().add(new THREE.Vector3(0, -0.75, 0)),
+              text: `Gaya Berat Bola ↓`,
+              active: true,
+            };
+          } else if (curP.mode === 'ohm-wheatstone') {
+            cEntries[0] = {
+              dom: cDom.c1,
+              worldPos: new THREE.Vector3(0, 1.0, 0),
+              text: `Galvanometer I_g = ${(curM.galvanometerCurrent ?? 0).toFixed(2)} mA`,
+              active: true,
+            };
+            cEntries[1] = {
+              dom: cDom.c2,
+              worldPos: new THREE.Vector3(1.4, 0.9, -0.8),
+              text: `Resistor Uji Rx = ${curP.resistorRx ?? 100} Ω`,
+              active: true,
+            };
+          } else if (curP.mode === 'optics-young-slit') {
+            cEntries[0] = {
+              dom: cDom.c1,
+              worldPos: new THREE.Vector3(-1.2, 2.3, 0),
+              text: `Celah Ganda d = ${(curP.slitDistance ?? 0.2).toFixed(2)} mm`,
+              active: true,
+            };
+            cEntries[2] = {
+              dom: cDom.c3,
+              worldPos: new THREE.Vector3(3.8, 2.9, 0),
+              text: `Jarak Frinji Δy = ${(curM.fringeSpacingMm ?? 0).toFixed(2)} mm`,
+              active: true,
+            };
+          } else if (curP.mode === 'photoelectric-planck') {
+            cEntries[0] = {
+              dom: cDom.c1,
+              worldPos: new THREE.Vector3(-1.1, 2.7, 0),
+              text: `Katoda Logam (W₀ = ${(curP.targetMetalWorkFunction ?? 2.3).toFixed(1)} eV)`,
+              active: true,
+            };
+            cEntries[2] = {
+              dom: cDom.c3,
+              worldPos: new THREE.Vector3(0.4, 2.3, 0),
+              text: `Ek Maks = ${(curM.photoelectricMaxKe ?? 0).toFixed(2)} eV`,
+              active: true,
+            };
+          } else if (curP.mode === 'orbital-gravity' || (curP.mode as string) === 'gravity-orbital') {
+            cEntries[2] = {
+              dom: cDom.c3,
+              worldPos: satelliteBody.position.clone().add(new THREE.Vector3(0, 0.75, 0)),
+              text: `Gaya Gravitasi F_G ∝ 1/r²`,
+              active: true,
+            };
+          }
+        }
+        updateProjectedConceptLabels(cEntries, camera, cw, ch, activeLabels, conceptProjVec);
+      };
+
+      syncConceptLabelsRef.current = syncConceptLabelsNow;
+      syncConceptLabelsNow();
+
       studioComposer.render(isLite);
 
       if (isSoftwareGl) {
@@ -1800,6 +2036,17 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         className="w-full h-full block touch-none"
       />
 
+      <ConceptLabelsLayer
+        slots={[
+          { id: 'c1', accentHex: '#38bdf8' },
+          { id: 'c2', accentHex: '#f59e0b' },
+          { id: 'c3', accentHex: '#10b981' },
+          { id: 'c4', accentHex: '#f43f5e' },
+        ]}
+        visible={showConceptLabels}
+        onBindSlot={bindConceptSlot}
+      />
+
       {/* Interactive Raycaster Drag Toast */}
       {dragToast && (
         <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
@@ -1886,6 +2133,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           )}
           <span className="mx-1 h-3.5 w-px bg-white/15" aria-hidden="true" />
         </div>
+
+        <ConceptLabelToggleButton accentClass="bg-sky-500 text-slate-950 font-bold" />
 
         <button
           type="button"

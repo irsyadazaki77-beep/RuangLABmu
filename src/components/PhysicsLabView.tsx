@@ -3,8 +3,6 @@ import {
   Camera,
   Eye,
   EyeOff,
-  Sliders,
-  NotebookPen,
 } from 'lucide-react';
 import {
   PhysicsParams,
@@ -38,6 +36,7 @@ import {
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
+import { getPhysicsParameterFeedback } from '../utils/pedagogicalHelpers';
 
 export interface PhysicsLabViewProps {
   params: PhysicsParams;
@@ -486,6 +485,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={5}
                     max={50}
                     step={1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'initialVelocity', v, lvl)}
                     onChange={(v) => handleParamUpdate({ initialVelocity: v })}
                   />
                   <TactileParameterControl
@@ -495,6 +496,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={10}
                     max={85}
                     step={1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'launchAngle', v, lvl)}
                     onChange={(v) => handleParamUpdate({ launchAngle: v })}
                   />
                   <TactileParameterControl
@@ -504,6 +507,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0}
                     max={40}
                     step={1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'initialHeight', v, lvl)}
                     onChange={(v) => handleParamUpdate({ initialHeight: v })}
                   />
                   <TactileParameterControl
@@ -513,6 +518,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={25}
                     step={0.5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
                 </>
@@ -525,6 +532,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={10}
                     max={400}
                     step={5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'springConstantK', v, lvl)}
                     onChange={(v) => handleParamUpdate({ springConstantK: v })}
                   />
                   <TactileParameterControl
@@ -534,6 +543,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={-2.0}
                     max={2.0}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'springDisplacement', v, lvl)}
                     onChange={(v) => handleParamUpdate({ springDisplacement: v })}
                   />
                   <TactileParameterControl
@@ -543,6 +554,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={25}
                     step={0.5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
                   <TactileParameterControl
@@ -552,27 +565,35 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0}
                     max={2.0}
                     step={0.05}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'dampingCoeff', v, lvl)}
                     onChange={(v) => handleParamUpdate({ dampingCoeff: v })}
                   />
                 </>
               ) : params.mode === 'pendulum-harmonic' ? (
                 <>
                   <TactileParameterControl
+                    id="pendulum-length"
                     label="Panjang Tali Bandul (L)"
                     unit="m"
                     value={params.pendulumLength ?? 1.2}
                     min={0.3}
                     max={2.5}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'pendulumLength', v, lvl)}
                     onChange={(v) => handleParamUpdate({ pendulumLength: v })}
                   />
                   <TactileParameterControl
+                    id="pendulum-angle"
                     label="Sudut Simpangan Awal (θ₀)"
                     unit="°"
                     value={params.pendulumAngle ?? 25}
                     min={5}
                     max={85}
                     step={1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'pendulumAngle', v, lvl)}
                     onChange={(v) => handleParamUpdate({ pendulumAngle: v })}
                   />
                   <TactileParameterControl
@@ -582,6 +603,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={20}
                     step={0.5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
                 </>
@@ -594,6 +617,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={25}
                     step={0.5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
                   <TactileParameterControl
@@ -603,6 +628,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={1}
                     max={30}
                     step={1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'initialVelocity', v, lvl)}
                     onChange={(v) => handleParamUpdate({ initialVelocity: v })}
                   />
                   <TactileParameterControl
@@ -612,6 +639,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={25}
                     step={0.5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'collisionMass2', v, lvl)}
                     onChange={(v) => handleParamUpdate({ collisionMass2: v })}
                   />
                   <TactileParameterControl
@@ -621,6 +650,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0}
                     max={1.0}
                     step={0.05}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'restitutionCoeff', v, lvl)}
                     onChange={(v) => handleParamUpdate({ restitutionCoeff: v })}
                   />
                 </>
@@ -633,6 +664,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.05}
                     max={2.0}
                     step={0.05}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'fluidViscosity', v, lvl)}
                     onChange={(v) => handleParamUpdate({ fluidViscosity: v, fluidViscosityPaS: v })}
                   />
                   <TactileParameterControl
@@ -642,6 +675,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={1}
                     max={20}
                     step={0.5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'sphereRadius', v, lvl)}
                     onChange={(v) => handleParamUpdate({ sphereRadius: v, sphereRadiusMm: v })}
                   />
                   <TactileParameterControl
@@ -651,6 +686,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={2000}
                     max={9000}
                     step={100}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'sphereDensity', v, lvl)}
                     onChange={(v) => handleParamUpdate({ sphereDensity: v, sphereDensityKgM3: v })}
                   />
                 </>
@@ -663,6 +700,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={1}
                     max={24}
                     step={1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'circuitVoltage', v, lvl)}
                     onChange={(v) => handleParamUpdate({ circuitVoltage: v, circuitVoltageV: v })}
                   />
                   <TactileParameterControl
@@ -672,6 +711,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={10}
                     max={500}
                     step={5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'resistorRx', v, lvl)}
                     onChange={(v) => handleParamUpdate({ resistorRx: v, bridgeRx: v })}
                   />
                   <TactileParameterControl
@@ -681,6 +722,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={10}
                     max={500}
                     step={5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'resistorR3', v, lvl)}
                     onChange={(v) => handleParamUpdate({ resistorR3: v, bridgeR3: v })}
                   />
                 </>
@@ -693,6 +736,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={400}
                     max={700}
                     step={10}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'lightWavelength', v, lvl)}
                     onChange={(v) => handleParamUpdate({ lightWavelength: v })}
                   />
                   <TactileParameterControl
@@ -702,6 +747,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.05}
                     max={0.8}
                     step={0.05}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'slitDistance', v, lvl)}
                     onChange={(v) => handleParamUpdate({ slitDistance: v })}
                   />
                   <TactileParameterControl
@@ -711,6 +758,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0.5}
                     max={3.0}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'screenDistance', v, lvl)}
                     onChange={(v) => handleParamUpdate({ screenDistance: v })}
                   />
                 </>
@@ -723,6 +772,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={200}
                     max={700}
                     step={10}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'lightWavelength', v, lvl)}
                     onChange={(v) => handleParamUpdate({ lightWavelength: v })}
                   />
                   <TactileParameterControl
@@ -732,6 +783,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={2.0}
                     max={5.5}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'targetMetalWorkFunction', v, lvl)}
                     onChange={(v) => handleParamUpdate({ targetMetalWorkFunction: v })}
                   />
                   <TactileParameterControl
@@ -741,6 +794,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={0}
                     max={5.0}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'stoppingPotential', v, lvl)}
                     onChange={(v) => handleParamUpdate({ stoppingPotential: v })}
                   />
                 </>
@@ -753,6 +808,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={1}
                     max={50}
                     step={1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
                   <TactileParameterControl
@@ -762,6 +819,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={100}
                     max={5000}
                     step={100}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'secondaryMass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ secondaryMass: v })}
                   />
                   <TactileParameterControl
@@ -771,48 +830,62 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     min={1}
                     max={30}
                     step={0.5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'separationDistance', v, lvl)}
                     onChange={(v) => handleParamUpdate({ separationDistance: v })}
                   />
                 </>
               ) : (
                 <>
                   <TactileParameterControl
+                    id="incline-mass"
                     label="Massa Benda (m)"
                     unit="kg"
                     value={params.mass}
                     min={0.5}
                     max={30}
                     step={0.5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
                     onChange={(v) => handleParamUpdate({ mass: v })}
                   />
 
                   <TactileParameterControl
+                    id="incline-applied-force"
                     label="Gaya Dorong Luar (F)"
                     unit="N"
                     value={params.appliedForce}
                     min={-150}
                     max={250}
                     step={5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'appliedForce', v, lvl)}
                     onChange={(v) => handleParamUpdate({ appliedForce: v })}
                   />
 
                   <TactileParameterControl
+                    id="incline-angle"
                     label="Sudut Kemiringan (θ)"
                     unit="°"
                     value={params.inclineAngle}
                     min={0}
                     max={60}
                     step={1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'inclineAngle', v, lvl)}
                     onChange={(v) => handleParamUpdate({ inclineAngle: v })}
                   />
 
                   <TactileParameterControl
+                    id="incline-friction"
                     label="Koefisien Gesek Kinetis (μk)"
                     unit=""
                     value={params.frictionCoeffKinetic}
                     min={0}
                     max={0.8}
                     step={0.05}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'frictionCoeffKinetic', v, lvl)}
                     onChange={(v) => handleParamUpdate({ frictionCoeffKinetic: v })}
                   />
                 </>

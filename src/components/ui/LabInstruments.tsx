@@ -16,6 +16,9 @@ import {
 import { labSound } from '../../utils/soundEngine';
 import { InstrumentCalibrationConfig } from '../../utils/uncertaintyEngine';
 import { SciFormula } from './ScientificNotation';
+import type { EducationLevel } from '../../utils/pedagogicalHelpers';
+import { useLabStore } from '../../stores/useLabStore';
+import { ScienceGlossaryTerm } from './ScienceGlossaryTerm';
 
 export interface CircularGaugeMeterProps {
   label: string;
@@ -394,6 +397,9 @@ export interface TactileParameterControlProps {
   accentColor?: string;
   onFocusLock?: () => void;
   onBlurLock?: () => void;
+  dynamicFeedback?: (value: number, level: EducationLevel) => string;
+  educationLevel?: EducationLevel;
+  glossaryTerm?: string;
 }
 
 export const TactileParameterControl: React.FC<TactileParameterControlProps> = ({
@@ -412,9 +418,15 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
   precision,
   onFocusLock,
   onBlurLock,
+  dynamicFeedback,
+  educationLevel,
+  glossaryTerm,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const storeAcademicLevel = useLabStore((s) => s.academicLevel);
+  const effectiveLevel: EducationLevel = educationLevel ?? storeAcademicLevel ?? 'sma';
   const safeVal = Number.isFinite(value) ? value : min;
+  const feedbackText = dynamicFeedback ? dynamicFeedback(safeVal, effectiveLevel) : '';
   const fillPct = Math.min(
     100,
     Math.max(0, ((safeVal - min) / Math.max(1e-6, max - min)) * 100)
@@ -475,6 +487,13 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
           >
             <SciFormula text={label} />
           </label>
+          {glossaryTerm && (
+            <ScienceGlossaryTerm
+              term={glossaryTerm}
+              displayLabel="?"
+              className="px-1.5 py-0 rounded bg-sky-500/10 text-[10px] font-mono text-sky-700 dark:text-sky-300 border-b border-dotted border-sky-500/70 shrink-0"
+            />
+          )}
           {badgeText && (
             <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
               · <SciFormula text={badgeText} />
@@ -577,6 +596,16 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
           transition={{ type: 'spring', stiffness: 300, damping: 26 }}
         />
       </div>
+
+      {feedbackText && (
+        <p
+          data-testid={id ? `${id}-feedback` : 'parameter-micro-insight'}
+          className="text-[11px] leading-snug font-medium text-sky-800 dark:text-sky-300 flex items-start gap-1.5 pt-0.5"
+        >
+          <span aria-hidden="true" className="shrink-0">💡</span>
+          <span>{feedbackText}</span>
+        </p>
+      )}
     </motion.div>
   );
 };

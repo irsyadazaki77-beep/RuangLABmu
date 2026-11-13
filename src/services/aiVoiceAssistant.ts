@@ -611,6 +611,11 @@ class FullDuplexAIVoiceAssistant {
   }
 
   public stopSpeaking(): void {
+    if (this.activeUtterance) {
+      this.activeUtterance.onend = null;
+      this.activeUtterance.onerror = null;
+      this.activeUtterance = null;
+    }
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       try {
         window.speechSynthesis.cancel();
@@ -618,7 +623,6 @@ class FullDuplexAIVoiceAssistant {
         // ignore
       }
     }
-    this.activeUtterance = null;
   }
 }
 

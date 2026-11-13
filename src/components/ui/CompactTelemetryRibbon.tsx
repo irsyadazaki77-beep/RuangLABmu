@@ -18,6 +18,8 @@ import {
 import { SciFormula } from './ScientificNotation';
 import { labSound } from '../../utils/soundEngine';
 import { useUIStore } from '../../stores/useUIStore';
+import { findGlossaryTermInText } from '../../utils/pedagogicalHelpers';
+import { ScienceGlossaryTerm } from './ScienceGlossaryTerm';
 
 export interface TelemetryRibbonMetric {
   id: string;
@@ -260,6 +262,14 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
   };
 
   const activeMetric = metrics.find((m) => m.id === expandedId) ?? null;
+  const ribbonGlossaryEntry =
+    metrics
+      .map((m) => findGlossaryTermInText(m.label))
+      .find((entry) => Boolean(entry)) ??
+    findGlossaryTermInText(oscilloscope.microscopicStateLabel);
+  const activeMetricGlossary = activeMetric
+    ? findGlossaryTermInText(activeMetric.label)
+    : ribbonGlossaryEntry;
   const effectiveMissionTitle =
     missionTitle || DEFAULT_DOMAIN_MISSIONS[domain].title;
   const effectiveMissionObj =
@@ -276,8 +286,8 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
       }`}
     >
       {/* Horizontal Telemetry Bar */}
-      <div className="h-full px-3 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-2 shrink-0">
+      <div className="h-full px-3 flex items-center justify-between gap-2 overflow-hidden">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto no-scrollbar">
           {/* Active Mission Badge */}
           <button
             type="button"
@@ -287,7 +297,7 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
               setExpandedId((prev) => (prev === 'mission' ? null : 'mission'));
             }}
             className={`rounded-xl border font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
-              projectorMode ? 'h-11 sm:h-12 px-3 text-xs sm:text-sm' : 'h-8 px-2.5 text-xs'
+              projectorMode ? 'h-11 sm:h-12 px-3 text-xs sm:text-sm' : 'h-8 px-2 text-xs'
             } ${
               expandedId === 'mission'
                 ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-md ring-1 ring-amber-400'
@@ -340,10 +350,10 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                   setExpandedId((prev) => (prev === m.id ? null : m.id));
                 }}
                 title={`Klik untuk membuka instrumen gauge & osiloskop: ${m.label}`}
-                className={`rounded-xl border text-left transition-all flex items-center gap-2.5 cursor-pointer shrink-0 ${
+                className={`rounded-xl border text-left transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
                   projectorMode
                     ? 'h-11 sm:h-14 px-3.5 border-2 border-slate-700 bg-slate-900/90 shadow-md hover:border-amber-400'
-                    : 'h-8 px-2.5 rounded-lg'
+                    : 'h-8 px-2 rounded-lg'
                 } ${
                   isSelected
                     ? projectorMode
@@ -363,12 +373,12 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                     className={`truncate ${
                       projectorMode
                         ? 'text-xs sm:text-sm font-extrabold text-amber-300 dark:text-amber-300 max-w-[170px] uppercase tracking-wide'
-                        : 'text-[10px] font-semibold text-slate-500 dark:text-slate-400 max-w-[115px]'
+                        : 'text-[10px] font-semibold text-slate-500 dark:text-slate-400 max-w-[100px]'
                     }`}
                   >
                     <SciFormula text={m.label} />
                   </span>
-                  <div className="mt-0.5 flex items-baseline gap-1.5 font-mono tabular-nums">
+                  <div className="mt-0.5 flex items-baseline gap-1 font-mono tabular-nums">
                     <span
                       className={`font-black tracking-tight ${
                         projectorMode
@@ -392,10 +402,10 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                 </div>
 
                 <svg
-                  width={projectorMode ? 60 : 40}
+                  width={projectorMode ? 60 : 36}
                   height={projectorMode ? 20 : 14}
                   viewBox={projectorMode ? "0 0 64 22" : "0 0 44 16"}
-                  className="overflow-visible shrink-0 hidden lg:block"
+                  className="overflow-visible shrink-0 hidden xl:block"
                   aria-hidden="true"
                 >
                   <polyline
@@ -420,6 +430,14 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
             </span>
           )}
           {extraBadge}
+          {ribbonGlossaryEntry && (
+            <ScienceGlossaryTerm
+              term={ribbonGlossaryEntry.term}
+              displayLabel={<span>📖 {ribbonGlossaryEntry.term}</span>}
+              themeMode={projectorMode ? 'dark' : 'auto'}
+              className="h-8 px-2 rounded-lg border border-[var(--comfort-border)] bg-slate-900/5 dark:bg-slate-900/80 text-[11px] font-medium shrink-0 hidden sm:inline-flex"
+            />
+          )}
           <button
             type="button"
             data-testid="telemetry-oscilloscope-toggle"
@@ -532,6 +550,13 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-sky-500/15 text-sky-600 dark:text-sky-300 border border-sky-500/30">
                         Fokus: {activeMetric.label}
                       </span>
+                    )}
+                    {activeMetricGlossary && (
+                      <ScienceGlossaryTerm
+                        term={activeMetricGlossary.term}
+                        displayLabel={<span>📖 Arti {activeMetricGlossary.term}</span>}
+                        className="text-[11px]"
+                      />
                     )}
                   </div>
                   <button

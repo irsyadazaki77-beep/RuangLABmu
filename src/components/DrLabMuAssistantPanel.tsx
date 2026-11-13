@@ -87,7 +87,6 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
     studentQuery,
     setStudentQuery,
     isLoading,
-    isSpeakingAnswer,
     autoSpeakEnabled,
     setAutoSpeakEnabled,
     isListeningVoice,

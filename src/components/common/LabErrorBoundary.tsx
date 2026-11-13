@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode, createRef } from 'react';
+import { Component, ErrorInfo, ReactNode, createRef } from 'react';
 import { AlertTriangle, RefreshCw, MonitorCog } from 'lucide-react';
 
 export interface LabErrorBoundaryProps {

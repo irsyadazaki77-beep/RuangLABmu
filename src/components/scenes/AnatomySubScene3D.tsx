@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -11,6 +11,13 @@ import {
 } from '../../utils/engines/biologyEngine';
 import { SpatialCursorPayload } from '../../utils/collabProtocol';
 import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
+import { useUIStore } from '../../stores/useUIStore';
+import {
+  ConceptLabelDomRef,
+  ConceptLabelToggleButton,
+  ConceptLabelsLayer,
+  updateProjectedConceptLabels,
+} from '../ui/ConceptLabelsOverlay';
 
 export type AnatomyModuleId =
   | 'anatomy-cardiovascular-heart'
@@ -179,6 +186,16 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   timeScale = 1,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const showConceptLabels = useUIStore((s) => s.showConceptLabels);
+  const showConceptLabelsRef = useRef(showConceptLabels);
+  showConceptLabelsRef.current = showConceptLabels;
+
+  const conceptDomRef = useRef<Record<string, ConceptLabelDomRef>>({});
+  const bindConceptSlot = useCallback((id: string, dom: ConceptLabelDomRef | null) => {
+    if (dom) conceptDomRef.current[id] = dom;
+    else delete conceptDomRef.current[id];
+  }, []);
+
   const paramsRef = useRef<Record<string, number>>(params);
   const playingRef = useRef(isPlaying);
   const timeScaleRef = useRef(timeScale);
@@ -366,7 +383,63 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     renderer.domElement.addEventListener('mousedown', onPointerDown);
 
     const dummy = new THREE.Object3D();
+    const conceptProjVec = new THREE.Vector3();
     let updateFrame = (_t: number, _dt: number) => {};
+
+    // 3D physiological directional arrows per anatomy mode
+    let heartO2Arrow: THREE.ArrowHelper | null = null;
+    let heartCo2Arrow: THREE.ArrowHelper | null = null;
+    let lungAirArrow: THREE.ArrowHelper | null = null;
+    let lungDiaphArrow: THREE.ArrowHelper | null = null;
+    let neuronImpulseArrow: THREE.ArrowHelper | null = null;
+
+    if (mode === 'anatomy-cardiovascular-heart') {
+      heartO2Arrow = new THREE.ArrowHelper(
+        new THREE.Vector3(0.22, 1, 0).normalize(),
+        new THREE.Vector3(0.25, 1.55, 0.14),
+        0.78,
+        0xf43f5e,
+        0.22,
+        0.12
+      );
+      heartCo2Arrow = new THREE.ArrowHelper(
+        new THREE.Vector3(-0.25, -1, 0).normalize(),
+        new THREE.Vector3(-0.76, 1.55, -0.1),
+        0.78,
+        0x38bdf8,
+        0.22,
+        0.12
+      );
+      rootGroup.add(heartO2Arrow, heartCo2Arrow);
+    } else if (mode === 'anatomy-respiratory-lungs') {
+      lungAirArrow = new THREE.ArrowHelper(
+        new THREE.Vector3(0, -1, 0),
+        new THREE.Vector3(0.36, 1.9, 0.1),
+        0.75,
+        0x38bdf8,
+        0.22,
+        0.12
+      );
+      lungDiaphArrow = new THREE.ArrowHelper(
+        new THREE.Vector3(0, -1, 0),
+        new THREE.Vector3(0, -1.15, 0.42),
+        0.55,
+        0xfb7185,
+        0.18,
+        0.1
+      );
+      rootGroup.add(lungAirArrow, lungDiaphArrow);
+    } else {
+      neuronImpulseArrow = new THREE.ArrowHelper(
+        new THREE.Vector3(1, 0, 0),
+        new THREE.Vector3(-0.9, 0.48, 0),
+        1.7,
+        0x22d3ee,
+        0.24,
+        0.12
+      );
+      rootGroup.add(neuronImpulseArrow);
+    }
 
     if (mode === 'anatomy-cardiovascular-heart') {
       const myoMat = new THREE.MeshPhysicalMaterial({
@@ -747,6 +820,120 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
       updateFrame(elapsed, dt);
       controls.update();
+
+      const showLabels = showConceptLabelsRef.current;
+      const cw = container.clientWidth || width;
+      const ch = container.clientHeight || height;
+      const cDom = conceptDomRef.current;
+      const pCur = paramsRef.current;
+      const cEntries = [
+        { dom: cDom.c1, worldPos: new THREE.Vector3(), text: '', active: false },
+        { dom: cDom.c2, worldPos: new THREE.Vector3(), text: '', active: false },
+        { dom: cDom.c3, worldPos: new THREE.Vector3(), text: '', active: false },
+      ];
+
+      if (mode === 'anatomy-cardiovascular-heart') {
+        if (heartO2Arrow) heartO2Arrow.visible = showLabels;
+        if (heartCo2Arrow) heartCo2Arrow.visible = showLabels;
+        if (showLabels) {
+          const hm = evalHeart(pCur);
+          cEntries[0] = {
+            dom: cDom.c1,
+            worldPos: new THREE.Vector3(1.15, 1.35, 0.2),
+            text: `Aorta · Darah Kaya O₂ ↑`,
+            active: true,
+          };
+          cEntries[1] = {
+            dom: cDom.c2,
+            worldPos: new THREE.Vector3(-0.85, 1.5, 0),
+            text: `Vena & Pulmonal · CO₂ ↓`,
+            active: true,
+          };
+          cEntries[2] = {
+            dom: cDom.c3,
+            worldPos: new THREE.Vector3(0.42, -0.5, 0.45),
+            text: `MAP ${hm.meanArterialPressure} mmHg · HR ${Math.round(pCur.heartRateBpm ?? 72)} bpm`,
+            active: true,
+          };
+        }
+      } else if (mode === 'anatomy-respiratory-lungs') {
+        const rr = pCur.respirationRate ?? 15;
+        const inhaling = Math.sin(2 * Math.PI * (rr / 60) * elapsed) >= 0;
+        if (lungAirArrow) {
+          lungAirArrow.visible = showLabels;
+          lungAirArrow.setDirection(new THREE.Vector3(0, inhaling ? -1 : 1, 0));
+          lungAirArrow.setColor(inhaling ? 0x38bdf8 : 0xfb923c);
+          lungAirArrow.position.set(0.36, inhaling ? 1.95 : 1.15, 0.1);
+        }
+        if (lungDiaphArrow) {
+          lungDiaphArrow.visible = showLabels;
+          lungDiaphArrow.setDirection(new THREE.Vector3(0, inhaling ? -1 : 1, 0));
+        }
+        if (showLabels) {
+          const lm = calculateRespiratoryLungs({
+            respirationRate: rr,
+            diaphragmEffort: pCur.diaphragmEffort ?? 50,
+            airwayResistance: pCur.airwayResistance ?? 1.0,
+            altitudeMeters: pCur.altitudeMeters ?? 0,
+            timeSec: elapsed,
+          });
+          cEntries[1] = {
+            dom: cDom.c2,
+            worldPos: new THREE.Vector3(0.15, 1.85, 0.1),
+            text: inhaling ? `Inspirasi: O₂ Masuk ↓` : `Ekspirasi: CO₂ Keluar ↑`,
+            active: true,
+          };
+          cEntries[2] = {
+            dom: cDom.c3,
+            worldPos: new THREE.Vector3(1.1, 0.35, 0.35),
+            text: `Alveolus · SpO₂ ${lm.spo2Percent}%`,
+            active: true,
+          };
+          cEntries[0] = {
+            dom: cDom.c1,
+            worldPos: new THREE.Vector3(0, -1.25, 0.35),
+            text: `Diafragma (Hukum Boyle)`,
+            active: true,
+          };
+        }
+      } else {
+        const stim = pCur.stimulusVoltageMv ?? -35;
+        const fired = stim >= -55;
+        if (neuronImpulseArrow) {
+          neuronImpulseArrow.visible = showLabels && fired;
+        }
+        if (showLabels) {
+          const nm = calculateNeuralSynapse({
+            stimulusVoltageMv: stim,
+            myelinThickness: pCur.myelinThickness ?? 75,
+            extracellularNaMm: pCur.extracellularNaMm ?? 145,
+            extracellularKMm: pCur.extracellularKMm ?? 4.5,
+            timeSec: elapsed,
+          });
+          cEntries[0] = {
+            dom: cDom.c1,
+            worldPos: new THREE.Vector3(-2.1, 0.85, 0),
+            text: `Soma · Stimulus ${stim} mV`,
+            active: true,
+          };
+          cEntries[1] = {
+            dom: cDom.c2,
+            worldPos: new THREE.Vector3(0.1, 0.55, 0),
+            text: fired
+              ? `Impuls Saltatorik → (${nm.conductionVelocityMs} m/s)`
+              : `Di Bawah Ambang (-55 mV)`,
+            active: true,
+          };
+          cEntries[2] = {
+            dom: cDom.c3,
+            worldPos: new THREE.Vector3(2.25, 0.65, 0),
+            text: `Sinapsis Terminal`,
+            active: true,
+          };
+        }
+      }
+      updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
+
       studioComposer.render();
     };
     animate();
@@ -791,6 +978,16 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     <div className="relative w-full h-full min-h-[420px] bg-slate-950 rounded-2xl overflow-hidden border border-slate-800/80 select-none">
       <div ref={mountRef} data-testid="anatomy-simulation-canvas" className="w-full h-full min-h-[420px]" />
 
+      <ConceptLabelsLayer
+        slots={[
+          { id: 'c1', accentHex: '#f43f5e' },
+          { id: 'c2', accentHex: '#38bdf8' },
+          { id: 'c3', accentHex: '#4ade80' },
+        ]}
+        visible={showConceptLabels}
+        onBindSlot={bindConceptSlot}
+      />
+
       {/* Top HUD: X-Ray & Cross-Section Layer Toggle */}
       <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-1 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-1 shadow-lg">
@@ -832,6 +1029,8 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
               [{pin.num}] {pin.name.split(' ')[0]}
             </button>
           ))}
+          <span className="mx-0.5 h-4 w-px bg-slate-700/80" aria-hidden="true" />
+          <ConceptLabelToggleButton accentClass="bg-cyan-500 text-slate-950 font-bold" />
         </div>
       </div>
 

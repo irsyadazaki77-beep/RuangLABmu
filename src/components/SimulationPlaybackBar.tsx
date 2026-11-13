@@ -8,7 +8,6 @@ import {
   Flame,
   Zap,
   Activity,
-  Sliders,
   ShieldAlert,
 } from 'lucide-react';
 import { SimulationFrame } from '../utils/simulationBuffer';
@@ -54,7 +53,6 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
   const rawTime = currentFrame ? currentFrame.timestamp : 0;
   const timeMeasurement = applyInstrumentNoise(rawTime, stopwatchInstrument, noiseEnabled);
 
-  const totalFrames = Math.max(1, bounds.maxFrame - bounds.minFrame);
   const currentIdx = currentFrame ? currentFrame.frameIndex : bounds.minFrame;
 
   const kinetic = currentFrame ? currentFrame.energies.kinetic : 0;

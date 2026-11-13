@@ -3,10 +3,7 @@ import {
   Loader2,
   Lock,
   Unlock,
-  Trophy,
-  Target,
   Users,
-  CheckCircle2,
   Sparkles,
   Wifi,
 } from 'lucide-react';

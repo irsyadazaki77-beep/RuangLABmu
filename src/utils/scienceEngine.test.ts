@@ -460,9 +460,7 @@ import {
 import {
   stepSpringHookeRK4,
   stepOrbitalVerlet,
-  stepEnzymeKineticsRK4,
   stepLotkaVolterraRK4,
-  stepCellOsmosisRK4,
   WorkerSimulationContext,
   FIXED_DT,
 } from '../workers/simulationWorker';

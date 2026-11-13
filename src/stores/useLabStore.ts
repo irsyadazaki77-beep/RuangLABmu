@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { AcademicLevel } from '../utils/scienceEngine';
 import { LAB_EVENTS, emitLabEvent } from '../utils/labEventBus';
+import { useUIStore } from './useUIStore';
+import { shouldShowConceptLabelsByDefault } from '../utils/pedagogicalHelpers';
 
 export type LabDomain = 'physics' | 'chemistry' | 'biology' | 'astronomy';
 export type IndonesianDomain = 'fisika' | 'kimia' | 'biologi' | 'astronomi';
@@ -139,6 +141,7 @@ export const useLabStore = create<LabState>((set, get) => ({
 
   setAcademicLevel: (academicLevel: AcademicLevel) => {
     set({ academicLevel });
+    useUIStore.getState().setShowConceptLabels(shouldShowConceptLabelsByDefault(academicLevel));
   },
 
   setWorkflowStep: (workflowStep: WorkflowStep) => {

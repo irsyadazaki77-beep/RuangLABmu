@@ -13,8 +13,6 @@ import {
   Eye,
   Compass,
   ShieldCheck,
-  TrendingUp,
-  Zap,
 } from 'lucide-react';
 import { ScienceDomain, ExperimentRecord } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';

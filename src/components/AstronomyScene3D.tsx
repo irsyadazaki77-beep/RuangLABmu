@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -24,6 +24,12 @@ import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
 import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
+import {
+  ConceptLabelDomRef,
+  ConceptLabelToggleButton,
+  ConceptLabelsLayer,
+  updateProjectedConceptLabels,
+} from './ui/ConceptLabelsOverlay';
 
 interface AstronomyScene3DProps {
   params: AstronomyParams;
@@ -194,11 +200,21 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   comfortTheme,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
+  const showConceptLabels = useUIStore((s) => s.showConceptLabels);
+  const showConceptLabelsRef = useRef(showConceptLabels);
+  showConceptLabelsRef.current = showConceptLabels;
+
   const activeComfortTheme = comfortTheme ?? storeComfortTheme;
   const themeColors = getSceneThemeColors(activeComfortTheme, 'Astronomi');
 
   const mountRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const conceptDomRef = useRef<Record<string, ConceptLabelDomRef>>({});
+  const bindConceptSlot = useCallback((id: string, dom: ConceptLabelDomRef | null) => {
+    if (dom) conceptDomRef.current[id] = dom;
+    else delete conceptDomRef.current[id];
+  }, []);
+
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
@@ -330,7 +346,6 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       isSoftwareGl,
       { strength: 0.14, radius: 0.25, threshold: 1.15 }
     );
-    const { composer } = studioComposer;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -584,6 +599,10 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     };
     solarGroup.add(planetMesh);
 
+    const keplerVelArrow = createArrowGroup(0x38bdf8);
+    const keplerGravArrow = createArrowGroup(0xf59e0b);
+    solarGroup.add(keplerVelArrow, keplerGravArrow);
+
     // =========================================================
     // 2. MILKY WAY ROTATION & DARK MATTER 3D GROUP
     // =========================================================
@@ -832,6 +851,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     let rafId = 0;
     let timeoutId = 0;
     const startTimeMs = performance.now();
+    const conceptProjVec = new THREE.Vector3();
 
     const afterDraw = (cb: () => void) => {
       const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -921,6 +941,16 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         const scaledR = Math.min(8.6, 2.0 + Math.log10(Math.max(0.2, a)) * 3.5);
         planetMesh.position.set((curX / a) * scaledR, 0, (curZ / b) * scaledR);
         planetMesh.rotation.y = elapsed * 0.6;
+
+        if (showConceptLabelsRef.current) {
+          const tanDir = new THREE.Vector3(-Math.sin(curM) * scaledR, 0, Math.cos(curM) * (b / a) * scaledR);
+          orientAndScaleArrow(keplerVelArrow, planetMesh.position, tanDir, 1.8);
+          const gravDir = planetMesh.position.clone().negate();
+          orientAndScaleArrow(keplerGravArrow, planetMesh.position, gravDir, 1.5);
+        } else {
+          keplerVelArrow.visible = false;
+          keplerGravArrow.visible = false;
+        }
       }
 
       // 2. Milky Way Galaxy
@@ -1005,6 +1035,79 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       }
 
       controls.update();
+
+      const showLabels = showConceptLabelsRef.current;
+      const cw = container.clientWidth || width;
+      const ch = container.clientHeight || height;
+      const cDom = conceptDomRef.current;
+      const cEntries = [
+        { dom: cDom.c1, worldPos: new THREE.Vector3(), text: '', active: false },
+        { dom: cDom.c2, worldPos: new THREE.Vector3(), text: '', active: false },
+        { dom: cDom.c3, worldPos: new THREE.Vector3(), text: '', active: false },
+      ];
+      if (showLabels) {
+        if (p.mode === 'solar-kepler') {
+          cEntries[0] = {
+            dom: cDom.c1,
+            worldPos: new THREE.Vector3(0, 1.55, 0),
+            text: `Matahari (Fokus Elips)`,
+            active: true,
+          };
+          cEntries[1] = {
+            dom: cDom.c2,
+            worldPos: planetMesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)),
+            text: `v = ${(m.meanOrbitalVelocityKms ?? 29.8).toFixed(1)} km/s · e = ${(p.customEccentricity ?? 0.017).toFixed(2)}`,
+            active: true,
+          };
+        } else if (p.mode === 'milkyway-galaxy' || (p.mode as string) === 'milky-way-rotation') {
+          cEntries[0] = {
+            dom: cDom.c1,
+            worldPos: new THREE.Vector3(0, 1.2, 0),
+            text: `Sgr A* (Pusat Bima Sakti)`,
+            active: true,
+          };
+          cEntries[1] = {
+            dom: cDom.c2,
+            worldPos: galacticMarkerStar.position.clone().add(new THREE.Vector3(0, 0.75, 0)),
+            text: `v_rot = ${(m.observedDarkMatterVelocityKms ?? 220).toFixed(0)} km/s · R = ${(p.galactocentricRadiusKpc ?? 8.2).toFixed(1)} kpc`,
+            active: true,
+          };
+        } else if (
+          p.mode === 'stellar-wien-spectrum' ||
+          p.mode === 'stellar-exoplanet' ||
+          (p.mode as string) === 'exoplanet-transit'
+        ) {
+          cEntries[0] = {
+            dom: cDom.c1,
+            worldPos: new THREE.Vector3(-4.5, 2.3, 0),
+            text: `Fotosfer T* = ${Math.round(p.starEffectiveTempK ?? 5778)} K`,
+            active: true,
+          };
+          cEntries[1] = {
+            dom: cDom.c2,
+            worldPos: new THREE.Vector3(3.8, 1.25, 0),
+            text: `Puncak Wien λmax = ${(m.wienPeakWavelengthNm ?? 502).toFixed(0)} nm`,
+            active: true,
+          };
+        } else if (p.mode === 'hubble-expansion') {
+          cEntries[1] = {
+            dom: cDom.c2,
+            worldPos: new THREE.Vector3(0, 0.85, 0),
+            text: `Bumi / Pengamat`,
+            active: true,
+          };
+          if (distantGalaxies[0]) {
+            cEntries[2] = {
+              dom: cDom.c3,
+              worldPos: distantGalaxies[0].mesh.position.clone().add(new THREE.Vector3(0, 0.85, 0)),
+              text: `Redshift z = ${(m.hubbleRedshiftZ ?? 0.035).toFixed(3)} · v = ${Math.round(m.hubbleRecessionVelocityKmS ?? 10500)} km/s →`,
+              active: true,
+            };
+          }
+        }
+      }
+      updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
+
       studioComposer.render(isLite);
 
       if (isSoftwareGl) {
@@ -1169,6 +1272,16 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         className="w-full h-full block touch-none"
       />
 
+      <ConceptLabelsLayer
+        slots={[
+          { id: 'c1', accentHex: '#facc15' },
+          { id: 'c2', accentHex: '#38bdf8' },
+          { id: 'c3', accentHex: '#f97316' },
+        ]}
+        visible={showConceptLabels}
+        onBindSlot={bindConceptSlot}
+      />
+
       {/* Interactive Raycaster Drag Toast */}
       {dragToast && (
         <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
@@ -1249,6 +1362,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
           ))}
           <span className="mx-1 h-3.5 w-px bg-white/15" aria-hidden="true" />
         </div>
+
+        <ConceptLabelToggleButton accentClass="bg-sky-500 text-slate-950 font-bold" />
 
         <button
           type="button"

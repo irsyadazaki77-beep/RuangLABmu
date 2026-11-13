@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   CheckCircle2,
   ChevronDown,
-  ChevronUp,
   Compass,
   FileSpreadsheet,
   Lightbulb,

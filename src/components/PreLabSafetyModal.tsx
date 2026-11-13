@@ -6,10 +6,8 @@ import {
   AlertTriangle,
   BookOpen,
   ListChecks,
-  HelpCircle,
   Award,
   ArrowRight,
-  Sparkles,
 } from 'lucide-react';
 import {
   ExperimentModule,
@@ -267,7 +265,6 @@ export const PreLabSafetyModal: React.FC<PreLabSafetyModalProps> = ({
 
               {experiment.preLabQuiz.map((q, qIdx) => {
                 const userSelected = selectedAnswers[q.id];
-                const isAnswered = userSelected !== undefined;
                 const isCorrect = userSelected === q.correctIndex;
 
                 return (

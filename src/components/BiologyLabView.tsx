@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Camera,
-  Sliders,
-  Dna,
 } from 'lucide-react';
 import {
   EducationTier,
@@ -32,6 +30,10 @@ import {
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
+import {
+  getBiologyParameterFeedback,
+  normalizeEducationLevel,
+} from '../utils/pedagogicalHelpers';
 
 export interface BiologyLabViewProps {
   activeStudentName: string;
@@ -80,6 +82,7 @@ export interface BiologyLabViewProps {
 
 export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   activeStudentName,
+  activeTier,
   onRecordExperiment,
   remoteCursors = {},
   onEmitCursor,
@@ -93,6 +96,10 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   onCapture3DSnapshot,
   snapshotCount = 0,
 }) => {
+  const storeLevel = useLabStore((s) => s.academicLevel);
+  const effectiveEducationLevel = activeTier
+    ? normalizeEducationLevel(activeTier)
+    : storeLevel;
   const biologyModules = useMemo(() => getExperimentsByDomain('biologi'), []);
   const selectedModuleId = externalModuleId || 'photosynthesis-ingenhousz';
 
@@ -289,18 +296,36 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
           {/* Sliders & Parameters */}
           <CollapsibleLabSection title="Variabel & Parameter Biologis" defaultOpen>
             <div className="space-y-3">
-              {currentModule.parameters.map((p) => (
-                <TactileParameterControl
-                  key={p.key}
-                  label={p.label}
-                  unit={p.unit}
-                  value={paramsState[p.key] ?? p.defaultValue}
-                  min={p.min}
-                  max={p.max}
-                  step={p.step}
-                  onChange={(v) => handleParamChange(p.key, v)}
-                />
-              ))}
+              {currentModule.parameters.map((p) => {
+                const glossaryTerm =
+                  p.key === 'temperatureC'
+                    ? 'Denaturasi'
+                    : p.key === 'sucroseConcMolar'
+                    ? 'Osmosis'
+                    : p.key === 'vesselRadiusRatio'
+                    ? 'Vasokonstriksi'
+                    : p.key === 'stimulusVoltageMv'
+                    ? 'Potensial Aksi'
+                    : undefined;
+                return (
+                  <TactileParameterControl
+                    key={p.key}
+                    id={`bio-param-${p.key}`}
+                    label={p.label}
+                    unit={p.unit}
+                    value={paramsState[p.key] ?? p.defaultValue}
+                    min={p.min}
+                    max={p.max}
+                    step={p.step}
+                    glossaryTerm={glossaryTerm}
+                    educationLevel={effectiveEducationLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getBiologyParameterFeedback(currentModule.id, p.key, v, lvl)
+                    }
+                    onChange={(v) => handleParamChange(p.key, v)}
+                  />
+                );
+              })}
             </div>
           </CollapsibleLabSection>
 

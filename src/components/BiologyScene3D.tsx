@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -20,6 +20,12 @@ import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar
 import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { AnatomySubScene3D, AnatomyModuleId } from './scenes/AnatomySubScene3D';
+import {
+  ConceptLabelDomRef,
+  ConceptLabelToggleButton,
+  ConceptLabelsLayer,
+  updateProjectedConceptLabels,
+} from './ui/ConceptLabelsOverlay';
 
 interface BiologyScene3DProps {
   mode:
@@ -122,10 +128,20 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   comfortTheme,
 }) => {
   const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
+  const showConceptLabels = useUIStore((s) => s.showConceptLabels);
+  const showConceptLabelsRef = useRef(showConceptLabels);
+  showConceptLabelsRef.current = showConceptLabels;
+
   const activeComfortTheme = comfortTheme ?? storeComfortTheme;
   const themeColors = getSceneThemeColors(activeComfortTheme, 'Biologi');
 
   const mountRef = useRef<HTMLDivElement>(null);
+  const conceptDomRef = useRef<Record<string, ConceptLabelDomRef>>({});
+  const bindConceptSlot = useCallback((id: string, dom: ConceptLabelDomRef | null) => {
+    if (dom) conceptDomRef.current[id] = dom;
+    else delete conceptDomRef.current[id];
+  }, []);
+
   const cursorManagerRef = useRef<SpatialCursorManager | null>(null);
   const onEmitCursorRef = useRef(onEmitCursor);
   onEmitCursorRef.current = onEmitCursor;
@@ -147,6 +163,12 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     captureCanvas: () => string | null;
     applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
   } | null>(null);
+
+  const syncConceptLabelsRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    syncConceptLabelsRef.current?.();
+  }, [mode, params, showConceptLabels]);
 
   useEffect(() => {
     cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Biologi'));
@@ -256,7 +278,6 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       isSoftwareGl,
       { strength: 0.14, radius: 0.25, threshold: 1.15 }
     );
-    const { composer } = studioComposer;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -816,6 +837,42 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       }
     }
 
+    // 3D Concept Arrows attached to apparatusGroup
+    const photonArrow = new THREE.ArrowHelper(
+      new THREE.Vector3(1, -0.45, 0).normalize(),
+      new THREE.Vector3(-2.6, 2.25, 0),
+      1.45,
+      0xfacc15,
+      0.28,
+      0.14
+    );
+    photonArrow.visible = mode === 'photosynthesis-ingenhousz';
+    apparatusGroup.add(photonArrow);
+
+    const osmosisArrowLeft = new THREE.ArrowHelper(
+      new THREE.Vector3(-1, 0, 0),
+      new THREE.Vector3(-1.35, 1.35, 0.2),
+      0.85,
+      0xf97316,
+      0.22,
+      0.11
+    );
+    const osmosisArrowRight = new THREE.ArrowHelper(
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(1.35, 1.35, 0.2),
+      0.85,
+      0xf97316,
+      0.22,
+      0.11
+    );
+    osmosisArrowLeft.visible = false;
+    osmosisArrowRight.visible = false;
+    apparatusGroup.add(osmosisArrowLeft, osmosisArrowRight);
+
+    const conceptProjVec = new THREE.Vector3();
+    const conceptWorldA = new THREE.Vector3();
+    const conceptWorldB = new THREE.Vector3();
+
     // Raycaster for Pointermove & Laser pointer broadcast
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
@@ -1024,6 +1081,111 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       }
 
       controls.update();
+
+      const syncBioLabelsNow = () => {
+        const pNow = latestParamsRef.current;
+        const showLabels = showConceptLabelsRef.current;
+        const cw = container.clientWidth || width;
+        const ch = container.clientHeight || height;
+        const cDom = conceptDomRef.current;
+        const cEntries = [
+          { dom: cDom.c1, worldPos: new THREE.Vector3(), text: '', active: false },
+          { dom: cDom.c2, worldPos: new THREE.Vector3(), text: '', active: false },
+          { dom: cDom.c3, worldPos: new THREE.Vector3(), text: '', active: false },
+        ];
+
+        if (mode === 'photosynthesis-ingenhousz') {
+          photonArrow.visible = showLabels;
+          if (showLabels) {
+            conceptWorldA.set(-3.2, 3.05, 0).applyMatrix4(apparatusGroup.matrixWorld);
+            conceptWorldB.set(0, 2.85, 0).applyMatrix4(apparatusGroup.matrixWorld);
+            cEntries[0] = {
+              dom: cDom.c1,
+              worldPos: conceptWorldB.clone(),
+              text: `Gelembung O₂ (Laju Fotosintesis)`,
+              active: true,
+            };
+            cEntries[2] = {
+              dom: cDom.c3,
+              worldPos: conceptWorldA.clone(),
+              text: `Foton Cahaya λ = ${Math.round(pNow.wavelengthNm || 660)} nm`,
+              active: true,
+            };
+          }
+        } else if (mode === 'enzyme-catalase' || mode === 'enzyme-kinetics') {
+          photonArrow.visible = false;
+          osmosisArrowLeft.visible = false;
+          osmosisArrowRight.visible = false;
+          if (showLabels) {
+            const tempC = pNow.temperatureC ?? pNow.tempCelsius ?? 37;
+            const phVal = pNow.solutionPH ?? 7.0;
+            if (foamMesh) foamMesh.getWorldPosition(conceptWorldA);
+            else conceptWorldA.set(0, 2.2, 0).applyMatrix4(apparatusGroup.matrixWorld);
+            conceptWorldB.set(0, 0.55, 0.65).applyMatrix4(apparatusGroup.matrixWorld);
+            cEntries[0] = {
+              dom: cDom.c1,
+              worldPos: conceptWorldA.clone().add(new THREE.Vector3(0, 0.85, 0)),
+              text: `Busa O₂ · pH ${phVal.toFixed(1)}`,
+              active: true,
+            };
+            cEntries[2] = {
+              dom: cDom.c3,
+              worldPos: conceptWorldB.clone(),
+              text:
+                tempC > 45
+                  ? `Suhu ${tempC}°C: Enzim Terdenaturasi!`
+                  : `Suhu ${tempC}°C (Aktivitas Enzim)`,
+              active: true,
+            };
+          }
+        } else {
+          photonArrow.visible = false;
+          const sucrose = pNow.sucroseConcMolar ?? 0.3;
+          const isHyper = sucrose > 0.35;
+          const isHypo = sucrose < 0.22;
+          if (showLabels && (isHyper || isHypo)) {
+            osmosisArrowLeft.visible = true;
+            osmosisArrowRight.visible = true;
+            if (isHyper) {
+              osmosisArrowLeft.position.set(-1.1, 1.35, 0.2);
+              osmosisArrowLeft.setDirection(new THREE.Vector3(-1, 0, 0));
+              osmosisArrowLeft.setColor(0xf97316);
+              osmosisArrowRight.position.set(1.1, 1.35, 0.2);
+              osmosisArrowRight.setDirection(new THREE.Vector3(1, 0, 0));
+              osmosisArrowRight.setColor(0xf97316);
+            } else {
+              osmosisArrowLeft.position.set(-2.0, 1.35, 0.2);
+              osmosisArrowLeft.setDirection(new THREE.Vector3(1, 0, 0));
+              osmosisArrowLeft.setColor(0x38bdf8);
+              osmosisArrowRight.position.set(2.0, 1.35, 0.2);
+              osmosisArrowRight.setDirection(new THREE.Vector3(-1, 0, 0));
+              osmosisArrowRight.setColor(0x38bdf8);
+            }
+          } else {
+            osmosisArrowLeft.visible = false;
+            osmosisArrowRight.visible = false;
+          }
+          if (showLabels) {
+            if (protoplastMesh) protoplastMesh.getWorldPosition(conceptWorldA);
+            else conceptWorldA.set(0, 1.35, 0).applyMatrix4(apparatusGroup.matrixWorld);
+            cEntries[1] = {
+              dom: cDom.c2,
+              worldPos: conceptWorldA.clone().add(new THREE.Vector3(0, 1.05, 0)),
+              text: isHyper
+                ? `Osmosis: H₂O Keluar (Plasmolisis)`
+                : isHypo
+                  ? `Osmosis: H₂O Masuk (Sel Turgid)`
+                  : `Isotonik: Fluks H₂O Seimbang`,
+              active: true,
+            };
+          }
+        }
+        updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
+      };
+
+      syncConceptLabelsRef.current = syncBioLabelsNow;
+      syncBioLabelsNow();
+
       studioComposer.render(isLite);
 
       if (isSoftwareGl) {
@@ -1143,6 +1305,16 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         className="w-full h-full block cursor-crosshair touch-none"
       />
 
+      <ConceptLabelsLayer
+        slots={[
+          { id: 'c1', accentHex: '#10b981' },
+          { id: 'c2', accentHex: '#38bdf8' },
+          { id: 'c3', accentHex: '#f59e0b' },
+        ]}
+        visible={showConceptLabels}
+        onBindSlot={bindConceptSlot}
+      />
+
       {/* Unified Top-Right Camera & Fullscreen Pill */}
       {/* Consolidated Top-Right Capsule Bar: Snap-to-Port | 🥽 Mode VR | Presets (Iso | Depan | Atas | Fokus | ⛶) */}
       <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20 opacity-80 hover:opacity-100 transition-opacity">
@@ -1220,6 +1392,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           ))}
           <span className="mx-1 h-3.5 w-px bg-white/15" aria-hidden="true" />
         </div>
+
+        <ConceptLabelToggleButton accentClass="bg-emerald-500 text-slate-950 font-bold" />
 
         <button
           type="button"

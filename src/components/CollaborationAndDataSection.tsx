@@ -12,7 +12,6 @@ import {
   FileText,
   Printer,
   ArrowLeftRight,
-  Lightbulb,
 } from 'lucide-react';
 import {
   ExperimentRecord,

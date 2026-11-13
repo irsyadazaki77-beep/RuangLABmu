@@ -46,7 +46,6 @@ export function useLabSession() {
     isLobbyMode,
     setIsLobbyMode,
     academicLevel,
-    setAcademicLevel,
   } = useLabStore();
 
   const { comfortPrefs } = useUIStore();
@@ -416,14 +415,7 @@ export function useLabSession() {
           ? prev
           : { ...prev, mode: astronomyModeMap[activeModuleId] }
       );
-    } else if (
-      [
-        'photosynthesis-ingenhousz',
-        'enzyme-catalase',
-        'predator-prey-dynamics',
-        'osmosis-plasmolysis',
-      ].includes(activeModuleId)
-    ) {
+    } else if (getExperimentById(activeModuleId)?.domain === 'biologi') {
       setSelectedBioModuleId(activeModuleId);
     }
   }, [activeModuleId]);

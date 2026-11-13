@@ -53,6 +53,7 @@ export interface UIState {
   projectorMode: boolean;
   liteDeviceMode: boolean;
   liteModeNotification: string | null;
+  showConceptLabels: boolean;
 
   // Actions
   toggleZenMode: () => void;
@@ -73,6 +74,8 @@ export interface UIState {
   setLiteModeNotification: (msg: string | null) => void;
   setProjectorMode: (enabled: boolean) => void;
   toggleProjectorMode: () => void;
+  setShowConceptLabels: (show: boolean) => void;
+  toggleConceptLabels: () => void;
 }
 
 function loadInitialLiteMode(): boolean {
@@ -111,6 +114,7 @@ export const useUIStore = create<UIState>((set) => ({
   projectorMode: loadInitialProjectorMode(),
   liteDeviceMode: loadInitialLiteMode(),
   liteModeNotification: null,
+  showConceptLabels: true,
 
   toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
 
@@ -168,6 +172,8 @@ export const useUIStore = create<UIState>((set) => ({
   },
 
   setLiteModeNotification: (liteModeNotification: string | null) => set({ liteModeNotification }),
+  setShowConceptLabels: (showConceptLabels: boolean) => set({ showConceptLabels }),
+  toggleConceptLabels: () => set((state) => ({ showConceptLabels: !state.showConceptLabels })),
 
   setProjectorMode: (projectorMode: boolean) => {
     try {

@@ -37,6 +37,8 @@ import {
 import { printBlankStudentWorksheet } from '../../utils/academicReportExporter';
 import { getExperimentById } from '../../registry/experimentRegistry';
 import { STUDENT_PROFILES } from '../../stores/initialLabParams';
+import { translateObservationPattern } from '../../utils/pedagogicalHelpers';
+import { ScienceGlossaryTerm } from '../ui/ScienceGlossaryTerm';
 
 export interface StudentWorksheetFormProps {
   activeStudentName: string;
@@ -92,6 +94,11 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   const [isRotationModalOpen, setIsRotationModalOpen] = useState(false);
   const [isRotatingGroup, setIsRotatingGroup] = useState(false);
   const [rotationNotice, setRotationNotice] = useState<string | null>(null);
+  const patternTranslation = translateObservationPattern({
+    records: observationRecords,
+    domain,
+    moduleId,
+  });
 
   // Compute next suggested group & student name
   const currentIdx = STUDENT_PROFILES.findIndex(
@@ -608,8 +615,38 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         </div>
 
         {/* Kesimpulan Akhir */}
-        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-1.5">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-500">
+        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+          {/* Feature 4: Penerjemah Arti Data Otomatis di LKS */}
+          <div
+            data-testid="lks-data-pattern-summary"
+            className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+              patternTranslation.status === 'ready'
+                ? 'bg-sky-50/90 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800/70'
+                : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60'
+            }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-bold text-slate-900 dark:text-slate-100">
+                💡 Ringkasan Pola Datamu
+              </span>
+              {patternTranslation.status === 'ready' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/80 dark:bg-slate-900/80 border border-sky-200 dark:border-sky-700 font-mono text-[10px] font-bold text-sky-700 dark:text-sky-300">
+                  <ScienceGlossaryTerm term="R²" displayLabel="R²" />
+                  <span>{patternTranslation.rSquaredPct}%</span>
+                  <span>·</span>
+                  <ScienceGlossaryTerm term="Slope/Gradien" displayLabel="Gradien" />
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-100 leading-relaxed">
+              {patternTranslation.summaryText}
+            </p>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug">
+              {patternTranslation.guidanceText}
+            </p>
+          </div>
+
+          <span className="block text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
             {t('lks.finalConclusion')}
           </span>
           <textarea

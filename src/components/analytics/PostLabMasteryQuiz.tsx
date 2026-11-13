@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   XCircle,
   RotateCcw,
-  Sparkles,
   Award,
 } from 'lucide-react';
 import { ExperimentRecord } from '../../utils/scienceEngine';

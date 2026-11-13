@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   Camera,
-  Sliders,
-  FlaskConical,
 } from 'lucide-react';
 import {
   ChemistryParams,
@@ -35,6 +33,7 @@ import {
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
+import { getChemistryParameterFeedback } from '../utils/pedagogicalHelpers';
 
 export interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -413,12 +412,20 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               {params.mode === 'acid-base-titration' ? (
                 <>
                   <TactileParameterControl
+                    id="chem-titrant-ml"
                     label="Volume Titran Buret (Vb)"
                     unit="mL"
                     value={params.titrantAddedMl}
                     min={0}
                     max={50}
                     step={0.5}
+                    glossaryTerm="Titik Ekivalen"
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'titrantAddedMl', v, lvl, {
+                        equivalenceVolumeMl: metrics.equivalenceVolumeMl,
+                      })
+                    }
                     onChange={(v) => handleParamChange({ titrantAddedMl: v })}
                   />
                   <TactileParameterControl
@@ -428,6 +435,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.05}
                     max={1.0}
                     step={0.05}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'titrantBaseConc', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ titrantBaseConc: v })}
                   />
                   <TactileParameterControl
@@ -437,6 +448,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.05}
                     max={1.0}
                     step={0.05}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'analyteAcidConc', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ analyteAcidConc: v })}
                   />
                 </>
@@ -449,6 +464,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.01}
                     max={2.0}
                     step={0.05}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'anodeConcM', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ anodeConcM: v })}
                   />
                   <TactileParameterControl
@@ -458,6 +477,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.01}
                     max={2.0}
                     step={0.05}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'cathodeConcM', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ cathodeConcM: v })}
                   />
                   <TactileParameterControl
@@ -467,6 +490,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={10}
                     max={80}
                     step={1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'initialTempC', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ initialTempC: v })}
                   />
                 </>
@@ -479,6 +506,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={2.0}
                     max={25.0}
                     step={0.5}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'gasVolumeL', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ gasVolumeL: v })}
                   />
                   <TactileParameterControl
@@ -488,6 +519,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={250}
                     max={700}
                     step={10}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'gasTemperatureK', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ gasTemperatureK: v })}
                   />
                   <TactileParameterControl
@@ -497,6 +532,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.2}
                     max={2.5}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'gasMoles', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ gasMoles: v })}
                   />
                 </>
@@ -509,6 +548,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={400}
                     max={700}
                     step={10}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'spectroWavelengthNm', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ spectroWavelengthNm: v })}
                   />
                   <TactileParameterControl
@@ -518,6 +561,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.01}
                     max={0.25}
                     step={0.01}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'spectroConcMm', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ spectroConcMm: v })}
                   />
                   <TactileParameterControl
@@ -527,18 +574,28 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.5}
                     max={2.0}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'spectroPathLengthCm', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ spectroPathLengthCm: v })}
                   />
                 </>
               ) : (
                 <>
                   <TactileParameterControl
+                    id="chem-heater-temp"
                     label="Suhu Pemanas (T)"
                     unit="°C"
                     value={params.initialTempC}
                     min={10}
                     max={95}
                     step={1}
+                    glossaryTerm="Denaturasi"
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'initialTempC', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ initialTempC: v, kineticsTempC: v })}
                   />
                   <TactileParameterControl
@@ -548,6 +605,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0.1}
                     max={3.0}
                     step={0.1}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'reactantConcentration', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ reactantConcentration: v, kineticsConcA: v })}
                   />
                   <TactileParameterControl
@@ -557,6 +618,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                     min={0}
                     max={600}
                     step={20}
+                    educationLevel={academicLevel}
+                    dynamicFeedback={(v, lvl) =>
+                      getChemistryParameterFeedback(params.mode, 'stirringRpm', v, lvl)
+                    }
                     onChange={(v) => handleParamChange({ stirringRpm: v })}
                   />
                 </>
