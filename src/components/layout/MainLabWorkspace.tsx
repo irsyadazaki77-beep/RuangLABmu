@@ -224,6 +224,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     academicLevel,
     setAcademicLevel,
   } = useLabStore();
+  const [isMysteryModalOpen, setIsMysteryModalOpen] = useState(false);
 
   const {
     zenMode,
@@ -437,6 +438,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
               onJoinRoom={onJoinRoom}
               onLeaveRoom={onLeaveRoom}
               onToggleTeacherFreeze={onToggleTeacherFreeze}
+              onOpenMysteryExam={() => setIsMysteryModalOpen(true)}
             />
           </div>
         )}
@@ -447,6 +449,8 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
             <PreLabBriefingView
               experiment={experimentModule}
               activeTier={activeTierLabel}
+              studentName={currentProfile.name}
+              studentGroup={currentProfile.group}
               onProceedToSimulation={() => setWorkflowStep(2)}
               onBackToLobby={() => setIsLobbyMode(true)}
               hypothesisNote={currentModuleHypothesis}
@@ -504,7 +508,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
               data-pip-mode={effectiveStep === 2 ? 'full' : pip3DMode}
               className={
                 effectiveStep === 2
-                  ? 'flex-1 min-h-0 flex overflow-hidden relative w-full h-full'
+                  ? 'flex-1 min-h-0 flex flex-col overflow-hidden relative w-full h-full'
                   : pip3DMode === 'split'
                   ? 'w-full lg:w-[45%] h-[300px] lg:h-full shrink-0 flex flex-col overflow-hidden relative border-b lg:border-b-0 lg:border-r border-[var(--comfort-border)] bg-slate-950'
                   : pip3DMode === 'pip'
@@ -512,6 +516,26 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
                   : 'fixed bottom-4 right-4 w-auto h-auto z-30 rounded-xl border border-sky-500/40 bg-slate-900/95 shadow-xl overflow-hidden flex flex-col'
               }
             >
+              {/* Active Mystery Sample Forensic Exam Banner (All 4 Domains on Step 2) */}
+              {effectiveStep === 2 && activeMysteryChallenge && (
+                <MysteryChallengeCockpitBanner
+                  challenge={activeMysteryChallenge}
+                  studentName={currentProfile.name}
+                  onSubmitResult={(sName, res, title) => {
+                    onSubmitMysteryExam(sName, res, title);
+                    if (res.passed) {
+                      onCompleteChallenge(activeMysteryChallenge.id);
+                    }
+                  }}
+                  onDismiss={() => onDismissMysteryChallenge?.()}
+                  onAskDrLabMu={(prompt) => {
+                    setDrawerTab('ai');
+                    setDrawerOpen(true);
+                    setQueuedDrLabMuPrompt({ id: Date.now(), prompt });
+                  }}
+                />
+              )}
+
               {/* Mini-3D PiP / Split Control Header Bar when in Step 3 or Step 4 */}
               {effectiveStep !== 2 && (
                 <div className="px-3 py-1.5 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between gap-2 text-[11px] text-slate-200 shrink-0 z-20">
@@ -821,6 +845,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
                   onDeleteSnapshot={onDeleteSnapshot}
                   onReplayRecord={onReplayRecord}
                   students={students}
+                  moduleId={experimentModule.id}
                   onCSVExported={(count) =>
                     onPushNotification({
                       id: `notif-csv-${Date.now()}`,
@@ -885,6 +910,34 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
           />
         )}
       </Suspense>
+
+      <MysteryChallengeModal
+        isOpen={isMysteryModalOpen}
+        onClose={() => setIsMysteryModalOpen(false)}
+        activeChallengeId={activeMysteryChallenge?.id ?? null}
+        onSelectChallenge={(challenge) => {
+          const targetModule = getExperimentById(challenge.moduleId);
+          if (targetModule) {
+            onSelectCatalogModule(targetModule);
+          }
+          onActivateMysteryChallenge?.(challenge);
+          setIsMysteryModalOpen(false);
+          setIsLobbyMode(false);
+          setWorkflowStep(2);
+          onPushNotification({
+            id: `notif-mystery-${Date.now()}`,
+            timestamp: new Date().toLocaleTimeString('id-ID', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }),
+            severity: 'elevated',
+            domain: challenge.domain,
+            title: `Ujian Sampel Misteri Dimulai: ${challenge.codename}`,
+            message: `Tentukan nilai ${challenge.hiddenParamLabel} (${challenge.hiddenParamUnit}) melalui eksperimen kokpit 3D.`,
+          });
+        }}
+      />
     </main>
   );
 };

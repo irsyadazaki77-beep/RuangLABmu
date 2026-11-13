@@ -148,7 +148,7 @@ export const CollaborationAndDataSection: React.FC<
     const reg = pts.length >= 2 ? calculateLinearRegression(pts) : undefined;
     const resolvedModule = moduleId ? getExperimentById(moduleId) : undefined;
     const simLicense = moduleId
-      ? getLabSafetyLicenseForModule(activeStudentName, moduleId)
+      ? getLabSafetyLicenseForModule(moduleId)
       : null;
     const errorStats = computeMeasurementErrorSummary(pts.map((p) => p.y));
 
@@ -218,10 +218,10 @@ export const CollaborationAndDataSection: React.FC<
         : undefined,
       simLabLicense: simLicense
         ? {
-            licenseCode: simLicense.licenseCode,
+            licenseCode: simLicense.licenseId,
             status: simLicense.status,
-            quizScore: simLicense.quizScore,
-            issuedDateStr: simLicense.issuedDateStr,
+            quizScore: simLicense.preLabQuizScorePct,
+            issuedDateStr: simLicense.issuedAtFormatted,
           }
         : undefined,
       poeEvaluationSummary:
@@ -245,7 +245,7 @@ export const CollaborationAndDataSection: React.FC<
               instrumentUncertainty: errorStats.instrumentUncertainty,
               combinedUncertainty: errorStats.combinedUncertainty,
               relativeUncertaintyPct: errorStats.relativeUncertaintyPct,
-              percentErrorVsTheory: errorStats.percentErrorVsTheory,
+              percentErrorVsTheory: errorStats.percentErrorVsTheory ?? null,
               precisionGrade: errorStats.precisionGrade,
               recommendedSignificantFigures: errorStats.recommendedSignificantFigures,
             }

@@ -192,7 +192,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
     const now = new Date();
     const resolvedModule = moduleId ? getExperimentById(moduleId) : undefined;
     const simLicense = moduleId
-      ? getLabSafetyLicenseForModule(activeStudentName, moduleId)
+      ? getLabSafetyLicenseForModule(moduleId)
       : null;
 
     const fit =
@@ -260,10 +260,10 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
         : undefined,
       simLabLicense: simLicense
         ? {
-            licenseCode: simLicense.licenseCode,
+            licenseCode: simLicense.licenseId,
             status: simLicense.status,
-            quizScore: simLicense.quizScore,
-            issuedDateStr: simLicense.issuedDateStr,
+            quizScore: simLicense.preLabQuizScorePct,
+            issuedDateStr: simLicense.issuedAtFormatted,
           }
         : undefined,
       poeEvaluationSummary:
@@ -287,7 +287,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
               instrumentUncertainty: errorStats.instrumentUncertainty,
               combinedUncertainty: errorStats.combinedUncertainty,
               relativeUncertaintyPct: errorStats.relativeUncertaintyPct,
-              percentErrorVsTheory: errorStats.percentErrorVsTheory,
+              percentErrorVsTheory: errorStats.percentErrorVsTheory ?? null,
               precisionGrade: errorStats.precisionGrade,
               recommendedSignificantFigures: errorStats.recommendedSignificantFigures,
             }

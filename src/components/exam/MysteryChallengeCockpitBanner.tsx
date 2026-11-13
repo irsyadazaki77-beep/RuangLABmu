@@ -63,7 +63,7 @@ export const MysteryChallengeCockpitBanner: React.FC<
     const result = evaluateMysterySubmission(challenge, numericGuess);
     setLastResult(result);
     if (result.passed) {
-      labSound.playSuccess?.();
+      labSound.playClick(880);
     } else {
       labSound.playClick(420);
     }

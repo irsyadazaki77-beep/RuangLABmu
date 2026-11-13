@@ -321,17 +321,20 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
   }
 
   ${
-    hypothesisSummary &&
-    (hypothesisSummary.independentVar ||
-      hypothesisSummary.dependentVar ||
-      hypothesisSummary.hypothesisText ||
-      hypothesisSummary.reflectionText)
+    (hypothesisSummary &&
+      (hypothesisSummary.independentVar ||
+        hypothesisSummary.dependentVar ||
+        hypothesisSummary.hypothesisText ||
+        hypothesisSummary.reflectionText)) ||
+    (poeEvaluationSummary &&
+      (poeEvaluationSummary.predictedTrend ||
+        poeEvaluationSummary.predictedY !== undefined))
       ? `
   <div class="section-title">II-B. Perumusan Hipotesis & Identifikasi Variabel</div>
   <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 10px 14px; border-radius: 4px; font-size: 10pt; margin: 6px 0;">
-    <div><strong>Variabel Bebas (X):</strong> ${hypothesisSummary.independentVar || '-'}</div>
-    <div><strong>Variabel Terikat (Y):</strong> ${hypothesisSummary.dependentVar || '-'}</div>
-    <div style="margin-top: 4px;"><strong>Hipotesis Awal:</strong> <em>${hypothesisSummary.hypothesisText || '-'}</em></div>
+    <div><strong>Variabel Bebas (X):</strong> ${hypothesisSummary?.independentVar || '-'}</div>
+    <div><strong>Variabel Terikat (Y):</strong> ${hypothesisSummary?.dependentVar || '-'}</div>
+    <div style="margin-top: 4px;"><strong>Hipotesis Awal:</strong> <em>${hypothesisSummary?.hypothesisText || '-'}</em></div>
     ${
       poeEvaluationSummary &&
       (poeEvaluationSummary.predictedTrend ||
@@ -360,7 +363,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
         : ''
     }
     ${
-      hypothesisSummary.reflectionText
+      hypothesisSummary?.reflectionText
         ? `<div style="margin-top: 4px;"><strong>Refleksi & Evaluasi Hipotesis:</strong> ${hypothesisSummary.reflectionText}</div>`
         : ''
     }
@@ -437,7 +440,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
       · <strong>Klasifikasi Presisi:</strong> <strong>${uncertaintySummary.precisionGrade}</strong>
       · <strong>Angka Penting Disarankan:</strong> ${uncertaintySummary.recommendedSignificantFigures} angka penting
       ${
-        uncertaintySummary.percentErrorVsTheory !== null
+        uncertaintySummary.percentErrorVsTheory != null
           ? `· <strong>% Galat vs Teori:</strong> <span style="font-family: monospace;">${uncertaintySummary.percentErrorVsTheory.toFixed(2)}%</span>`
           : ''
       }
@@ -671,7 +674,7 @@ ${
 }
 ${
   data.uncertaintySummary && data.uncertaintySummary.n > 0
-    ? `\n### Analisis Ketidakpastian & Ralat (${data.uncertaintySummary.metricLabel})\n- **Pelaporan Baku**: \`${data.uncertaintySummary.mean.toFixed(3)} ± ${data.uncertaintySummary.combinedUncertainty.toFixed(3)}\` (${data.uncertaintySummary.n} sampel)\n- **Ketidakpastian Relatif**: ±${data.uncertaintySummary.relativeUncertaintyPct.toFixed(2)}% · **Presisi**: ${data.uncertaintySummary.precisionGrade} · **Angka Penting**: ${data.uncertaintySummary.recommendedSignificantFigures}${data.uncertaintySummary.percentErrorVsTheory !== null ? `\n- **% Galat vs Teori**: ${data.uncertaintySummary.percentErrorVsTheory.toFixed(2)}%` : ''}`
+    ? `\n### Analisis Ketidakpastian & Ralat (${data.uncertaintySummary.metricLabel})\n- **Pelaporan Baku**: \`${data.uncertaintySummary.mean.toFixed(3)} ± ${data.uncertaintySummary.combinedUncertainty.toFixed(3)}\` (${data.uncertaintySummary.n} sampel)\n- **Ketidakpastian Relatif**: ±${data.uncertaintySummary.relativeUncertaintyPct.toFixed(2)}% · **Presisi**: ${data.uncertaintySummary.precisionGrade} · **Angka Penting**: ${data.uncertaintySummary.recommendedSignificantFigures}${data.uncertaintySummary.percentErrorVsTheory != null ? `\n- **% Galat vs Teori**: ${data.uncertaintySummary.percentErrorVsTheory.toFixed(2)}%` : ''}`
     : ''
 }
 ${

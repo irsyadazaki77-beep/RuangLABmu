@@ -13,13 +13,15 @@ export interface UncertaintyAnalysisCardProps {
 }
 
 const GRADE_STYLE_MAP = {
-  'Sangat Teliti':
+  'Sangat Presisi':
     'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-400/40',
-  Teliti: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-400/40',
-  'Cukup Teliti':
+  'Presisi Baik': 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-400/40',
+  'Cukup Presisi':
     'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-400/40',
-  'Perlu Kalibrasi':
+  'Perlu Pengulangan':
     'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-400/40',
+  'Data Belum Mencukupi':
+    'bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-400/40',
 } as const;
 
 export const UncertaintyAnalysisCard: React.FC<UncertaintyAnalysisCardProps> = ({
@@ -78,7 +80,8 @@ export const UncertaintyAnalysisCard: React.FC<UncertaintyAnalysisCardProps> = (
         <span
           className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${gradeStyle}`}
         >
-          {summary.precisionGrade === 'Perlu Kalibrasi' ? (
+          {summary.precisionGrade === 'Perlu Pengulangan' ||
+          summary.precisionGrade === 'Data Belum Mencukupi' ? (
             <AlertTriangle className="w-3.5 h-3.5" />
           ) : (
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -171,12 +174,12 @@ export const UncertaintyAnalysisCard: React.FC<UncertaintyAnalysisCardProps> = (
                 % Galat terhadap Teori
               </div>
               <div className="text-sm sm:text-base font-extrabold font-mono text-slate-900 dark:text-white mt-0.5">
-                {summary.percentErrorVsTheory !== null
+                {summary.percentErrorVsTheory !== undefined
                   ? `${summary.percentErrorVsTheory.toFixed(2)}%`
                   : 'Belum diisi'}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                {summary.percentErrorVsTheory !== null
+                {summary.percentErrorVsTheory !== undefined
                   ? '|x̄ - y_teori| / |y_teori| × 100%'
                   : 'Masukkan y_teori di atas'}
               </div>
