@@ -1,11 +1,24 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isOriginAllowed, parseAllowedOrigins } from '../../server';
-import { createLabServerState, generateSecureRoomPin } from '../state/labServerState';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import {
+  JSON_BODY_LIMITS,
+  isOriginAllowed,
+  parseAllowedOrigins,
+  selectJsonBodyLimit,
+} from '../../server';
+import {
+  createLabServerState,
+  generateSecureRoomPin,
+  hashRoomPin,
+  verifyRoomPinTimingSafe,
+} from '../state/labServerState';
 import { applyCustomMissionToRoom } from '../ws/collabSocketServer';
 import { verifyTeacherAuthorization } from '../../src/utils/submissionPersistence';
 
-describe('Backend Security Hardening & Bounded Memory State', () => {
+describe('Backend Security Hardening & SQLite Persistence', () => {
   it('enforces ALLOWED_ORIGINS whitelist strictly in production and permits localhost/LAN only in non-production', () => {
     const allowed = parseAllowedOrigins(
       'https://lab.sekolah.sch.id, https://ruanglabmu.id/',
@@ -24,7 +37,16 @@ describe('Backend Security Hardening & Bounded Memory State', () => {
     assert.equal(isOriginAllowed('https://evil.example.com', allowed, false), false);
   });
 
-  it('never falls back to hardcoded PIN 1234 in verifyTeacherAuthorization, LAB-ALPHA, or applyCustomMissionToRoom', () => {
+  it('enforces 1mb JSON payload limit by default and 20mb strictly on /api/ai/vision-diagnose', () => {
+    assert.equal(JSON_BODY_LIMITS.standard, '1mb');
+    assert.equal(JSON_BODY_LIMITS.visionUpload, '20mb');
+    assert.equal(selectJsonBodyLimit('/api/lab/state'), '1mb');
+    assert.equal(selectJsonBodyLimit('/api/submissions'), '1mb');
+    assert.equal(selectJsonBodyLimit('/api/ai/chat'), '1mb');
+    assert.equal(selectJsonBodyLimit('/api/ai/vision-diagnose'), '20mb');
+  });
+
+  it('never falls back to hardcoded PIN 1234 and verifies hashed/plain PINs via timingSafeEqual', () => {
     const authWithDefaultPin = verifyTeacherAuthorization({
       socketId: 'sock-spoof',
       claimedRole: 'Pengajar',
@@ -34,9 +56,25 @@ describe('Backend Security Hardening & Bounded Memory State', () => {
     assert.equal(authWithDefaultPin.authorized, false);
     assert.equal(authWithDefaultPin.effectiveRole, 'Praktikan');
 
+    const secretPin = generateSecureRoomPin();
+    const hashedPin = hashRoomPin(secretPin);
+    assert.ok(hashedPin.startsWith('sha256$'));
+    assert.equal(verifyRoomPinTimingSafe(secretPin, hashedPin), true);
+    assert.equal(verifyRoomPinTimingSafe('1234', hashedPin), false);
+    assert.equal(verifyRoomPinTimingSafe(secretPin, secretPin), true);
+
+    const authWithValidHash = verifyTeacherAuthorization({
+      socketId: 'sock-teacher',
+      claimedRole: 'Pengajar',
+      providedPin: secretPin,
+      roomPinHash: hashedPin,
+    });
+    assert.equal(authWithValidHash.authorized, true);
+    assert.equal(authWithValidHash.effectiveRole, 'Pengajar');
+
     const prevDemoPin = process.env.DEMO_ROOM_PIN;
     delete process.env.DEMO_ROOM_PIN;
-    const state = createLabServerState();
+    const state = createLabServerState({ dbPath: ':memory:' });
     try {
       const alphaRoom = state.activeLabRooms.get('LAB-ALPHA');
       assert.ok(alphaRoom);
@@ -51,11 +89,6 @@ describe('Backend Security Hardening & Bounded Memory State', () => {
       );
       assert.notEqual(adHocRoom.pin, '1234');
       assert.match(adHocRoom.pin, /^\d{6}$/);
-
-      const pinA = generateSecureRoomPin();
-      const pinB = generateSecureRoomPin();
-      assert.match(pinA, /^\d{6}$/);
-      assert.match(pinB, /^\d{6}$/);
     } finally {
       state.dispose();
       if (prevDemoPin !== undefined) {
@@ -64,8 +97,116 @@ describe('Backend Security Hardening & Bounded Memory State', () => {
     }
   });
 
+  it('persists CRUD state to SQLite disk file and restores across server restarts with TTL pruning', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ruanglabmu-sqlite-test-'));
+    const dbFile = path.join(tmpDir, 'ruanglabmu.db');
+
+    try {
+      const now = Date.now();
+      const state1 = createLabServerState({ dbPath: dbFile });
+      try {
+        state1.activeLabRooms.set('ROOM-SQLITE-1', {
+          roomId: 'ROOM-SQLITE-1',
+          pin: '784512',
+          domain: 'physics',
+          moduleId: 'newton-incline',
+          teacherName: 'Pak Budi',
+          isFrozenByTeacher: true,
+          createdAt: now,
+          lastActivityAt: now,
+          clients: {},
+        });
+
+        state1.sessionSnapshots.set('snap-sqlite-1', {
+          version: 7,
+          session: { domain: 'physics', mass: 6.5 },
+          updatedAt: now,
+        });
+
+        state1.parameterLocks.set('ROOM-SQLITE-1:mass', {
+          groupId: 'Kelompok 1',
+          domain: 'fisika',
+          paramKey: 'mass',
+          lockedByUserId: 'stu-10',
+          lockedByName: 'Raka',
+          expiresAt: now + 60_000,
+        });
+
+        state1.parameterLocks.set('ROOM-SQLITE-1:expiredParam', {
+          groupId: 'Kelompok 1',
+          domain: 'fisika',
+          paramKey: 'expiredParam',
+          lockedByUserId: 'stu-11',
+          lockedByName: 'Sinta',
+          expiresAt: now - 5_000,
+        });
+
+        state1.experimentRecords.unshift({
+          id: 'EXP-SQLITE-99',
+          timestamp: '11:20:00',
+          studentName: 'Nadia Putri',
+          groupId: 'Kelompok 1',
+          domain: 'Fisika',
+          experimentTitle: 'Uji SQLite Persistence',
+          parametersSummary: 'm=6.5 kg',
+          keyMetrics: { Percepatan: '4.90 m/s²' },
+          notes: 'Tersimpan di SQLite.',
+        });
+
+        state1.notifications.unshift({
+          id: 'NOTIF-EXPIRED-1',
+          timestamp: '11:00:00',
+          severity: 'nominal',
+          domain: 'Fisika',
+          title: 'Expired Notif',
+          message: 'Should be pruned',
+          expiresAt: now - 10_000,
+        });
+
+        state1.persistServerState();
+      } finally {
+        state1.dispose();
+      }
+
+      // Re-open from the same SQLite database file
+      const state2 = createLabServerState({ dbPath: dbFile });
+      try {
+        await state2.hydrateServerState();
+        const restoredRoom = state2.activeLabRooms.get('ROOM-SQLITE-1') as
+          | { isFrozenByTeacher: boolean; teacherName?: string; pinHash?: string }
+          | undefined;
+        assert.ok(restoredRoom);
+        assert.equal(restoredRoom.isFrozenByTeacher, true);
+        assert.equal(restoredRoom.teacherName, 'Pak Budi');
+        assert.ok(restoredRoom.pinHash?.startsWith('sha256$'));
+
+        const restoredSnap = state2.sessionSnapshots.get('snap-sqlite-1');
+        assert.ok(restoredSnap);
+        assert.equal(restoredSnap.version, 7);
+
+        // Active lock is preserved, expired lock was pruned by SQLite TTL
+        assert.equal(state2.parameterLocks.has('ROOM-SQLITE-1:mass'), true);
+        assert.equal(state2.parameterLocks.has('ROOM-SQLITE-1:expiredParam'), false);
+
+        assert.equal(
+          state2.experimentRecords.some((r) => r.id === 'EXP-SQLITE-99'),
+          true
+        );
+        assert.equal(
+          state2.notifications.some((n) => n.id === 'NOTIF-EXPIRED-1'),
+          false
+        );
+      } finally {
+        state2.dispose();
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('evicts idle rooms, expired session snapshots, and enforces collection capacity bounds', () => {
     const state = createLabServerState({
+      dbPath: ':memory:',
       maxActiveRooms: 3,
       roomIdleTtlMs: 1000,
       maxSessionSnapshots: 3,

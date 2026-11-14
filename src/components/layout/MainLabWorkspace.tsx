@@ -74,13 +74,13 @@ const TeacherDashboardView = React.lazy(() =>
 
 function LabLoadingSkeleton() {
   return (
-    <div className="w-full h-[540px] flex flex-col items-center justify-center bg-slate-900/60 rounded-2xl border border-slate-800 p-8 space-y-4">
+    <div className="w-full h-[540px] flex flex-col items-center justify-center bg-[var(--comfort-surface)] text-[var(--comfort-text)] rounded-2xl border border-[var(--comfort-border)] p-8 space-y-4">
       <div className="w-12 h-12 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 animate-spin">
         <Loader2 className="w-6 h-6" />
       </div>
       <div className="text-center space-y-1">
-        <div className="text-sm font-bold text-white">Memuat Lingkungan Laboratorium 3D...</div>
-        <div className="text-xs text-slate-400">Menyiapkan mesin sains & shader WebGL</div>
+        <div className="text-sm font-bold">Memuat Lingkungan Laboratorium 3D...</div>
+        <div className="text-xs opacity-75">Menyiapkan mesin sains & shader WebGL</div>
       </div>
     </div>
   );

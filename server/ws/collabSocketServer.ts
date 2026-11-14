@@ -7,7 +7,11 @@ import type {
   ServerExperimentRecord,
   ServerNotification,
 } from '../state/labServerState';
-import { applyCustomMissionToRoom, handleRoomSetCustomMission } from './customMissionHandlers';
+import {
+  applyCustomMissionToRoom,
+  handleRoomSetCustomMission,
+  handleTeacherFreezeToggle,
+} from './wsMissionHandler';
 import {
   handleMysteryBroadcast,
   handleMysterySubmit,
@@ -26,8 +30,7 @@ import {
   handleRoomJoin,
   handleRoomLeave,
   handleStudentTelemetrySync,
-  handleTeacherFreezeToggle,
-} from './roomHandlers';
+} from './wsRoomManager';
 import {
   handleCursor3DLeave,
   handleCursor3DMove,
@@ -36,18 +39,27 @@ import {
   handleParamValueSync,
   handleTeacherCameraSync,
   handleTeacherLaserRay,
-} from './spatialCameraHandlers';
-import { handleClientIdentify, type ClientIdentifyPayload } from './wsAuth';
+} from './wsSpatialSync';
+import {
+  handleClientIdentify,
+  validateWsMessageEnvelope,
+  type ClientIdentifyPayload,
+} from './wsAuth';
 import type { CollabSocketContext, ExtWebSocket, WsHandlerServices } from './wsTypes';
 
 export type { CollabSocketContext, ExtWebSocket } from './wsTypes';
-export { applyCustomMissionToRoom } from './customMissionHandlers';
+export { applyCustomMissionToRoom } from './wsMissionHandler';
 
 export function createCollabSocketServer(
   server: http.Server,
   state: LabServerState
 ): CollabSocketContext {
   const wss = new WebSocketServer({ server, path: '/ws-lab', maxPayload: 1024 * 1024 });
+  wss.on('error', (err: NodeJS.ErrnoException) => {
+    if (err?.code !== 'EADDRINUSE') {
+      console.error('[RuangLABmu WS Error]:', err);
+    }
+  });
 
   const broadcastAll = (payload: unknown) => {
     const raw = JSON.stringify(payload);
@@ -131,56 +143,54 @@ export function createCollabSocketServer(
 
     ws.on('message', (data) => {
       try {
-        const msg = JSON.parse(data.toString()) as {
-          type?: string;
-          payload?: Record<string, unknown>;
-        };
-        if (!msg || typeof msg.type !== 'string') return;
-        const payload = (msg.payload && typeof msg.payload === 'object' ? msg.payload : {}) as Record<
-          string,
-          unknown
-        >;
+        const parsed = JSON.parse(data.toString());
+        const envelope = validateWsMessageEnvelope(parsed);
+        if (!envelope) return;
+        const { type: msgType, payload } = envelope;
+        const hasPayload = Boolean(
+          parsed && typeof parsed === 'object' && 'payload' in parsed && parsed.payload
+        );
 
-        switch (msg.type) {
+        switch (msgType) {
           case 'client:identify':
-            if (msg.payload) {
+            if (hasPayload) {
               handleClientIdentify(ws, payload as ClientIdentifyPayload, state);
             }
             break;
           case 'ROOM_CREATE':
-            if (msg.payload) handleRoomCreate(ws, payload, services);
+            if (hasPayload) handleRoomCreate(ws, payload, services);
             break;
           case 'ROOM_JOIN':
-            if (msg.payload) handleRoomJoin(ws, payload, services);
+            if (hasPayload) handleRoomJoin(ws, payload, services);
             break;
           case 'ROOM_LEAVE':
             handleRoomLeave(ws, services);
             break;
           case 'TEACHER_FREEZE_TOGGLE':
-            if (msg.payload) handleTeacherFreezeToggle(ws, payload, services);
+            if (hasPayload) handleTeacherFreezeToggle(ws, payload, services);
             break;
           case 'TEACHER_LASER_RAY':
-            if (msg.payload) handleTeacherLaserRay(ws, payload, services);
+            if (hasPayload) handleTeacherLaserRay(ws, payload, services);
             break;
           case 'TEACHER_CAMERA_SYNC':
-            if (msg.payload) handleTeacherCameraSync(ws, payload, services);
+            if (hasPayload) handleTeacherCameraSync(ws, payload, services);
             break;
           case 'ROOM_SET_CUSTOM_MISSION':
-            if (msg.payload) handleRoomSetCustomMission(ws, payload, services);
+            if (hasPayload) handleRoomSetCustomMission(ws, payload, services);
             break;
           case 'STUDENT_TELEMETRY_SYNC':
-            if (msg.payload) handleStudentTelemetrySync(ws, payload, services);
+            if (hasPayload) handleStudentTelemetrySync(ws, payload, services);
             break;
           case 'CURSOR_3D_MOVE':
-            if (msg.payload) {
+            if (hasPayload) {
               handleCursor3DMove(ws, payload as unknown as SpatialCursorPayload, services);
             }
             break;
           case 'CURSOR_3D_LEAVE':
-            if (msg.payload) handleCursor3DLeave(ws, payload, services);
+            if (hasPayload) handleCursor3DLeave(ws, payload, services);
             break;
           case 'PARAM_LOCK_ACQUIRE':
-            if (msg.payload) {
+            if (hasPayload) {
               handleParamLockAcquire(
                 ws,
                 payload as unknown as ParameterLockPayload,
@@ -189,13 +199,13 @@ export function createCollabSocketServer(
             }
             break;
           case 'PARAM_LOCK_RELEASE':
-            if (msg.payload) handleParamLockRelease(ws, payload, services);
+            if (hasPayload) handleParamLockRelease(ws, payload, services);
             break;
           case 'PARAM_VALUE_SYNC':
-            if (msg.payload) handleParamValueSync(ws, payload, services);
+            if (hasPayload) handleParamValueSync(ws, payload, services);
             break;
           case 'record:create':
-            if (msg.payload) {
+            if (hasPayload) {
               handleRecordCreate(
                 payload as unknown as ServerExperimentRecord,
                 services
@@ -223,10 +233,10 @@ export function createCollabSocketServer(
             }
             break;
           case 'quiz:submit':
-            if (msg.payload) handleQuizSubmit(payload, services);
+            if (hasPayload) handleQuizSubmit(payload, services);
             break;
           case 'notification:push':
-            if (msg.payload) {
+            if (hasPayload) {
               handleNotificationPush(
                 payload as unknown as ServerNotification,
                 services
@@ -234,13 +244,13 @@ export function createCollabSocketServer(
             }
             break;
           case 'teacher:feedback':
-            if (msg.payload) handleTeacherFeedback(ws, payload, services);
+            if (hasPayload) handleTeacherFeedback(ws, payload, services);
             break;
           case 'mystery:broadcast':
-            if (msg.payload) handleMysteryBroadcast(ws, payload, services);
+            if (hasPayload) handleMysteryBroadcast(ws, payload, services);
             break;
           case 'mystery:submit':
-            if (msg.payload) handleMysterySubmit(payload, services);
+            if (hasPayload) handleMysterySubmit(payload, services);
             break;
           default:
             break;

@@ -75,4 +75,18 @@ jobs:
         run: npm run build
 
       - name: Run Playwright E2E Smoke Tests
+        env:
+          CI: 'true'
+          APP_URL: 'http://localhost:3000'
+          ALLOWED_ORIGINS: 'http://localhost:3000'
         run: npm run test:e2e
+
+      - name: Upload Playwright Report & Traces on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-e2e-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

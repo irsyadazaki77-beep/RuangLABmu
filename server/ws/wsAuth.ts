@@ -15,6 +15,20 @@ export interface ClientIdentifyPayload {
   teacherToken?: string;
 }
 
+export function validateWsMessageEnvelope(raw: unknown): {
+  type: string;
+  payload: Record<string, unknown>;
+} | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const msg = raw as { type?: unknown; payload?: unknown };
+  if (typeof msg.type !== 'string' || !msg.type.trim()) return null;
+  const payload =
+    msg.payload && typeof msg.payload === 'object' && !Array.isArray(msg.payload)
+      ? (msg.payload as Record<string, unknown>)
+      : {};
+  return { type: msg.type, payload };
+}
+
 export function handleClientIdentify(
   ws: ExtWebSocket,
   payload: ClientIdentifyPayload,
@@ -27,13 +41,16 @@ export function handleClientIdentify(
   if (typeof payload.roomId === 'string' && payload.roomId.trim()) {
     ws.roomId = payload.roomId.toUpperCase().trim();
   }
-  const activeRoom = ws.roomId ? state.activeLabRooms.get(ws.roomId) : undefined;
+  const activeRoom = ws.roomId
+    ? (state.activeLabRooms.get(ws.roomId) as (LabRoom & { pinHash?: string }) | undefined)
+    : undefined;
   const authCheck = verifyTeacherAuthorization({
     socketId: ws.socketId,
     claimedRole: payload.role,
     providedPin: payload.teacherPin || payload.pin,
     providedToken: payload.teacherToken,
     roomPin: activeRoom?.pin,
+    roomPinHash: activeRoom?.pinHash,
     roomTeacherSocketId: activeRoom?.teacherSocketId,
     isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
   });
@@ -50,7 +67,9 @@ export function authorizeTeacherAction(
   const targetRoomId = String(roomIdRaw || payload.roomId || ws.roomId || '')
     .toUpperCase()
     .trim();
-  const room = targetRoomId ? activeLabRooms.get(targetRoomId) : undefined;
+  const room = targetRoomId
+    ? (activeLabRooms.get(targetRoomId) as (LabRoom & { pinHash?: string }) | undefined)
+    : undefined;
 
   const providedPin =
     typeof payload.teacherPin === 'string'
@@ -67,6 +86,7 @@ export function authorizeTeacherAction(
     providedPin,
     providedToken,
     roomPin: room?.pin,
+    roomPinHash: room?.pinHash,
     roomTeacherSocketId: room?.teacherSocketId,
     isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
   });

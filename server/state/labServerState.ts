@@ -4,6 +4,21 @@ import {
   LabRoom,
   ParameterLockPayload,
 } from '../../src/utils/collabProtocol';
+import {
+  DEFAULT_NOTIFICATION_TTL_MS,
+  LabSqliteStore,
+  hashRoomPin,
+  resolveDefaultDbPath,
+  verifyRoomPinTimingSafe,
+} from './sqliteAdapter';
+
+export {
+  DEFAULT_NOTIFICATION_TTL_MS,
+  LabSqliteStore,
+  hashRoomPin,
+  resolveDefaultDbPath,
+  verifyRoomPinTimingSafe,
+};
 
 export const SERVER_STATE_LIMITS = {
   MAX_ACTIVE_ROOMS: 200,
@@ -16,6 +31,7 @@ export const SERVER_STATE_LIMITS = {
   MAX_COLLAB_NOTES: 300,
   MAX_STUDENT_ROSTER: 300,
   MAX_NOTIFICATIONS: 100,
+  NOTIFICATION_TTL_MS: DEFAULT_NOTIFICATION_TTL_MS,
 } as const;
 
 export function generateSecureRoomPin(): string {
@@ -77,9 +93,53 @@ export interface ServerNotification {
   title: string;
   message: string;
   formulaHint?: string;
+  expiresAt?: number;
+}
+
+class SqliteBackedMap<K extends string, V> extends Map<K, V> {
+  private readonly onSet?: (key: K, value: V) => void;
+  private readonly onDelete?: (key: K) => void;
+  private suppressHooks = false;
+
+  constructor(hooks?: {
+    onSet?: (key: K, value: V) => void;
+    onDelete?: (key: K) => void;
+  }) {
+    super();
+    this.onSet = hooks?.onSet;
+    this.onDelete = hooks?.onDelete;
+  }
+
+  public setSilent(key: K, value: V): this {
+    this.suppressHooks = true;
+    try {
+      super.set(key, value);
+    } finally {
+      this.suppressHooks = false;
+    }
+    return this;
+  }
+
+  public override set(key: K, value: V): this {
+    super.set(key, value);
+    if (!this.suppressHooks && this.onSet) {
+      this.onSet(key, value);
+    }
+    return this;
+  }
+
+  public override delete(key: K): boolean {
+    const existed = super.delete(key);
+    if (existed && !this.suppressHooks && this.onDelete) {
+      this.onDelete(key);
+    }
+    return existed;
+  }
 }
 
 export interface LabServerState {
+  readonly dbPath: string;
+  readonly sqliteStore: LabSqliteStore;
   experimentRecords: ServerExperimentRecord[];
   groupTasks: GroupTask[];
   collabNotes: CollabNote[];
@@ -90,6 +150,7 @@ export interface LabServerState {
   sessionSnapshots: Map<string, { version: number; session: unknown; updatedAt: number }>;
   touchLabRoom: (roomId: string, now?: number) => void;
   pruneExpiredLocks: (now?: number) => void;
+  pruneExpiredNotifications: (now?: number) => void;
   pruneIdleRooms: (now?: number) => void;
   pruneSessionSnapshots: (now?: number) => void;
   enforceCollectionBounds: () => void;
@@ -99,6 +160,7 @@ export interface LabServerState {
 }
 
 export function createLabServerState(options?: {
+  dbPath?: string;
   maxActiveRooms?: number;
   roomIdleTtlMs?: number;
   maxSessionSnapshots?: number;
@@ -108,6 +170,7 @@ export function createLabServerState(options?: {
   maxNotes?: number;
   maxStudents?: number;
   maxNotifications?: number;
+  notificationTtlMs?: number;
   maxParameterLocks?: number;
 }): LabServerState {
   const limits = {
@@ -125,7 +188,12 @@ export function createLabServerState(options?: {
     MAX_STUDENT_ROSTER: options?.maxStudents ?? SERVER_STATE_LIMITS.MAX_STUDENT_ROSTER,
     MAX_NOTIFICATIONS:
       options?.maxNotifications ?? SERVER_STATE_LIMITS.MAX_NOTIFICATIONS,
+    NOTIFICATION_TTL_MS:
+      options?.notificationTtlMs ?? SERVER_STATE_LIMITS.NOTIFICATION_TTL_MS,
   };
+
+  const resolvedDbPath = options?.dbPath || resolveDefaultDbPath();
+  const sqliteStore = new LabSqliteStore(resolvedDbPath);
 
   const experimentRecords: ServerExperimentRecord[] = [
     {
@@ -306,12 +374,34 @@ export function createLabServerState(options?: {
     },
   ];
 
-  const parameterLocks = new Map<string, ParameterLockPayload>();
-  const activeLabRooms = new Map<string, LabRoom>();
-  const sessionSnapshots = new Map<
+  const parameterLocks = new SqliteBackedMap<string, ParameterLockPayload>({
+    onSet: (key, lock) => sqliteStore.upsertParameterLock(key, lock),
+    onDelete: (key) => sqliteStore.deleteParameterLock(key),
+  });
+
+  const activeLabRooms = new SqliteBackedMap<string, LabRoom>({
+    onSet: (_key, room) => sqliteStore.upsertRoom(room),
+    onDelete: (key) => sqliteStore.deleteRoom(key),
+  });
+
+  const sessionSnapshots = new SqliteBackedMap<
     string,
     { version: number; session: unknown; updatedAt: number }
-  >();
+  >({
+    onSet: (key, snap) => sqliteStore.upsertSessionSnapshot(key, snap),
+    onDelete: (key) => sqliteStore.deleteSessionSnapshot(key),
+  });
+
+  // Hydrate any pre-existing rooms, snapshots, and locks from SQLite immediately
+  for (const room of sqliteStore.loadAllRooms()) {
+    activeLabRooms.setSilent(room.roomId, room);
+  }
+  for (const snap of sqliteStore.loadAllSessionSnapshots()) {
+    sessionSnapshots.setSilent(snap.key, snap.value);
+  }
+  for (const lockEntry of sqliteStore.loadActiveParameterLocks()) {
+    parameterLocks.setSilent(lockEntry.key, lockEntry.lock);
+  }
 
   const demoRoomPin =
     process.env.NODE_ENV !== 'production' && process.env.DEMO_ROOM_PIN?.trim()
@@ -319,29 +409,42 @@ export function createLabServerState(options?: {
       : generateSecureRoomPin();
 
   const initialNow = Date.now();
-  activeLabRooms.set('LAB-ALPHA', {
-    roomId: 'LAB-ALPHA',
-    pin: demoRoomPin,
-    domain: 'physics',
-    moduleId: 'newton-incline',
-    teacherSocketId: undefined,
-    teacherName: 'Dr. Hendra Kusuma',
-    isFrozenByTeacher: false,
-    createdAt: initialNow,
-    lastActivityAt: initialNow,
-    clients: {},
-  });
+  if (!activeLabRooms.has('LAB-ALPHA')) {
+    activeLabRooms.set('LAB-ALPHA', {
+      roomId: 'LAB-ALPHA',
+      pin: demoRoomPin,
+      domain: 'physics',
+      moduleId: 'newton-incline',
+      teacherSocketId: undefined,
+      teacherName: 'Dr. Hendra Kusuma',
+      isFrozenByTeacher: false,
+      createdAt: initialNow,
+      lastActivityAt: initialNow,
+      clients: {},
+    });
+  } else if (process.env.NODE_ENV !== 'production' && process.env.DEMO_ROOM_PIN?.trim()) {
+    const existingAlpha = activeLabRooms.get('LAB-ALPHA')!;
+    existingAlpha.pin = process.env.DEMO_ROOM_PIN.trim();
+    activeLabRooms.set('LAB-ALPHA', existingAlpha);
+  } else {
+    const existingAlpha = activeLabRooms.get('LAB-ALPHA')!;
+    if (!existingAlpha.pin || existingAlpha.pin === '1234') {
+      existingAlpha.pin = generateSecureRoomPin();
+      activeLabRooms.set('LAB-ALPHA', existingAlpha);
+    }
+  }
 
   const touchLabRoom = (roomId: string, now = Date.now()) => {
     const existing = activeLabRooms.get(roomId);
     if (!existing) return;
     existing.lastActivityAt = now;
-    // Re-insert so Map iteration order tracks LRU recency
+    // Re-insert so Map iteration order tracks LRU recency and persists to SQLite
     activeLabRooms.delete(roomId);
     activeLabRooms.set(roomId, existing);
   };
 
   const pruneExpiredLocks = (now = Date.now()) => {
+    sqliteStore.pruneExpiredParameterLocks(now);
     for (const [key, lock] of parameterLocks.entries()) {
       if (now > lock.expiresAt) {
         parameterLocks.delete(key);
@@ -351,6 +454,16 @@ export function createLabServerState(options?: {
       const oldestKey = parameterLocks.keys().next().value;
       if (!oldestKey) break;
       parameterLocks.delete(oldestKey);
+    }
+  };
+
+  const pruneExpiredNotifications = (now = Date.now()) => {
+    sqliteStore.pruneExpiredNotifications(now);
+    for (let i = notifications.length - 1; i >= 0; i -= 1) {
+      const exp = notifications[i].expiresAt;
+      if (typeof exp === 'number' && now > exp) {
+        notifications.splice(i, 1);
+      }
     }
   };
 
@@ -365,7 +478,6 @@ export function createLabServerState(options?: {
     }
 
     if (activeLabRooms.size > limits.MAX_ACTIVE_ROOMS) {
-      // First evict least-recently-active empty rooms (excluding LAB-ALPHA)
       const sortedEntries = Array.from(activeLabRooms.entries()).sort((a, b) => {
         const aClients = Object.keys(a[1].clients || {}).length;
         const bClients = Object.keys(b[1].clients || {}).length;
@@ -401,6 +513,7 @@ export function createLabServerState(options?: {
   };
 
   const enforceCollectionBounds = () => {
+    pruneExpiredNotifications();
     if (experimentRecords.length > limits.MAX_EXPERIMENT_RECORDS) {
       experimentRecords.length = limits.MAX_EXPERIMENT_RECORDS;
     }
@@ -423,6 +536,14 @@ export function createLabServerState(options?: {
 
   const persistServerState = () => {
     enforceCollectionBounds();
+    sqliteStore.syncCollections({
+      records: experimentRecords,
+      tasks: groupTasks,
+      notes: collabNotes,
+      students: studentRoster,
+      notifications,
+      notificationTtlMs: limits.NOTIFICATION_TTL_MS,
+    });
     scheduleSaveState({
       records: experimentRecords,
       tasks: groupTasks,
@@ -433,6 +554,34 @@ export function createLabServerState(options?: {
   };
 
   const hydrateServerState = async () => {
+    const sqliteCollections = sqliteStore.loadCollections();
+    const hasSqliteData =
+      sqliteCollections.records.length > 0 ||
+      sqliteCollections.tasks.length > 0 ||
+      sqliteCollections.notes.length > 0 ||
+      sqliteCollections.students.length > 0 ||
+      sqliteCollections.notifications.length > 0;
+
+    if (hasSqliteData) {
+      if (sqliteCollections.records.length > 0) {
+        experimentRecords.splice(0, experimentRecords.length, ...sqliteCollections.records);
+      }
+      if (sqliteCollections.tasks.length > 0) {
+        groupTasks.splice(0, groupTasks.length, ...sqliteCollections.tasks);
+      }
+      if (sqliteCollections.notes.length > 0) {
+        collabNotes.splice(0, collabNotes.length, ...sqliteCollections.notes);
+      }
+      if (sqliteCollections.students.length > 0) {
+        studentRoster.splice(0, studentRoster.length, ...sqliteCollections.students);
+      }
+      if (sqliteCollections.notifications.length > 0) {
+        notifications.splice(0, notifications.length, ...sqliteCollections.notifications);
+      }
+      enforceCollectionBounds();
+      return;
+    }
+
     const loadedState = await loadPersistedState({
       records: experimentRecords,
       tasks: groupTasks,
@@ -440,52 +589,62 @@ export function createLabServerState(options?: {
       students: studentRoster,
       notifications,
     });
-    if (!loadedState) return;
+    if (loadedState) {
+      if (Array.isArray(loadedState.records) && loadedState.records.length > 0) {
+        experimentRecords.splice(
+          0,
+          experimentRecords.length,
+          ...(loadedState.records as ServerExperimentRecord[])
+        );
+      }
+      if (Array.isArray(loadedState.tasks) && loadedState.tasks.length > 0) {
+        groupTasks.splice(
+          0,
+          groupTasks.length,
+          ...(loadedState.tasks as GroupTask[])
+        );
+      }
+      if (Array.isArray(loadedState.notes) && loadedState.notes.length > 0) {
+        collabNotes.splice(
+          0,
+          collabNotes.length,
+          ...(loadedState.notes as CollabNote[])
+        );
+      }
+      if (Array.isArray(loadedState.students) && loadedState.students.length > 0) {
+        studentRoster.splice(
+          0,
+          studentRoster.length,
+          ...(loadedState.students as StudentProgress[])
+        );
+      }
+      if (
+        Array.isArray(loadedState.notifications) &&
+        loadedState.notifications.length > 0
+      ) {
+        notifications.splice(
+          0,
+          notifications.length,
+          ...(loadedState.notifications as ServerNotification[])
+        );
+      }
+    }
 
-    if (Array.isArray(loadedState.records) && loadedState.records.length > 0) {
-      experimentRecords.splice(
-        0,
-        experimentRecords.length,
-        ...(loadedState.records as ServerExperimentRecord[])
-      );
-    }
-    if (Array.isArray(loadedState.tasks) && loadedState.tasks.length > 0) {
-      groupTasks.splice(
-        0,
-        groupTasks.length,
-        ...(loadedState.tasks as GroupTask[])
-      );
-    }
-    if (Array.isArray(loadedState.notes) && loadedState.notes.length > 0) {
-      collabNotes.splice(
-        0,
-        collabNotes.length,
-        ...(loadedState.notes as CollabNote[])
-      );
-    }
-    if (Array.isArray(loadedState.students) && loadedState.students.length > 0) {
-      studentRoster.splice(
-        0,
-        studentRoster.length,
-        ...(loadedState.students as StudentProgress[])
-      );
-    }
-    if (
-      Array.isArray(loadedState.notifications) &&
-      loadedState.notifications.length > 0
-    ) {
-      notifications.splice(
-        0,
-        notifications.length,
-        ...(loadedState.notifications as ServerNotification[])
-      );
-    }
     enforceCollectionBounds();
+    sqliteStore.syncCollections({
+      records: experimentRecords,
+      tasks: groupTasks,
+      notes: collabNotes,
+      students: studentRoster,
+      notifications,
+      notificationTtlMs: limits.NOTIFICATION_TTL_MS,
+    });
   };
 
   const maintenanceTimer = setInterval(() => {
     const now = Date.now();
     pruneExpiredLocks(now);
+    pruneExpiredNotifications(now);
     pruneIdleRooms(now);
     pruneSessionSnapshots(now);
   }, 5 * 60 * 1000);
@@ -493,9 +652,12 @@ export function createLabServerState(options?: {
 
   const dispose = () => {
     clearInterval(maintenanceTimer);
+    sqliteStore.close();
   };
 
   return {
+    dbPath: resolvedDbPath,
+    sqliteStore,
     experimentRecords,
     groupTasks,
     collabNotes,
@@ -506,6 +668,7 @@ export function createLabServerState(options?: {
     sessionSnapshots,
     touchLabRoom,
     pruneExpiredLocks,
+    pruneExpiredNotifications,
     pruneIdleRooms,
     pruneSessionSnapshots,
     enforceCollectionBounds,

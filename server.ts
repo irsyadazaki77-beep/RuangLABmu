@@ -71,6 +71,19 @@ export function isOriginAllowed(
   return false;
 }
 
+export const JSON_BODY_LIMITS = {
+  standard: '1mb',
+  visionUpload: '20mb',
+} as const;
+
+export function selectJsonBodyLimit(requestPath: string): '1mb' | '20mb' {
+  const cleanPath = String(requestPath || '').trim();
+  if (cleanPath === '/api/ai/vision-diagnose') {
+    return JSON_BODY_LIMITS.visionUpload;
+  }
+  return JSON_BODY_LIMITS.standard;
+}
+
 function resolveDistDirectory(): string {
   const candidates = [
     path.join(path.dirname(process.execPath), 'dist'),
@@ -131,10 +144,21 @@ async function printStartupDiagnostics(activePort: number) {
   }
 }
 
+function resolvePreferredPort(): number {
+  const portArgIndex = process.argv.indexOf('--port');
+  if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+    const cliPort = Number(process.argv[portArgIndex + 1]);
+    if (Number.isFinite(cliPort) && cliPort > 0) {
+      return cliPort;
+    }
+  }
+  return Number(process.env.PORT) || 3000;
+}
+
 async function startServer() {
   const app = express();
   app.set('trust proxy', resolveTrustProxySetting());
-  const preferredPort = Number(process.env.PORT) || 3000;
+  const preferredPort = resolvePreferredPort();
   let activePort = preferredPort;
   const isProduction = process.env.NODE_ENV === 'production';
   const allowedOrigins = parseAllowedOrigins(
@@ -245,17 +269,17 @@ async function startServer() {
   app.use('/api/generate-mission', aiRoutesLimiter);
   app.use('/api/dr-labmu', aiRoutesLimiter);
 
-  // Safe default 1MB body limit; permit 15MB strictly on image vision diagnostic upload endpoint
-  const standardJsonParser = express.json({ limit: '1mb' });
-  const largeVisionJsonParser = express.json({ limit: '15mb' });
+  // Safe default 1MB body limit; permit 20MB strictly on AI/Vision or image upload endpoints
+  const standardJsonParser = express.json({ limit: JSON_BODY_LIMITS.standard });
+  const largeVisionJsonParser = express.json({ limit: JSON_BODY_LIMITS.visionUpload });
   app.use((req, res, next) => {
-    if (req.path === '/api/ai/vision-diagnose') {
+    if (selectJsonBodyLimit(req.path) === JSON_BODY_LIMITS.visionUpload) {
       largeVisionJsonParser(req, res, next);
       return;
     }
     standardJsonParser(req, res, next);
   });
-  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMITS.standard }));
 
   const state = createLabServerState();
   await state.hydrateServerState();
@@ -298,10 +322,12 @@ async function startServer() {
   }
 }
 
-const isDirectEntry =
-  process.argv[1] &&
-  (process.argv[1].endsWith('server.ts') || process.argv[1].endsWith('server.cjs'));
+const isTestRunner =
+  process.execArgv.includes('--test') ||
+  Boolean(process.env.NODE_TEST_CONTEXT) ||
+  Boolean(process.argv[1] && /\.test\.[cm]?[jt]sx?$/.test(process.argv[1]));
 
-if (isDirectEntry) {
+if (!isTestRunner) {
   startServer();
 }
+

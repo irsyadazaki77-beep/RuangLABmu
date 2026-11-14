@@ -9,6 +9,7 @@ import { saveLastOpenedModuleId } from '../services/gamificationEngine';
 import { useLabParamsSync } from './useLabParamsSync';
 import { useLabCollabBridge } from './useLabCollabBridge';
 import { useLabTelemetryAndXP } from './useLabTelemetryAndXP';
+import { useLabAutoSave } from './useLabAutoSave';
 
 export function useLabSession() {
   const {
@@ -84,6 +85,19 @@ export function useLabSession() {
     pushNotification: collabBridge.pushNotification,
     syncStudentTelemetry: collabBridge.syncStudentTelemetry,
     backendSubmitQuizScore: collabBridge.submitQuizScore,
+  });
+
+  const autoSave = useLabAutoSave({
+    studentId: currentProfile.name,
+    activeModuleId,
+    activeWorkflowStep: workflowStep,
+    recordedTrials: collabBridge.records,
+    lksAnswers: {},
+    safetyPledgeAgreed: workflowStep > 1,
+    physicsParams: paramsSync.physicsParams,
+    chemistryParams: paramsSync.chemistryParams,
+    astronomyParams: paramsSync.astronomyParams,
+    isLobbyMode,
   });
 
   const handleSelectCatalogModule = useCallback(
@@ -174,5 +188,6 @@ export function useLabSession() {
     toggleTeacherFreeze: collabBridge.toggleTeacherFreeze,
     syncStudentTelemetry: collabBridge.syncStudentTelemetry,
     ws: collabBridge.ws,
+    autoSave,
   };
 }

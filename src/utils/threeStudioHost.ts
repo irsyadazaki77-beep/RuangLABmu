@@ -106,37 +106,82 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.domElement.style.touchAction = 'none';
 
+  container.innerHTML = '';
+  container.appendChild(renderer.domElement);
+
+  // Non-intrusive HUD badge for Adaptive 3T Quality Tier & WebGL Context Recovery
+  const hudStatusBadge =
+    typeof document !== 'undefined' ? document.createElement('div') : null;
+  if (hudStatusBadge) {
+    hudStatusBadge.setAttribute('data-testid', 'hud-performance-tier-badge');
+    hudStatusBadge.style.cssText =
+      'position:absolute;bottom:10px;left:10px;z-index:12;pointer-events:none;padding:3px 8px;border-radius:8px;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:700;background:rgba(15,23,42,0.82);border:1px solid rgba(56,189,248,0.35);color:#bae6fd;display:none;align-items:center;gap:6px;backdrop-filter:blur(4px);';
+    container.appendChild(hudStatusBadge);
+  }
+
+  const syncHudBadge = (isLite: boolean, contextLost = false, measuredFps?: number) => {
+    if (!hudStatusBadge) return;
+    if (contextLost) {
+      hudStatusBadge.style.display = 'inline-flex';
+      hudStatusBadge.style.borderColor = 'rgba(245,158,11,0.65)';
+      hudStatusBadge.style.color = '#fde68a';
+      hudStatusBadge.textContent = '⚡ Memulihkan Konteks WebGL 3D...';
+      return;
+    }
+    if (isLite) {
+      hudStatusBadge.style.display = 'inline-flex';
+      hudStatusBadge.style.borderColor = 'rgba(56,189,248,0.35)';
+      hudStatusBadge.style.color = '#bae6fd';
+      const fpsTag =
+        typeof measuredFps === 'number' && Number.isFinite(measuredFps)
+          ? ` (${Math.round(measuredFps)} FPS)`
+          : '';
+      hudStatusBadge.textContent = `Mode 3T Adaptif • 1x PixelRatio • Shadow Nonaktif${fpsTag}`;
+    } else {
+      hudStatusBadge.style.display = 'none';
+      hudStatusBadge.textContent = '';
+    }
+  };
+
+  const initialLite = useUIStore.getState().liteDeviceMode;
+  configureRendererForLiteMode(renderer, initialLite, isSoftwareGl);
+  syncHudBadge(initialLite, false);
+
   const handleWebGLContextLost = (event: Event) => {
     event.preventDefault();
+    syncHudBadge(useUIStore.getState().liteDeviceMode, true);
   };
   const handleWebGLContextRestored = () => {
+    configureRendererForLiteMode(
+      renderer,
+      useUIStore.getState().liteDeviceMode,
+      isSoftwareGl
+    );
+    syncHudBadge(useUIStore.getState().liteDeviceMode, false);
     options.onContextRestored?.();
   };
   renderer.domElement.addEventListener('webglcontextlost', handleWebGLContextLost, false);
   renderer.domElement.addEventListener('webglcontextrestored', handleWebGLContextRestored, false);
 
-  container.innerHTML = '';
-  container.appendChild(renderer.domElement);
-
-  const initialLite = useUIStore.getState().liteDeviceMode;
-  configureRendererForLiteMode(renderer, initialLite, isSoftwareGl);
-
   const fpsMonitor = createAdaptiveFpsMonitor(
-    () => {
+    (avgFps) => {
+      configureRendererForLiteMode(renderer, true, isSoftwareGl);
+      syncHudBadge(true, false, avgFps);
       if (!useUIStore.getState().liteDeviceMode) {
         useUIStore.getState().setLiteDeviceMode(true);
         useUIStore.getState().setLiteModeNotification(
-          'Mode Hemat Daya diaktifkan otomatis agar simulasi tetap lancar di perangkatmu.'
+          `Mode Hemat Daya 3T diaktifkan otomatis (${Math.round(avgFps)} FPS < 30 FPS) agar simulasi tetap lancar di perangkatmu.`
         );
       }
     },
-    options.lowFpsThreshold ?? 25,
-    options.lowFpsWindowMs ?? 3000
+    options.lowFpsThreshold ?? 30,
+    options.lowFpsWindowMs ?? 2000
   );
 
   const unsubLite = useUIStore.subscribe((state, prev) => {
     if (state.liteDeviceMode !== prev.liteDeviceMode) {
       configureRendererForLiteMode(renderer, state.liteDeviceMode, isSoftwareGl);
+      syncHudBadge(state.liteDeviceMode, false);
       if (!state.liteDeviceMode) {
         fpsMonitor.resetMonitor();
       }

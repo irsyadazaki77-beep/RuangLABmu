@@ -1282,10 +1282,15 @@ if (isWorkerScope) {
 
   const startLoop = () => {
     if (context.isPlaying || loopTimerId !== null) return;
-    context.isPlaying = true;
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    expectedNextTickMs = now + FIXED_DT * 1000;
-    scheduleNextTick();
+    try {
+      context.isPlaying = true;
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      expectedNextTickMs = now + FIXED_DT * 1000;
+      scheduleNextTick();
+    } catch (err) {
+      stopLoop();
+      postSimulationError(err);
+    }
   };
 
   self.onmessage = (e: MessageEvent<WorkerInboundMessage>) => {

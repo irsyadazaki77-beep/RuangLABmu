@@ -29,11 +29,40 @@ const CommandPaletteModal = React.lazy(() =>
 const LabOnboardingTour = React.lazy(() =>
   import('./components/ui/LabOnboardingTour').then((m) => ({ default: m.LabOnboardingTour }))
 );
+export const PhysicsLabView = React.lazy(() =>
+  import('./components/PhysicsLabView').then((m) => ({ default: m.PhysicsLabView }))
+);
+export const ChemistryLabView = React.lazy(() =>
+  import('./components/ChemistryLabView').then((m) => ({ default: m.ChemistryLabView }))
+);
+export const BiologyLabView = React.lazy(() =>
+  import('./components/BiologyLabView').then((m) => ({ default: m.BiologyLabView }))
+);
+export const AstronomyLabView = React.lazy(() =>
+  import('./components/AstronomyLabView').then((m) => ({ default: m.AstronomyLabView }))
+);
+export const TeacherDashboardView = React.lazy(() =>
+  import('./components/TeacherDashboardView').then((m) => ({ default: m.TeacherDashboardView }))
+);
 import { buildSubmissionTelemetryTimeline } from './utils/telemetryRecorder';
 import {
   computeRecordsRegressionSummary,
   parseReplayParameters,
 } from './utils/labTelemetryHelpers';
+
+function AppLabThemeSkeleton() {
+  return (
+    <div className="flex-1 min-h-0 flex flex-col items-center justify-center bg-[var(--comfort-bg)] text-[var(--comfort-text)] p-8">
+      <div className="w-full max-w-md rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-6 text-center space-y-3 shadow-lg">
+        <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 mx-auto animate-spin">
+          <RefreshCw className="w-5 h-5" />
+        </div>
+        <div className="text-sm font-bold">Memuat Modul Laboratorium 3D...</div>
+        <div className="text-xs opacity-75">Menyiapkan mesin simulasi & kanvas WebGL sesuai tema</div>
+      </div>
+    </div>
+  );
+}
 
 interface ExamSubmissionBannerState {
   status: 'idle' | 'pending_retry' | 'retrying' | 'synced';
@@ -367,7 +396,8 @@ export default function App() {
         onLockSubmission={() => setSubmissionLocked(true)}
         onAutoSubmitExam={handleAutoSubmitExam}
       >
-        <MainLabWorkspace
+        <Suspense fallback={<AppLabThemeSkeleton />}>
+          <MainLabWorkspace
           experimentModule={currentExperimentModule}
           activeScienceDomain={activeScienceDomain}
           currentProfile={currentProfile}
@@ -479,6 +509,7 @@ export default function App() {
           onLeaveRoom={leaveRoom}
           onToggleTeacherFreeze={toggleTeacherFreeze}
         />
+        </Suspense>
       </ExamSessionController>
 
       {/* 3. Global Modal Portal Terpusat, Onboarding Tour & Command Palette */}

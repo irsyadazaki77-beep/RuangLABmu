@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build:client": "vite build",
-    "build:server": "esbuild server.ts --bundle --platform=node --target=node22 --outfile=dist-server/server.cjs --external:express --external:ws",
+    "build:server": "esbuild server.ts --bundle --platform=node --target=node22 --outfile=dist-server/server.cjs --external:express --external:ws --external:bun:sqlite --external:node:sqlite",
     "build": "npm run build:client && npm run build:server",
     "build:portable": "tsx scripts/build-portable.ts",
     "start": "node -e \"process.env.NODE_ENV='production'; require('./dist-server/server.cjs')\"",

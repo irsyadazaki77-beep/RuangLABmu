@@ -879,36 +879,33 @@ export interface AdaptiveFpsMonitor {
 }
 
 /**
- * Creates an adaptive FPS monitor to detect underperforming GPU hardware (e.g. low-end devices in 3T areas).
- * If average FPS during the initial sample period drops below targetFps, triggers onLowFpsTrigger.
+ * Creates a rolling-window adaptive FPS monitor to detect underperforming GPU hardware (e.g. low-end devices in 3T areas).
+ * If rolling average FPS over sampleDurationMs (>2000ms default) drops below targetFps (30 fps default), triggers onLowFpsTrigger.
  * Ignores tab backgrounding and long frame deltas (> 250ms) to avoid false-positives.
  */
 export function createAdaptiveFpsMonitor(
   onLowFpsTrigger: (avgFps: number) => void,
-  targetFps = 25,
-  sampleDurationMs = 3000
+  targetFps = 30,
+  sampleDurationMs = 2000
 ): AdaptiveFpsMonitor {
-  let startTime = 0;
+  let frameTimestamps: number[] = [];
   let lastFrameTime = 0;
-  let frameCount = 0;
+  let rollingAvgFps = 60;
   let triggered = false;
 
   const reset = () => {
-    startTime = 0;
+    frameTimestamps = [];
     lastFrameTime = 0;
-    frameCount = 0;
+    rollingAvgFps = 60;
     triggered = false;
   };
 
   return {
     recordFrame: (nowMs?: number) => {
-      if (triggered) return;
-
       // 1. Ignore frame sample if document is hidden (tab switch or browser minimize)
       if (typeof document !== 'undefined' && document.hidden) {
-        startTime = 0;
+        frameTimestamps = [];
         lastFrameTime = 0;
-        frameCount = 0;
         return;
       }
 
@@ -923,37 +920,39 @@ export function createAdaptiveFpsMonitor(
       if (lastFrameTime > 0) {
         const deltaMs = now - lastFrameTime;
         if (deltaMs > 250) {
-          startTime = 0;
+          frameTimestamps = [now];
           lastFrameTime = now;
-          frameCount = 0;
           return;
         }
       }
 
       lastFrameTime = now;
+      frameTimestamps.push(now);
 
-      if (startTime === 0) {
-        startTime = now;
-        frameCount = 1;
-        return;
+      // Keep rolling window of timestamps spanning at least sampleDurationMs
+      const maxWindowSpan = Math.max(sampleDurationMs, 250);
+      while (frameTimestamps.length > 2 && now - frameTimestamps[1] >= maxWindowSpan) {
+        frameTimestamps.shift();
       }
-      frameCount += 1;
-      const elapsed = now - startTime;
-      if (elapsed >= sampleDurationMs) {
-        const avgFps = (frameCount * 1000) / elapsed;
-        if (avgFps < targetFps) {
-          triggered = true;
-          onLowFpsTrigger(avgFps);
+
+      if (frameTimestamps.length >= 2) {
+        const elapsed = now - frameTimestamps[0];
+        if (elapsed > 0) {
+          rollingAvgFps = ((frameTimestamps.length - 1) * 1000) / elapsed;
+        }
+        if (!triggered && elapsed >= sampleDurationMs) {
+          const windowAvgFps = ((frameTimestamps.length - 1) * 1000) / elapsed;
+          rollingAvgFps = windowAvgFps;
+          if (windowAvgFps < targetFps) {
+            triggered = true;
+            onLowFpsTrigger(windowAvgFps);
+          }
         }
       }
     },
     reset,
     resetMonitor: reset,
-    getAverageFps: () => {
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      const elapsed = startTime > 0 ? now - startTime : 0;
-      return elapsed > 0 ? (frameCount * 1000) / elapsed : 60;
-    },
+    getAverageFps: () => rollingAvgFps,
     isTriggered: () => triggered,
   };
 }
