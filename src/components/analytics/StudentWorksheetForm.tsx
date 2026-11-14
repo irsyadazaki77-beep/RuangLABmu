@@ -21,6 +21,7 @@ import {
 } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
 import { HypothesisNote } from '../ui/HypothesisAndCompareDock';
+import { useShallow } from 'zustand/react/shallow';
 import { useLabStore } from '../../stores/useLabStore';
 import { useCollabStore } from '../../stores/useCollabStore';
 import { computeRecordsRegressionSummary } from '../../utils/labTelemetryHelpers';
@@ -66,8 +67,13 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   domain = 'Fisika',
 }) => {
   const { t } = useTranslation();
-  const { isSubmissionLocked, setSubmissionLocked } = useLabStore();
-  const { activeCustomMission } = useCollabStore();
+  const { isSubmissionLocked, setSubmissionLocked } = useLabStore(
+    useShallow((s) => ({
+      isSubmissionLocked: s.isSubmissionLocked,
+      setSubmissionLocked: s.setSubmissionLocked,
+    }))
+  );
+  const activeCustomMission = useCollabStore((s) => s.activeCustomMission);
   const [customMissionAnswers, setCustomMissionAnswers] = useState<Record<string, string>>({});
 
   const [answers, setAnswers] = useState<Record<string, string>>({

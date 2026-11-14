@@ -20,6 +20,7 @@ import {
   X,
   Layers,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useLabStore } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { EXPERIMENT_CATALOG, ExperimentModule } from '../../registry/experimentRegistry';
@@ -58,14 +59,31 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     setIsLobbyMode,
     setActiveDomain,
     setActiveModule,
-  } = useLabStore();
+  } = useLabStore(
+    useShallow((s) => ({
+      isSimulating: s.isSimulating,
+      toggleSimulation: s.toggleSimulation,
+      triggerCaptureSnapshot: s.triggerCaptureSnapshot,
+      setWorkflowStep: s.setWorkflowStep,
+      setIsLobbyMode: s.setIsLobbyMode,
+      setActiveDomain: s.setActiveDomain,
+      setActiveModule: s.setActiveModule,
+    }))
+  );
 
   const {
     setDrawerTab,
     toggleZenMode,
     setComfortPrefs,
     openModal,
-  } = useUIStore();
+  } = useUIStore(
+    useShallow((s) => ({
+      setDrawerTab: s.setDrawerTab,
+      toggleZenMode: s.toggleZenMode,
+      setComfortPrefs: s.setComfortPrefs,
+      openModal: s.openModal,
+    }))
+  );
 
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalOpen;
 

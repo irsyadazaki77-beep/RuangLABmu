@@ -8,6 +8,7 @@ import {
   validateCreateSubmissionPayload,
   validateGradeSubmissionPayload,
 } from '../utils/routePayloadValidators';
+import { rateLimitKeyGenerator } from '../utils/rateLimitKey';
 
 export interface LabSubmissionRecord {
   id: string;
@@ -57,6 +58,7 @@ export async function createSubmissionRouter({
     max: 30,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: rateLimitKeyGenerator,
     message: {
       error:
         'Terlalu banyak pengiriman laporan dalam 1 menit (maksimal 30 permintaan/menit).',

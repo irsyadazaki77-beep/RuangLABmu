@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
@@ -17,7 +17,11 @@ import {
   type CameraSyncPose,
 } from '../utils/threeStudioKit';
 import { createDigitalProbe3D } from '../utils/threeMeasurementTools';
-import { initThreeStudioHost } from '../utils/threeStudioHost';
+import {
+  createStudioThreePointLighting,
+  initThreeStudioHost,
+  startStudioRenderLoop,
+} from '../utils/threeStudioHost';
 import {
   ChemistryParams,
   ChemistryMetrics,
@@ -39,13 +43,13 @@ import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
 import {
-  ConceptLabelDomRef,
   ConceptLabelToggleButton,
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from './ui/ConceptLabelsOverlay';
 import { buildChemistrySpecialRigs } from './scenes/ChemistryRigs';
 import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
+import { useThreeStudioScene } from './scenes/useThreeStudioScene';
 
 interface ChemistryScene3DProps {
   params: ChemistryParams;
@@ -71,6 +75,7 @@ interface ChemistryScene3DProps {
 }
 
 type CameraPreset = 'isometric' | 'front' | 'top' | 'closeup';
+const CHEM_ORDERED_PRESETS: readonly CameraPreset[] = ['isometric', 'front', 'top', 'closeup'];
 
 function createLiquidWobbleMaterial(initialHex: number, initialOpacity = 0.78): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -158,31 +163,42 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   cameraSyncPose,
   onCameraSyncChange,
 }) => {
-  const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
-  const showConceptLabels = useUIStore((s) => s.showConceptLabels);
-  const showConceptLabelsRef = useRef(showConceptLabels);
-  showConceptLabelsRef.current = showConceptLabels;
+  const {
+    activeComfortTheme,
+    themeColors,
+    showConceptLabels,
+    showConceptLabelsRef,
+    mountRef,
+    containerRef,
+    conceptDomRef,
+    bindConceptSlot,
+    isFullscreen,
+    handleToggleFullscreen,
+    activePreset,
+    handleSelectCameraPreset,
+    dragToast,
+    setDragToast,
+    hoveredPartLabel,
+    setHoveredPartLabel,
+    sceneKey,
+    triggerSceneRebuild,
+    cameraCtrlRef,
+    cameraSyncHandleRef,
+    onCameraSyncChangeRef,
+  } = useThreeStudioScene<CameraPreset>({
+    domain: 'Kimia',
+    orderedPresets: CHEM_ORDERED_PRESETS,
+    defaultPreset: 'isometric',
+    comfortTheme,
+    cameraSyncPose,
+    onCameraSyncChange,
+    onCaptureSnapshot,
+  });
 
-  const activeComfortTheme = comfortTheme ?? storeComfortTheme;
-  const themeColors = getSceneThemeColors(activeComfortTheme, 'Kimia');
-
-  const mountRef = useRef<HTMLDivElement | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const conceptDomRef = useRef<Record<string, ConceptLabelDomRef>>({});
-  const bindConceptSlot = useCallback((id: string, dom: ConceptLabelDomRef | null) => {
-    if (dom) conceptDomRef.current[id] = dom;
-    else delete conceptDomRef.current[id];
-  }, []);
-
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
-  const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
-  const [hoveredPartLabel, setHoveredPartLabel] = useState<string | null>(null);
   const [showProbe3D, setShowProbe3D] = useState<boolean>(false);
   const showProbe3DRef = useRef<boolean>(false);
   showProbe3DRef.current = showProbe3D;
   const [probeHudText, setProbeHudText] = useState<{ text: string; color: string } | null>(null);
-  const [sceneKey, setSceneKey] = useState<number>(0);
 
   const latestRef = useRef({
     params,
@@ -213,38 +229,6 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     onCaptureSnapshot,
   };
 
-  const cameraCtrlRef = useRef<{
-    setPreset: (preset: CameraPreset) => void;
-    setOrbit: (orbit: boolean) => void;
-    captureCanvas: () => string | null;
-    applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
-  } | null>(null);
-
-  const onCameraSyncChangeRef = useRef(onCameraSyncChange);
-  onCameraSyncChangeRef.current = onCameraSyncChange;
-  const lastAppliedCamSeqRef = useRef<number>(-1);
-  const cameraSyncHandleRef = useRef<{ applyPose: (pose: CameraSyncPose) => void } | null>(null);
-
-  useEffect(() => {
-    if (!cameraSyncPose || cameraSyncPose.seq === lastAppliedCamSeqRef.current) return;
-    lastAppliedCamSeqRef.current = cameraSyncPose.seq;
-    cameraSyncHandleRef.current?.applyPose(cameraSyncPose);
-  }, [cameraSyncPose]);
-
-  useEffect(() => {
-    cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Kimia'));
-  }, [activeComfortTheme]);
-
-  useEffect(() => {
-    const handleGlobalSnapshot = () => {
-      if (latestRef.current.onCaptureSnapshot && cameraCtrlRef.current) {
-        const url = cameraCtrlRef.current.captureCanvas();
-        if (url) latestRef.current.onCaptureSnapshot(url);
-      }
-    };
-    return subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, handleGlobalSnapshot);
-  }, []);
-
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
@@ -272,7 +256,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         maxDistance: 30,
         autoRotateSpeed: 1.4,
       },
-      onContextRestored: () => setSceneKey((prev) => prev + 1),
+      onContextRestored: triggerSceneRebuild,
       onUserControlsStart: () => {
         camTransitionActive = false;
       },
@@ -281,7 +265,6 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     if (!host) return;
 
     const { scene, camera, renderer, controls, fpsMonitor, isSoftwareGl } = host;
-    const gl = renderer.getContext() as WebGL2RenderingContext;
 
     const desiredCamPos = new THREE.Vector3(4.2, 5.8, 10.5);
     const desiredTarget = new THREE.Vector3(0, 1.4, 0);
@@ -319,33 +302,15 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       }
     });
 
-    // Lighting with Soft Contact Shadows (2048x2048, bias -0.0001)
-    const hemiLight = new THREE.HemisphereLight(
-      initialColors.ambientSkyHex,
-      initialColors.ambientGroundHex,
-      0.45
-    );
-    scene.add(hemiLight);
-
-    const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
-    keyLight.position.set(6, 12, 8);
-    keyLight.castShadow = true;
-    keyLight.shadow.mapSize.width = 2048;
-    keyLight.shadow.mapSize.height = 2048;
-    keyLight.shadow.camera.near = 0.5;
-    keyLight.shadow.camera.far = 35;
-    const shadowD = 8;
-    keyLight.shadow.camera.left = -shadowD;
-    keyLight.shadow.camera.right = shadowD;
-    keyLight.shadow.camera.top = shadowD;
-    keyLight.shadow.camera.bottom = -shadowD;
-    keyLight.shadow.bias = -0.0001;
-    keyLight.shadow.normalBias = 0.02;
-    scene.add(keyLight);
-
-    const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.4);
-    fillLight.position.set(-7, 5, -6);
-    scene.add(fillLight);
+    // Lighting with Soft Contact Shadows (2048x2048 on GPU, 512x512 on Software GL)
+    const lightingRig = createStudioThreePointLighting(scene, initialColors, {
+      keyPosition: [6, 12, 8],
+      rimPosition: [-7, 5, -6],
+      shadowBound: 8,
+      shadowNear: 0.5,
+      shadowFar: 35,
+      shadowMapSize: isSoftwareGl ? 512 : 2048,
+    });
 
     // Studio Laboratory Bench & Brushed PBR Materials
     const workbench = createStudioWorkbenchGroup(initialColors, {
@@ -363,14 +328,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         controls.autoRotate = orbit;
       },
       captureCanvas: () => host.captureSnapshot(),
-      applyTheme: (colors) => {
-        scene.background = new THREE.Color(0x0b0f17);
-        scene.fog = new THREE.FogExp2(0x0b0f17, 0.015);
-        workbench.updateTheme(colors);
-        hemiLight.color.setHex(colors.ambientSkyHex);
-        hemiLight.groundColor.setHex(colors.ambientGroundHex);
-        hemiLight.intensity = Math.min(0.45, colors.ambientIntensity);
-      },
+      applyTheme: (colors) => lightingRig.applyTheme(colors, scene, 0.015, workbench),
     };
 
     // Shared PBR Materials & Refractive Borosilicate Glass Material
@@ -405,7 +363,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       roughness: 0.26,
       envMapIntensity: 1.25,
     });
-    const glassMat = createBorosilicateGlassMaterial(useUIStore.getState().liteDeviceMode, {
+    const initialLiteOrSw = useUIStore.getState().liteDeviceMode || isSoftwareGl;
+    const glassMat = createBorosilicateGlassMaterial(initialLiteOrSw, {
       color: 0xecfeff,
       tintOpacity: 0.30,
       ior: 1.47,
@@ -470,7 +429,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         transparent: true,
         opacity: 0.62,
         roughness: 0.08,
-        transmission: 0.5,
+        ...(initialLiteOrSw ? {} : { transmission: 0.5 }),
       })
     );
     calMeniscusRing.rotation.x = Math.PI / 2;
@@ -634,8 +593,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       transparent: true,
       opacity: 0.88,
       roughness: 0.05,
-      transmission: 0.75,
-      ior: 1.33,
+      ...(initialLiteOrSw ? {} : { transmission: 0.75, ior: 1.33 }),
     });
     const fallingDropMesh = new THREE.Mesh(
       new THREE.SphereGeometry(0.036, 14, 14),
@@ -958,56 +916,19 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       },
     });
 
-    let disposed = false;
-    let rafId = 0;
-    let timeoutId = 0;
-    const startTimeMs = performance.now();
-    let lastTimeMs = startTimeMs;
-
-    const afterDraw = (cb: () => void) => {
-      const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-      gl.flush();
-      const poll = () => {
-        if (disposed) return;
-        const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
-        if (state === gl.UNSIGNALED) {
-          timeoutId = window.setTimeout(poll, 5);
-        } else {
-          if (sync) gl.deleteSync(sync);
-          timeoutId = window.setTimeout(cb, 80);
-        }
-      };
-      timeoutId = window.setTimeout(poll, 5);
-    };
-
-    let lastRenderTimestamp = 0;
     let prevSimTime = -1;
     let lastDropImpactCycle = -1;
 
-    const tick = (timestamp?: number) => {
-      if (disposed) return;
+    const loopHandle = startStudioRenderLoop({
+      renderer,
+      isSoftwareGl,
+      fpsMonitor,
+      onFrame: ({ nowMs, dt, elapsed, isLite }) => {
+        applyBorosilicateLiteMode(glassMat, isLite || isSoftwareGl);
 
-      const nowMs = typeof timestamp === 'number' && timestamp > 0 ? timestamp : performance.now();
-      fpsMonitor.recordFrame(nowMs);
-
-      const isLite = useUIStore.getState().liteDeviceMode;
-      applyBorosilicateLiteMode(glassMat, isLite);
-      if (isLite) {
-        const delta = nowMs - lastRenderTimestamp;
-        if (delta < 32) {
-          if (isSoftwareGl) afterDraw(tick);
-          else rafId = requestAnimationFrame(tick);
-          return;
-        }
-        lastRenderTimestamp = nowMs - (delta % 33.3);
-      }
-
-      const dt = Math.min((nowMs - lastTimeMs) / 1000, 0.05);
-      lastTimeMs = nowMs;
-      const elapsed = (nowMs - startTimeMs) / 1000;
-      const { params: p, metrics: m, isReacting: reacting, simTime: propSimTime, simTimeRef: propSimTimeRef } = latestRef.current;
-      const t =
-        propSimTimeRef && typeof propSimTimeRef.current === 'number'
+        const { params: p, metrics: m, isReacting: reacting, simTime: propSimTime, simTimeRef: propSimTimeRef } = latestRef.current;
+        const t =
+          propSimTimeRef && typeof propSimTimeRef.current === 'number'
           ? propSimTimeRef.current
           : typeof propSimTime === 'number'
           ? propSimTime
@@ -1320,21 +1241,12 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
 
       host.renderFrame(dt);
-
-      if (isSoftwareGl) {
-        afterDraw(tick);
-      } else {
-        rafId = requestAnimationFrame(tick);
-      }
-    };
-
-    rafId = requestAnimationFrame(tick);
+      },
+    });
 
     return () => {
-      disposed = true;
+      loopHandle.stop();
       unsubAiAction();
-      cancelAnimationFrame(rafId);
-      clearTimeout(timeoutId);
       interactionManager.dispose();
       teacherCollabBridge.dispose();
       cursorManager.dispose();
@@ -1351,40 +1263,6 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       host.dispose();
     };
   }, [sceneKey]);
-
-  const handleSelectCameraPreset = (presetName: CameraPreset) => {
-    setActivePreset(presetName);
-    cameraCtrlRef.current?.setPreset(presetName);
-  };
-
-  useEffect(() => {
-    const orderedPresets: CameraPreset[] = ['isometric', 'front', 'top', 'closeup'];
-    return subscribeLabEvent(LAB_EVENTS.SET_CAMERA_PRESET, (detail) => {
-      if (!detail) return;
-      const preset = orderedPresets[detail.index];
-      if (preset) {
-        setActivePreset(preset);
-        cameraCtrlRef.current?.setPreset(preset);
-      }
-    });
-  }, []);
-
-  const handleToggleFullscreen = () => {
-    labSound.playClick();
-    if (!containerRef.current) return;
-
-    if (!isFullscreen) {
-      if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen().catch(() => {});
-      }
-      setIsFullscreen(true);
-    } else {
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      }
-      setIsFullscreen(false);
-    }
-  };
 
   return (
     <div

@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { Maximize2, Minimize2, Link2 } from 'lucide-react';
 import { smoothCameraTransition, type CameraSyncPose } from '../utils/threeStudioKit';
-import { initThreeStudioHost } from '../utils/threeStudioHost';
+import { initThreeStudioHost, startStudioRenderLoop } from '../utils/threeStudioHost';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
 import {
   AstronomyMetrics,
@@ -28,12 +28,12 @@ import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar
 import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import {
-  ConceptLabelDomRef,
   ConceptLabelToggleButton,
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from './ui/ConceptLabelsOverlay';
 import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
+import { useThreeStudioScene } from './scenes/useThreeStudioScene';
 
 interface AstronomyScene3DProps {
   params: AstronomyParams;
@@ -57,6 +57,7 @@ interface AstronomyScene3DProps {
 }
 
 type CameraPreset = 'isometric' | 'ecliptic' | 'top' | 'focus';
+const ASTRO_ORDERED_PRESETS: readonly CameraPreset[] = ['isometric', 'ecliptic', 'top', 'focus'];
 
 const PARAM_UNIT_MAP: Record<string, string> = {
   customSemiMajorAxisAu: 'AU',
@@ -82,30 +83,41 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   cameraSyncPose,
   onCameraSyncChange,
 }) => {
-  const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
   const liteDeviceMode = useUIStore((s) => s.liteDeviceMode);
-  const showConceptLabels = useUIStore((s) => s.showConceptLabels);
-  const showConceptLabelsRef = useRef(showConceptLabels);
-  showConceptLabelsRef.current = showConceptLabels;
 
-  const activeComfortTheme = comfortTheme ?? storeComfortTheme;
-  const themeColors = getSceneThemeColors(activeComfortTheme, 'Astronomi');
-
-  const mountRef = useRef<HTMLDivElement | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const conceptDomRef = useRef<Record<string, ConceptLabelDomRef>>({});
-  const bindConceptSlot = useCallback((id: string, dom: ConceptLabelDomRef | null) => {
-    if (dom) conceptDomRef.current[id] = dom;
-    else delete conceptDomRef.current[id];
-  }, []);
-
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
-  const activePresetRef = useRef<CameraPreset>('isometric');
-  activePresetRef.current = activePreset;
-  const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
-  const [hoveredPartLabel, setHoveredPartLabel] = useState<string | null>(null);
-  const [sceneKey, setSceneKey] = useState<number>(0);
+  const {
+    activeComfortTheme,
+    themeColors,
+    showConceptLabels,
+    showConceptLabelsRef,
+    mountRef,
+    containerRef,
+    conceptDomRef,
+    bindConceptSlot,
+    isFullscreen,
+    handleToggleFullscreen,
+    activePreset,
+    activePresetRef,
+    setActivePreset,
+    handleSelectCameraPreset,
+    dragToast,
+    setDragToast,
+    hoveredPartLabel,
+    setHoveredPartLabel,
+    sceneKey,
+    triggerSceneRebuild,
+    cameraCtrlRef,
+    cameraSyncHandleRef,
+    onCameraSyncChangeRef,
+  } = useThreeStudioScene<CameraPreset>({
+    domain: 'Astronomi',
+    orderedPresets: ASTRO_ORDERED_PRESETS,
+    defaultPreset: 'isometric',
+    comfortTheme,
+    cameraSyncPose,
+    onCameraSyncChange,
+    onCaptureSnapshot,
+  });
 
   const latestRef = useRef({
     params,
@@ -132,42 +144,9 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     onCaptureSnapshot,
   };
 
-  const cameraCtrlRef = useRef<{
-    setPreset: (preset: CameraPreset) => void;
-    setOrbit: (orbit: boolean) => void;
-    captureCanvas: () => string | null;
-    applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
-    applyLiteMode: (isLite: boolean) => void;
-  } | null>(null);
-
-  const onCameraSyncChangeRef = useRef(onCameraSyncChange);
-  onCameraSyncChangeRef.current = onCameraSyncChange;
-  const lastAppliedCamSeqRef = useRef<number>(-1);
-  const cameraSyncHandleRef = useRef<{ applyPose: (pose: CameraSyncPose) => void } | null>(null);
-
   useEffect(() => {
-    if (!cameraSyncPose || cameraSyncPose.seq === lastAppliedCamSeqRef.current) return;
-    lastAppliedCamSeqRef.current = cameraSyncPose.seq;
-    cameraSyncHandleRef.current?.applyPose(cameraSyncPose);
-  }, [cameraSyncPose]);
-
-  useEffect(() => {
-    cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Astronomi'));
-  }, [activeComfortTheme]);
-
-  useEffect(() => {
-    cameraCtrlRef.current?.applyLiteMode(liteDeviceMode);
+    cameraCtrlRef.current?.applyLiteMode?.(liteDeviceMode);
   }, [liteDeviceMode]);
-
-  useEffect(() => {
-    const handleGlobalSnapshot = () => {
-      if (latestRef.current.onCaptureSnapshot && cameraCtrlRef.current) {
-        const url = cameraCtrlRef.current.captureCanvas();
-        if (url) latestRef.current.onCaptureSnapshot(url);
-      }
-    };
-    return subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, handleGlobalSnapshot);
-  }, []);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -194,7 +173,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         minDistance: 3.5,
         maxDistance: 60,
       },
-      onContextRestored: () => setSceneKey((prev) => prev + 1),
+      onContextRestored: triggerSceneRebuild,
       onUserControlsStart: () => {
         camTransitionActive = false;
       },
@@ -203,7 +182,6 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     if (!host) return;
 
     const { scene, camera, renderer, controls, fpsMonitor, isSoftwareGl } = host;
-    const gl = renderer.getContext() as WebGL2RenderingContext;
 
     const desiredCamPos = new THREE.Vector3(0, 9.5, 14.5);
     const desiredTarget = new THREE.Vector3(0, 0, 0);
@@ -271,11 +249,12 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     centralStarLight.position.set(0, 0, 0);
     scene.add(centralStarLight);
 
+    const astroShadowSize = isSoftwareGl ? 512 : 2048;
     const astroKeyLight = new THREE.DirectionalLight(0xfff7ed, 1.5);
     astroKeyLight.position.set(8, 14, 10);
     astroKeyLight.castShadow = true;
-    astroKeyLight.shadow.mapSize.width = 2048;
-    astroKeyLight.shadow.mapSize.height = 2048;
+    astroKeyLight.shadow.mapSize.width = astroShadowSize;
+    astroKeyLight.shadow.mapSize.height = astroShadowSize;
     astroKeyLight.shadow.camera.near = 0.5;
     astroKeyLight.shadow.camera.far = 50;
     const shadowBound = 12;
@@ -333,7 +312,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       'solar-kepler': buildSolarKeplerRig(),
       'milkyway-galaxy': buildMilkyWayRig(),
       'stellar-exoplanet': buildExoplanetTransitRig(),
-      'stellar-wien-spectrum': buildWienSpectrumRig(useUIStore.getState().liteDeviceMode),
+      'stellar-wien-spectrum': buildWienSpectrumRig(useUIStore.getState().liteDeviceMode || isSoftwareGl),
       'hubble-expansion': buildHubbleExpansionRig(),
     };
     (Object.values(rigs) as AstronomyRigHandle[]).forEach((rig) => scene.add(rig.group));
@@ -351,7 +330,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         ambientLight.intensity = Math.min(0.45, colors.ambientIntensity);
       },
       applyLiteMode: (isLite) => {
-        (Object.values(rigs) as AstronomyRigHandle[]).forEach((rig) => rig.onLiteChange?.(isLite));
+        (Object.values(rigs) as AstronomyRigHandle[]).forEach((rig) => rig.onLiteChange?.(isLite || isSoftwareGl));
       },
     };
 
@@ -412,148 +391,106 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       },
     });
 
-    let disposed = false;
-    let rafId = 0;
-    let timeoutId = 0;
-    const startTimeMs = performance.now();
     const conceptProjVec = new THREE.Vector3();
     let prevActiveMode = normalizeAstronomyMode(latestRef.current.params.mode);
 
-    const afterDraw = (cb: () => void) => {
-      const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-      gl.flush();
-      const poll = () => {
-        if (disposed) return;
-        const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
-        if (state === gl.UNSIGNALED) {
-          timeoutId = window.setTimeout(poll, 5);
-        } else {
-          if (sync) gl.deleteSync(sync);
-          timeoutId = window.setTimeout(cb, 80);
+    const loopHandle = startStudioRenderLoop({
+      renderer,
+      isSoftwareGl,
+      fpsMonitor,
+      onFrame: ({ dt, elapsed, isLite }) => {
+        const {
+          params: p,
+          metrics: m,
+          activePlanet: ap,
+          simTime: propSimTime,
+          simTimeRef: propSimTimeRef,
+        } = latestRef.current;
+        const t =
+          propSimTimeRef && typeof propSimTimeRef.current === 'number'
+            ? propSimTimeRef.current
+            : typeof propSimTime === 'number'
+            ? propSimTime
+            : elapsed;
+
+        const activeMode = normalizeAstronomyMode(p.mode);
+        if (activeMode !== prevActiveMode) {
+          prevActiveMode = activeMode;
+          applyCameraPreset(activePresetRef.current);
         }
-      };
-      timeoutId = window.setTimeout(poll, 5);
-    };
 
-    let lastRenderTimestamp = 0;
-    let lastTickMs = startTimeMs;
+        (Object.entries(rigs) as [AstronomyMode, AstronomyRigHandle][]).forEach(([modeKey, rig]) => {
+          rig.group.visible = modeKey === activeMode;
+        });
 
-    const tick = (timestamp?: number) => {
-      if (disposed) return;
+        // Parallax Starfield depth shift
+        nearStarLayer.rotation.y = t * 0.004;
+        deepStarLayer.rotation.y = -t * 0.0015;
+        nearStarLayer.position.x = -camera.position.x * 0.06;
+        nearStarLayer.position.z = -camera.position.z * 0.06;
+        deepStarLayer.position.x = -camera.position.x * 0.02;
+        deepStarLayer.position.z = -camera.position.z * 0.02;
 
-      const nowMs = typeof timestamp === 'number' && timestamp > 0 ? timestamp : performance.now();
-      fpsMonitor.recordFrame(nowMs);
+        const activeRig = rigs[activeMode];
+        const rigFrame = activeRig.update({
+          params: p,
+          metrics: m,
+          activePlanet: ap,
+          t,
+          isLite: isLite || isSoftwareGl,
+          showConceptLabels: showConceptLabelsRef.current,
+          isFocusPreset: activePresetRef.current === 'focus',
+          isDragging: isDraggingInteractive,
+        });
 
-      const isLite = useUIStore.getState().liteDeviceMode;
-      if (isLite) {
-        const delta = nowMs - lastRenderTimestamp;
-        if (delta < 32) {
-          if (isSoftwareGl) afterDraw(tick);
-          else rafId = requestAnimationFrame(tick);
-          return;
+        if (rigFrame.focusTarget && rigFrame.focusCamPos) {
+          desiredTarget.copy(rigFrame.focusTarget);
+          desiredCamPos.copy(rigFrame.focusCamPos);
+          camTransitionActive = true;
         }
-        lastRenderTimestamp = nowMs - (delta % 33.3);
-      }
 
-      const dt = Math.min((nowMs - lastTickMs) / 1000, 0.05);
-      lastTickMs = nowMs;
-      const elapsed = (nowMs - startTimeMs) / 1000;
-      const { params: p, metrics: m, activePlanet: ap, simTime: propSimTime, simTimeRef: propSimTimeRef } =
-        latestRef.current;
-      const t =
-        propSimTimeRef && typeof propSimTimeRef.current === 'number'
-          ? propSimTimeRef.current
-          : typeof propSimTime === 'number'
-          ? propSimTime
-          : elapsed;
+        cursorManager.update(latestRef.current.remoteCursors || {}, camera.position);
 
-      const activeMode = normalizeAstronomyMode(p.mode);
-      if (activeMode !== prevActiveMode) {
-        prevActiveMode = activeMode;
-        applyCameraPreset(activePresetRef.current);
-      }
+        if (camTransitionActive) {
+          camTransitionActive = smoothCameraTransition(camera, controls, desiredCamPos, desiredTarget, 0.12);
+        }
 
-      (Object.entries(rigs) as [AstronomyMode, AstronomyRigHandle][]).forEach(([modeKey, rig]) => {
-        rig.group.visible = modeKey === activeMode;
-      });
+        teacherCollabBridge.tick();
+        controls.update();
 
-      // Parallax Starfield depth shift
-      nearStarLayer.rotation.y = t * 0.004;
-      deepStarLayer.rotation.y = -t * 0.0015;
-      nearStarLayer.position.x = -camera.position.x * 0.06;
-      nearStarLayer.position.z = -camera.position.z * 0.06;
-      deepStarLayer.position.x = -camera.position.x * 0.02;
-      deepStarLayer.position.z = -camera.position.z * 0.02;
+        const showLabels = showConceptLabelsRef.current;
+        const cw = container.clientWidth || width;
+        const ch = container.clientHeight || height;
+        const cDom = conceptDomRef.current;
+        const cEntries = [
+          {
+            dom: cDom.c1,
+            worldPos: rigFrame.anchors.c1?.pos ?? new THREE.Vector3(),
+            text: rigFrame.anchors.c1?.text ?? '',
+            active: Boolean(showLabels && rigFrame.anchors.c1),
+          },
+          {
+            dom: cDom.c2,
+            worldPos: rigFrame.anchors.c2?.pos ?? new THREE.Vector3(),
+            text: rigFrame.anchors.c2?.text ?? '',
+            active: Boolean(showLabels && rigFrame.anchors.c2),
+          },
+          {
+            dom: cDom.c3,
+            worldPos: rigFrame.anchors.c3?.pos ?? new THREE.Vector3(),
+            text: rigFrame.anchors.c3?.text ?? '',
+            active: Boolean(showLabels && rigFrame.anchors.c3),
+          },
+        ];
+        updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
 
-      const activeRig = rigs[activeMode];
-      const rigFrame = activeRig.update({
-        params: p,
-        metrics: m,
-        activePlanet: ap,
-        t,
-        isLite,
-        showConceptLabels: showConceptLabelsRef.current,
-        isFocusPreset: activePresetRef.current === 'focus',
-        isDragging: isDraggingInteractive,
-      });
-
-      if (rigFrame.focusTarget && rigFrame.focusCamPos) {
-        desiredTarget.copy(rigFrame.focusTarget);
-        desiredCamPos.copy(rigFrame.focusCamPos);
-        camTransitionActive = true;
-      }
-
-      cursorManager.update(latestRef.current.remoteCursors || {}, camera.position);
-
-      if (camTransitionActive) {
-        camTransitionActive = smoothCameraTransition(camera, controls, desiredCamPos, desiredTarget, 0.12);
-      }
-
-      teacherCollabBridge.tick();
-      controls.update();
-
-      const showLabels = showConceptLabelsRef.current;
-      const cw = container.clientWidth || width;
-      const ch = container.clientHeight || height;
-      const cDom = conceptDomRef.current;
-      const cEntries = [
-        {
-          dom: cDom.c1,
-          worldPos: rigFrame.anchors.c1?.pos ?? new THREE.Vector3(),
-          text: rigFrame.anchors.c1?.text ?? '',
-          active: Boolean(showLabels && rigFrame.anchors.c1),
-        },
-        {
-          dom: cDom.c2,
-          worldPos: rigFrame.anchors.c2?.pos ?? new THREE.Vector3(),
-          text: rigFrame.anchors.c2?.text ?? '',
-          active: Boolean(showLabels && rigFrame.anchors.c2),
-        },
-        {
-          dom: cDom.c3,
-          worldPos: rigFrame.anchors.c3?.pos ?? new THREE.Vector3(),
-          text: rigFrame.anchors.c3?.text ?? '',
-          active: Boolean(showLabels && rigFrame.anchors.c3),
-        },
-      ];
-      updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
-
-      host.renderFrame(dt);
-
-      if (isSoftwareGl) {
-        afterDraw(tick);
-      } else {
-        rafId = requestAnimationFrame(tick);
-      }
-    };
-
-    rafId = requestAnimationFrame(tick);
+        host.renderFrame(dt);
+      },
+    });
 
     return () => {
-      disposed = true;
+      loopHandle.stop();
       unsubAiAction();
-      cancelAnimationFrame(rafId);
-      clearTimeout(timeoutId);
       if (dragToastTimer) clearTimeout(dragToastTimer);
       interactionManager.dispose();
       teacherCollabBridge.dispose();
@@ -563,40 +500,6 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       host.dispose();
     };
   }, [sceneKey]);
-
-  const handleSelectCameraPreset = (presetName: CameraPreset) => {
-    setActivePreset(presetName);
-    cameraCtrlRef.current?.setPreset(presetName);
-  };
-
-  useEffect(() => {
-    const orderedPresets: CameraPreset[] = ['isometric', 'ecliptic', 'top', 'focus'];
-    return subscribeLabEvent(LAB_EVENTS.SET_CAMERA_PRESET, (detail) => {
-      if (!detail) return;
-      const preset = orderedPresets[detail.index];
-      if (preset) {
-        setActivePreset(preset);
-        cameraCtrlRef.current?.setPreset(preset);
-      }
-    });
-  }, []);
-
-  const handleToggleFullscreen = () => {
-    labSound.playClick();
-    if (!containerRef.current) return;
-
-    if (!isFullscreen) {
-      if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen().catch(() => {});
-      }
-      setIsFullscreen(true);
-    } else {
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      }
-      setIsFullscreen(false);
-    }
-  };
 
   return (
     <div

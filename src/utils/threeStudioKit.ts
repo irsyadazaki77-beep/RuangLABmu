@@ -962,23 +962,29 @@ export function createAdaptiveFpsMonitor(
  * Applies lightweight rendering properties for low-end hardware in 3T regions.
  * Disables shadows, forces pixel ratio to 1, and limits memory pressure.
  */
-export function configureRendererForLiteMode(renderer: THREE.WebGLRenderer, isLite: boolean): void {
+export function configureRendererForLiteMode(
+  renderer: THREE.WebGLRenderer,
+  isLite: boolean,
+  isSoftwareGl = false
+): void {
   if (!renderer) return;
   if (isLite) {
     renderer.setPixelRatio(1);
     renderer.shadowMap.enabled = false;
   } else {
     renderer.setPixelRatio(
-      Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2)
+      isSoftwareGl
+        ? 1
+        : Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2)
     );
     renderer.shadowMap.enabled = true;
   }
 }
 
 export interface StudioComposerHandle {
-  composer: EffectComposer;
-  renderTarget: THREE.WebGLRenderTarget;
-  bloomPass: UnrealBloomPass;
+  composer?: EffectComposer;
+  renderTarget?: THREE.WebGLRenderTarget;
+  bloomPass?: UnrealBloomPass;
   resize: (width: number, height: number, pixelRatio: number) => void;
   render: (liteDeviceMode?: boolean, dt?: number) => void;
   dispose: () => void;
@@ -987,6 +993,8 @@ export interface StudioComposerHandle {
 /**
  * Configures an EffectComposer with hardware WebGL2 MSAA (when supported) + subtle Bloom + ACES OutputPass.
  * Includes OutputPass so renderer.toneMapping (ACESFilmicToneMapping) and sRGB output color space apply cleanly.
+ * On software WebGL (SwiftShader/llvmpipe), bypasses HalfFloat RenderTarget + multi-pass Bloom/Output shaders
+ * and renders directly so scene startup and interaction remain responsive.
  */
 export function createStudioComposer(
   renderer: THREE.WebGLRenderer,
@@ -1001,6 +1009,25 @@ export function createStudioComposer(
     threshold?: number;
   }
 ): StudioComposerHandle {
+  const xrRig = registerActiveXRScene(renderer, scene, camera);
+  const sandboxVisuals = attachMultiApparatusAndScaffoldingVisuals(scene, camera);
+
+  if (isSoftwareGl) {
+    return {
+      resize: () => {},
+      render: (_liteDeviceMode?: boolean, dt = 0.016) => {
+        const safeDt = Number.isFinite(dt) ? Math.min(0.05, Math.max(0, dt)) : 0.016;
+        xrRig.updateSpatialRaycasters();
+        sandboxVisuals.updatePerFrame(safeDt);
+        renderer.render(scene, camera);
+      },
+      dispose: () => {
+        sandboxVisuals.dispose();
+        xrRig.dispose();
+      },
+    };
+  }
+
   const pixelRatio = renderer.getPixelRatio();
   const maxSamples = renderer.capabilities?.maxSamples ?? 4;
   const samples = computeMsaaSamples(maxSamples, isSoftwareGl);
@@ -1055,9 +1082,6 @@ export function createStudioComposer(
       );
     }
   };
-
-  const xrRig = registerActiveXRScene(renderer, scene, camera);
-  const sandboxVisuals = attachMultiApparatusAndScaffoldingVisuals(scene, camera);
 
   return {
     composer,

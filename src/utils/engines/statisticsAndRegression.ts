@@ -900,7 +900,7 @@ export function generateAutomaticFeedback(
   if (domain === 'Fisika' && physicsParams) {
     const m = calculatePhysicsMetrics(physicsParams);
 
-    if (physicsParams.mode === 'collision-momentum') {
+    if (m.mode === 'collision-momentum') {
       return {
         id,
         timestamp: now,
@@ -912,7 +912,7 @@ export function generateAutomaticFeedback(
       };
     }
 
-    if (physicsParams.mode === 'spring-hooke') {
+    if (m.mode === 'spring-hooke') {
       return {
         id,
         timestamp: now,
@@ -924,7 +924,7 @@ export function generateAutomaticFeedback(
       };
     }
 
-    if (physicsParams.mode === 'projectile-gravity') {
+    if (m.mode === 'projectile-gravity') {
       if (physicsParams.launchAngle >= 43 && physicsParams.launchAngle <= 47) {
         return {
           id,
@@ -942,8 +942,20 @@ export function generateAutomaticFeedback(
         severity: 'nominal',
         domain: 'Fisika',
         title: 'Lintasan Parabolik & Gravitasi Terhitung',
-        message: `Waktu tempuh t = ${m.timeOfFlight} s, tinggi maksimum H = ${m.maxProjectileHeight} m, dan gaya gravitasi antar-massa Fg = ${m.universalGravityForce} µN.`,
+        message: `Waktu tempuh t = ${m.timeOfFlight} s, tinggi maksimum H = ${m.maxProjectileHeight} m, dan jangkauan horizontal R = ${m.projectileRange} m.`,
         formulaHint: 'y(t) = y₀ + v₀y·t - ½g·t²',
+      };
+    }
+
+    if (m.mode === 'orbital-gravity') {
+      return {
+        id,
+        timestamp: now,
+        severity: 'nominal',
+        domain: 'Fisika',
+        title: 'Hukum Gravitasi Universal Newton',
+        message: `Gaya tarik gravitasi antar-massa Fg = ${m.universalGravityForce} µN dengan kecepatan lepas permukaan ${m.escapeVelocitySurface} km/s.`,
+        formulaHint: 'F_g = G · (m₁ · m₂) / r²',
       };
     }
 

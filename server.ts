@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import helmet from 'helmet';
+import { rateLimit } from 'express-rate-limit';
 import QRCode from 'qrcode';
 import { createLabServerState } from './server/state/labServerState';
 import {
@@ -15,6 +16,14 @@ import { createCollabSocketServer } from './server/ws/collabSocketServer';
 import { createLabRouter } from './server/routes/labRoutes';
 import { createSubmissionRouter } from './server/routes/submissionRoutes';
 import { createAiRouter } from './server/routes/aiRoutes';
+import {
+  buildFrameAncestorsList,
+  shouldRelaxHeadersForEmbeddedPreview,
+} from './server/utils/securityHeaders';
+import {
+  rateLimitKeyGenerator,
+  resolveTrustProxySetting,
+} from './server/utils/rateLimitKey';
 
 const isPortableBinary =
   process.env.RUANGLAB_PORTABLE === '1' ||
@@ -24,6 +33,43 @@ const isPortableBinary =
 const ROOT_DIR = isPortableBinary
   ? path.dirname(process.execPath)
   : process.cwd();
+
+const DEV_ORIGIN_PATTERN =
+  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d{1,5})?$/i;
+
+export function parseAllowedOrigins(rawEnv?: string, appUrl?: string): Set<string> {
+  const origins = new Set<string>();
+  if (rawEnv) {
+    for (const part of rawEnv.split(',')) {
+      const trimmed = part.trim().replace(/\/+$/, '');
+      if (trimmed) origins.add(trimmed);
+    }
+  }
+  if (appUrl && appUrl.trim() && appUrl.trim() !== 'MY_APP_URL') {
+    try {
+      const parsed = new URL(appUrl.trim());
+      origins.add(parsed.origin);
+    } catch {
+      // ignore invalid APP_URL
+    }
+  }
+  return origins;
+}
+
+export function isOriginAllowed(
+  origin: string | undefined,
+  allowedOrigins: Set<string>,
+  isProduction: boolean,
+  isPortable = false
+): boolean {
+  if (!origin) return true;
+  const normalized = origin.trim().replace(/\/+$/, '');
+  if (allowedOrigins.has(normalized)) return true;
+  if (!isProduction || isPortable) {
+    return DEV_ORIGIN_PATTERN.test(normalized);
+  }
+  return false;
+}
 
 function resolveDistDirectory(): string {
   const candidates = [
@@ -87,25 +133,80 @@ async function printStartupDiagnostics(activePort: number) {
 
 async function startServer() {
   const app = express();
+  app.set('trust proxy', resolveTrustProxySetting());
   const preferredPort = Number(process.env.PORT) || 3000;
   let activePort = preferredPort;
+  const isProduction = process.env.NODE_ENV === 'production';
+  const allowedOrigins = parseAllowedOrigins(
+    process.env.ALLOWED_ORIGINS,
+    process.env.APP_URL
+  );
+
+  const strictFrameguard = process.env.STRICT_FRAMEGUARD === 'true';
+  const frameAncestors = buildFrameAncestorsList({
+    isProduction,
+    appUrl: process.env.APP_URL,
+    allowedFrameAncestorsEnv: process.env.ALLOWED_FRAME_ANCESTORS,
+    strictFrameguard,
+  });
 
   // Security headers + Cross-Origin Isolation required for SharedArrayBuffer in SimulationRingBuffer
   app.use(
     helmet({
-      contentSecurityPolicy: false,
-      frameguard: false,
+      frameguard: { action: 'sameorigin' },
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: isProduction
+            ? ["'self'", 'blob:']
+            : ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'blob:'],
+          scriptSrcAttr: ["'none'"],
+          workerSrc: ["'self'", 'blob:'],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          fontSrc: ["'self'", 'data:'],
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          connectSrc: ["'self'", 'ws:', 'wss:'],
+          frameAncestors,
+          upgradeInsecureRequests: null,
+        },
+      },
       crossOriginEmbedderPolicy: { policy: 'require-corp' },
       crossOriginOpenerPolicy: { policy: 'same-origin' },
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     })
   );
 
-  // Lightweight CORS middleware for local LAN devices & mobile browsers
+  // Allow trusted cross-origin preview iframes (e.g. AI Studio) governed by CSP frame-ancestors
+  // while keeping X-Frame-Options: SAMEORIGIN and COEP: require-corp on top-level/standalone requests.
   app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (shouldRelaxHeadersForEmbeddedPreview(req.headers, strictFrameguard)) {
+      res.removeHeader('X-Frame-Options');
+      res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+    }
+    next();
+  });
+
+  // Whitelist-enforced CORS middleware (localhost/LAN fallback only in non-production or portable mode)
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    res.setHeader('Vary', 'Origin');
+
+    if (origin) {
+      if (!isOriginAllowed(origin, allowedOrigins, isProduction, isPortableBinary)) {
+        if (req.method === 'OPTIONS') {
+          res.status(403).json({ error: 'Origin tidak diizinkan oleh kebijakan CORS.' });
+          return;
+        }
+        next();
+        return;
+      }
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
     if (req.method === 'OPTIONS') {
       res.sendStatus(204);
       return;
@@ -113,8 +214,48 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json({ limit: '20mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+  // Global /api/* rate limit + stricter /api/ai/* rate limit
+  const globalApiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: rateLimitKeyGenerator,
+    message: {
+      error:
+        'Terlalu banyak permintaan API dari perangkat Anda. Silakan tunggu sebentar sebelum mencoba lagi.',
+    },
+  });
+
+  const aiRoutesLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: rateLimitKeyGenerator,
+    message: {
+      error:
+        'Batas kuota permintaan AI Dr. LabMu tercapai (maksimal 20 permintaan/menit). Silakan tunggu sebentar.',
+    },
+  });
+
+  app.use('/api', globalApiLimiter);
+  app.use('/api/ai', aiRoutesLimiter);
+  app.use('/api/assistant', aiRoutesLimiter);
+  app.use('/api/generate-mission', aiRoutesLimiter);
+  app.use('/api/dr-labmu', aiRoutesLimiter);
+
+  // Safe default 1MB body limit; permit 15MB strictly on image vision diagnostic upload endpoint
+  const standardJsonParser = express.json({ limit: '1mb' });
+  const largeVisionJsonParser = express.json({ limit: '15mb' });
+  app.use((req, res, next) => {
+    if (req.path === '/api/ai/vision-diagnose') {
+      largeVisionJsonParser(req, res, next);
+      return;
+    }
+    standardJsonParser(req, res, next);
+  });
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
   const state = createLabServerState();
   await state.hydrateServerState();
@@ -157,4 +298,10 @@ async function startServer() {
   }
 }
 
-startServer();
+const isDirectEntry =
+  process.argv[1] &&
+  (process.argv[1].endsWith('server.ts') || process.argv[1].endsWith('server.cjs'));
+
+if (isDirectEntry) {
+  startServer();
+}

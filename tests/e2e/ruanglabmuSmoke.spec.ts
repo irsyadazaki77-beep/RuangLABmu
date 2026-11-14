@@ -62,8 +62,9 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
       page.getByRole('heading', { name: /Titrasi Asam-Basa/i }).first()
     ).toBeVisible();
 
-    // Reset pencarian
+    // Reset pencarian & buka tampilan semua modul untuk memverifikasi Hukum II Newton
     await searchInput.fill('');
+    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
     await expect(
       page.getByRole('heading', { name: /Hukum II Newton/i }).first()
     ).toBeVisible();
@@ -79,6 +80,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.goto('/');
 
     // 1. Masuk ke 1 modul Fisika
+    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
     await page.getByRole('button', { name: 'Fisika', exact: true }).click();
     await page
       .getByRole('button', { name: /Mulai Praktikum/i })
@@ -95,6 +97,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
 
     // 2. Kembali ke Katalog & masuk ke 1 modul Kimia
     await page.getByRole('button', { name: 'Kembali ke Katalog Laboratorium' }).click();
+    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
     await page.getByRole('button', { name: 'Kimia', exact: true }).click();
     await page
       .getByRole('button', { name: /Mulai Praktikum/i })
@@ -159,6 +162,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.keyboard.press('Escape');
 
     // Klik modul pertama di tampilan mobile
+    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
     await page
       .getByRole('button', { name: /Mulai Praktikum/i })
       .first()
@@ -192,7 +196,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
       // 1. Guru membuat Room PIN
       await teacherPage.getByRole('button', { name: '+ Buat Room' }).click();
       const roomIdInputTeacher = teacherPage.getByPlaceholder('Contoh: LAB-ALPHA');
-      const pinInputTeacher = teacherPage.getByPlaceholder('Contoh: 1234');
+      const pinInputTeacher = teacherPage.getByTestId('room-pin-input');
       await roomIdInputTeacher.fill(testRoomId);
       await pinInputTeacher.fill(testPin);
       await teacherPage.getByRole('button', { name: 'Buka Meja Praktikum' }).click();
@@ -202,7 +206,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
       // 2. Siswa bergabung ke Room ID & PIN yang sama
       await studentPage.getByRole('button', { name: 'Masuk dengan PIN' }).click();
       const roomIdInputStudent = studentPage.getByPlaceholder('Contoh: LAB-ALPHA');
-      const pinInputStudent = studentPage.getByPlaceholder('Contoh: 1234');
+      const pinInputStudent = studentPage.getByTestId('room-pin-input');
       await roomIdInputStudent.fill(testRoomId);
       await pinInputStudent.fill(testPin);
       await studentPage.getByRole('button', { name: 'Siswa Praktikan' }).click();
@@ -235,6 +239,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.goto('/');
 
     // 1. Fisika: masuk simulasi -> uji Alat Ukur 3D (Mistar & Busur) + Snap-to-Port + drag canvas
+    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
     await page.getByRole('button', { name: 'Fisika', exact: true }).click();
     await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
@@ -268,6 +273,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
 
     // 3. Pindah ke Kimia dalam Lite 3T Mode -> uji Probe Digital 3D & Snap-to-Port
     await page.getByRole('button', { name: 'Kembali ke Katalog Laboratorium' }).click();
+    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
     await page.getByRole('button', { name: 'Kimia', exact: true }).click();
     await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
@@ -279,6 +285,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
 
     // 4. Pindah ke Biologi -> uji Mistar 3D & kanvas tanpa error WebGL
     await page.getByRole('button', { name: 'Kembali ke Katalog Laboratorium' }).click();
+    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
     await page.getByRole('button', { name: 'Biologi', exact: true }).click();
     await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();

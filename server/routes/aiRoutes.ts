@@ -1,5 +1,4 @@
 import express from 'express';
-import { rateLimit } from 'express-rate-limit';
 import { GoogleGenAI, Type } from '@google/genai';
 import { generateSocraticDrLabMuResponse } from '../../src/utils/scienceEngine';
 import {
@@ -170,24 +169,6 @@ export function createAiRouter({
       broadcastAll(payload);
     }
   };
-
-  const aiAssistantLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 20,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-      error:
-        'Batas kuota permintaan AI Dr. LabMu tercapai (maksimal 20 permintaan/menit). Silakan tunggu sebentar.',
-    },
-  });
-
-  router.use('/api/assistant', aiAssistantLimiter);
-  router.use('/api/generate-mission', aiAssistantLimiter);
-  router.use('/api/ai/generate-mission', aiAssistantLimiter);
-  router.use('/api/dr-labmu/ask', aiAssistantLimiter);
-  router.use('/api/ai/dr-labmu', aiAssistantLimiter);
-  router.use('/api/ai/vision-diagnose', aiAssistantLimiter);
 
   router.post(
     ['/api/generate-mission', '/api/ai/generate-mission'],

@@ -213,7 +213,7 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
   missionObjective,
   extraBadge,
 }) => {
-  const { projectorMode } = useUIStore();
+  const projectorMode = useUIStore((s) => s.projectorMode);
   const [expandedId, setExpandedId] = useState<
     string | 'oscilloscope' | 'mission' | null
   >(null);

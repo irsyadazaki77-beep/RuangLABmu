@@ -26,6 +26,7 @@ export interface BiologyRigSharedContext {
   protoMembraneTex: THREE.Texture | null;
   protoBump: THREE.Texture | null;
   createCellularOrganellesGroup: (scale?: number) => THREE.Group;
+  isLiteInitial?: boolean;
 }
 
 export interface BiologyRigHandle {
@@ -737,10 +738,9 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
     bumpMap: protoBump,
     bumpScale: 0.015,
     transparent: true,
-    opacity: 0.44,
+    opacity: ctx.isLiteInitial ? 0.56 : 0.44,
     roughness: 0.16,
-    transmission: 0.62,
-    thickness: 0.5,
+    ...(ctx.isLiteInitial ? {} : { transmission: 0.62, thickness: 0.5 }),
   });
   const protoplastMesh = new THREE.Mesh(new THREE.BoxGeometry(2.12, 1.48, 1.32), protoMat);
   protoplastMesh.position.y = 1.35;

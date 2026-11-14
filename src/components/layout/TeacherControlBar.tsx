@@ -66,7 +66,7 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/40 text-xs font-mono font-bold text-amber-300">
           <Users className="w-3.5 h-3.5" />
           {activeRoomId
-            ? `MEJA AKTIF: ${activeRoomId} (PIN: ${roomPin || '1234'}) · ${roomMembersCount} Peserta`
+            ? `MEJA AKTIF: ${activeRoomId}${roomPin ? ` (PIN: ${roomPin})` : ''} · ${roomMembersCount} Peserta`
             : 'MODE GURU: Belum Membuka Room PIN'}
         </span>
 

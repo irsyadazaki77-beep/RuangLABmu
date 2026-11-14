@@ -1,13 +1,20 @@
 # ============================================================================
-# Stage 1: Build Frontend (Vite SPA) & Backend (esbuild Node 20 Bundle)
+# Stage 0: Official Bun Binary for Deterministic Lockfile Installs
+# ============================================================================
+FROM oven/bun:1.4-alpine AS bun-bin
+
+# ============================================================================
+# Stage 1: Build Frontend (Vite SPA) & Backend (esbuild Node 22 Bundle)
 # ============================================================================
 FROM node:22-alpine AS builder
 
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+
 WORKDIR /app
 
-# Copy package manifests and install deterministic dependencies
-COPY package.json package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+# Copy package manifests and install deterministic dependencies from bun.lock
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 
 # Copy full application source and build client (dist/) + server (dist-server/server.cjs)
 COPY . .
@@ -18,16 +25,17 @@ RUN npm run build
 # ============================================================================
 FROM node:22-alpine AS runner
 
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Install only production runtime dependencies required by externalized server packages (express, ws)
-COPY package.json ./
-RUN node -e "const p=require('./package.json'); require('fs').writeFileSync('package.json', JSON.stringify({name:p.name,version:p.version,private:true,dependencies:{express:p.dependencies.express,ws:p.dependencies.ws}}))" \
-  && npm install --omit=dev --no-package-lock \
-  && npm cache clean --force
+# Install deterministic production dependencies from bun.lock
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production \
+  && rm -rf /root/.bun/install/cache /usr/local/bin/bun
 
 # Copy compiled frontend assets and bundled server from builder stage
 COPY --from=builder /app/dist ./dist

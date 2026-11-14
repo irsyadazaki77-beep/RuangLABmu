@@ -18,6 +18,7 @@ import {
   WebXRStateSnapshot,
   getWebXRState,
 } from '../../utils/webXRStudioAdapter';
+import { useShallow } from 'zustand/react/shallow';
 import { useLabStore } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { labSound } from '../../utils/soundEngine';
@@ -111,7 +112,13 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
   const activeModuleId = useLabStore((s) => s.activeModuleId);
   const workflowStep = useLabStore((s) => s.workflowStep);
   const isCompactPiPStage = workflowStep !== 2;
-  const { sidebarWidthPx, setSidebarWidthPx, mobileTab } = useUIStore();
+  const { sidebarWidthPx, setSidebarWidthPx, mobileTab } = useUIStore(
+    useShallow((s) => ({
+      sidebarWidthPx: s.sidebarWidthPx,
+      setSidebarWidthPx: s.setSidebarWidthPx,
+      mobileTab: s.mobileTab,
+    }))
+  );
   const hideCanvasOnMobile = !isDesktopViewport && !isCompactPiPStage && mobileTab === 'variables';
   const hideSidebarOnMobile = !isDesktopViewport && !isCompactPiPStage && mobileTab !== 'variables';
 

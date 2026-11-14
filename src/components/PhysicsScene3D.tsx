@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
@@ -17,7 +17,11 @@ import {
   createMeasurementRuler3D,
   createProtractor3D,
 } from '../utils/threeMeasurementTools';
-import { initThreeStudioHost } from '../utils/threeStudioHost';
+import {
+  createStudioThreePointLighting,
+  initThreeStudioHost,
+  startStudioRenderLoop,
+} from '../utils/threeStudioHost';
 import {
   PhysicsParams,
   PhysicsMetrics,
@@ -35,17 +39,17 @@ import {
 } from '../utils/engines/multiApparatusEngine';
 import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
-import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
 import { buildPhysicsSpecialRigs } from './scenes/PhysicsRigs';
 import {
-  ConceptLabelDomRef,
   ConceptLabelToggleButton,
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from './ui/ConceptLabelsOverlay';
 import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
+import { useThreeStudioScene } from './scenes/useThreeStudioScene';
+import { useUIStore } from '../stores/useUIStore';
 
 interface PhysicsScene3DProps {
   params: PhysicsParams;
@@ -70,6 +74,7 @@ interface PhysicsScene3DProps {
 }
 
 type CameraPreset = 'isometric' | 'front' | 'top' | 'focus';
+const PHYSICS_ORDERED_PRESETS: readonly CameraPreset[] = ['isometric', 'front', 'top', 'focus'];
 
 interface MotionTrailSystem {
   group: THREE.Group;
@@ -177,30 +182,42 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   cameraSyncPose,
   onCameraSyncChange,
 }) => {
-  const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
-  const showConceptLabels = useUIStore((s) => s.showConceptLabels);
-  const showConceptLabelsRef = useRef(showConceptLabels);
-  showConceptLabelsRef.current = showConceptLabels;
+  const {
+    activeComfortTheme,
+    themeColors,
+    showConceptLabels,
+    showConceptLabelsRef,
+    mountRef,
+    containerRef,
+    conceptDomRef,
+    bindConceptSlot,
+    isFullscreen,
+    handleToggleFullscreen,
+    activePreset,
+    handleSelectCameraPreset,
+    dragToast,
+    setDragToast,
+    hoveredPartLabel,
+    setHoveredPartLabel,
+    sceneKey,
+    triggerSceneRebuild,
+    cameraCtrlRef,
+    cameraSyncHandleRef,
+    onCameraSyncChangeRef,
+  } = useThreeStudioScene<CameraPreset>({
+    domain: 'Fisika',
+    orderedPresets: PHYSICS_ORDERED_PRESETS,
+    defaultPreset: 'isometric',
+    comfortTheme,
+    cameraSyncPose,
+    onCameraSyncChange,
+    onCaptureSnapshot,
+  });
 
-  const activeComfortTheme = comfortTheme ?? storeComfortTheme;
-  const themeColors = getSceneThemeColors(activeComfortTheme, 'Fisika');
-
-  const mountRef = useRef<HTMLDivElement | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const conceptDomRef = useRef<Record<string, ConceptLabelDomRef>>({});
-  const bindConceptSlot = useCallback((id: string, dom: ConceptLabelDomRef | null) => {
-    if (dom) conceptDomRef.current[id] = dom;
-    else delete conceptDomRef.current[id];
-  }, []);
-
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [hudCollapsed] = useState(false);
-  const [activePreset, setActivePreset] = useState<CameraPreset>('isometric');
   const [followCamEnabled, setFollowCamEnabled] = useState<boolean>(true);
   const followCamRef = useRef<boolean>(true);
   followCamRef.current = followCamEnabled;
-  const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
-  const [hoveredPartLabel, setHoveredPartLabel] = useState<string | null>(null);
   const [showMeasureTools, setShowMeasureTools] = useState<boolean>(false);
   const showMeasureToolsRef = useRef<boolean>(false);
   showMeasureToolsRef.current = showMeasureTools;
@@ -208,7 +225,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     ruler: '40.00 ± 0.05 cm',
     protractor: '30.0 ± 0.5°',
   });
-  const [sceneKey, setSceneKey] = useState<number>(0);
 
   const latestRef = useRef({
     params,
@@ -235,43 +251,11 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     onCaptureSnapshot,
   };
 
-  const cameraCtrlRef = useRef<{
-    setPreset: (preset: CameraPreset) => void;
-    setOrbit: (orbit: boolean) => void;
-    captureCanvas: () => string | null;
-    applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
-  } | null>(null);
-
-  const onCameraSyncChangeRef = useRef(onCameraSyncChange);
-  onCameraSyncChangeRef.current = onCameraSyncChange;
-  const lastAppliedCamSeqRef = useRef<number>(-1);
-  const cameraSyncHandleRef = useRef<{ applyPose: (pose: CameraSyncPose) => void } | null>(null);
-
-  useEffect(() => {
-    if (!cameraSyncPose || cameraSyncPose.seq === lastAppliedCamSeqRef.current) return;
-    lastAppliedCamSeqRef.current = cameraSyncPose.seq;
-    cameraSyncHandleRef.current?.applyPose(cameraSyncPose);
-  }, [cameraSyncPose]);
-
-  useEffect(() => {
-    cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Fisika'));
-  }, [activeComfortTheme]);
-
   const syncConceptLabelsRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     syncConceptLabelsRef.current?.();
   }, [params, metrics, showConceptLabels]);
-
-  useEffect(() => {
-    const handleGlobalSnapshot = () => {
-      if (latestRef.current.onCaptureSnapshot && cameraCtrlRef.current) {
-        const url = cameraCtrlRef.current.captureCanvas();
-        if (url) latestRef.current.onCaptureSnapshot(url);
-      }
-    };
-    return subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, handleGlobalSnapshot);
-  }, []);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -300,7 +284,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         maxDistance: 18,
         autoRotateSpeed: 1.4,
       },
-      onContextRestored: () => setSceneKey((prev) => prev + 1),
+      onContextRestored: triggerSceneRebuild,
       onUserControlsStart: () => {
         camTransitionActive = false;
       },
@@ -309,7 +293,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     if (!host) return;
 
     const { scene, camera, renderer, controls, fpsMonitor, isSoftwareGl } = host;
-    const gl = renderer.getContext() as WebGL2RenderingContext;
 
     const desiredCamPos = new THREE.Vector3(4.8, 6.2, 12.8);
     const desiredTarget = new THREE.Vector3(0, 1.4, 0);
@@ -350,33 +333,15 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       }
     });
 
-    // Studio 3-Point Lighting with Soft Contact Shadows (2048x2048, bias -0.0001)
-    const hemiLight = new THREE.HemisphereLight(
-      initialThemeColors.ambientSkyHex,
-      initialThemeColors.ambientGroundHex,
-      0.45
-    );
-    scene.add(hemiLight);
-
-    const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
-    keyLight.position.set(8, 14, 9);
-    keyLight.castShadow = true;
-    keyLight.shadow.mapSize.width = 2048;
-    keyLight.shadow.mapSize.height = 2048;
-    keyLight.shadow.camera.near = 1;
-    keyLight.shadow.camera.far = 35;
-    const d = 12;
-    keyLight.shadow.camera.left = -d;
-    keyLight.shadow.camera.right = d;
-    keyLight.shadow.camera.top = d;
-    keyLight.shadow.camera.bottom = -d;
-    keyLight.shadow.bias = -0.0001;
-    keyLight.shadow.normalBias = 0.02;
-    scene.add(keyLight);
-
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.4);
-    rimLight.position.set(-9, 6, -8);
-    scene.add(rimLight);
+    // Studio 3-Point Lighting with Soft Contact Shadows (2048x2048 on GPU, 512x512 on Software GL)
+    const lightingRig = createStudioThreePointLighting(scene, initialThemeColors, {
+      keyPosition: [8, 14, 9],
+      rimPosition: [-9, 6, -8],
+      shadowBound: 12,
+      shadowNear: 1,
+      shadowFar: 35,
+      shadowMapSize: isSoftwareGl ? 512 : 2048,
+    });
 
     // Studio Lab Bench, Floor & Calibration Grid
     const workbench = createStudioWorkbenchGroup(initialThemeColors, {
@@ -397,14 +362,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         controls.autoRotate = orbit;
       },
       captureCanvas: () => host.captureSnapshot(),
-      applyTheme: (colors) => {
-        scene.background = new THREE.Color(0x0b0f17);
-        scene.fog = new THREE.FogExp2(0x0b0f17, 0.014);
-        workbench.updateTheme(colors);
-        hemiLight.color.setHex(colors.ambientSkyHex);
-        hemiLight.groundColor.setHex(colors.ambientGroundHex);
-        hemiLight.intensity = Math.min(0.45, colors.ambientIntensity);
-      },
+      applyTheme: (colors) => lightingRig.applyTheme(colors, scene, 0.014, workbench),
     };
 
     // Collaborative 3D Laser Pointer Manager
@@ -783,7 +741,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         primaryMassMat,
         airTrackScaleTex,
       },
-      useUIStore.getState().liteDeviceMode
+      useUIStore.getState().liteDeviceMode || isSoftwareGl
     );
     const { stokesSphere, cart1Mesh, cart2Mesh, satelliteBody } = specialRigs;
 
@@ -957,57 +915,22 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     });
 
     // Main Tick Loop
-    let disposed = false;
-    let rafId = 0;
-    let timeoutId = 0;
-
-    const afterDraw = (cb: () => void) => {
-      const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-      gl.flush();
-      const poll = () => {
-        if (disposed) return;
-        const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
-        if (state === gl.UNSIGNALED) {
-          timeoutId = window.setTimeout(poll, 5);
-        } else {
-          if (sync) gl.deleteSync(sync);
-          timeoutId = window.setTimeout(cb, 80);
-        }
-      };
-      timeoutId = window.setTimeout(poll, 5);
-    };
-
-    let lastRenderTimestamp = 0;
-    let lastTickMs = performance.now();
     let prevSimTime = -1;
 
-    const tick = (timestamp?: number) => {
-      if (disposed) return;
-      const nowMs = typeof timestamp === 'number' && timestamp > 0 ? timestamp : performance.now();
-      fpsMonitor.recordFrame(nowMs);
+    const loopHandle = startStudioRenderLoop({
+      renderer,
+      isSoftwareGl,
+      fpsMonitor,
+      onFrame: ({ nowMs, dt: frameDt, isLite }) => {
+        rulerHandle.group.visible = showMeasureToolsRef.current;
+        protractorHandle.group.visible = showMeasureToolsRef.current;
 
-      const isLite = useUIStore.getState().liteDeviceMode;
-      rulerHandle.group.visible = showMeasureToolsRef.current;
-      protractorHandle.group.visible = showMeasureToolsRef.current;
-      if (isLite) {
-        const delta = nowMs - lastRenderTimestamp;
-        if (delta < 32) {
-          if (isSoftwareGl) afterDraw(tick);
-          else rafId = requestAnimationFrame(tick);
-          return;
-        }
-        lastRenderTimestamp = nowMs - (delta % 33.3);
-      }
-
-      const frameDt = Math.min((nowMs - lastTickMs) / 1000, 0.05);
-      lastTickMs = nowMs;
-
-      const {
-        params: p,
-        metrics: m,
-        simTime: baseTime,
-        showVectorOverlay: rawShowVec,
-      } = latestRef.current;
+        const {
+          params: p,
+          metrics: m,
+          simTime: baseTime,
+          showVectorOverlay: rawShowVec,
+        } = latestRef.current;
 
       const nowSec = performance.now() / 1000;
       const t = simTimeRef && typeof simTimeRef.current === 'number' ? simTimeRef.current : baseTime;
@@ -1108,7 +1031,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       }
 
       // 2. Projectile update + Real-time Motion Trail
-      else if (p.mode === 'projectile-gravity' || (p.mode as string) === 'projectile-motion') {
+      else if (m.mode === 'projectile-gravity') {
         const maxRange = Math.max(35, m.projectileRange * 1.1);
         const scaleX = 10.4 / maxRange;
         const scaleY = 4.8 / Math.max(18, m.maxProjectileHeight * 1.15);
@@ -1209,7 +1132,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           simTime: t,
           nowSec,
           showVectors: showVec,
-          isLite,
+          isLite: isLite || isSoftwareGl,
           isSimTimeAdvancing,
         },
         liveInst.kineticEnergy,
@@ -1291,7 +1214,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
               text: `Berat W = ${curM.weightForce.toFixed(1)} N`,
               active: true,
             };
-          } else if (curP.mode === 'pendulum-harmonic') {
+          } else if (curM.mode === 'pendulum-harmonic') {
             pendPivotGroup.getWorldPosition(conceptPivotWorldPos);
             pendBob.getWorldPosition(pendBobWorldPos);
             cEntries[0] = {
@@ -1303,7 +1226,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
             cEntries[2] = {
               dom: cDom.c3,
               worldPos: pendBobWorldPos.clone().add(new THREE.Vector3(0.55, 0.25, 0)),
-              text: `Gaya Pemulih · Periode T = ${(curM.pendulumPeriod ?? 0).toFixed(2)} s`,
+              text: `Gaya Pemulih · Periode T = ${curM.pendulumPeriod.toFixed(2)} s`,
               active: true,
             };
             cEntries[3] = {
@@ -1312,7 +1235,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
               text: `Gravitasi g = ${curP.gravity.toFixed(1)} m/s²`,
               active: true,
             };
-          } else if (curP.mode === 'spring-hooke') {
+          } else if (curM.mode === 'spring-hooke') {
             const sp = springMassBlock.position;
             cEntries[2] = {
               dom: cDom.c3,
@@ -1326,7 +1249,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
               text: `Massa m = ${curP.mass.toFixed(1)} kg`,
               active: true,
             };
-          } else if (curP.mode === 'projectile-gravity' || (curP.mode as string) === 'projectile-motion') {
+          } else if (curM.mode === 'projectile-gravity') {
             cEntries[0] = {
               dom: cDom.c1,
               worldPos: projectileBall.position.clone().add(new THREE.Vector3(0, 0.55, 0)),
@@ -1339,7 +1262,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
               text: `Jarak Jatuh R = ${curM.projectileRange.toFixed(1)} m`,
               active: true,
             };
-          } else if (curP.mode === 'collision-momentum') {
+          } else if (curM.mode === 'collision-momentum') {
             cEntries[0] = {
               dom: cDom.c1,
               worldPos: cart1Mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)),
@@ -1352,11 +1275,11 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
               text: `Momentum p₂ = ${((curP.collisionMass2 || 2) * curM.v2Final).toFixed(1)} kg·m/s`,
               active: true,
             };
-          } else if (curP.mode === 'stokes-viscosity') {
+          } else if (curM.mode === 'stokes-viscosity') {
             cEntries[0] = {
               dom: cDom.c1,
               worldPos: stokesSphere.position.clone().add(new THREE.Vector3(0, 0.75, 0)),
-              text: `Gaya Hambat Stokes ↑ · vₜ = ${(curM.stokesTerminalVelocity ?? 0).toFixed(2)} m/s`,
+              text: `Gaya Hambat Stokes ↑ · vₜ = ${curM.stokesTerminalVelocity.toFixed(2)} m/s`,
               active: true,
             };
             cEntries[3] = {
@@ -1365,11 +1288,11 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
               text: `Gaya Berat Bola ↓`,
               active: true,
             };
-          } else if (curP.mode === 'ohm-wheatstone') {
+          } else if (curM.mode === 'ohm-wheatstone') {
             cEntries[0] = {
               dom: cDom.c1,
               worldPos: new THREE.Vector3(0, 1.0, 0),
-              text: `Galvanometer I_g = ${(curM.galvanometerCurrent ?? 0).toFixed(2)} mA`,
+              text: `Galvanometer I_g = ${curM.galvanometerCurrent.toFixed(2)} mA`,
               active: true,
             };
             cEntries[1] = {
@@ -1378,7 +1301,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
               text: `Resistor Uji Rx = ${curP.resistorRx ?? 100} Ω`,
               active: true,
             };
-          } else if (curP.mode === 'optics-young-slit') {
+          } else if (curM.mode === 'optics-young-slit') {
             cEntries[0] = {
               dom: cDom.c1,
               worldPos: new THREE.Vector3(-1.2, 2.3, 0),
@@ -1388,10 +1311,10 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
             cEntries[2] = {
               dom: cDom.c3,
               worldPos: new THREE.Vector3(3.8, 2.9, 0),
-              text: `Jarak Frinji Δy = ${(curM.fringeSpacingMm ?? 0).toFixed(2)} mm`,
+              text: `Jarak Frinji Δy = ${curM.fringeSpacingMm.toFixed(2)} mm`,
               active: true,
             };
-          } else if (curP.mode === 'photoelectric-planck') {
+          } else if (curM.mode === 'photoelectric-planck') {
             cEntries[0] = {
               dom: cDom.c1,
               worldPos: new THREE.Vector3(-1.1, 2.7, 0),
@@ -1401,10 +1324,10 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
             cEntries[2] = {
               dom: cDom.c3,
               worldPos: new THREE.Vector3(0.4, 2.3, 0),
-              text: `Ek Maks = ${(curM.photoelectricMaxKe ?? 0).toFixed(2)} eV`,
+              text: `Ek Maks = ${curM.photoelectricMaxKe.toFixed(2)} eV`,
               active: true,
             };
-          } else if (curP.mode === 'orbital-gravity' || (curP.mode as string) === 'gravity-orbital') {
+          } else if (curM.mode === 'orbital-gravity') {
             cEntries[2] = {
               dom: cDom.c3,
               worldPos: satelliteBody.position.clone().add(new THREE.Vector3(0, 0.75, 0)),
@@ -1420,21 +1343,12 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       syncConceptLabelsNow();
 
       host.renderFrame(frameDt);
-
-      if (isSoftwareGl) {
-        afterDraw(tick);
-      } else {
-        rafId = requestAnimationFrame(tick);
-      }
-    };
-
-    rafId = requestAnimationFrame(tick);
+      },
+    });
 
     return () => {
-      disposed = true;
+      loopHandle.stop();
       unsubAiAction();
-      cancelAnimationFrame(rafId);
-      clearTimeout(timeoutId);
       interactionManager.dispose();
       teacherCollabBridge.dispose();
       cursorManager.dispose();
@@ -1452,40 +1366,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       host.dispose();
     };
   }, [sceneKey]);
-
-  const handleSelectCameraPreset = (preset: CameraPreset) => {
-    setActivePreset(preset);
-    cameraCtrlRef.current?.setPreset(preset);
-  };
-
-  useEffect(() => {
-    const orderedPresets: CameraPreset[] = ['isometric', 'front', 'top', 'focus'];
-    return subscribeLabEvent(LAB_EVENTS.SET_CAMERA_PRESET, (detail) => {
-      if (!detail) return;
-      const preset = orderedPresets[detail.index];
-      if (preset) {
-        setActivePreset(preset);
-        cameraCtrlRef.current?.setPreset(preset);
-      }
-    });
-  }, []);
-
-  const handleToggleFullscreen = () => {
-    labSound.playClick();
-    if (!containerRef.current) return;
-
-    if (!isFullscreen) {
-      if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen().catch(() => {});
-      }
-      setIsFullscreen(true);
-    } else {
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      }
-      setIsFullscreen(false);
-    }
-  };
 
   return (
     <div

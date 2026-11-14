@@ -506,7 +506,7 @@ export function useBackendSync(
               roomId: activeRoomId,
               teacherPin:
                 currentIdentity.role === 'Pengajar'
-                  ? storeSnapshot.roomPin || activeRoomSessionRef.current?.pin || '1234'
+                  ? storeSnapshot.roomPin || activeRoomSessionRef.current?.pin || undefined
                   : undefined,
             },
           })
@@ -774,8 +774,29 @@ export function useBackendSync(
 
     return () => {
       unmounted = true;
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-      if (wsRef.current) wsRef.current.close();
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      const activeWs = wsRef.current;
+      wsRef.current = null;
+      if (activeWs) {
+        activeWs.onopen = null;
+        activeWs.onmessage = null;
+        activeWs.onclose = null;
+        activeWs.onerror = null;
+        if (activeWs.readyState === WebSocket.OPEN) {
+          activeWs.close();
+        } else if (activeWs.readyState === WebSocket.CONNECTING) {
+          activeWs.addEventListener(
+            'open',
+            () => {
+              activeWs.close();
+            },
+            { once: true }
+          );
+        }
+      }
     };
   }, []);
 
@@ -797,7 +818,7 @@ export function useBackendSync(
           roomId: storeSnapshot.activeRoomId,
           teacherPin:
             role === 'Pengajar'
-              ? storeSnapshot.roomPin || activeRoomSessionRef.current?.pin || '1234'
+              ? storeSnapshot.roomPin || activeRoomSessionRef.current?.pin || undefined
               : undefined,
         },
       })
@@ -911,15 +932,19 @@ export function useBackendSync(
 
   const broadcastTeacherFeedback = useCallback(
     (targetStudentId: string, message: string, author: string) => {
-      sendWs('teacher:feedback', { targetStudentId, message, author, teacherPin: '1234' });
+      const activePin =
+        useCollabStore.getState().roomPin || activeRoomSessionRef.current?.pin || undefined;
+      sendWs('teacher:feedback', { targetStudentId, message, author, teacherPin: activePin });
     },
     [sendWs]
   );
 
   const broadcastMysteryChallenge = useCallback(
     (challenge: MysterySampleChallenge, author: string) => {
+      const activePin =
+        useCollabStore.getState().roomPin || activeRoomSessionRef.current?.pin || undefined;
       setActiveMysteryChallenge(challenge);
-      sendWs('mystery:broadcast', { challenge, author, teacherPin: '1234' });
+      sendWs('mystery:broadcast', { challenge, author, teacherPin: activePin });
     },
     [sendWs]
   );
@@ -998,7 +1023,7 @@ export function useBackendSync(
     (isFrozen: boolean) => {
       const storeState = useCollabStore.getState();
       const roomId = storeState.activeRoomId;
-      const roomPin = storeState.roomPin || activeRoomSessionRef.current?.pin || '1234';
+      const roomPin = storeState.roomPin || activeRoomSessionRef.current?.pin || undefined;
       storeState.setTeacherFreeze(isFrozen, studentName);
       if (roomId) {
         sendWs('TEACHER_FREEZE_TOGGLE', {
@@ -1023,11 +1048,13 @@ export function useBackendSync(
       const now = Date.now();
       if (detail.active && now - lastLaserEmitRef.current < 33) return;
       lastLaserEmitRef.current = now;
-      const roomId = useCollabStore.getState().activeRoomId || 'LAB-ALPHA';
+      const collabState = useCollabStore.getState();
+      const roomId = collabState.activeRoomId || 'LAB-ALPHA';
+      const activePin = collabState.roomPin || activeRoomSessionRef.current?.pin || undefined;
       sendWs('TEACHER_LASER_RAY', {
         roomId,
         teacherName: studentName,
-        teacherPin: '1234',
+        teacherPin: activePin,
         point: detail.point,
         normal: detail.normal,
         hoveredObject: detail.hoveredObject,
@@ -1042,11 +1069,13 @@ export function useBackendSync(
       if (detail.enabled && now - lastCamSyncEmitRef.current < 50) return;
       lastCamSyncEmitRef.current = now;
       camSeqRef.current += 1;
-      const roomId = useCollabStore.getState().activeRoomId || 'LAB-ALPHA';
+      const collabState = useCollabStore.getState();
+      const roomId = collabState.activeRoomId || 'LAB-ALPHA';
+      const activePin = collabState.roomPin || activeRoomSessionRef.current?.pin || undefined;
       sendWs('TEACHER_CAMERA_SYNC', {
         roomId,
         teacherName: studentName,
-        teacherPin: '1234',
+        teacherPin: activePin,
         enabled: detail.enabled,
         position: detail.position,
         target: detail.target,
@@ -1087,15 +1116,17 @@ export function useBackendSync(
 
   const publishCustomMission = useCallback(
     (mission: CustomAIMissionPayload | null, targetRoomId?: string) => {
-      const roomId = (targetRoomId || useCollabStore.getState().activeRoomId || 'LAB-ALPHA')
+      const collabState = useCollabStore.getState();
+      const roomId = (targetRoomId || collabState.activeRoomId || 'LAB-ALPHA')
         .toUpperCase()
         .trim();
-      useCollabStore.getState().setActiveCustomMission(mission);
+      const activePin = collabState.roomPin || activeRoomSessionRef.current?.pin || undefined;
+      collabState.setActiveCustomMission(mission);
       sendWs('ROOM_SET_CUSTOM_MISSION', {
         roomId,
         customMission: mission,
         teacherName: studentName,
-        teacherPin: '1234',
+        teacherPin: activePin,
       });
     },
     [sendWs, studentName]

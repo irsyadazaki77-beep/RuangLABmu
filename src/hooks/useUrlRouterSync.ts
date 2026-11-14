@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   AnyLabDomain,
   DOMAIN_TO_EN,
@@ -179,10 +180,33 @@ export function useUrlRouterSync(): void {
     setWorkflowStep,
     setIsLobbyMode,
     setUserRole,
-  } = useLabStore();
+  } = useLabStore(
+    useShallow((s) => ({
+      activeDomain: s.activeDomain,
+      activeModuleId: s.activeModuleId,
+      workflowStep: s.workflowStep,
+      isLobbyMode: s.isLobbyMode,
+      setActiveDomain: s.setActiveDomain,
+      setActiveModule: s.setActiveModule,
+      setWorkflowStep: s.setWorkflowStep,
+      setIsLobbyMode: s.setIsLobbyMode,
+      setUserRole: s.setUserRole,
+    }))
+  );
 
-  const { activeModal, openModal, closeModal } = useUIStore();
-  const { activeRoomId, setPrefilledRoomCode } = useCollabStore();
+  const { activeModal, openModal, closeModal } = useUIStore(
+    useShallow((s) => ({
+      activeModal: s.activeModal,
+      openModal: s.openModal,
+      closeModal: s.closeModal,
+    }))
+  );
+  const { activeRoomId, setPrefilledRoomCode } = useCollabStore(
+    useShallow((s) => ({
+      activeRoomId: s.activeRoomId,
+      setPrefilledRoomCode: s.setPrefilledRoomCode,
+    }))
+  );
 
   const isApplyingFromUrlRef = useRef(false);
   const lastPushedUrlRef = useRef<string>('');
@@ -190,6 +214,7 @@ export function useUrlRouterSync(): void {
   // 1. Apply URL state on mount and on browser Back/Forward (popstate)
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    let resetFlagTimer: ReturnType<typeof setTimeout> | null = null;
 
     const applyUrlToStores = (searchStr: string) => {
       isApplyingFromUrlRef.current = true;
@@ -223,8 +248,10 @@ export function useUrlRouterSync(): void {
       }
 
       lastPushedUrlRef.current = `${window.location.pathname}${window.location.search}`;
-      setTimeout(() => {
+      if (resetFlagTimer) clearTimeout(resetFlagTimer);
+      resetFlagTimer = setTimeout(() => {
         isApplyingFromUrlRef.current = false;
+        resetFlagTimer = null;
       }, 0);
     };
 
@@ -242,6 +269,7 @@ export function useUrlRouterSync(): void {
     window.addEventListener('popstate', handlePopState);
     return () => {
       window.removeEventListener('popstate', handlePopState);
+      if (resetFlagTimer) clearTimeout(resetFlagTimer);
     };
   }, [
     setActiveDomain,

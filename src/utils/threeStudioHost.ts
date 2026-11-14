@@ -89,14 +89,21 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     return null;
   }
 
+  const gl = renderer.getContext() as WebGL2RenderingContext | null;
+  const dbg = gl?.getExtension?.('WEBGL_debug_renderer_info');
+  const glRenderer = dbg && gl ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+  const isSoftwareGl = /swiftshader|llvmpipe|softpipe|software/i.test(glRenderer);
+
   renderer.setSize(width, height);
-  const pixelRatio = Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2);
+  const pixelRatio = isSoftwareGl
+    ? 1
+    : Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2);
   renderer.setPixelRatio(pixelRatio);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = options.toneMappingExposure ?? 0.85;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.domElement.style.touchAction = 'none';
 
   const handleWebGLContextLost = (event: Event) => {
@@ -112,7 +119,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   container.appendChild(renderer.domElement);
 
   const initialLite = useUIStore.getState().liteDeviceMode;
-  configureRendererForLiteMode(renderer, initialLite);
+  configureRendererForLiteMode(renderer, initialLite, isSoftwareGl);
 
   const fpsMonitor = createAdaptiveFpsMonitor(
     () => {
@@ -129,17 +136,12 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
 
   const unsubLite = useUIStore.subscribe((state, prev) => {
     if (state.liteDeviceMode !== prev.liteDeviceMode) {
-      configureRendererForLiteMode(renderer, state.liteDeviceMode);
+      configureRendererForLiteMode(renderer, state.liteDeviceMode, isSoftwareGl);
       if (!state.liteDeviceMode) {
         fpsMonitor.resetMonitor();
       }
     }
   });
-
-  const gl = renderer.getContext() as WebGL2RenderingContext | null;
-  const dbg = gl?.getExtension?.('WEBGL_debug_renderer_info');
-  const glRenderer = dbg && gl ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
-  const isSoftwareGl = /swiftshader|llvmpipe|softpipe|software/i.test(glRenderer);
 
   const bgHex = options.backgroundHex ?? 0x0b0f17;
   const scene = new THREE.Scene();
@@ -148,11 +150,37 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     scene.fog = new THREE.FogExp2(bgHex, options.fogDensity ?? 0.015);
   }
 
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  let envTexture: THREE.Texture;
+  if (isSoftwareGl) {
+    // Fast equirectangular studio reflection gradient (<0.1ms) avoids multi-second CPU PMREM convolution on SwiftShader
+    const w = 16;
+    const h = 8;
+    const data = new Uint8Array(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      const v = y / (h - 1); // 0 = bottom, 1 = top (DataTexture flipY default false)
+      for (let x = 0; x < w; x++) {
+        const idx = (y * w + x) * 4;
+        const sky = Math.pow(v, 1.3);
+        data[idx] = Math.round(28 + sky * 195);
+        data[idx + 1] = Math.round(38 + sky * 195);
+        data[idx + 2] = Math.round(56 + sky * 190);
+        data[idx + 3] = 255;
+      }
+    }
+    const fastEnv = new THREE.DataTexture(data, w, h, THREE.RGBAFormat);
+    fastEnv.mapping = THREE.EquirectangularReflectionMapping;
+    fastEnv.colorSpace = THREE.SRGBColorSpace;
+    fastEnv.magFilter = THREE.LinearFilter;
+    fastEnv.minFilter = THREE.LinearFilter;
+    fastEnv.needsUpdate = true;
+    envTexture = fastEnv;
+  } else {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+  }
   scene.environment = envTexture;
   scene.environmentIntensity = options.environmentIntensity ?? 0.35;
-  pmrem.dispose();
 
   const camera = new THREE.PerspectiveCamera(
     options.camera.fov ?? 45,
@@ -280,3 +308,169 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     },
   };
 }
+
+export interface StudioLightingRig {
+  hemiLight: THREE.HemisphereLight;
+  keyLight: THREE.DirectionalLight;
+  rimLight: THREE.DirectionalLight;
+  applyTheme: (
+    colors: {
+      ambientSkyHex: number;
+      ambientGroundHex: number;
+      ambientIntensity: number;
+    },
+    scene: THREE.Scene,
+    fogDensity?: number,
+    workbench?: { updateTheme: (c: any) => void }
+  ) => void;
+}
+
+export function createStudioThreePointLighting(
+  scene: THREE.Scene,
+  initialColors: { ambientSkyHex: number; ambientGroundHex: number },
+  options?: {
+    keyPosition?: [number, number, number];
+    rimPosition?: [number, number, number];
+    shadowBound?: number;
+    shadowNear?: number;
+    shadowFar?: number;
+    shadowMapSize?: number;
+  }
+): StudioLightingRig {
+  const hemiLight = new THREE.HemisphereLight(
+    initialColors.ambientSkyHex,
+    initialColors.ambientGroundHex,
+    0.45
+  );
+  scene.add(hemiLight);
+
+  const keyPos = options?.keyPosition ?? [6, 12, 8];
+  const shadowSize = options?.shadowMapSize ?? 2048;
+  const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
+  keyLight.position.set(keyPos[0], keyPos[1], keyPos[2]);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.width = shadowSize;
+  keyLight.shadow.mapSize.height = shadowSize;
+  keyLight.shadow.camera.near = options?.shadowNear ?? 0.5;
+  keyLight.shadow.camera.far = options?.shadowFar ?? 35;
+  const shadowBound = options?.shadowBound ?? 8;
+  keyLight.shadow.camera.left = -shadowBound;
+  keyLight.shadow.camera.right = shadowBound;
+  keyLight.shadow.camera.top = shadowBound;
+  keyLight.shadow.camera.bottom = -shadowBound;
+  keyLight.shadow.bias = -0.0001;
+  keyLight.shadow.normalBias = 0.02;
+  scene.add(keyLight);
+
+  const rimPos = options?.rimPosition ?? [-7, 5, -6];
+  const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.4);
+  rimLight.position.set(rimPos[0], rimPos[1], rimPos[2]);
+  scene.add(rimLight);
+
+  return {
+    hemiLight,
+    keyLight,
+    rimLight,
+    applyTheme: (colors, targetScene, fogDensity = 0.015, workbench) => {
+      targetScene.background = new THREE.Color(0x0b0f17);
+      targetScene.fog = new THREE.FogExp2(0x0b0f17, fogDensity);
+      workbench?.updateTheme(colors);
+      hemiLight.color.setHex(colors.ambientSkyHex);
+      hemiLight.groundColor.setHex(colors.ambientGroundHex);
+      hemiLight.intensity = Math.min(0.45, colors.ambientIntensity);
+    },
+  };
+}
+
+export interface StudioRenderLoopHandle {
+  stop: () => void;
+}
+
+export function startStudioRenderLoop(options: {
+  renderer: THREE.WebGLRenderer;
+  isSoftwareGl: boolean;
+  fpsMonitor: ReturnType<typeof createAdaptiveFpsMonitor>;
+  onFrame: (ctx: { nowMs: number; dt: number; elapsed: number; isLite: boolean }) => void;
+}): StudioRenderLoopHandle {
+  const { renderer, isSoftwareGl, fpsMonitor, onFrame } = options;
+  const gl = renderer.getContext() as WebGL2RenderingContext;
+  let disposed = false;
+  let rafId = 0;
+  let timeoutId = 0;
+  let activeSync: WebGLSync | null = null;
+  const startTimeMs = performance.now();
+  let lastTimeMs = startTimeMs;
+  let lastRenderTimestamp = 0;
+
+  const afterDraw = (cb: () => void) => {
+    const sync = typeof gl.fenceSync === 'function' ? gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0) : null;
+    activeSync = sync;
+    gl.flush();
+    const poll = () => {
+      if (disposed) return;
+      const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
+      if (state === gl.UNSIGNALED) {
+        timeoutId = window.setTimeout(poll, 5);
+      } else {
+        if (sync) {
+          gl.deleteSync(sync);
+          if (activeSync === sync) activeSync = null;
+        }
+        timeoutId = window.setTimeout(cb, 80);
+      }
+    };
+    timeoutId = window.setTimeout(poll, 5);
+  };
+
+  const scheduleNext = () => {
+    if (disposed) return;
+    if (isSoftwareGl) {
+      afterDraw(tick);
+    } else {
+      rafId = requestAnimationFrame(tick);
+    }
+  };
+
+  const tick = (timestamp?: number) => {
+    if (disposed) return;
+    const nowMs = typeof timestamp === 'number' && timestamp > 0 ? timestamp : performance.now();
+    fpsMonitor.recordFrame(nowMs);
+
+    const isLite = useUIStore.getState().liteDeviceMode;
+    if (isLite) {
+      const delta = nowMs - lastRenderTimestamp;
+      if (delta < 32) {
+        scheduleNext();
+        return;
+      }
+      lastRenderTimestamp = nowMs - (delta % 33.3);
+    }
+
+    const dt = Math.min((nowMs - lastTimeMs) / 1000, 0.05);
+    lastTimeMs = nowMs;
+    const elapsed = (nowMs - startTimeMs) / 1000;
+
+    onFrame({ nowMs, dt, elapsed, isLite });
+    scheduleNext();
+  };
+
+  rafId = requestAnimationFrame(tick);
+
+  return {
+    stop: () => {
+      if (disposed) return;
+      disposed = true;
+      cancelAnimationFrame(rafId);
+      clearTimeout(timeoutId);
+      if (activeSync && typeof gl.deleteSync === 'function') {
+        try {
+          gl.deleteSync(activeSync);
+        } catch {
+          // ignore if context was lost
+        }
+        activeSync = null;
+      }
+    },
+  };
+}
+

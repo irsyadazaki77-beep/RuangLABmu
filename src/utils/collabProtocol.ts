@@ -92,6 +92,7 @@ export interface LabRoom {
   teacherName?: string;
   isFrozenByTeacher: boolean;
   createdAt: number;
+  lastActivityAt?: number;
   clients: Record<string, LabRoomClient>;
   customMission?: CustomAIMissionPayload | null;
 }
@@ -226,6 +227,18 @@ export function generateRandomRoomId(): string {
   const num = Math.floor(10 + Math.random() * 89);
   const code = letters[Math.floor(Math.random() * letters.length)] + letters[Math.floor(Math.random() * letters.length)];
   return `LAB-${code}${num}`;
+}
+
+export function generateRandomRoomPin(): string {
+  if (
+    typeof globalThis.crypto !== 'undefined' &&
+    typeof globalThis.crypto.getRandomValues === 'function'
+  ) {
+    const arr = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(arr);
+    return String(100000 + (arr[0] % 900000));
+  }
+  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 interface ModuleBlueprintMeta {

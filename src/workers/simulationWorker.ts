@@ -5,6 +5,7 @@
  */
 
 import {
+  packSimulationFrame,
   SimulationFrame,
   SimulationRingBuffer,
   Vector3Tuple,
@@ -24,6 +25,15 @@ import {
 } from '../utils/scienceEngine';
 
 export const FIXED_DT = 1.0 / 60.0; // 60 Hz fixed timestep
+export const MAX_STEP_FRAMES = 3600; // Hard cap: max 60 seconds simulated per STEP_FRAMES batch
+
+export function clampStepFrames(deltaFrames: number): number {
+  if (!Number.isFinite(deltaFrames)) return 0;
+  const truncated = Math.trunc(deltaFrames);
+  if (truncated > MAX_STEP_FRAMES) return MAX_STEP_FRAMES;
+  if (truncated < -MAX_STEP_FRAMES) return -MAX_STEP_FRAMES;
+  return truncated;
+}
 
 // Pure RK4 step for Damped Spring-Hooke Oscillator
 export function stepSpringHookeRK4(
@@ -1202,104 +1212,160 @@ const isWorkerScope =
 
 if (isWorkerScope) {
   const context = new WorkerSimulationContext();
-  let intervalId: ReturnType<typeof setInterval> | null = null;
+  const workerGlobal = self as unknown as Worker;
+  let loopTimerId: ReturnType<typeof setTimeout> | null = null;
+  let expectedNextTickMs = 0;
+
+  const postSimulationError = (err: unknown) => {
+    const message =
+      err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown worker error';
+    const errorMsg: WorkerOutboundMessage = {
+      type: 'SIMULATION_ERROR',
+      message,
+    };
+    workerGlobal.postMessage(errorMsg);
+  };
 
   const postFrameUpdate = (frame: SimulationFrame) => {
+    const packed = packSimulationFrame(frame);
     const msg: WorkerOutboundMessage = {
       type: 'FRAME_UPDATE',
-      frame,
+      transferBuffer: packed.buffer,
+      entityKeys: packed.entityKeys,
+      scalarKeys: packed.scalarKeys,
       bounds: context.ringBuffer.getBounds(),
       isPlaying: context.isPlaying,
     };
-    (self as unknown as Worker).postMessage(msg);
-  };
-
-  const startLoop = () => {
-    if (intervalId !== null) return;
-    context.isPlaying = true;
-    intervalId = setInterval(() => {
-      const { frame, event } = context.step();
-      postFrameUpdate(frame);
-      if (event) {
-        const eventMsg: WorkerOutboundMessage = {
-          type: 'SIMULATION_EVENT',
-          event: event.type,
-          payload: event.payload,
-        };
-        (self as unknown as Worker).postMessage(eventMsg);
-      }
-    }, FIXED_DT * 1000);
+    workerGlobal.postMessage(msg, [packed.buffer]);
   };
 
   const stopLoop = () => {
-    if (intervalId !== null) {
-      clearInterval(intervalId);
-      intervalId = null;
+    if (loopTimerId !== null) {
+      clearTimeout(loopTimerId);
+      loopTimerId = null;
     }
     context.isPlaying = false;
+  };
+
+  const scheduleNextTick = () => {
+    if (!context.isPlaying) return;
+    const stepMs = FIXED_DT * 1000;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    // Prevent spiral of death if main thread/tab was suspended
+    if (now - expectedNextTickMs > stepMs * 5) {
+      expectedNextTickMs = now + stepMs;
+    }
+    const delayMs = Math.max(0, expectedNextTickMs - now);
+
+    loopTimerId = setTimeout(() => {
+      loopTimerId = null;
+      if (!context.isPlaying) return;
+      try {
+        const { frame, event } = context.step();
+        postFrameUpdate(frame);
+        if (event) {
+          const eventMsg: WorkerOutboundMessage = {
+            type: 'SIMULATION_EVENT',
+            event: event.type,
+            payload: event.payload,
+          };
+          workerGlobal.postMessage(eventMsg);
+        }
+        expectedNextTickMs += stepMs;
+        scheduleNextTick();
+      } catch (err) {
+        stopLoop();
+        postSimulationError(err);
+      }
+    }, delayMs);
+  };
+
+  const startLoop = () => {
+    if (context.isPlaying || loopTimerId !== null) return;
+    context.isPlaying = true;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    expectedNextTickMs = now + FIXED_DT * 1000;
+    scheduleNextTick();
   };
 
   self.onmessage = (e: MessageEvent<WorkerInboundMessage>) => {
     const msg = e.data;
     if (!msg || !msg.type) return;
 
-    switch (msg.type) {
-      case 'INIT': {
-        stopLoop();
-        context.init(msg.mode, msg.params);
-        const current = context.ringBuffer.getLatest();
-        if (current) postFrameUpdate(current);
-        break;
-      }
-      case 'UPDATE_PARAMS': {
-        context.updateParams(msg.params);
-        break;
-      }
-      case 'PLAY': {
-        startLoop();
-        break;
-      }
-      case 'PAUSE': {
-        stopLoop();
-        const current = context.ringBuffer.getLatest();
-        if (current) postFrameUpdate(current);
-        break;
-      }
-      case 'RESET': {
-        stopLoop();
-        context.reset();
-        const current = context.ringBuffer.getLatest();
-        if (current) postFrameUpdate(current);
-        break;
-      }
-      case 'STEP_FRAMES': {
-        stopLoop();
-        const targetFrameIndex = context.frameIndex + msg.deltaFrames;
-        const historical = context.ringBuffer.getByFrameIndex(targetFrameIndex);
-        if (historical) {
-          context.frameIndex = historical.frameIndex;
-          context.time = historical.timestamp;
-          postFrameUpdate(historical);
-        } else if (msg.deltaFrames > 0) {
-          // If advancing beyond recorded history, step forward
-          for (let i = 0; i < msg.deltaFrames; i++) {
-            context.step();
+    try {
+      switch (msg.type) {
+        case 'INIT': {
+          stopLoop();
+          context.init(msg.mode, msg.params);
+          const current = context.ringBuffer.getLatest();
+          if (current) postFrameUpdate(current);
+          break;
+        }
+        case 'UPDATE_PARAMS': {
+          context.updateParams(msg.params);
+          break;
+        }
+        case 'PLAY': {
+          startLoop();
+          break;
+        }
+        case 'PAUSE': {
+          stopLoop();
+          const current = context.ringBuffer.getLatest();
+          if (current) postFrameUpdate(current);
+          break;
+        }
+        case 'RESET': {
+          stopLoop();
+          context.reset();
+          const current = context.ringBuffer.getLatest();
+          if (current) postFrameUpdate(current);
+          break;
+        }
+        case 'STEP_FRAMES': {
+          stopLoop();
+          const clampedDelta = clampStepFrames(msg.deltaFrames);
+          if (clampedDelta === 0) break;
+
+          const bounds = context.ringBuffer.getBounds();
+          const targetFrameIndex =
+            clampedDelta < 0
+              ? Math.max(bounds.minFrame, context.frameIndex + clampedDelta)
+              : context.frameIndex + clampedDelta;
+
+          const historical = context.ringBuffer.getByFrameIndex(targetFrameIndex);
+          if (historical) {
+            context.frameIndex = historical.frameIndex;
+            context.time = historical.timestamp;
+            postFrameUpdate(historical);
+          } else if (clampedDelta > 0) {
+            for (let i = 0; i < clampedDelta; i++) {
+              context.step();
+            }
+            const latest = context.ringBuffer.getLatest();
+            if (latest) postFrameUpdate(latest);
           }
-          const latest = context.ringBuffer.getLatest();
-          if (latest) postFrameUpdate(latest);
+          break;
         }
-        break;
-      }
-      case 'SEEK_FRAME': {
-        stopLoop();
-        const frame = context.ringBuffer.getByFrameIndex(msg.frameIndex);
-        if (frame) {
-          context.frameIndex = frame.frameIndex;
-          context.time = frame.timestamp;
-          postFrameUpdate(frame);
+        case 'SEEK_FRAME': {
+          stopLoop();
+          const frame = context.ringBuffer.getByFrameIndex(msg.frameIndex);
+          if (frame) {
+            context.frameIndex = frame.frameIndex;
+            context.time = frame.timestamp;
+            postFrameUpdate(frame);
+          }
+          break;
         }
-        break;
+        default: {
+          const _exhaustive: never = msg;
+          throw new Error(`Unhandled simulation worker message: ${JSON.stringify(_exhaustive)}`);
+        }
       }
+    } catch (err) {
+      stopLoop();
+      postSimulationError(err);
     }
   };
 }
+

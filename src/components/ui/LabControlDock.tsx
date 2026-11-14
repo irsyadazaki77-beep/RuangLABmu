@@ -17,6 +17,7 @@ import {
   X,
   History,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useLabStore } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { labSound } from '../../utils/soundEngine';
@@ -57,12 +58,38 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     timelineMaxTime,
     timelineCurrentTime,
     seekTimelineCursor,
-  } = useLabStore();
+  } = useLabStore(
+    useShallow((s) => ({
+      soundEnabled: s.soundEnabled,
+      toggleSound: s.toggleSound,
+      isLobbyMode: s.isLobbyMode,
+      workflowStep: s.workflowStep,
+      userRole: s.userRole,
+      isSimulating: s.isSimulating,
+      playbackSpeed: s.playbackSpeed,
+      setPlaybackSpeed: s.setPlaybackSpeed,
+      toggleSimulation: s.toggleSimulation,
+      triggerResetTrial: s.triggerResetTrial,
+      triggerCaptureSnapshot: s.triggerCaptureSnapshot,
+      isTimeTraveling: s.isTimeTraveling,
+      timelineCount: s.timelineCount,
+      timelineCursor: s.timelineCursor,
+      timelineMinTime: s.timelineMinTime,
+      timelineMaxTime: s.timelineMaxTime,
+      timelineCurrentTime: s.timelineCurrentTime,
+      seekTimelineCursor: s.seekTimelineCursor,
+    }))
+  );
 
   const {
     zenMode,
     toggleZenMode,
-  } = useUIStore();
+  } = useUIStore(
+    useShallow((s) => ({
+      zenMode: s.zenMode,
+      toggleZenMode: s.toggleZenMode,
+    }))
+  );
 
   const [snapshotPulse, setSnapshotPulse] = useState<boolean>(false);
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);

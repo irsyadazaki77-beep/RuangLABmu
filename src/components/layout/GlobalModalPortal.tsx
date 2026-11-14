@@ -5,6 +5,7 @@ import {
 } from '../ui/AcademicReportPreviewModal';
 import { AcademicReportData } from '../../utils/academicReportExporter';
 import { ExperimentModule, EducationTier } from '../../registry/experimentRegistry';
+import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../../stores/useUIStore';
 
 export interface GlobalModalPortalProps {
@@ -20,7 +21,12 @@ export const GlobalModalPortal: React.FC<GlobalModalPortalProps> = ({
   reportData,
   onProceedToLab,
 }) => {
-  const { activeModal, closeModal } = useUIStore();
+  const { activeModal, closeModal } = useUIStore(
+    useShallow((s) => ({
+      activeModal: s.activeModal,
+      closeModal: s.closeModal,
+    }))
+  );
 
   if (!activeModal) return null;
 

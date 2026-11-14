@@ -16,6 +16,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { labSound } from '../../utils/soundEngine';
+import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../../stores/useUIStore';
 
 export type ComfortThemeMode = 'light' | 'dark' | 'sepia';
@@ -178,7 +179,12 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
       colorBlindSafe: false,
       eyeRestReminderEnabled: true,
     };
-  const { liteDeviceMode, toggleLiteDeviceMode } = useUIStore();
+  const { liteDeviceMode, toggleLiteDeviceMode } = useUIStore(
+    useShallow((s) => ({
+      liteDeviceMode: s.liteDeviceMode,
+      toggleLiteDeviceMode: s.toggleLiteDeviceMode,
+    }))
+  );
   const eyeRestEnabled =
     preferences.eyeRestReminderEnabled ?? preferences.eyeRestTimerEnabled ?? true;
   const emitChange = (next: VisualComfortPreferences) => {

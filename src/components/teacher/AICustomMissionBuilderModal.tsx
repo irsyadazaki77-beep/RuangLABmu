@@ -23,6 +23,7 @@ import {
   generateDeterministicCustomMission,
   normalizeCustomMissionPayload,
 } from '../../utils/collabProtocol';
+import { useShallow } from 'zustand/react/shallow';
 import { useCollabStore } from '../../stores/useCollabStore';
 import { labSound } from '../../utils/soundEngine';
 
@@ -98,7 +99,15 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
   onSelectModule,
 }) => {
   const { activeRoomId, roomPin, activeCustomMission, setActiveCustomMission, setActiveRoom } =
-    useCollabStore();
+    useCollabStore(
+      useShallow((s) => ({
+        activeRoomId: s.activeRoomId,
+        roomPin: s.roomPin,
+        activeCustomMission: s.activeCustomMission,
+        setActiveCustomMission: s.setActiveCustomMission,
+        setActiveRoom: s.setActiveRoom,
+      }))
+    );
 
   const [selectedModuleId, setSelectedModuleId] = useState<string>('acid-base-titration');
   const [caseStudyPrompt, setCaseStudyPrompt] = useState<string>(
@@ -221,7 +230,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
     setActiveCustomMission(updated);
     labSound.playSuccessChime();
     setPublishSuccessMsg(
-      `Misi kustom telah disinkronkan ke Room [${effectiveRoomId}] (PIN: ${roomPin || '1234'}). Seluruh siswa di ruangan ini langsung menerima skenario studi kasus!`
+      `Misi kustom telah disinkronkan ke Room [${effectiveRoomId}]${roomPin ? ` (PIN: ${roomPin})` : ''}. Seluruh siswa di ruangan ini langsung menerima skenario studi kasus!`
     );
   };
 
@@ -256,7 +265,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
                   AI CUSTOM MISSION BUILDER · MODE GURU
                 </span>
                 <span className="text-[11px] font-mono text-emerald-300 font-bold">
-                  Room Aktif: {effectiveRoomId} (PIN: {roomPin || '1234'})
+                  Room Aktif: {effectiveRoomId} {roomPin ? `(PIN: ${roomPin})` : ''}
                 </span>
               </div>
               <h2 className="text-base sm:text-lg font-extrabold text-white mt-0.5">

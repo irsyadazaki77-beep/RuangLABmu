@@ -102,8 +102,43 @@ export function getWebXRState(): WebXRStateSnapshot {
  * 1. Mengecek apakah browser dan perangkat mendukung sesi WebXR `immersive-vr`.
  *    Aman dipanggil di lingkungan tanpa WebXR (progressive enhancement).
  */
-export async function checkImmersiveVRSupport(): Promise<boolean> {
+export async function checkImmersiveVRSupport(allowIframeProbe = false): Promise<boolean> {
   try {
+    const docAny =
+      typeof document !== 'undefined'
+        ? (document as unknown as {
+            permissionsPolicy?: { allowsFeature?: (f: string) => boolean };
+            featurePolicy?: { allowsFeature?: (f: string) => boolean };
+          })
+        : undefined;
+    const policy = docAny?.permissionsPolicy ?? docAny?.featurePolicy;
+    const explicitPolicyAllowed =
+      policy && typeof policy.allowsFeature === 'function'
+        ? policy.allowsFeature('xr-spatial-tracking')
+        : undefined;
+    const isEmbeddedIframe =
+      typeof window !== 'undefined' &&
+      (() => {
+        try {
+          return window.self !== window.top;
+        } catch {
+          return true;
+        }
+      })();
+
+    if (
+      explicitPolicyAllowed === false ||
+      (isEmbeddedIframe && !allowIframeProbe && explicitPolicyAllowed !== true)
+    ) {
+      currentXRState = {
+        ...currentXRState,
+        isHardwareVRSupported: false,
+        isProgressiveVRAvailable: true,
+      };
+      notifyXRListeners();
+      return false;
+    }
+
     if (
       typeof navigator !== 'undefined' &&
       'xr' in navigator &&

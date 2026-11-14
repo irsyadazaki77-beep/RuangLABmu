@@ -29,27 +29,18 @@ export interface PhysicsParams {
   springDisplacement: number; // m (-2.0 to 2.0)
   dampingCoeff: number; // N*s/m (0 - 5)
   mode: PhysicsMode;
-  // Advanced Physics Modules Parameters
+  // Advanced Physics Modules Canonical Parameters
   pendulumLength?: number; // m (0.2 - 2.5)
   pendulumAngle?: number; // degrees (5 - 60)
   fluidViscosity?: number; // Pa·s (0.01 - 2.0)
-  fluidViscosityPaS?: number;
   sphereRadius?: number; // mm (1 - 25)
-  sphereRadiusMm?: number;
   sphereDensity?: number; // kg/m³
-  sphereDensityKgM3?: number;
   fluidDensity?: number; // kg/m³
-  fluidDensityKgM3?: number;
   circuitVoltage?: number; // V (1 - 30)
-  circuitVoltageV?: number;
   resistorR1?: number; // Ohm (10 - 1000)
-  bridgeR1?: number;
   resistorR2?: number; // Ohm (10 - 1000)
-  bridgeR2?: number;
   resistorR3?: number; // Ohm (10 - 1000)
-  bridgeR3?: number;
   resistorRx?: number; // Ohm (10 - 1000)
-  bridgeRx?: number;
   slitDistance?: number; // mm (0.05 - 1.0)
   screenDistance?: number; // m (0.5 - 3.0)
   lightWavelength?: number; // nm (380 - 750)
@@ -58,7 +49,37 @@ export interface PhysicsParams {
   stoppingPotential?: number; // V (0 - 5.0)
 }
 
-export interface PhysicsMetrics {
+export function normalizeLegacyPhysicsParams(
+  raw: Record<string, unknown>
+): PhysicsParams {
+  const copy: Record<string, unknown> = { ...raw };
+  const aliasPairs: Array<[string, keyof PhysicsParams]> = [
+    ['fluidViscosityPaS', 'fluidViscosity'],
+    ['sphereRadiusMm', 'sphereRadius'],
+    ['sphereDensityKgM3', 'sphereDensity'],
+    ['fluidDensityKgM3', 'fluidDensity'],
+    ['circuitVoltageV', 'circuitVoltage'],
+    ['bridgeR1', 'resistorR1'],
+    ['bridgeR2', 'resistorR2'],
+    ['bridgeR3', 'resistorR3'],
+    ['bridgeRx', 'resistorRx'],
+  ];
+
+  for (const [legacyKey, canonicalKey] of aliasPairs) {
+    if (copy[canonicalKey] === undefined && copy[legacyKey] !== undefined) {
+      copy[canonicalKey] = copy[legacyKey];
+    }
+    delete copy[legacyKey];
+  }
+
+  if (copy.mode === 'projectile-motion') copy.mode = 'projectile-gravity';
+  if (copy.mode === 'gravity-orbital') copy.mode = 'orbital-gravity';
+
+  return copy as unknown as PhysicsParams;
+}
+
+export interface PhysicsMetricsBase {
+  mode: PhysicsMode;
   weightForce: number;
   normalForce: number;
   gravityParallel: number;
@@ -67,11 +88,27 @@ export interface PhysicsMetrics {
   netForce: number;
   acceleration: number;
   isMoving: boolean;
-  universalGravityForce: number; // µN
-  escapeVelocitySurface: number; // km/s
+}
+
+export interface NewtonInclineMetrics extends PhysicsMetricsBase {
+  mode: 'newton-incline';
+}
+
+export interface ProjectileGravityMetrics extends PhysicsMetricsBase {
+  mode: 'projectile-gravity';
   maxProjectileHeight: number; // m
   projectileRange: number; // m
   timeOfFlight: number; // s
+}
+
+export interface OrbitalGravityMetrics extends PhysicsMetricsBase {
+  mode: 'orbital-gravity';
+  universalGravityForce: number; // µN
+  escapeVelocitySurface: number; // km/s
+}
+
+export interface CollisionMomentumMetrics extends PhysicsMetricsBase {
+  mode: 'collision-momentum';
   initialTotalMomentum: number; // kg*m/s
   finalTotalMomentum: number; // kg*m/s
   v1Final: number; // m/s
@@ -79,23 +116,58 @@ export interface PhysicsMetrics {
   kineticEnergyInitial: number; // J
   kineticEnergyFinal: number; // J
   energyLossPct: number; // %
+}
+
+export interface SpringHookeMetrics extends PhysicsMetricsBase {
+  mode: 'spring-hooke';
   springRestoringForce: number; // F = -k*x (N)
   springPotentialEnergy: number; // Ep = 0.5*k*x^2 (J)
   oscillationPeriod: number; // T = 2*pi*sqrt(m/k) (s)
   angularFrequency: number; // omega = sqrt(k/m) (rad/s)
-  // Advanced Module Metrics
-  pendulumPeriod?: number; // s
-  pendulumFrequency?: number; // Hz
-  stokesTerminalVelocity?: number; // m/s
-  stokesDragForce?: number; // N
-  circuitCurrent?: number; // A
-  galvanometerCurrent?: number; // mA
-  bridgeBalanced?: boolean;
-  fringeSpacingMm?: number; // mm
-  photoelectricMaxKe?: number; // eV
-  photoelectricStoppingVoltage?: number; // V
-  photoelectricEmitted?: boolean;
 }
+
+export interface PendulumHarmonicMetrics extends PhysicsMetricsBase {
+  mode: 'pendulum-harmonic';
+  pendulumPeriod: number; // s
+  pendulumFrequency: number; // Hz
+}
+
+export interface StokesViscosityMetrics extends PhysicsMetricsBase {
+  mode: 'stokes-viscosity';
+  stokesTerminalVelocity: number; // m/s
+  stokesDragForce: number; // N
+}
+
+export interface OhmWheatstoneMetrics extends PhysicsMetricsBase {
+  mode: 'ohm-wheatstone';
+  circuitCurrent: number; // A
+  galvanometerCurrent: number; // mA
+  bridgeBalanced: boolean;
+}
+
+export interface OpticsYoungSlitMetrics extends PhysicsMetricsBase {
+  mode: 'optics-young-slit';
+  fringeSpacingMm: number; // mm
+}
+
+export interface PhotoelectricPlanckMetrics extends PhysicsMetricsBase {
+  mode: 'photoelectric-planck';
+  photoelectricMaxKe: number; // eV
+  photoelectricStoppingVoltage: number; // V
+  photoelectricEmitted: boolean;
+}
+
+export type PhysicsMetrics =
+  | NewtonInclineMetrics
+  | ProjectileGravityMetrics
+  | OrbitalGravityMetrics
+  | CollisionMomentumMetrics
+  | SpringHookeMetrics
+  | PendulumHarmonicMetrics
+  | StokesViscosityMetrics
+  | OhmWheatstoneMetrics
+  | OpticsYoungSlitMetrics
+  | PhotoelectricPlanckMetrics;
 
 export interface KinematicsInstant {
   time: number; // s
@@ -131,7 +203,14 @@ function safeRound(value: number, decimals: number): number {
   return Number(value.toFixed(decimals));
 }
 
+function normalizePhysicsMode(mode: PhysicsMode | string): PhysicsMode {
+  if (mode === 'projectile-motion') return 'projectile-gravity';
+  if (mode === 'gravity-orbital') return 'orbital-gravity';
+  return mode as PhysicsMode;
+}
+
 export function calculatePhysicsMetrics(params: PhysicsParams): PhysicsMetrics {
+  const mode = normalizePhysicsMode(params.mode);
   const m1 = Math.max(finiteOr(params.mass, 1.0), 1e-6);
   const g = Math.max(finiteOr(params.gravity, 9.81), 0);
   const gSafe = Math.max(g, 1e-6);
@@ -173,120 +252,7 @@ export function calculatePhysicsMetrics(params: PhysicsParams): PhysicsMetrics {
 
   const acceleration = netForce / Math.max(m1, 1e-6);
 
-  // Universal Gravitation
-  const G_CONST = 6.6743e-11;
-  const r = Math.max(finiteOr(params.separationDistance, 1.0), 1e-6);
-  const secondaryMass = Math.max(finiteOr(params.secondaryMass, 0), 0);
-  const universalGravityForce =
-    ((G_CONST * m1 * secondaryMass) / Math.max(r * r, 1e-6)) * 1e6; // µN
-
-  // Projectile Kinematics
-  const v0 = Math.max(0, initialVelocity);
-  const v0y = v0 * Math.sin(launchRad);
-  const v0x = v0 * Math.cos(launchRad);
-  const h0 = Math.max(0, finiteOr(params.initialHeight, 0));
-
-  let maxProjectileHeight = h0;
-  let timeOfFlight = 0;
-  let projectileRange = 0;
-
-  if (g > 0.001) {
-    maxProjectileHeight = h0 + (v0y * v0y) / Math.max(2 * gSafe, 1e-6);
-    const discriminant = Math.max(0, v0y * v0y + 2 * gSafe * h0);
-    timeOfFlight = (v0y + Math.sqrt(discriminant)) / gSafe;
-    projectileRange = v0x * timeOfFlight;
-  } else {
-    timeOfFlight = 10;
-    maxProjectileHeight = h0 + v0y * 10;
-    projectileRange = v0x * 10;
-  }
-
-  const escapeVelocitySurface = Math.sqrt(Math.max(0, 2 * g * 6.371e6)) / 1000;
-
-  // 1D Collision & Momentum Conservation Calculations
-  const m2 = Math.max(finiteOr(params.collisionMass2, 3.0), 1e-6);
-  const totalCollisionMass = Math.max(m1 + m2, 1e-6);
-  const u1 = initialVelocity;
-  const u2 = finiteOr(params.velocity2Initial, -2.0);
-  const e = Math.max(0, Math.min(1, finiteOr(params.restitutionCoeff, 1.0)));
-
-  const initialTotalMomentum = m1 * u1 + m2 * u2;
-  const v1Final = (m1 * u1 + m2 * u2 + m2 * e * (u2 - u1)) / totalCollisionMass;
-  const v2Final = (m1 * u1 + m2 * u2 + m1 * e * (u1 - u2)) / totalCollisionMass;
-  const finalTotalMomentum = m1 * v1Final + m2 * v2Final;
-
-  const kineticEnergyInitial = 0.5 * m1 * u1 * u1 + 0.5 * m2 * u2 * u2;
-  const kineticEnergyFinal =
-    0.5 * m1 * v1Final * v1Final + 0.5 * m2 * v2Final * v2Final;
-  const energyLossPct =
-    kineticEnergyInitial > 0.0001
-      ? Math.max(
-          0,
-          ((kineticEnergyInitial - kineticEnergyFinal) /
-            Math.max(kineticEnergyInitial, 1e-6)) *
-            100
-        )
-      : 0;
-
-  // Spring Hooke Oscillation Calculations
-  const k = Math.max(finiteOr(params.springConstantK, 120), 1e-6);
-  const xDisp = finiteOr(params.springDisplacement, 0.8);
-  const springRestoringForce = -k * xDisp;
-  const springPotentialEnergy = 0.5 * k * xDisp * xDisp;
-  const angularFrequency = Math.max(Math.sqrt(Math.max(k / Math.max(m1, 1e-6), 1e-6)), 1e-6);
-  const oscillationPeriod = (2 * Math.PI) / Math.max(angularFrequency, 1e-6);
-
-  // Advanced physics calculations
-  const pLength = Math.max(finiteOr(params.pendulumLength, 1.0), 1e-6);
-  const pendulumPeriod = Math.max(
-    2 * Math.PI * Math.sqrt(Math.max(pLength / gSafe, 1e-6)),
-    1e-6
-  );
-  const pendulumFrequency = 1 / Math.max(pendulumPeriod, 1e-6);
-
-  const rStokesM =
-    Math.max(finiteOr(params.sphereRadiusMm ?? params.sphereRadius, 5), 1e-6) / 1000;
-  const etaStokes = Math.max(
-    finiteOr(params.fluidViscosityPaS ?? params.fluidViscosity, 0.8),
-    1e-6
-  );
-  const rhoSphere = finiteOr(params.sphereDensityKgM3 ?? params.sphereDensity, 7800);
-  const rhoFluid = finiteOr(params.fluidDensityKgM3 ?? params.fluidDensity, 1260);
-  const stokesTerminalVelocity = Math.max(
-    0,
-    (2 * rStokesM * rStokesM * (rhoSphere - rhoFluid) * g) /
-      Math.max(9 * etaStokes, 1e-6)
-  );
-  const stokesDragForce = 6 * Math.PI * etaStokes * rStokesM * stokesTerminalVelocity;
-
-  const vCircuit = finiteOr(params.circuitVoltageV ?? params.circuitVoltage, 12);
-  const r1 = Math.max(finiteOr(params.bridgeR1 ?? params.resistorR1, 100), 1e-6);
-  const r2 = Math.max(finiteOr(params.bridgeR2 ?? params.resistorR2, 200), 1e-6);
-  const r3 = Math.max(finiteOr(params.bridgeR3 ?? params.resistorR3, 150), 1e-6);
-  const rx = Math.max(finiteOr(params.bridgeRx ?? params.resistorRx, 300), 1e-6);
-  const rTop = Math.max(r1 + r2, 1e-6);
-  const rBot = Math.max(r3 + rx, 1e-6);
-  const rEq = Math.max((rTop * rBot) / Math.max(rTop + rBot, 1e-6), 1e-6);
-  const circuitCurrent = vCircuit / rEq;
-  const vA = vCircuit * (r2 / rTop);
-  const vB = vCircuit * (rx / rBot);
-  const galvanometerCurrent = (Math.abs(vA - vB) / 50) * 1000;
-  const bridgeBalanced = Math.abs(r1 * rx - r2 * r3) < 0.5;
-
-  const slitDistMm = Math.max(finiteOr(params.slitDistance, 0.25), 1e-6);
-  const screenDistM = Math.max(finiteOr(params.screenDistance, 1.5), 1e-6);
-  const lambdaNm = Math.max(finiteOr(params.lightWavelength, 532), 1e-6);
-  const fringeSpacingMm = (lambdaNm * 1e-6 * screenDistM * 1000) / slitDistMm;
-
-  const hPlanckEv = 4.135667696e-15;
-  const fPhotonHz = Math.max(finiteOr(params.photonFrequency, 7.5), 0) * 1e14;
-  const ePhotonEv = hPlanckEv * fPhotonHz;
-  const workFuncEv = Math.max(finiteOr(params.targetMetalWorkFunction, 2.28), 0);
-  const photoelectricMaxKe = Math.max(0, ePhotonEv - workFuncEv);
-  const photoelectricStoppingVoltage = photoelectricMaxKe;
-  const photoelectricEmitted = ePhotonEv > workFuncEv;
-
-  return {
+  const base = {
     weightForce: safeRound(weightForce, 3),
     normalForce: safeRound(normalForce, 3),
     gravityParallel: safeRound(gravityParallel, 3),
@@ -295,34 +261,209 @@ export function calculatePhysicsMetrics(params: PhysicsParams): PhysicsMetrics {
     netForce: safeRound(netForce, 3),
     acceleration: safeRound(acceleration, 3),
     isMoving,
-    universalGravityForce: safeRound(universalGravityForce, 4),
-    escapeVelocitySurface: safeRound(escapeVelocitySurface, 2),
-    maxProjectileHeight: safeRound(maxProjectileHeight, 2),
-    projectileRange: safeRound(projectileRange, 2),
-    timeOfFlight: safeRound(timeOfFlight, 2),
-    initialTotalMomentum: safeRound(initialTotalMomentum, 2),
-    finalTotalMomentum: safeRound(finalTotalMomentum, 2),
-    v1Final: safeRound(v1Final, 2),
-    v2Final: safeRound(v2Final, 2),
-    kineticEnergyInitial: safeRound(kineticEnergyInitial, 2),
-    kineticEnergyFinal: safeRound(kineticEnergyFinal, 2),
-    energyLossPct: safeRound(energyLossPct, 1),
-    springRestoringForce: safeRound(springRestoringForce, 2),
-    springPotentialEnergy: safeRound(springPotentialEnergy, 2),
-    oscillationPeriod: safeRound(oscillationPeriod, 2),
-    angularFrequency: safeRound(angularFrequency, 2),
-    pendulumPeriod: safeRound(pendulumPeriod, 2),
-    pendulumFrequency: safeRound(pendulumFrequency, 2),
-    stokesTerminalVelocity: safeRound(stokesTerminalVelocity, 3),
-    stokesDragForce: safeRound(stokesDragForce, 4),
-    circuitCurrent: safeRound(circuitCurrent, 3),
-    galvanometerCurrent: safeRound(galvanometerCurrent, 2),
-    bridgeBalanced,
-    fringeSpacingMm: safeRound(fringeSpacingMm, 2),
-    photoelectricMaxKe: safeRound(photoelectricMaxKe, 2),
-    photoelectricStoppingVoltage: safeRound(photoelectricStoppingVoltage, 2),
-    photoelectricEmitted,
   };
+
+  switch (mode) {
+    case 'projectile-gravity': {
+      const v0 = Math.max(0, initialVelocity);
+      const v0y = v0 * Math.sin(launchRad);
+      const v0x = v0 * Math.cos(launchRad);
+      const h0 = Math.max(0, finiteOr(params.initialHeight, 0));
+
+      let maxProjectileHeight = h0;
+      let timeOfFlight = 0;
+      let projectileRange = 0;
+
+      if (g > 0.001) {
+        maxProjectileHeight = h0 + (v0y * v0y) / Math.max(2 * gSafe, 1e-6);
+        const discriminant = Math.max(0, v0y * v0y + 2 * gSafe * h0);
+        timeOfFlight = (v0y + Math.sqrt(discriminant)) / gSafe;
+        projectileRange = v0x * timeOfFlight;
+      } else {
+        timeOfFlight = 10;
+        maxProjectileHeight = h0 + v0y * 10;
+        projectileRange = v0x * 10;
+      }
+
+      return {
+        ...base,
+        mode: 'projectile-gravity',
+        maxProjectileHeight: safeRound(maxProjectileHeight, 2),
+        projectileRange: safeRound(projectileRange, 2),
+        timeOfFlight: safeRound(timeOfFlight, 2),
+      };
+    }
+
+    case 'orbital-gravity': {
+      const G_CONST = 6.6743e-11;
+      const r = Math.max(finiteOr(params.separationDistance, 1.0), 1e-6);
+      const secondaryMass = Math.max(finiteOr(params.secondaryMass, 0), 0);
+      const universalGravityForce =
+        ((G_CONST * m1 * secondaryMass) / Math.max(r * r, 1e-6)) * 1e6; // µN
+      const escapeVelocitySurface = Math.sqrt(Math.max(0, 2 * g * 6.371e6)) / 1000;
+
+      return {
+        ...base,
+        mode: 'orbital-gravity',
+        universalGravityForce: safeRound(universalGravityForce, 4),
+        escapeVelocitySurface: safeRound(escapeVelocitySurface, 2),
+      };
+    }
+
+    case 'collision-momentum': {
+      const m2 = Math.max(finiteOr(params.collisionMass2, 3.0), 1e-6);
+      const totalCollisionMass = Math.max(m1 + m2, 1e-6);
+      const u1 = initialVelocity;
+      const u2 = finiteOr(params.velocity2Initial, -2.0);
+      const e = Math.max(0, Math.min(1, finiteOr(params.restitutionCoeff, 1.0)));
+
+      const initialTotalMomentum = m1 * u1 + m2 * u2;
+      const v1Final = (m1 * u1 + m2 * u2 + m2 * e * (u2 - u1)) / totalCollisionMass;
+      const v2Final = (m1 * u1 + m2 * u2 + m1 * e * (u1 - u2)) / totalCollisionMass;
+      const finalTotalMomentum = m1 * v1Final + m2 * v2Final;
+
+      const kineticEnergyInitial = 0.5 * m1 * u1 * u1 + 0.5 * m2 * u2 * u2;
+      const kineticEnergyFinal =
+        0.5 * m1 * v1Final * v1Final + 0.5 * m2 * v2Final * v2Final;
+      const energyLossPct =
+        kineticEnergyInitial > 0.0001
+          ? Math.max(
+              0,
+              ((kineticEnergyInitial - kineticEnergyFinal) /
+                Math.max(kineticEnergyInitial, 1e-6)) *
+                100
+            )
+          : 0;
+
+      return {
+        ...base,
+        mode: 'collision-momentum',
+        initialTotalMomentum: safeRound(initialTotalMomentum, 2),
+        finalTotalMomentum: safeRound(finalTotalMomentum, 2),
+        v1Final: safeRound(v1Final, 2),
+        v2Final: safeRound(v2Final, 2),
+        kineticEnergyInitial: safeRound(kineticEnergyInitial, 2),
+        kineticEnergyFinal: safeRound(kineticEnergyFinal, 2),
+        energyLossPct: safeRound(energyLossPct, 1),
+      };
+    }
+
+    case 'spring-hooke': {
+      const k = Math.max(finiteOr(params.springConstantK, 120), 1e-6);
+      const xDisp = finiteOr(params.springDisplacement, 0.8);
+      const springRestoringForce = -k * xDisp;
+      const springPotentialEnergy = 0.5 * k * xDisp * xDisp;
+      const angularFrequency = Math.max(Math.sqrt(Math.max(k / Math.max(m1, 1e-6), 1e-6)), 1e-6);
+      const oscillationPeriod = (2 * Math.PI) / Math.max(angularFrequency, 1e-6);
+
+      return {
+        ...base,
+        mode: 'spring-hooke',
+        springRestoringForce: safeRound(springRestoringForce, 2),
+        springPotentialEnergy: safeRound(springPotentialEnergy, 2),
+        oscillationPeriod: safeRound(oscillationPeriod, 2),
+        angularFrequency: safeRound(angularFrequency, 2),
+      };
+    }
+
+    case 'pendulum-harmonic': {
+      const pLength = Math.max(finiteOr(params.pendulumLength, 1.0), 1e-6);
+      const pendulumPeriod = Math.max(
+        2 * Math.PI * Math.sqrt(Math.max(pLength / gSafe, 1e-6)),
+        1e-6
+      );
+      const pendulumFrequency = 1 / Math.max(pendulumPeriod, 1e-6);
+
+      return {
+        ...base,
+        mode: 'pendulum-harmonic',
+        pendulumPeriod: safeRound(pendulumPeriod, 2),
+        pendulumFrequency: safeRound(pendulumFrequency, 2),
+      };
+    }
+
+    case 'stokes-viscosity': {
+      const rStokesM = Math.max(finiteOr(params.sphereRadius, 5), 1e-6) / 1000;
+      const etaStokes = Math.max(finiteOr(params.fluidViscosity, 0.8), 1e-6);
+      const rhoSphere = finiteOr(params.sphereDensity, 7800);
+      const rhoFluid = finiteOr(params.fluidDensity, 1260);
+      const stokesTerminalVelocity = Math.max(
+        0,
+        (2 * rStokesM * rStokesM * (rhoSphere - rhoFluid) * g) /
+          Math.max(9 * etaStokes, 1e-6)
+      );
+      const stokesDragForce = 6 * Math.PI * etaStokes * rStokesM * stokesTerminalVelocity;
+
+      return {
+        ...base,
+        mode: 'stokes-viscosity',
+        stokesTerminalVelocity: safeRound(stokesTerminalVelocity, 3),
+        stokesDragForce: safeRound(stokesDragForce, 4),
+      };
+    }
+
+    case 'ohm-wheatstone': {
+      const vCircuit = finiteOr(params.circuitVoltage, 12);
+      const r1 = Math.max(finiteOr(params.resistorR1, 100), 1e-6);
+      const r2 = Math.max(finiteOr(params.resistorR2, 200), 1e-6);
+      const r3 = Math.max(finiteOr(params.resistorR3, 150), 1e-6);
+      const rx = Math.max(finiteOr(params.resistorRx, 300), 1e-6);
+      const rTop = Math.max(r1 + r2, 1e-6);
+      const rBot = Math.max(r3 + rx, 1e-6);
+      const rEq = Math.max((rTop * rBot) / Math.max(rTop + rBot, 1e-6), 1e-6);
+      const circuitCurrent = vCircuit / rEq;
+      const vA = vCircuit * (r2 / rTop);
+      const vB = vCircuit * (rx / rBot);
+      const galvanometerCurrent = (Math.abs(vA - vB) / 50) * 1000;
+      const bridgeBalanced = Math.abs(r1 * rx - r2 * r3) < 0.5;
+
+      return {
+        ...base,
+        mode: 'ohm-wheatstone',
+        circuitCurrent: safeRound(circuitCurrent, 3),
+        galvanometerCurrent: safeRound(galvanometerCurrent, 2),
+        bridgeBalanced,
+      };
+    }
+
+    case 'optics-young-slit': {
+      const slitDistMm = Math.max(finiteOr(params.slitDistance, 0.25), 1e-6);
+      const screenDistM = Math.max(finiteOr(params.screenDistance, 1.5), 1e-6);
+      const lambdaNm = Math.max(finiteOr(params.lightWavelength, 532), 1e-6);
+      const fringeSpacingMm = (lambdaNm * 1e-6 * screenDistM * 1000) / slitDistMm;
+
+      return {
+        ...base,
+        mode: 'optics-young-slit',
+        fringeSpacingMm: safeRound(fringeSpacingMm, 2),
+      };
+    }
+
+    case 'photoelectric-planck': {
+      const hPlanckEv = 4.135667696e-15;
+      const fPhotonHz = Math.max(finiteOr(params.photonFrequency, 7.5), 0) * 1e14;
+      const ePhotonEv = hPlanckEv * fPhotonHz;
+      const workFuncEv = Math.max(finiteOr(params.targetMetalWorkFunction, 2.28), 0);
+      const photoelectricMaxKe = Math.max(0, ePhotonEv - workFuncEv);
+      const photoelectricStoppingVoltage = photoelectricMaxKe;
+      const photoelectricEmitted = ePhotonEv > workFuncEv;
+
+      return {
+        ...base,
+        mode: 'photoelectric-planck',
+        photoelectricMaxKe: safeRound(photoelectricMaxKe, 2),
+        photoelectricStoppingVoltage: safeRound(photoelectricStoppingVoltage, 2),
+        photoelectricEmitted,
+      };
+    }
+
+    case 'newton-incline':
+    default:
+      return {
+        ...base,
+        mode: 'newton-incline',
+      };
+  }
 }
 
 export function evaluateKinematicsAtTime(params: PhysicsParams, t: number): KinematicsInstant {
@@ -333,7 +474,7 @@ export function evaluateKinematicsAtTime(params: PhysicsParams, t: number): Kine
   const initialVelocity = finiteOr(params.initialVelocity, 0);
   const initialHeight = finiteOr(params.initialHeight, 0);
 
-  if (params.mode === 'projectile-gravity') {
+  if (metrics.mode === 'projectile-gravity') {
     const launchRad = (finiteOr(params.launchAngle, 0) * Math.PI) / 180;
     const v0x = initialVelocity * Math.cos(launchRad);
     const v0y = initialVelocity * Math.sin(launchRad);
@@ -371,7 +512,7 @@ export function evaluateKinematicsAtTime(params: PhysicsParams, t: number): Kine
     };
   }
 
-  if (params.mode === 'spring-hooke') {
+  if (metrics.mode === 'spring-hooke') {
     const k = Math.max(finiteOr(params.springConstantK, 120), 1e-6);
     const A = finiteOr(params.springDisplacement, 0.8);
     const b = Math.max(0, finiteOr(params.dampingCoeff, 0.15));
@@ -400,7 +541,7 @@ export function evaluateKinematicsAtTime(params: PhysicsParams, t: number): Kine
     };
   }
 
-  if (params.mode === 'collision-momentum') {
+  if (metrics.mode === 'collision-momentum') {
     const collisionTime = 1.5;
     const isAfterImpact = time >= collisionTime;
     const vCurrent = isAfterImpact ? metrics.v1Final : initialVelocity;
@@ -428,7 +569,7 @@ export function evaluateKinematicsAtTime(params: PhysicsParams, t: number): Kine
     };
   }
 
-  if (params.mode === 'pendulum-harmonic') {
+  if (metrics.mode === 'pendulum-harmonic') {
     const L = Math.max(finiteOr(params.pendulumLength, 1.0), 1e-6);
     const theta0Rad = (finiteOr(params.pendulumAngle, 25) * Math.PI) / 180;
     const omega = Math.sqrt(Math.max(g, 0) / Math.max(L, 1e-6));

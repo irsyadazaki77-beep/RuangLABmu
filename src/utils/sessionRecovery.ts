@@ -10,6 +10,7 @@ import {
   ChemistryParams,
   AstronomyParams,
 } from './scienceEngine';
+import { normalizeLegacyPhysicsParams } from './engines/physicsEngine';
 
 export interface SavedLabSession {
   version: number;
@@ -66,6 +67,11 @@ export function parseSession(rawJson: string, maxAgeMs: number = SESSION_MAX_AGE
   try {
     const parsed = JSON.parse(rawJson);
     if (isSessionValid(parsed, maxAgeMs)) {
+      if (parsed.physicsParams && typeof parsed.physicsParams === 'object') {
+        parsed.physicsParams = normalizeLegacyPhysicsParams(
+          parsed.physicsParams as unknown as Record<string, unknown>
+        );
+      }
       return parsed;
     }
   } catch {

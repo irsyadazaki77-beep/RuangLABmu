@@ -1,5 +1,6 @@
 import React from 'react';
 import { Telescope, Sliders, BarChart2, Bot } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useUIStore, MobileTab } from '../../stores/useUIStore';
 import { useLabStore } from '../../stores/useLabStore';
 import { labSound } from '../../utils/soundEngine';
@@ -13,7 +14,14 @@ export const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
   recordsCount = 0,
   hasLowR2Alert = false,
 }) => {
-  const { mobileTab, setMobileTab, setDrawerTab, setDrawerOpen } = useUIStore();
+  const { mobileTab, setMobileTab, setDrawerTab, setDrawerOpen } = useUIStore(
+    useShallow((s) => ({
+      mobileTab: s.mobileTab,
+      setMobileTab: s.setMobileTab,
+      setDrawerTab: s.setDrawerTab,
+      setDrawerOpen: s.setDrawerOpen,
+    }))
+  );
   const setWorkflowStep = useLabStore((s) => s.setWorkflowStep);
 
   const navItems: Array<{

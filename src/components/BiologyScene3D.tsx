@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import {
   applyBorosilicateLiteMode,
@@ -17,7 +17,7 @@ import {
   buildPredatorPreyRig,
 } from './scenes/BiologyRigs';
 import { createMeasurementRuler3D } from '../utils/threeMeasurementTools';
-import { initThreeStudioHost } from '../utils/threeStudioHost';
+import { initThreeStudioHost, startStudioRenderLoop } from '../utils/threeStudioHost';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
 import { Maximize2, Minimize2, Focus, Link2, Ruler } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
@@ -26,16 +26,15 @@ import { labSound } from '../utils/soundEngine';
 import { triggerDomainApparatusSnap } from '../utils/engines/multiApparatusEngine';
 import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
-import { useUIStore } from '../stores/useUIStore';
-import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { AnatomySubScene3D, AnatomyModuleId } from './scenes/AnatomySubScene3D';
 import {
-  ConceptLabelDomRef,
   ConceptLabelToggleButton,
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from './ui/ConceptLabelsOverlay';
 import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
+import { useThreeStudioScene } from './scenes/useThreeStudioScene';
+import { useUIStore } from '../stores/useUIStore';
 
 interface BiologyScene3DProps {
   mode:
@@ -65,6 +64,7 @@ interface BiologyScene3DProps {
 }
 
 type BioCameraPreset = 'isometric' | 'front' | 'top' | 'focus';
+const BIO_ORDERED_PRESETS: readonly BioCameraPreset[] = ['isometric', 'front', 'top', 'focus'];
 
 function createOrganelleTexture(
   type: 'nucleus' | 'mitochondria' | 'chloroplast'
@@ -92,26 +92,41 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   cameraSyncPose,
   onCameraSyncChange,
 }) => {
-  const storeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
-  const showConceptLabels = useUIStore((s) => s.showConceptLabels);
-  const showConceptLabelsRef = useRef(showConceptLabels);
-  showConceptLabelsRef.current = showConceptLabels;
-
-  const activeComfortTheme = comfortTheme ?? storeComfortTheme;
-  const themeColors = getSceneThemeColors(activeComfortTheme, 'Biologi');
-
-  const mountRef = useRef<HTMLDivElement>(null);
-  const conceptDomRef = useRef<Record<string, ConceptLabelDomRef>>({});
-  const bindConceptSlot = useCallback((id: string, dom: ConceptLabelDomRef | null) => {
-    if (dom) conceptDomRef.current[id] = dom;
-    else delete conceptDomRef.current[id];
-  }, []);
+  const {
+    activeComfortTheme,
+    themeColors,
+    showConceptLabels,
+    showConceptLabelsRef,
+    mountRef,
+    containerRef,
+    conceptDomRef,
+    bindConceptSlot,
+    isFullscreen,
+    handleToggleFullscreen,
+    activePreset,
+    setActivePreset,
+    dragToast,
+    setDragToast,
+    hoveredPartLabel,
+    setHoveredPartLabel,
+    sceneKey,
+    triggerSceneRebuild,
+    cameraCtrlRef,
+    cameraSyncHandleRef,
+    onCameraSyncChangeRef,
+  } = useThreeStudioScene<BioCameraPreset>({
+    domain: 'Biologi',
+    orderedPresets: BIO_ORDERED_PRESETS,
+    defaultPreset: 'isometric',
+    comfortTheme,
+    cameraSyncPose,
+    onCameraSyncChange,
+    onCaptureSnapshot,
+  });
 
   const cursorManagerRef = useRef<SpatialCursorManager | null>(null);
   const onEmitCursorRef = useRef(onEmitCursor);
   onEmitCursorRef.current = onEmitCursor;
-  const onCaptureSnapshotRef = useRef(onCaptureSnapshot);
-  onCaptureSnapshotRef.current = onCaptureSnapshot;
   const onUpdateParamRef = useRef(onUpdateParam);
   onUpdateParamRef.current = onUpdateParam;
   const latestParamsRef = useRef(params);
@@ -121,70 +136,21 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   const externalSimTimeRef = useRef(simTimeRef);
   externalSimTimeRef.current = simTimeRef;
 
-  const [activePreset, setActivePreset] = useState<BioCameraPreset>('isometric');
   const [clickedBadge, setClickedBadge] = useState<string | null>(null);
-  const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
-  const [hoveredPartLabel, setHoveredPartLabel] = useState<string | null>(null);
   const [snapToast, setSnapToast] = useState<string | null>(null);
   const [showRuler3D, setShowRuler3D] = useState<boolean>(false);
   const showRuler3DRef = useRef<boolean>(false);
   showRuler3DRef.current = showRuler3D;
   const [rulerReadout, setRulerReadout] = useState<string | null>(null);
-  const [sceneKey, setSceneKey] = useState<number>(0);
   const [lensFocus, setLensFocus] = useState<number>(75); // 0 to 100 (optimal crispness near 75-100)
   const lensFocusRef = useRef<number>(75);
   lensFocusRef.current = lensFocus;
-
-  const cameraCtrlRef = useRef<{
-    setPreset: (preset: BioCameraPreset) => void;
-    setOrbit: (orbit: boolean) => void;
-    captureCanvas: () => string | null;
-    applyTheme: (colors: ReturnType<typeof getSceneThemeColors>) => void;
-  } | null>(null);
-
-  const onCameraSyncChangeRef = useRef(onCameraSyncChange);
-  onCameraSyncChangeRef.current = onCameraSyncChange;
-  const lastAppliedCamSeqRef = useRef<number>(-1);
-  const cameraSyncHandleRef = useRef<{ applyPose: (pose: CameraSyncPose) => void } | null>(null);
-
-  useEffect(() => {
-    if (!cameraSyncPose || cameraSyncPose.seq === lastAppliedCamSeqRef.current) return;
-    lastAppliedCamSeqRef.current = cameraSyncPose.seq;
-    cameraSyncHandleRef.current?.applyPose(cameraSyncPose);
-  }, [cameraSyncPose]);
 
   const syncConceptLabelsRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     syncConceptLabelsRef.current?.();
   }, [mode, params, showConceptLabels]);
-
-  useEffect(() => {
-    cameraCtrlRef.current?.applyTheme(getSceneThemeColors(activeComfortTheme, 'Biologi'));
-  }, [activeComfortTheme]);
-
-  useEffect(() => {
-    const handleGlobalSnapshot = () => {
-      if (onCaptureSnapshotRef.current && cameraCtrlRef.current) {
-        const url = cameraCtrlRef.current.captureCanvas();
-        if (url) onCaptureSnapshotRef.current(url);
-      }
-    };
-    const unsubSnapshot = subscribeLabEvent(LAB_EVENTS.CAPTURE_SNAPSHOT, handleGlobalSnapshot);
-    const orderedPresets: BioCameraPreset[] = ['isometric', 'front', 'top', 'focus'];
-    const unsubPreset = subscribeLabEvent(LAB_EVENTS.SET_CAMERA_PRESET, (detail) => {
-      if (!detail) return;
-      const preset = orderedPresets[detail.index];
-      if (preset) {
-        setActivePreset(preset);
-        cameraCtrlRef.current?.setPreset(preset);
-      }
-    });
-    return () => {
-      unsubSnapshot();
-      unsubPreset();
-    };
-  }, []);
 
   const isAnatomyMode =
     mode === 'anatomy-cardiovascular-heart' ||
@@ -196,9 +162,6 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const container = mountRef.current;
     if (!container) return;
 
-    let disposed = false;
-    let animationFrameId = 0;
-    let timeoutId = 0;
     const width = container.clientWidth || 600;
     const height = container.clientHeight || 450;
     const initialColors = getSceneThemeColors(activeComfortTheme, 'Biologi');
@@ -223,7 +186,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         maxDistance: 20,
         autoRotateSpeed: 1.4,
       },
-      onContextRestored: () => setSceneKey((prev) => prev + 1),
+      onContextRestored: triggerSceneRebuild,
       onUserControlsStart: () => {
         camTransitionActive = false;
       },
@@ -232,7 +195,6 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     if (!host) return;
 
     const { scene, camera, renderer, controls, fpsMonitor, isSoftwareGl } = host;
-    const gl = renderer.getContext() as WebGL2RenderingContext;
 
     const baseCamPos = new THREE.Vector3(2.8, 3.8, 7.2);
     const desiredCamPos = new THREE.Vector3(2.8, 3.8, 7.2);
@@ -281,11 +243,12 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     );
     scene.add(hemiLight);
 
+    const bioShadowSize = isSoftwareGl ? 512 : 2048;
     const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
     dirLight.position.set(5, 8, 4);
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048;
-    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.mapSize.width = bioShadowSize;
+    dirLight.shadow.mapSize.height = bioShadowSize;
     dirLight.shadow.camera.near = 0.5;
     dirLight.shadow.camera.far = 25;
     const shadowBound = 6;
@@ -315,8 +278,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     stageCondenserLight.position.set(0, -1.2, 0);
     stageCondenserLight.target = condenserTarget;
     stageCondenserLight.castShadow = true;
-    stageCondenserLight.shadow.mapSize.width = 2048;
-    stageCondenserLight.shadow.mapSize.height = 2048;
+    stageCondenserLight.shadow.mapSize.width = bioShadowSize;
+    stageCondenserLight.shadow.mapSize.height = bioShadowSize;
     stageCondenserLight.shadow.bias = -0.0001;
     scene.add(stageCondenserLight);
 
@@ -368,7 +331,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     scene.add(condenserBezel);
 
     // Optical Condenser Lens Ring embedded in stage center
-    const initialLite = useUIStore.getState().liteDeviceMode;
+    const initialLite = useUIStore.getState().liteDeviceMode || isSoftwareGl;
     const condenserLensMat = createBorosilicateGlassMaterial(initialLite, {
       color: 0xe0f2fe,
       tintOpacity: 0.34,
@@ -538,6 +501,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       protoMembraneTex,
       protoBump,
       createCellularOrganellesGroup,
+      isLiteInitial: initialLite,
     };
     const activeRig: BiologyRigHandle =
       mode === 'photosynthesis-ingenhousz'
@@ -649,146 +613,104 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     });
 
     // Animation Loop
-    const startTimeMs = performance.now();
-    let lastTimeMs = startTimeMs;
     let currentFocusSmooth = lensFocusRef.current;
 
-    const afterDraw = (cb: () => void) => {
-      const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-      gl.flush();
-      const poll = () => {
-        if (disposed) return;
-        const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
-        if (state === gl.UNSIGNALED) {
-          timeoutId = window.setTimeout(poll, 5);
-        } else {
-          if (sync) gl.deleteSync(sync);
-          timeoutId = window.setTimeout(cb, 80);
-        }
-      };
-      timeoutId = window.setTimeout(poll, 5);
-    };
+    const loopHandle = startStudioRenderLoop({
+      renderer,
+      isSoftwareGl,
+      fpsMonitor,
+      onFrame: ({ dt: delta, elapsed, isLite }) => {
+        const effectiveLite = isLite || isSoftwareGl;
+        applyBorosilicateLiteMode(slideGlassMat, effectiveLite);
+        applyBorosilicateLiteMode(condenserLensMat, effectiveLite);
+        rulerHandle.group.visible = showRuler3DRef.current;
 
-    let lastRenderTimestamp = 0;
+        const curParams = latestParamsRef.current;
+        const extRef = externalSimTimeRef.current;
+        const t =
+          extRef && typeof extRef.current === 'number'
+            ? extRef.current
+            : typeof simTimePropRef.current === 'number'
+            ? simTimePropRef.current
+            : elapsed;
 
-    const animate = (timestamp?: number) => {
-      if (disposed) return;
-
-      const nowMs = typeof timestamp === 'number' && timestamp > 0 ? timestamp : performance.now();
-      fpsMonitor.recordFrame(nowMs);
-
-      const isLite = useUIStore.getState().liteDeviceMode;
-      applyBorosilicateLiteMode(slideGlassMat, isLite);
-      applyBorosilicateLiteMode(condenserLensMat, isLite);
-      rulerHandle.group.visible = showRuler3DRef.current;
-      if (isLite) {
-        const deltaFps = nowMs - lastRenderTimestamp;
-        if (deltaFps < 32) {
-          if (isSoftwareGl) afterDraw(animate);
-          else animationFrameId = requestAnimationFrame(animate);
-          return;
-        }
-        lastRenderTimestamp = nowMs - (deltaFps % 33.3);
-      }
-
-      const delta = Math.min((nowMs - lastTimeMs) / 1000, 0.05);
-      lastTimeMs = nowMs;
-      const elapsed = (nowMs - startTimeMs) / 1000;
-      const curParams = latestParamsRef.current;
-      const extRef = externalSimTimeRef.current;
-      const t =
-        extRef && typeof extRef.current === 'number'
-          ? extRef.current
-          : typeof simTimePropRef.current === 'number'
-          ? simTimePropRef.current
-          : elapsed;
-
-      // Smoothly interpolate 3D Microscope Lens Focus (Tahap 5)
-      currentFocusSmooth = THREE.MathUtils.damp(
-        currentFocusSmooth,
-        lensFocusRef.current,
-        8,
-        delta || 0.016
-      );
-      const focusNormalized = currentFocusSmooth / 100; // 0.0 (defocused/far) -> 1.0 (sharp optical focus)
-      const sharpnessFactor = Math.max(0.2, Math.min(1.0, 0.25 + focusNormalized * 0.75));
-
-      // Adjust organelle material sharpness, fluorescence intensity & stage condenser beam
-      organelleMaterials.forEach((mat, idx) => {
-        mat.roughness = 0.75 - sharpnessFactor * 0.55;
-        mat.opacity = 0.45 + sharpnessFactor * 0.53;
-        mat.emissiveIntensity = (0.3 + sharpnessFactor * 0.95) * (idx === 2 ? 1.1 : 0.9);
-      });
-      stageCondenserLight.intensity = 2.2 + sharpnessFactor * 3.6;
-
-      // Coupled focal zoom on camera distance when user adjusts Microscope Focus slider
-      const zoomFactor = 1.28 - focusNormalized * 0.46; // zooms in smoothly as focus increases
-      desiredCamPos.copy(baseCamPos).multiplyScalar(zoomFactor);
-
-      // Slow gentle rotation for viewing angle
-      apparatusGroup.rotation.y = Math.sin(t * 0.15) * 0.25;
-
-      const rigAnchors = activeRig.update(t, curParams, isLite, showConceptLabelsRef.current);
-
-      if (camTransitionActive) {
-        camTransitionActive = smoothCameraTransition(
-          camera,
-          controls,
-          desiredCamPos,
-          desiredTarget,
-          0.14
+        // Smoothly interpolate 3D Microscope Lens Focus (Tahap 5)
+        currentFocusSmooth = THREE.MathUtils.damp(
+          currentFocusSmooth,
+          lensFocusRef.current,
+          8,
+          delta || 0.016
         );
-      }
+        const focusNormalized = currentFocusSmooth / 100; // 0.0 (defocused/far) -> 1.0 (sharp optical focus)
+        const sharpnessFactor = Math.max(0.2, Math.min(1.0, 0.25 + focusNormalized * 0.75));
 
-      teacherCollabBridge.tick();
-      controls.update();
+        // Adjust organelle material sharpness, fluorescence intensity & stage condenser beam
+        organelleMaterials.forEach((mat, idx) => {
+          mat.roughness = 0.75 - sharpnessFactor * 0.55;
+          mat.opacity = 0.45 + sharpnessFactor * 0.53;
+          mat.emissiveIntensity = (0.3 + sharpnessFactor * 0.95) * (idx === 2 ? 1.1 : 0.9);
+        });
+        stageCondenserLight.intensity = 2.2 + sharpnessFactor * 3.6;
 
-      const syncBioLabelsNow = () => {
-        const showLabels = showConceptLabelsRef.current;
-        const cw = container.clientWidth || width;
-        const ch = container.clientHeight || height;
-        const cDom = conceptDomRef.current;
-        const cEntries = [
-          {
-            dom: cDom.c1,
-            worldPos: rigAnchors.c1?.pos ?? new THREE.Vector3(),
-            text: rigAnchors.c1?.text ?? '',
-            active: Boolean(showLabels && rigAnchors.c1),
-          },
-          {
-            dom: cDom.c2,
-            worldPos: rigAnchors.c2?.pos ?? new THREE.Vector3(),
-            text: rigAnchors.c2?.text ?? '',
-            active: Boolean(showLabels && rigAnchors.c2),
-          },
-          {
-            dom: cDom.c3,
-            worldPos: rigAnchors.c3?.pos ?? new THREE.Vector3(),
-            text: rigAnchors.c3?.text ?? '',
-            active: Boolean(showLabels && rigAnchors.c3),
-          },
-        ];
-        updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
-      };
+        // Coupled focal zoom on camera distance when user adjusts Microscope Focus slider
+        const zoomFactor = 1.28 - focusNormalized * 0.46; // zooms in smoothly as focus increases
+        desiredCamPos.copy(baseCamPos).multiplyScalar(zoomFactor);
 
-      syncConceptLabelsRef.current = syncBioLabelsNow;
-      syncBioLabelsNow();
+        // Slow gentle rotation for viewing angle
+        apparatusGroup.rotation.y = Math.sin(t * 0.15) * 0.25;
 
-      host.renderFrame(delta);
+        const rigAnchors = activeRig.update(t, curParams, effectiveLite, showConceptLabelsRef.current);
 
-      if (isSoftwareGl) {
-        afterDraw(animate);
-      } else {
-        animationFrameId = requestAnimationFrame(animate);
-      }
-    };
+        if (camTransitionActive) {
+          camTransitionActive = smoothCameraTransition(
+            camera,
+            controls,
+            desiredCamPos,
+            desiredTarget,
+            0.14
+          );
+        }
 
-    animationFrameId = requestAnimationFrame(animate);
+        teacherCollabBridge.tick();
+        controls.update();
+
+        const syncBioLabelsNow = () => {
+          const showLabels = showConceptLabelsRef.current;
+          const cw = container.clientWidth || width;
+          const ch = container.clientHeight || height;
+          const cDom = conceptDomRef.current;
+          const cEntries = [
+            {
+              dom: cDom.c1,
+              worldPos: rigAnchors.c1?.pos ?? new THREE.Vector3(),
+              text: rigAnchors.c1?.text ?? '',
+              active: Boolean(showLabels && rigAnchors.c1),
+            },
+            {
+              dom: cDom.c2,
+              worldPos: rigAnchors.c2?.pos ?? new THREE.Vector3(),
+              text: rigAnchors.c2?.text ?? '',
+              active: Boolean(showLabels && rigAnchors.c2),
+            },
+            {
+              dom: cDom.c3,
+              worldPos: rigAnchors.c3?.pos ?? new THREE.Vector3(),
+              text: rigAnchors.c3?.text ?? '',
+              active: Boolean(showLabels && rigAnchors.c3),
+            },
+          ];
+          updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
+        };
+
+        syncConceptLabelsRef.current = syncBioLabelsNow;
+        syncBioLabelsNow();
+
+        host.renderFrame(delta);
+      },
+    });
 
     return () => {
-      disposed = true;
-      cancelAnimationFrame(animationFrameId);
-      clearTimeout(timeoutId);
+      loopHandle.stop();
       if (dragToastTimer) clearTimeout(dragToastTimer);
       interactionManager.dispose();
       rulerHandle.dispose();
@@ -821,26 +743,6 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       cursorManagerRef.current.update(remoteCursors);
     }
   }, [remoteCursors]);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-
-  const handleToggleFullscreen = () => {
-    labSound.playClick();
-    if (!containerRef.current) return;
-
-    if (!isFullscreen) {
-      if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen().catch(() => {});
-      }
-      setIsFullscreen(true);
-    } else {
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      }
-      setIsFullscreen(false);
-    }
-  };
 
   if (isAnatomyMode) {
     return (

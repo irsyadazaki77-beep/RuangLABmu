@@ -67,29 +67,16 @@ export function createLabRouter({ state, getPort }: LabRoutesDeps): express.Rout
       return;
     }
     const now = Date.now();
-    // Prune expired snapshots (>24h) and cap total entries to prevent unbounded memory growth
-    if (state.sessionSnapshots.size >= 500) {
-      const cutoff = now - 24 * 60 * 60 * 1000;
-      for (const [key, entry] of state.sessionSnapshots.entries()) {
-        if (entry.updatedAt < cutoff) {
-          state.sessionSnapshots.delete(key);
-        }
-      }
-      while (state.sessionSnapshots.size >= 500) {
-        const oldestKey = state.sessionSnapshots.keys().next().value;
-        if (!oldestKey) break;
-        state.sessionSnapshots.delete(oldestKey);
-      }
-    }
     state.sessionSnapshots.set(storageKey, {
       version,
       session,
       updatedAt: now,
     });
+    state.pruneSessionSnapshots(now);
     res.json({
       status: 'ok',
       version,
-      savedAt: Date.now(),
+      savedAt: now,
     });
   });
 

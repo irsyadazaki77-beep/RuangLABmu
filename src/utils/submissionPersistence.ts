@@ -23,7 +23,7 @@ export interface TeacherAuthResult {
  * or execute privileged teacher actions (e.g., freeze class, broadcast mystery challenge, send teacher feedback).
  */
 export function verifyTeacherAuthorization(ctx: TeacherAuthContext): TeacherAuthResult {
-  const masterPin = (ctx.expectedMasterPin || process.env.TEACHER_SECRET_PIN || '1234').trim();
+  const masterPin = (ctx.expectedMasterPin || process.env.TEACHER_SECRET_PIN || '').trim();
   const wantsTeacher =
     ctx.claimedRole === 'Pengajar' ||
     ctx.claimedRole === 'teacher' ||
@@ -42,7 +42,7 @@ export function verifyTeacherAuthorization(ctx: TeacherAuthContext): TeacherAuth
     if (ctx.roomPin && candidatePin === ctx.roomPin.trim()) {
       return { authorized: true, effectiveRole: 'Pengajar' };
     }
-    if (candidatePin === masterPin) {
+    if (masterPin && candidatePin === masterPin) {
       return { authorized: true, effectiveRole: 'Pengajar' };
     }
   }

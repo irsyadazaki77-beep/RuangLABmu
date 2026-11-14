@@ -118,10 +118,13 @@ test('Fisika Baru: 1D Collision Momentum & Spring Hooke Oscillation', () => {
     velocity2Initial: 0,
     restitutionCoeff: 0,
   });
-  assert.equal(inelastic.initialTotalMomentum, 24);
-  assert.equal(inelastic.finalTotalMomentum, 24);
-  assert.equal(inelastic.v1Final, 4);
-  assert.equal(inelastic.v2Final, 4);
+  assert.equal(inelastic.mode, 'collision-momentum');
+  if (inelastic.mode === 'collision-momentum') {
+    assert.equal(inelastic.initialTotalMomentum, 24);
+    assert.equal(inelastic.finalTotalMomentum, 24);
+    assert.equal(inelastic.v1Final, 4);
+    assert.equal(inelastic.v2Final, 4);
+  }
 
   const spring = calculatePhysicsMetrics({
     ...defaultPhysics,
@@ -130,9 +133,12 @@ test('Fisika Baru: 1D Collision Momentum & Spring Hooke Oscillation', () => {
     springConstantK: 100,
     springDisplacement: 0.5,
   });
-  assert.equal(spring.springRestoringForce, -50);
-  assert.equal(spring.springPotentialEnergy, 12.5);
-  assert.equal(spring.angularFrequency, 5);
+  assert.equal(spring.mode, 'spring-hooke');
+  if (spring.mode === 'spring-hooke') {
+    assert.equal(spring.springRestoringForce, -50);
+    assert.equal(spring.springPotentialEnergy, 12.5);
+    assert.equal(spring.angularFrequency, 5);
+  }
   const kinSpring = evaluateKinematicsAtTime(
     {
       ...defaultPhysics,
@@ -996,17 +1002,14 @@ test('Division-by-Zero Protection: Physics & Astronomy Engines never return NaN 
         pendulumLength: val,
         pendulumAngle: val,
         fluidViscosity: val,
-        fluidViscosityPaS: val,
         sphereRadius: val,
-        sphereRadiusMm: val,
+        sphereDensity: val,
+        fluidDensity: val,
+        circuitVoltage: val,
         resistorR1: val,
         resistorR2: val,
         resistorR3: val,
         resistorRx: val,
-        bridgeR1: val,
-        bridgeR2: val,
-        bridgeR3: val,
-        bridgeRx: val,
         slitDistance: val,
         screenDistance: val,
         lightWavelength: val,

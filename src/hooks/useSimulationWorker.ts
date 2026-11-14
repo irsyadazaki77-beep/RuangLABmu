@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { SimulationFrame } from '../utils/simulationBuffer';
+import { SimulationFrame, unpackSimulationFrame } from '../utils/simulationBuffer';
 import {
   SimulationMode,
   SimulationEventType,
@@ -38,8 +38,12 @@ export function useSimulationWorker(
     payload: Record<string, number>;
   } | null>(null);
 
+  // Sync parameter updates to worker
+  const paramsRef = useRef(params);
+
   // Initialize Worker
   useEffect(() => {
+    let disposed = false;
     let worker: Worker | null = null;
     try {
       worker = new Worker(
@@ -49,22 +53,37 @@ export function useSimulationWorker(
       workerRef.current = worker;
 
       worker.onmessage = (e: MessageEvent<WorkerOutboundMessage>) => {
+        if (disposed) return;
         const data = e.data;
         if (!data) return;
 
         if (data.type === 'FRAME_UPDATE') {
-          setCurrentFrame(data.frame);
+          const decoded = unpackSimulationFrame(
+            data.transferBuffer,
+            data.entityKeys,
+            data.scalarKeys
+          );
+          setCurrentFrame(decoded);
           setBounds(data.bounds);
           setIsPlaying(data.isPlaying);
         } else if (data.type === 'SIMULATION_EVENT') {
           setLastEvent({ event: data.event, payload: data.payload });
+        } else if (data.type === 'SIMULATION_ERROR') {
+          console.error('[SimulationWorker] Runtime error:', data.message);
+          setIsPlaying(false);
         }
+      };
+
+      worker.onerror = (err) => {
+        if (disposed) return;
+        console.error('[SimulationWorker] Worker error:', err.message);
+        setIsPlaying(false);
       };
 
       const initMsg: WorkerInboundMessage = {
         type: 'INIT',
         mode,
-        params,
+        params: paramsRef.current,
       };
       worker.postMessage(initMsg);
     } catch (err) {
@@ -72,15 +91,16 @@ export function useSimulationWorker(
     }
 
     return () => {
+      disposed = true;
       if (worker) {
+        worker.onmessage = null;
         worker.terminate();
-        workerRef.current = null;
+        if (workerRef.current === worker) {
+          workerRef.current = null;
+        }
       }
     };
   }, [mode]);
-
-  // Sync parameter updates to worker
-  const paramsRef = useRef(params);
   useEffect(() => {
     paramsRef.current = params;
     if (workerRef.current) {

@@ -153,7 +153,10 @@ export function useSpatialCollab({
             role,
             groupId,
             domain,
-            teacherPin: role === 'Pengajar' ? '1234' : undefined,
+            teacherPin:
+              role === 'Pengajar'
+                ? useCollabStore.getState().roomPin || undefined
+                : undefined,
           },
         })
       );

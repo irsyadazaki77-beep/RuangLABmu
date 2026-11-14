@@ -43,10 +43,11 @@ import {
   ScientificBadge,
   AchievementBadgesStrip,
 } from './ui/ScientificEnhancementSuite';
+import { useShallow } from 'zustand/react/shallow';
 import { useCollabStore } from '../stores/useCollabStore';
 import { useLabStore } from '../stores/useLabStore';
 import { useUIStore } from '../stores/useUIStore';
-import { generateRandomRoomId } from '../utils/collabProtocol';
+import { generateRandomRoomId, generateRandomRoomPin } from '../utils/collabProtocol';
 import { ModuleSchematicIllustration } from './ui/ModuleSchematicIllustration';
 import { SciFormula } from './ui/ScientificNotation';
 import {
@@ -216,8 +217,13 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
   const [selectedChapterNum, setSelectedChapterNum] = useState<number | 'all'>('all');
   const [competencyTierFilter, setCompetencyTierFilter] = useState<CompetencyTier | 'Semua'>('Semua');
 
-  const { userRole, setUserRole } = useLabStore();
-  const { openModal } = useUIStore();
+  const { userRole, setUserRole } = useLabStore(
+    useShallow((s) => ({
+      userRole: s.userRole,
+      setUserRole: s.setUserRole,
+    }))
+  );
+  const openModal = useUIStore((s) => s.openModal);
   const {
     activeRoomId,
     roomPin,
@@ -230,7 +236,21 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
     openRoomModal,
     closeRoomModal,
     setRoomError,
-  } = useCollabStore();
+  } = useCollabStore(
+    useShallow((s) => ({
+      activeRoomId: s.activeRoomId,
+      roomPin: s.roomPin,
+      roomMembers: s.roomMembers,
+      activeCustomMission: s.activeCustomMission,
+      isFrozenByTeacher: s.isFrozenByTeacher,
+      isRoomModalOpen: s.isRoomModalOpen,
+      roomModalMode: s.roomModalMode,
+      roomError: s.roomError,
+      openRoomModal: s.openRoomModal,
+      closeRoomModal: s.closeRoomModal,
+      setRoomError: s.setRoomError,
+    }))
+  );
 
   const [lastModuleId, setLastModuleId] = useState<string | null>(() =>
     loadLastOpenedModuleId()
@@ -317,8 +337,8 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
     onSelectExperiment(chosenModule);
   };
 
-  const [formRoomId, setFormRoomId] = useState<string>('LAB-ALPHA');
-  const [formPin, setFormPin] = useState<string>('1234');
+  const [formRoomId, setFormRoomId] = useState<string>('');
+  const [formPin, setFormPin] = useState<string>('');
   const [formDomain, setFormDomain] = useState<'physics' | 'chemistry' | 'biology' | 'astronomy'>('physics');
   const [formRole, setFormRole] = useState<'teacher' | 'student'>(
     userRole === 'pengajar' ? 'teacher' : 'student'
@@ -413,7 +433,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
     setRoomError(null);
     if (roomModalMode === 'create') {
       const code = (formRoomId || generateRandomRoomId()).toUpperCase().trim();
-      const pinCode = (formPin || '1234').trim();
+      const pinCode = (formPin || generateRandomRoomPin()).trim();
       setUserRole('pengajar');
       if (onCreateRoom) {
         onCreateRoom(pinCode, formDomain, 'newton-incline', code);
@@ -462,8 +482,8 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                 type="button"
                 onClick={() => {
                   openRoomModal('join');
-                  setFormRoomId('LAB-ALPHA');
-                  setFormPin('1234');
+                  setFormRoomId('');
+                  setFormPin('');
                 }}
                 className={`py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                   roomModalMode === 'join'
@@ -478,7 +498,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                 onClick={() => {
                   openRoomModal('create');
                   setFormRoomId(generateRandomRoomId());
-                  setFormPin('1234');
+                  setFormPin(generateRandomRoomPin());
                 }}
                 className={`py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                   roomModalMode === 'create'
@@ -516,9 +536,10 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                 </label>
                 <input
                   type="text"
+                  data-testid="room-pin-input"
                   value={formPin}
                   onChange={(e) => setFormPin(e.target.value)}
-                  placeholder="Contoh: 1234"
+                  placeholder="Masukkan PIN 4–6 digit"
                   className="w-full px-3.5 py-2 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-300 dark:border-slate-700 font-mono text-sm font-bold text-slate-900 dark:text-emerald-300 focus:outline-none focus:border-sky-500"
                 />
               </div>
@@ -574,7 +595,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               {roomModalMode === 'join' && availableRooms.length > 0 && (
                 <div className="pt-1 space-y-1.5">
                   <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                    Meja Aktif Tersedia (Klik untuk isi otomatis — PIN Default: 1234):
+                    Meja Aktif Tersedia (Klik untuk memilih kode meja):
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {availableRooms.map((r) => (
@@ -583,7 +604,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                         type="button"
                         onClick={() => {
                           setFormRoomId(r.roomId);
-                          setFormPin('1234');
+                          setFormPin('');
                         }}
                         className="px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 border border-stone-300 dark:border-slate-700 text-[11px] font-mono text-sky-700 dark:text-sky-300 cursor-pointer"
                       >
@@ -715,8 +736,8 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               type="button"
               onClick={() => {
                 labSound.playClick();
-                setFormRoomId('LAB-ALPHA');
-                setFormPin('1234');
+                setFormRoomId('');
+                setFormPin('');
                 openRoomModal('join');
               }}
               className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
@@ -730,7 +751,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               onClick={() => {
                 labSound.playClick();
                 setFormRoomId(generateRandomRoomId());
-                setFormPin('1234');
+                setFormPin(generateRandomRoomPin());
                 openRoomModal('create');
               }}
               className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-semibold text-[11px] flex items-center gap-1 cursor-pointer shadow-2xs transition-colors"
@@ -1245,7 +1266,10 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
       )}
 
       {/* 6. MAIN CONTENT AREA: CHAPTERS GRID OR EXPERIMENT MODULES GRID */}
-      {lobbyViewMode === 'chapters' && selectedChapterNum === 'all' ? (
+      {lobbyViewMode === 'chapters' &&
+      selectedChapterNum === 'all' &&
+      !searchQuery.trim() &&
+      cognitiveFilter === 'all' ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>

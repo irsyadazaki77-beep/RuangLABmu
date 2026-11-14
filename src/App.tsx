@@ -1,4 +1,6 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { labSound } from './utils/soundEngine';
 import { useLabStore } from './stores/useLabStore';
 import { useUIStore } from './stores/useUIStore';
@@ -11,6 +13,12 @@ import { ExamSessionController } from './components/exam/ExamSessionController';
 import { useLabSession } from './hooks/useLabSession';
 import { useUrlRouterSync } from './hooks/useUrlRouterSync';
 import { recordK3Compliance } from './services/gamificationEngine';
+import {
+  enqueuePendingExamSubmission,
+  flushPendingExamSubmissions,
+  loadPendingExamSubmissions,
+  submitExamPayload,
+} from './utils/examSubmissionQueue';
 
 const GlobalModalPortal = React.lazy(() =>
   import('./components/layout/GlobalModalPortal').then((m) => ({ default: m.GlobalModalPortal }))
@@ -27,6 +35,12 @@ import {
   parseReplayParameters,
 } from './utils/labTelemetryHelpers';
 
+interface ExamSubmissionBannerState {
+  status: 'idle' | 'pending_retry' | 'retrying' | 'synced';
+  message: string;
+  pendingCount: number;
+}
+
 /**
  * RuangLABmu - Virtual Science Laboratory Workspace (v2.0)
  * React 19 + TypeScript + Tailwind CSS v4 + Three.js
@@ -35,9 +49,24 @@ import {
 export default function App() {
   useUrlRouterSync();
 
-  const { setActiveDomain, setWorkflowStep, isSubmissionLocked, setSubmissionLocked } = useLabStore();
-  const { onboardingTourOpen, setOnboardingTourOpen } = useUIStore();
-  const { activeRoomId } = useCollabStore();
+  const { setActiveDomain, setWorkflowStep, isSubmissionLocked, setSubmissionLocked } =
+    useLabStore(
+      useShallow((s) => ({
+        setActiveDomain: s.setActiveDomain,
+        setWorkflowStep: s.setWorkflowStep,
+        isSubmissionLocked: s.isSubmissionLocked,
+        setSubmissionLocked: s.setSubmissionLocked,
+      }))
+    );
+
+  const { onboardingTourOpen, setOnboardingTourOpen } = useUIStore(
+    useShallow((s) => ({
+      onboardingTourOpen: s.onboardingTourOpen,
+      setOnboardingTourOpen: s.setOnboardingTourOpen,
+    }))
+  );
+
+  const activeRoomId = useCollabStore((s) => s.activeRoomId);
   const session = useLabSession();
 
   const {
@@ -103,46 +132,163 @@ export default function App() {
     ws,
   } = session;
 
-  const recordsRegression = computeRecordsRegressionSummary(records);
+  const recordsRegression = useMemo(
+    () => computeRecordsRegressionSummary(records),
+    [records]
+  );
 
-  const handleAutoSubmitExam = async () => {
+  const [examBanner, setExamBanner] = useState<ExamSubmissionBannerState>(() => {
+    const initialPending = loadPendingExamSubmissions();
+    return initialPending.length > 0
+      ? {
+          status: 'pending_retry',
+          message: `Ada ${initialPending.length} jawaban ujian tersimpan lokal yang menunggu koneksi untuk dikirim ulang ke server.`,
+          pendingCount: initialPending.length,
+        }
+      : { status: 'idle', message: '', pendingCount: 0 };
+  });
+
+  const retryPendingExamSubmissions = useCallback(async () => {
+    const currentQueue = loadPendingExamSubmissions();
+    if (currentQueue.length === 0) return;
+
+    setExamBanner({
+      status: 'retrying',
+      message: `Mengirim ulang ${currentQueue.length} jawaban ujian tersimpan ke server...`,
+      pendingCount: currentQueue.length,
+    });
+
+    const summary = await flushPendingExamSubmissions();
+    if (summary.remainingCount === 0) {
+      setExamBanner({
+        status: 'synced',
+        message: `Jawaban ujian berhasil dikirim ke server${summary.ticketCode ? ` (Tiket: ${summary.ticketCode})` : ''}.`,
+        pendingCount: 0,
+      });
+      pushNotification({
+        id: `notif-exam-sync-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }),
+        severity: 'nominal',
+        domain: activeScienceDomain,
+        title: 'Pengumpulan Ujian Tersinkronisasi',
+        message: `Jawaban ujian yang sebelumnya tertunda berhasil dikirim ke server.`,
+      });
+    } else {
+      setExamBanner({
+        status: 'pending_retry',
+        message: `Gagal mengirim jawaban ujian (${summary.lastError || 'jaringan terputus'}). Data tetap aman tersimpan secara lokal dan akan dicoba ulang otomatis saat koneksi pulih.`,
+        pendingCount: summary.remainingCount,
+      });
+    }
+  }, [activeScienceDomain, pushNotification]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (examBanner.pendingCount === 0) return;
+
+    const onOnline = () => {
+      void retryPendingExamSubmissions();
+    };
+
+    window.addEventListener('online', onOnline);
+    const retryTimer = window.setInterval(() => {
+      if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+        void retryPendingExamSubmissions();
+      }
+    }, 15000);
+
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.clearInterval(retryTimer);
+    };
+  }, [examBanner.pendingCount, retryPendingExamSubmissions]);
+
+  const handleAutoSubmitExam = useCallback(async () => {
     setSubmissionLocked(true);
     setLksGraded(true);
-    try {
-      const obsPayload = records.map((r, i) => ({
-        No: i + 1,
-        Waktu: r.timestamp,
-        X: r.numericX ?? 0,
-        Y1: r.numericY1 ?? 0,
-        Parameter: r.parametersSummary,
-      }));
-      await fetch('/api/submissions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentName: currentProfile.name,
-          studentId: currentProfile.group,
-          roomId: activeRoomId || 'LAB-ALPHA',
-          domain: activeScienceDomain,
-          moduleId: currentExperimentModule.id,
-          submittedAt: new Date().toISOString(),
-          hypothesisText: currentModuleHypothesis.hypothesisText || 'Pengumpulan otomatis saat batas waktu ujian berakhir.',
-          observationData: obsPayload,
-          regressionMetrics: {
-            rSquared: recordsRegression.rSquared,
-            slope: recordsRegression.slope,
-            equation: recordsRegression.equation,
-          },
-          quizAnswers: [],
-          quizScore: latestLksScore,
-          conclusionText: 'Dikumpulkan otomatis oleh ExamSessionController.',
-          telemetryLog: buildSubmissionTelemetryTimeline(activeScienceDomain, obsPayload),
-        }),
+
+    const obsPayload = records.map((r, i) => ({
+      No: i + 1,
+      Waktu: r.timestamp,
+      X: r.numericX ?? 0,
+      Y1: r.numericY1 ?? 0,
+      Parameter: r.parametersSummary,
+    }));
+
+    const examPayload: Record<string, unknown> = {
+      studentName: currentProfile.name,
+      studentId: currentProfile.group,
+      roomId: activeRoomId || 'LAB-ALPHA',
+      domain: activeScienceDomain,
+      moduleId: currentExperimentModule.id,
+      submittedAt: new Date().toISOString(),
+      hypothesisText:
+        currentModuleHypothesis.hypothesisText ||
+        'Pengumpulan otomatis saat batas waktu ujian berakhir.',
+      observationData: obsPayload,
+      regressionMetrics: {
+        rSquared: recordsRegression.rSquared,
+        slope: recordsRegression.slope,
+        equation: recordsRegression.equation,
+      },
+      quizAnswers: [],
+      quizScore: latestLksScore,
+      conclusionText: 'Dikumpulkan otomatis oleh ExamSessionController.',
+      telemetryLog: buildSubmissionTelemetryTimeline(activeScienceDomain, obsPayload),
+    };
+
+    const result = await submitExamPayload(examPayload);
+    if (result.ok) {
+      setExamBanner({
+        status: 'synced',
+        message: `Jawaban ujian berhasil dikumpulkan dan diverifikasi server${result.ticketCode ? ` (Tiket: ${result.ticketCode})` : ''}.`,
+        pendingCount: loadPendingExamSubmissions().length,
       });
-    } catch {
-      // ignore network error on auto-submit
+      return;
     }
-  };
+
+    const updatedQueue = enqueuePendingExamSubmission(
+      examPayload,
+      result.error || 'Gagal mengirim ke server'
+    );
+    setExamBanner({
+      status: 'pending_retry',
+      message: `Koneksi gagal saat pengumpulan ujian (${result.error || 'offline'}). Jawaban Anda telah diamankan di penyimpanan lokal dan akan dikirim ulang otomatis saat koneksi kembali.`,
+      pendingCount: updatedQueue.length,
+    });
+    pushNotification({
+      id: `notif-exam-offline-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+      severity: 'elevated',
+      domain: activeScienceDomain,
+      title: 'Jawaban Ujian Disimpan Lokal (Menunggu Koneksi)',
+      message:
+        'Pengiriman ke server belum berhasil. Jawaban ujian disimpan aman di perangkat dan akan dicoba ulang otomatis.',
+    });
+  }, [
+    activeRoomId,
+    activeScienceDomain,
+    currentExperimentModule.id,
+    currentModuleHypothesis.hypothesisText,
+    currentProfile.group,
+    currentProfile.name,
+    latestLksScore,
+    pushNotification,
+    records,
+    recordsRegression.equation,
+    recordsRegression.rSquared,
+    recordsRegression.slope,
+    setLksGraded,
+    setSubmissionLocked,
+  ]);
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-[var(--comfort-bg)] text-[var(--comfort-text)] transition-colors duration-200">
@@ -161,6 +307,54 @@ export default function App() {
         bestRSquared={recordsRegression.rSquared}
         latestLksScore={latestLksScore}
       />
+
+      {/* Exam Submission Recovery & Retry Banner */}
+      {examBanner.status !== 'idle' && (
+        <div
+          role="status"
+          data-testid="exam-submission-status-banner"
+          className={`shrink-0 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold border-b z-40 ${
+            examBanner.status === 'synced'
+              ? 'bg-emerald-600 text-white border-emerald-500'
+              : 'bg-amber-500 text-slate-950 border-amber-600'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {examBanner.status === 'synced' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+            )}
+            <span>{examBanner.message}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {examBanner.status !== 'synced' && (
+              <button
+                type="button"
+                onClick={() => void retryPendingExamSubmissions()}
+                disabled={examBanner.status === 'retrying'}
+                className="px-3 py-1 rounded-lg bg-slate-950 text-white hover:bg-slate-800 disabled:opacity-60 font-bold inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${examBanner.status === 'retrying' ? 'animate-spin' : ''}`}
+                />
+                <span>
+                  {examBanner.status === 'retrying' ? 'Mengirim...' : 'Coba Kirim Ulang'}
+                </span>
+              </button>
+            )}
+            {examBanner.status === 'synced' && (
+              <button
+                type="button"
+                onClick={() => setExamBanner({ status: 'idle', message: '', pendingCount: 0 })}
+                className="px-2.5 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white cursor-pointer"
+              >
+                Tutup
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2. Exam Controller Wrapper + Workspace Laboratorium Utama */}
       <ExamSessionController
@@ -314,4 +508,3 @@ export default function App() {
     </div>
   );
 }
-

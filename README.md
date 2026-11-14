@@ -7,7 +7,7 @@
 [![CI Pipeline](https://github.com/irsyadazaki77-beep/RuangLABmu/actions/workflows/ci.yml/badge.svg)](https://github.com/irsyadazaki77-beep/RuangLABmu/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-7.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Three.js](https://img.shields.io/badge/3D_Engine-Three.js_WebGL-000000?logo=threedotjs&logoColor=white)](https://threejs.org/)
 

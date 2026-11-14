@@ -313,7 +313,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     });
     if (!host) return;
 
-    const { scene, camera, renderer, controls, fpsMonitor } = host;
+    const { scene, camera, renderer, controls, fpsMonitor, isSoftwareGl } = host;
 
     cameraSyncHandleRef.current = {
       applyPose: (pose) => {
@@ -332,7 +332,8 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
     keyLight.position.set(5, 8, 6);
     keyLight.castShadow = true;
-    keyLight.shadow.mapSize.set(1024, 1024);
+    const anatomyShadowSize = isSoftwareGl ? 512 : 1024;
+    keyLight.shadow.mapSize.set(anatomyShadowSize, anatomyShadowSize);
     keyLight.shadow.bias = -0.0002;
     scene.add(keyLight);
     const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.4);

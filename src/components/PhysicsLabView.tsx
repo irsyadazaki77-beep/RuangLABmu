@@ -36,6 +36,7 @@ import {
 } from './ui/HypothesisAndCompareDock';
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
+import { useShallow } from 'zustand/react/shallow';
 import { useLabStore } from '../stores/useLabStore';
 import {
   getPhysicsParameterFeedback,
@@ -154,7 +155,13 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     }
   }, [params]);
 
-  const { playbackSpeed, academicLevel: storeAcademicLevel, isTimeTraveling } = useLabStore();
+  const { playbackSpeed, academicLevel: storeAcademicLevel, isTimeTraveling } = useLabStore(
+    useShallow((s) => ({
+      playbackSpeed: s.playbackSpeed,
+      academicLevel: s.academicLevel,
+      isTimeTraveling: s.isTimeTraveling,
+    }))
+  );
   const effectiveEducationLevel = normalizeEducationLevel(
     academicLevel ?? storeAcademicLevel
   );
@@ -284,39 +291,39 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     let numX = params.appliedForce;
     let numY1 = metrics.acceleration;
 
-    if (params.mode === 'projectile-gravity') {
+    if (metrics.mode === 'projectile-gravity') {
       pSum = `v₀=${params.initialVelocity}m/s, θ=${params.launchAngle}°, g=${params.gravity}m/s²`;
       numX = params.initialVelocity;
       numY1 = metrics.projectileRange;
-    } else if (params.mode === 'spring-hooke') {
+    } else if (metrics.mode === 'spring-hooke') {
       pSum = `k=${params.springConstantK}N/m, Δx=${params.springDisplacement}m, m=${params.mass}kg`;
       numX = params.springDisplacement;
       numY1 = Math.abs(metrics.springRestoringForce);
-    } else if (params.mode === 'pendulum-harmonic') {
+    } else if (metrics.mode === 'pendulum-harmonic') {
       pSum = `L=${params.pendulumLength ?? 1.2}m, θ₀=${params.pendulumAngle ?? 25}°, g=${params.gravity}m/s²`;
       numX = params.pendulumLength ?? 1.2;
-      numY1 = metrics.pendulumPeriod ?? 2.2;
-    } else if (params.mode === 'collision-momentum') {
+      numY1 = metrics.pendulumPeriod;
+    } else if (metrics.mode === 'collision-momentum') {
       pSum = `m₁=${params.mass}kg, v₁=${params.initialVelocity}m/s, m₂=${params.collisionMass2}kg, e=${params.restitutionCoeff}`;
       numX = params.initialVelocity;
       numY1 = metrics.v1Final;
-    } else if (params.mode === 'stokes-viscosity') {
+    } else if (metrics.mode === 'stokes-viscosity') {
       pSum = `η=${params.fluidViscosity ?? 0.8}Pa·s, r=${params.sphereRadius ?? 5}mm`;
       numX = params.sphereRadius ?? 5;
-      numY1 = metrics.stokesTerminalVelocity ?? 0.5;
-    } else if (params.mode === 'ohm-wheatstone') {
+      numY1 = metrics.stokesTerminalVelocity;
+    } else if (metrics.mode === 'ohm-wheatstone') {
       pSum = `V=${params.circuitVoltage ?? 12}V, Rx=${params.resistorRx ?? 100}Ω`;
       numX = params.resistorRx ?? 100;
-      numY1 = metrics.galvanometerCurrent ?? 0;
-    } else if (params.mode === 'optics-young-slit') {
+      numY1 = metrics.galvanometerCurrent;
+    } else if (metrics.mode === 'optics-young-slit') {
       pSum = `λ=${params.lightWavelength ?? 532}nm, d=${params.slitDistance ?? 0.25}mm, L=${params.screenDistance ?? 1.5}m`;
       numX = params.lightWavelength ?? 532;
-      numY1 = metrics.fringeSpacingMm ?? 3.2;
-    } else if (params.mode === 'photoelectric-planck') {
+      numY1 = metrics.fringeSpacingMm;
+    } else if (metrics.mode === 'photoelectric-planck') {
       pSum = `λ=${params.lightWavelength ?? 400}nm, W=${params.targetMetalWorkFunction ?? 2.3}eV`;
       numX = params.lightWavelength ?? 400;
-      numY1 = metrics.photoelectricMaxKe ?? 0.8;
-    } else if (params.mode === 'orbital-gravity') {
+      numY1 = metrics.photoelectricMaxKe;
+    } else if (metrics.mode === 'orbital-gravity') {
       pSum = `M₁=${params.mass}kg, M₂=${params.secondaryMass}kg, r=${params.separationDistance}m`;
       numX = params.separationDistance;
       numY1 = metrics.universalGravityForce;
@@ -328,7 +335,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       {
         'Percepatan (a)': `${metrics.acceleration} m/s²`,
         'Kecepatan v(t)': `${instant.speed} m/s`,
-        'Jangkauan (R)': `${metrics.projectileRange} m`,
+        'Jangkauan (R)': metrics.mode === 'projectile-gravity' ? `${metrics.projectileRange} m` : '0 m',
       },
       hypothesisNote?.hypothesisText || '',
       { x: numX, y1: numY1, y2: instant.speed }
@@ -337,46 +344,46 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
   // Mode-adaptive Telemetry Metrics Array
   const telemetryMetrics =
-    params.mode === 'projectile-gravity'
+    metrics.mode === 'projectile-gravity'
       ? [
           { id: 'range', label: 'Jangkauan (R)', value: metrics.projectileRange, min: 0, max: 150, unit: 'm', color: '#0ea5e9' },
           { id: 'hmax', label: 'Tinggi Maks (H)', value: metrics.maxProjectileHeight, min: 0, max: 80, unit: 'm', color: '#10b981' },
           { id: 'tof', label: 'Waktu Terbang', value: metrics.timeOfFlight, min: 0, max: 12, unit: 's', color: '#f59e0b' },
         ]
-      : params.mode === 'spring-hooke'
+      : metrics.mode === 'spring-hooke'
       ? [
           { id: 'frest', label: 'Gaya Pegas (Fp)', value: metrics.springRestoringForce, min: -400, max: 400, unit: 'N', color: '#0ea5e9' },
           { id: 'ep', label: 'Energi Ep Pegas', value: metrics.springPotentialEnergy, min: 0, max: 300, unit: 'J', color: '#10b981' },
           { id: 'period', label: 'Periode (T)', value: metrics.oscillationPeriod, min: 0, max: 6, unit: 's', color: '#f59e0b' },
         ]
-      : params.mode === 'pendulum-harmonic'
+      : metrics.mode === 'pendulum-harmonic'
       ? [
-          { id: 'tpend', label: 'Periode Ayun (T)', value: metrics.pendulumPeriod ?? 2.2, min: 0, max: 5, unit: 's', color: '#0ea5e9' },
-          { id: 'fpend', label: 'Frekuensi (f)', value: metrics.pendulumFrequency ?? 0.45, min: 0, max: 3, unit: 'Hz', color: '#10b981' },
+          { id: 'tpend', label: 'Periode Ayun (T)', value: metrics.pendulumPeriod, min: 0, max: 5, unit: 's', color: '#0ea5e9' },
+          { id: 'fpend', label: 'Frekuensi (f)', value: metrics.pendulumFrequency, min: 0, max: 3, unit: 'Hz', color: '#10b981' },
           { id: 'angle', label: 'Simpangan θ₀', value: params.pendulumAngle ?? 25, min: 0, max: 90, unit: '°', color: '#f59e0b' },
         ]
-      : params.mode === 'stokes-viscosity'
+      : metrics.mode === 'stokes-viscosity'
       ? [
-          { id: 'vt', label: 'Kecepatan Terminal', value: metrics.stokesTerminalVelocity ?? 0.5, min: 0, max: 5, unit: 'm/s', color: '#0ea5e9' },
-          { id: 'fdrag', label: 'Gaya Gesek Stokes', value: metrics.stokesDragForce ?? 0.1, min: 0, max: 2, unit: 'N', color: '#10b981' },
+          { id: 'vt', label: 'Kecepatan Terminal', value: metrics.stokesTerminalVelocity, min: 0, max: 5, unit: 'm/s', color: '#0ea5e9' },
+          { id: 'fdrag', label: 'Gaya Gesek Stokes', value: metrics.stokesDragForce, min: 0, max: 2, unit: 'N', color: '#10b981' },
           { id: 'visc', label: 'Viskositas (η)', value: params.fluidViscosity ?? 0.8, min: 0, max: 2, unit: 'Pa·s', color: '#f59e0b' },
         ]
-      : params.mode === 'ohm-wheatstone'
+      : metrics.mode === 'ohm-wheatstone'
       ? [
-          { id: 'ig', label: 'Arus Galvanometer', value: metrics.galvanometerCurrent ?? 0, min: -50, max: 50, unit: 'mA', color: '#0ea5e9' },
-          { id: 'itot', label: 'Arus Rangkaian', value: metrics.circuitCurrent ?? 0.1, min: 0, max: 5, unit: 'A', color: '#10b981' },
+          { id: 'ig', label: 'Arus Galvanometer', value: metrics.galvanometerCurrent, min: -50, max: 50, unit: 'mA', color: '#0ea5e9' },
+          { id: 'itot', label: 'Arus Rangkaian', value: metrics.circuitCurrent, min: 0, max: 5, unit: 'A', color: '#10b981' },
           { id: 'rx', label: 'Hambatan Rx', value: params.resistorRx ?? 100, min: 10, max: 1000, unit: 'Ω', color: '#f59e0b' },
         ]
-      : params.mode === 'optics-young-slit'
+      : metrics.mode === 'optics-young-slit'
       ? [
-          { id: 'dy', label: 'Jarak Pita (Δy)', value: metrics.fringeSpacingMm ?? 3.2, min: 0, max: 15, unit: 'mm', color: '#0ea5e9' },
+          { id: 'dy', label: 'Jarak Pita (Δy)', value: metrics.fringeSpacingMm, min: 0, max: 15, unit: 'mm', color: '#0ea5e9' },
           { id: 'wl', label: 'Panjang Gelombang', value: params.lightWavelength ?? 532, min: 380, max: 700, unit: 'nm', color: '#10b981' },
           { id: 'slit', label: 'Celah (d)', value: params.slitDistance ?? 0.25, min: 0.05, max: 1.0, unit: 'mm', color: '#f59e0b' },
         ]
-      : params.mode === 'photoelectric-planck'
+      : metrics.mode === 'photoelectric-planck'
       ? [
-          { id: 'ke', label: 'Ek Maks Fotoelektron', value: metrics.photoelectricMaxKe ?? 0.8, min: 0, max: 5, unit: 'eV', color: '#0ea5e9' },
-          { id: 'v0', label: 'Potensial Henti V₀', value: metrics.photoelectricStoppingVoltage ?? 0.8, min: 0, max: 5, unit: 'V', color: '#10b981' },
+          { id: 'ke', label: 'Ek Maks Fotoelektron', value: metrics.photoelectricMaxKe, min: 0, max: 5, unit: 'eV', color: '#0ea5e9' },
+          { id: 'v0', label: 'Potensial Henti V₀', value: metrics.photoelectricStoppingVoltage, min: 0, max: 5, unit: 'V', color: '#10b981' },
           { id: 'wf', label: 'Fungsi Kerja (W)', value: params.targetMetalWorkFunction ?? 2.3, min: 2, max: 5.5, unit: 'eV', color: '#f59e0b' },
         ]
       : [
@@ -416,64 +423,68 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       dualViewport={
         isDualRealityMode ? (() => {
           const primaryVar = (() => {
-            switch (params.mode) {
-              case 'pendulum-harmonic':
-                return {
-                  key: 'pendulumLength' as const,
-                  label: 'Panjang Tali L (B)',
-                  unit: 'm',
-                  min: 0.3,
-                  max: 2.5,
-                  step: 0.1,
-                  valA: params.pendulumLength ?? 1.2,
-                  valB: realityBParams.pendulumLength ?? 1.8,
-                  summaryA: `L=${(params.pendulumLength ?? 1.2).toFixed(1)}m · T=${(metrics.pendulumPeriod ?? 2.2).toFixed(2)}s`,
-                  summaryB: `L=${(realityBParams.pendulumLength ?? 1.8).toFixed(1)}m · T=${(metricsB.pendulumPeriod ?? 2.7).toFixed(2)}s`,
-                  delta: `ΔT = ${((metricsB.pendulumPeriod ?? 0) - (metrics.pendulumPeriod ?? 0) >= 0 ? '+' : '')}${((metricsB.pendulumPeriod ?? 0) - (metrics.pendulumPeriod ?? 0)).toFixed(2)} s`,
-                };
-              case 'spring-hooke':
-                return {
-                  key: 'springConstantK' as const,
-                  label: 'Konstanta k (B)',
-                  unit: 'N/m',
-                  min: 10,
-                  max: 400,
-                  step: 5,
-                  valA: params.springConstantK,
-                  valB: realityBParams.springConstantK,
-                  summaryA: `k=${params.springConstantK}N/m · T=${metrics.oscillationPeriod}s`,
-                  summaryB: `k=${realityBParams.springConstantK}N/m · T=${metricsB.oscillationPeriod}s`,
-                  delta: `ΔT = ${(metricsB.oscillationPeriod - metrics.oscillationPeriod >= 0 ? '+' : '')}${(metricsB.oscillationPeriod - metrics.oscillationPeriod).toFixed(2)} s`,
-                };
-              case 'projectile-gravity':
-                return {
-                  key: 'initialVelocity' as const,
-                  label: 'v₀ Peluncur (B)',
-                  unit: 'm/s',
-                  min: 5,
-                  max: 50,
-                  step: 1,
-                  valA: params.initialVelocity,
-                  valB: realityBParams.initialVelocity,
-                  summaryA: `v₀=${params.initialVelocity}m/s · R=${metrics.projectileRange}m`,
-                  summaryB: `v₀=${realityBParams.initialVelocity}m/s · R=${metricsB.projectileRange}m`,
-                  delta: `ΔR = ${(metricsB.projectileRange - metrics.projectileRange >= 0 ? '+' : '')}${(metricsB.projectileRange - metrics.projectileRange).toFixed(1)} m`,
-                };
-              default:
-                return {
-                  key: 'mass' as const,
-                  label: 'Massa m (B)',
-                  unit: 'kg',
-                  min: 0.5,
-                  max: 30,
-                  step: 0.5,
-                  valA: params.mass,
-                  valB: realityBParams.mass,
-                  summaryA: `m=${params.mass}kg · a=${metrics.acceleration}m/s²`,
-                  summaryB: `m=${realityBParams.mass}kg · a=${metricsB.acceleration}m/s²`,
-                  delta: `Δa = ${(metricsB.acceleration - metrics.acceleration >= 0 ? '+' : '')}${(metricsB.acceleration - metrics.acceleration).toFixed(2)} m/s²`,
-                };
+            if (metrics.mode === 'pendulum-harmonic' && metricsB.mode === 'pendulum-harmonic') {
+              const deltaT = metricsB.pendulumPeriod - metrics.pendulumPeriod;
+              return {
+                key: 'pendulumLength' as const,
+                label: 'Panjang Tali L (B)',
+                unit: 'm',
+                min: 0.3,
+                max: 2.5,
+                step: 0.1,
+                valA: params.pendulumLength ?? 1.2,
+                valB: realityBParams.pendulumLength ?? 1.8,
+                summaryA: `L=${(params.pendulumLength ?? 1.2).toFixed(1)}m · T=${metrics.pendulumPeriod.toFixed(2)}s`,
+                summaryB: `L=${(realityBParams.pendulumLength ?? 1.8).toFixed(1)}m · T=${metricsB.pendulumPeriod.toFixed(2)}s`,
+                delta: `ΔT = ${(deltaT >= 0 ? '+' : '')}${deltaT.toFixed(2)} s`,
+              };
             }
+            if (metrics.mode === 'spring-hooke' && metricsB.mode === 'spring-hooke') {
+              const deltaT = metricsB.oscillationPeriod - metrics.oscillationPeriod;
+              return {
+                key: 'springConstantK' as const,
+                label: 'Konstanta k (B)',
+                unit: 'N/m',
+                min: 10,
+                max: 400,
+                step: 5,
+                valA: params.springConstantK,
+                valB: realityBParams.springConstantK,
+                summaryA: `k=${params.springConstantK}N/m · T=${metrics.oscillationPeriod}s`,
+                summaryB: `k=${realityBParams.springConstantK}N/m · T=${metricsB.oscillationPeriod}s`,
+                delta: `ΔT = ${(deltaT >= 0 ? '+' : '')}${deltaT.toFixed(2)} s`,
+              };
+            }
+            if (metrics.mode === 'projectile-gravity' && metricsB.mode === 'projectile-gravity') {
+              const deltaR = metricsB.projectileRange - metrics.projectileRange;
+              return {
+                key: 'initialVelocity' as const,
+                label: 'v₀ Peluncur (B)',
+                unit: 'm/s',
+                min: 5,
+                max: 50,
+                step: 1,
+                valA: params.initialVelocity,
+                valB: realityBParams.initialVelocity,
+                summaryA: `v₀=${params.initialVelocity}m/s · R=${metrics.projectileRange}m`,
+                summaryB: `v₀=${realityBParams.initialVelocity}m/s · R=${metricsB.projectileRange}m`,
+                delta: `ΔR = ${(deltaR >= 0 ? '+' : '')}${deltaR.toFixed(1)} m`,
+              };
+            }
+            const deltaA = metricsB.acceleration - metrics.acceleration;
+            return {
+              key: 'mass' as const,
+              label: 'Massa m (B)',
+              unit: 'kg',
+              min: 0.5,
+              max: 30,
+              step: 0.5,
+              valA: params.mass,
+              valB: realityBParams.mass,
+              summaryA: `m=${params.mass}kg · a=${metrics.acceleration}m/s²`,
+              summaryB: `m=${realityBParams.mass}kg · a=${metricsB.acceleration}m/s²`,
+              delta: `Δa = ${(deltaA >= 0 ? '+' : '')}${deltaA.toFixed(2)} m/s²`,
+            };
           })();
 
           return (
@@ -899,7 +910,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     step={0.05}
                     educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'fluidViscosity', v, lvl)}
-                    onChange={(v) => handleParamUpdate({ fluidViscosity: v, fluidViscosityPaS: v })}
+                    onChange={(v) => handleParamUpdate({ fluidViscosity: v })}
                   />
                   <TactileParameterControl
                     label="Jari-jari Bola (r)"
@@ -910,7 +921,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     step={0.5}
                     educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'sphereRadius', v, lvl)}
-                    onChange={(v) => handleParamUpdate({ sphereRadius: v, sphereRadiusMm: v })}
+                    onChange={(v) => handleParamUpdate({ sphereRadius: v })}
                   />
                   <TactileParameterControl
                     label="Massa Jenis Bola (ρ_b)"
@@ -921,7 +932,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     step={100}
                     educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'sphereDensity', v, lvl)}
-                    onChange={(v) => handleParamUpdate({ sphereDensity: v, sphereDensityKgM3: v })}
+                    onChange={(v) => handleParamUpdate({ sphereDensity: v })}
                   />
                 </>
               ) : params.mode === 'ohm-wheatstone' ? (
@@ -935,7 +946,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     step={1}
                     educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'circuitVoltage', v, lvl)}
-                    onChange={(v) => handleParamUpdate({ circuitVoltage: v, circuitVoltageV: v })}
+                    onChange={(v) => handleParamUpdate({ circuitVoltage: v })}
                   />
                   <TactileParameterControl
                     label="Resistor Uji (Rx)"
@@ -946,7 +957,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     step={5}
                     educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'resistorRx', v, lvl)}
-                    onChange={(v) => handleParamUpdate({ resistorRx: v, bridgeRx: v })}
+                    onChange={(v) => handleParamUpdate({ resistorRx: v })}
                   />
                   <TactileParameterControl
                     label="Resistor Pembanding (R₃)"
@@ -957,7 +968,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                     step={5}
                     educationLevel={effectiveEducationLevel}
                     dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'resistorR3', v, lvl)}
-                    onChange={(v) => handleParamUpdate({ resistorR3: v, bridgeR3: v })}
+                    onChange={(v) => handleParamUpdate({ resistorR3: v })}
                   />
                 </>
               ) : params.mode === 'optics-young-slit' ? (

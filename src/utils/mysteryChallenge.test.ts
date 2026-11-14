@@ -36,9 +36,12 @@ test('Physics v2.0: Harmonic Pendulum, Stokes Viscosity, Ohm Wheatstone, Young S
     pendulumLength: 1.0,
     pendulumAngle: 10,
   });
-  // T = 2π * sqrt(1.0 / 9.81) = 2.006 s
-  assert.ok(mPendulum.pendulumPeriod && mPendulum.pendulumPeriod > 1.95 && mPendulum.pendulumPeriod < 2.05);
-  assert.ok(mPendulum.pendulumFrequency && mPendulum.pendulumFrequency > 0.45);
+  assert.equal(mPendulum.mode, 'pendulum-harmonic');
+  if (mPendulum.mode === 'pendulum-harmonic') {
+    // T = 2π * sqrt(1.0 / 9.81) = 2.006 s
+    assert.ok(mPendulum.pendulumPeriod > 1.95 && mPendulum.pendulumPeriod < 2.05);
+    assert.ok(mPendulum.pendulumFrequency > 0.45);
+  }
 
   // Trajectory at t = 0.5s
   const kinPendulum = evaluateKinematicsAtTime(
@@ -89,13 +92,16 @@ test('Physics v2.0: Harmonic Pendulum, Stokes Viscosity, Ohm Wheatstone, Young S
     springDisplacement: 0,
     dampingCoeff: 0,
     mode: 'stokes-viscosity',
-    sphereRadiusMm: 5.0, // 0.005 m
-    fluidViscosityPaS: 1.5,
-    sphereDensityKgM3: 7850,
-    fluidDensityKgM3: 1260,
+    sphereRadius: 5.0, // 0.005 m
+    fluidViscosity: 1.5,
+    sphereDensity: 7850,
+    fluidDensity: 1260,
   });
-  assert.ok(mStokes.stokesTerminalVelocity && mStokes.stokesTerminalVelocity > 0);
-  assert.ok(mStokes.stokesDragForce !== undefined);
+  assert.equal(mStokes.mode, 'stokes-viscosity');
+  if (mStokes.mode === 'stokes-viscosity') {
+    assert.ok(mStokes.stokesTerminalVelocity > 0);
+    assert.ok(mStokes.stokesDragForce !== undefined);
+  }
 
   // 3. Ohm & Wheatstone Bridge
   const mOhm = calculatePhysicsMetrics({
@@ -117,15 +123,18 @@ test('Physics v2.0: Harmonic Pendulum, Stokes Viscosity, Ohm Wheatstone, Young S
     springDisplacement: 0,
     dampingCoeff: 0,
     mode: 'ohm-wheatstone',
-    circuitVoltageV: 12.0,
-    bridgeR1: 100,
-    bridgeR2: 100,
-    bridgeR3: 200,
-    bridgeRx: 200, // Balanced bridge R1/R2 = R3/Rx => 1 = 1
+    circuitVoltage: 12.0,
+    resistorR1: 100,
+    resistorR2: 100,
+    resistorR3: 200,
+    resistorRx: 200, // Balanced bridge R1/R2 = R3/Rx => 1 = 1
   });
-  assert.equal(mOhm.bridgeBalanced, true);
-  assert.ok(mOhm.circuitCurrent && mOhm.circuitCurrent > 0);
-  assert.ok(Math.abs(mOhm.galvanometerCurrent || 0) < 0.001);
+  assert.equal(mOhm.mode, 'ohm-wheatstone');
+  if (mOhm.mode === 'ohm-wheatstone') {
+    assert.equal(mOhm.bridgeBalanced, true);
+    assert.ok(mOhm.circuitCurrent > 0);
+    assert.ok(Math.abs(mOhm.galvanometerCurrent) < 0.001);
+  }
 
   // 4. Young Double Slit Optics
   const mOptics = calculatePhysicsMetrics({
@@ -151,8 +160,11 @@ test('Physics v2.0: Harmonic Pendulum, Stokes Viscosity, Ohm Wheatstone, Young S
     slitDistance: 0.25,
     screenDistance: 1.5,
   });
-  // Fringe separation = (632.8e-9 * 1.5) / 0.25e-3 = 3.7968 mm
-  assert.ok(mOptics.fringeSpacingMm && mOptics.fringeSpacingMm > 3.7 && mOptics.fringeSpacingMm < 3.9);
+  assert.equal(mOptics.mode, 'optics-young-slit');
+  if (mOptics.mode === 'optics-young-slit') {
+    // Fringe separation = (632.8e-9 * 1.5) / 0.25e-3 = 3.7968 mm
+    assert.ok(mOptics.fringeSpacingMm > 3.7 && mOptics.fringeSpacingMm < 3.9);
+  }
 
   // 5. Photoelectric Effect Planck
   const mPhoto = calculatePhysicsMetrics({
@@ -177,8 +189,11 @@ test('Physics v2.0: Harmonic Pendulum, Stokes Viscosity, Ohm Wheatstone, Young S
     photonFrequency: 10.0, // 10 x 10^14 Hz = 1.0 x 10^15 Hz => h*f = 4.14 eV
     targetMetalWorkFunction: 2.2, // 4.14 - 2.2 = 1.94 eV
   });
-  assert.equal(mPhoto.photoelectricEmitted, true);
-  assert.ok(mPhoto.photoelectricMaxKe && mPhoto.photoelectricMaxKe > 1.8);
+  assert.equal(mPhoto.mode, 'photoelectric-planck');
+  if (mPhoto.mode === 'photoelectric-planck') {
+    assert.equal(mPhoto.photoelectricEmitted, true);
+    assert.ok(mPhoto.photoelectricMaxKe > 1.8);
+  }
 });
 
 test('Chemistry v2.0: Ideal Gas Boyle, Arrhenius Kinetics, UV-Vis Beer-Lambert', () => {

@@ -208,3 +208,118 @@ export class SimulationRingBuffer {
     this.syncHeaderToSharedMemory();
   }
 }
+
+const HEADER_FLOAT_COUNT = 6;
+const FLOATS_PER_ENTITY = 9;
+
+export interface PackedSimulationFrame {
+  buffer: ArrayBuffer;
+  entityKeys: string[];
+  scalarKeys: string[];
+}
+
+export function packSimulationFrame(frame: SimulationFrame): PackedSimulationFrame {
+  const entityKeySet = new Set<string>([
+    ...Object.keys(frame.positions),
+    ...Object.keys(frame.velocities),
+    ...Object.keys(frame.accelerations),
+  ]);
+  const entityKeys = Array.from(entityKeySet);
+  const scalarKeys = frame.scalars ? Object.keys(frame.scalars) : [];
+
+  const totalFloats =
+    HEADER_FLOAT_COUNT +
+    entityKeys.length * FLOATS_PER_ENTITY +
+    scalarKeys.length;
+  const view = new Float64Array(totalFloats);
+
+  view[0] = frame.frameIndex;
+  view[1] = frame.timestamp;
+  view[2] = frame.energies.kinetic;
+  view[3] = frame.energies.potential;
+  view[4] = frame.energies.thermal;
+  view[5] = frame.energies.total;
+
+  let offset = HEADER_FLOAT_COUNT;
+  for (let i = 0; i < entityKeys.length; i++) {
+    const key = entityKeys[i];
+    const pos = frame.positions[key];
+    const vel = frame.velocities[key];
+    const acc = frame.accelerations[key];
+    view[offset++] = pos ? pos.x : 0;
+    view[offset++] = pos ? pos.y : 0;
+    view[offset++] = pos ? pos.z : 0;
+    view[offset++] = vel ? vel.x : 0;
+    view[offset++] = vel ? vel.y : 0;
+    view[offset++] = vel ? vel.z : 0;
+    view[offset++] = acc ? acc.x : 0;
+    view[offset++] = acc ? acc.y : 0;
+    view[offset++] = acc ? acc.z : 0;
+  }
+
+  for (let i = 0; i < scalarKeys.length; i++) {
+    const key = scalarKeys[i];
+    view[offset++] = frame.scalars?.[key] ?? 0;
+  }
+
+  return {
+    buffer: view.buffer,
+    entityKeys,
+    scalarKeys,
+  };
+}
+
+export function unpackSimulationFrame(
+  buffer: ArrayBuffer,
+  entityKeys: string[],
+  scalarKeys: string[]
+): SimulationFrame {
+  const view = new Float64Array(buffer);
+  const positions: Record<string, Vector3Tuple> = {};
+  const velocities: Record<string, Vector3Tuple> = {};
+  const accelerations: Record<string, Vector3Tuple> = {};
+
+  let offset = HEADER_FLOAT_COUNT;
+  for (let i = 0; i < entityKeys.length; i++) {
+    const key = entityKeys[i];
+    positions[key] = {
+      x: view[offset++],
+      y: view[offset++],
+      z: view[offset++],
+    };
+    velocities[key] = {
+      x: view[offset++],
+      y: view[offset++],
+      z: view[offset++],
+    };
+    accelerations[key] = {
+      x: view[offset++],
+      y: view[offset++],
+      z: view[offset++],
+    };
+  }
+
+  const scalars: Record<string, number> | undefined =
+    scalarKeys.length > 0 ? {} : undefined;
+  if (scalars) {
+    for (let i = 0; i < scalarKeys.length; i++) {
+      scalars[scalarKeys[i]] = view[offset++];
+    }
+  }
+
+  return {
+    frameIndex: view[0],
+    timestamp: view[1],
+    positions,
+    velocities,
+    accelerations,
+    energies: {
+      kinetic: view[2],
+      potential: view[3],
+      thermal: view[4],
+      total: view[5],
+    },
+    ...(scalars ? { scalars } : {}),
+  };
+}
+

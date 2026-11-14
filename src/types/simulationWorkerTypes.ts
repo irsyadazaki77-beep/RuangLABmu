@@ -40,7 +40,9 @@ export type SimulationEventType =
 export type WorkerOutboundMessage =
   | {
       type: 'FRAME_UPDATE';
-      frame: SimulationFrame;
+      transferBuffer: ArrayBuffer;
+      entityKeys: string[];
+      scalarKeys: string[];
       bounds: { minFrame: number; maxFrame: number; count: number };
       isPlaying: boolean;
     }
@@ -48,4 +50,9 @@ export type WorkerOutboundMessage =
       type: 'SIMULATION_EVENT';
       event: SimulationEventType;
       payload: Record<string, number>;
+    }
+  | {
+      type: 'SIMULATION_ERROR';
+      message: string;
     };
+

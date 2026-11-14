@@ -3,21 +3,36 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import {
+  resolveViteAllowedHosts,
+  shouldRelaxHeadersForEmbeddedPreview,
+} from './server/utils/securityHeaders.ts';
 
 function crossOriginIsolationPlugin(): Plugin {
+  const strictFrameguard = process.env.STRICT_FRAMEGUARD === 'true';
   return {
     name: 'cross-origin-isolation-headers',
     configureServer(server) {
-      server.middlewares.use((_req, res, next) => {
+      server.middlewares.use((req, res, next) => {
         res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+        res.setHeader(
+          'Cross-Origin-Embedder-Policy',
+          shouldRelaxHeadersForEmbeddedPreview(req.headers, strictFrameguard)
+            ? 'unsafe-none'
+            : 'require-corp'
+        );
         next();
       });
     },
     configurePreviewServer(server) {
-      server.middlewares.use((_req, res, next) => {
+      server.middlewares.use((req, res, next) => {
         res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+        res.setHeader(
+          'Cross-Origin-Embedder-Policy',
+          shouldRelaxHeadersForEmbeddedPreview(req.headers, strictFrameguard)
+            ? 'unsafe-none'
+            : 'require-corp'
+        );
         next();
       });
     },
@@ -61,36 +76,6 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff,woff2}'],
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'google-fonts-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'gstatic-fonts-cache',
-                expiration: {
-                  maxEntries: 15,
-                  maxAgeSeconds: 60 * 60 * 24 * 365,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-          ],
         },
         devOptions: {
           enabled: false,
@@ -131,18 +116,12 @@ export default defineConfig(() => {
       include: ['react', 'react-dom', 'motion/react'],
     },
     server: {
-      headers: {
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp',
-      },
+      allowedHosts: resolveViteAllowedHosts(),
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
     preview: {
-      headers: {
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp',
-      },
+      allowedHosts: resolveViteAllowedHosts(),
     },
   };
 });

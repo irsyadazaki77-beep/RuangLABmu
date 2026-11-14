@@ -30,6 +30,7 @@ import {
 } from '../../utils/mysteryChallengeEngine';
 import { MysteryChallengeModal } from '../exam/MysteryChallengeModal';
 import { MysteryChallengeCockpitBanner } from '../exam/MysteryChallengeCockpitBanner';
+import { useShallow } from 'zustand/react/shallow';
 import { useLabStore } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCollabStore } from '../../stores/useCollabStore';
@@ -223,7 +224,18 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     setIsLobbyMode,
     academicLevel,
     setAcademicLevel,
-  } = useLabStore();
+  } = useLabStore(
+    useShallow((s) => ({
+      activeDomain: s.activeDomain,
+      workflowStep: s.workflowStep,
+      setWorkflowStep: s.setWorkflowStep,
+      userRole: s.userRole,
+      isLobbyMode: s.isLobbyMode,
+      setIsLobbyMode: s.setIsLobbyMode,
+      academicLevel: s.academicLevel,
+      setAcademicLevel: s.setAcademicLevel,
+    }))
+  );
   const [isMysteryModalOpen, setIsMysteryModalOpen] = useState(false);
 
   const {
@@ -235,7 +247,18 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     activeModal,
     openModal,
     closeModal,
-  } = useUIStore();
+  } = useUIStore(
+    useShallow((s) => ({
+      zenMode: s.zenMode,
+      drawerOpen: s.drawerOpen,
+      setDrawerOpen: s.setDrawerOpen,
+      activeDrawerTab: s.activeDrawerTab,
+      setDrawerTab: s.setDrawerTab,
+      activeModal: s.activeModal,
+      openModal: s.openModal,
+      closeModal: s.closeModal,
+    }))
+  );
 
   const [queuedDrLabMuPrompt, setQueuedDrLabMuPrompt] = useState<{ id: number; prompt: string } | null>(
     externalDrLabMuPrompt
@@ -274,7 +297,26 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     remoteTeacherCameraSync,
     followTeacherCamera,
     setFollowTeacherCamera,
-  } = useCollabStore();
+  } = useCollabStore(
+    useShallow((s) => ({
+      wsConnected: s.wsConnected,
+      activeRoomId: s.activeRoomId,
+      roomPin: s.roomPin,
+      isFrozenByTeacher: s.isFrozenByTeacher,
+      teacherName: s.teacherName,
+      roomMembers: s.roomMembers,
+      studentTelemetryMap: s.studentTelemetryMap,
+      openRoomModal: s.openRoomModal,
+      teacherLaserActive: s.teacherLaserActive,
+      setTeacherLaserActive: s.setTeacherLaserActive,
+      teacherCameraSyncEnabled: s.teacherCameraSyncEnabled,
+      setTeacherCameraSyncEnabled: s.setTeacherCameraSyncEnabled,
+      remoteTeacherLaser: s.remoteTeacherLaser,
+      remoteTeacherCameraSync: s.remoteTeacherCameraSync,
+      followTeacherCamera: s.followTeacherCamera,
+      setFollowTeacherCamera: s.setFollowTeacherCamera,
+    }))
+  );
 
   const activeTierLabel: EducationTier =
     academicLevel === 'smp'

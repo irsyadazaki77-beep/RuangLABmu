@@ -16,12 +16,11 @@
     "preview": "vite preview",
     "clean": "node -e \"const fs=require('fs');['dist','dist-server','release'].forEach(d=>fs.rmSync(d,{recursive:true,force:true}))\"",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/utils/*.test.ts src/utils/engines/*.test.ts server/utils/*.test.ts",
+    "test": "tsx --test src/utils/*.test.ts src/utils/engines/*.test.ts src/workers/*.test.ts server/utils/*.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
     "@google/genai": "^2.32.0",
-    "@types/qrcode": "^1.5.6",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "express-rate-limit": "^8.7.4",
@@ -44,6 +43,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.187.0",

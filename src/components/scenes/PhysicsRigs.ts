@@ -806,16 +806,17 @@ export function buildPhysicsSpecialRigs(
     energyWidgetGroup.visible = showEnergyBars;
 
     if (showEnergyBars) {
+      const epFallback = m.mode === 'spring-hooke' ? m.springPotentialEnergy : 0;
       const split = computeMechanicalEnergySplit(
-        curEk || m.kineticEnergyInitial || 0,
-        curEp || m.springPotentialEnergy || 0
+        curEk,
+        curEp || epFallback
       );
       ekBarMesh.scale.y = THREE.MathUtils.lerp(ekBarMesh.scale.y, split.ekNorm, 0.25);
       epBarMesh.scale.y = THREE.MathUtils.lerp(epBarMesh.scale.y, split.epNorm, 0.25);
       etotBarMesh.scale.y = THREE.MathUtils.lerp(etotBarMesh.scale.y, split.etotNorm, 0.25);
     }
 
-    if (p.mode === 'collision-momentum') {
+    if (m.mode === 'collision-momentum') {
       const cycle = t % 3.4;
       const r1 = 0.46 + Math.min(0.32, p.mass * 0.014);
       const r2 = 0.46 + Math.min(0.32, (p.collisionMass2 || 2) * 0.014);
@@ -879,7 +880,7 @@ export function buildPhysicsSpecialRigs(
         collVec1.visible = false;
         collVec2.visible = false;
       }
-    } else if (p.mode === 'orbital-gravity' || (p.mode as string) === 'gravity-orbital') {
+    } else if (m.mode === 'orbital-gravity') {
       const orbitRadius = Math.max(2.0, Math.min(5.2, (p.separationDistance || 5) * 0.35));
       const angle = nowSec * 1.15;
       const sx = Math.cos(angle) * orbitRadius;
@@ -900,8 +901,8 @@ export function buildPhysicsSpecialRigs(
         gravVec1.visible = false;
         gravVec2.visible = false;
       }
-    } else if (p.mode === 'stokes-viscosity') {
-      const vt = m.stokesTerminalVelocity ?? 0.8;
+    } else if (m.mode === 'stokes-viscosity') {
+      const vt = m.stokesTerminalVelocity;
       const yPos = 4.6 - ((t * Math.max(0.35, vt)) % 3.6);
       stokesSphere.position.y = yPos;
       const rScale = (p.sphereRadius ?? 5) / 10;
@@ -920,19 +921,19 @@ export function buildPhysicsSpecialRigs(
           stokesDragArrow,
           new THREE.Vector3(0, yPos, 0),
           new THREE.Vector3(0, 1, 0),
-          Math.min(1.8, (m.stokesDragForce ?? 0.05) * 8)
+          Math.min(1.8, m.stokesDragForce * 8)
         );
       } else {
         stokesGravArrow.visible = false;
         stokesDragArrow.visible = false;
       }
-    } else if (p.mode === 'ohm-wheatstone') {
+    } else if (m.mode === 'ohm-wheatstone') {
       const needleState = computeWheatstoneNeedleAngle(
         p.resistorR1 ?? 100,
         p.resistorR2 ?? 100,
         p.resistorR3 ?? 100,
         p.resistorRx ?? 100,
-        m.galvanometerCurrent ?? 0
+        m.galvanometerCurrent
       );
       galvoNeedle.rotation.y = THREE.MathUtils.lerp(
         galvoNeedle.rotation.y,
@@ -941,7 +942,7 @@ export function buildPhysicsSpecialRigs(
       );
       galvoBalanceRingMat.color.setHex(needleState.isBalanced ? 0x10b981 : 0xf59e0b);
       galvoBalanceRingMat.opacity = needleState.isBalanced ? 0.78 : 0.25;
-    } else if (p.mode === 'optics-young-slit') {
+    } else if (m.mode === 'optics-young-slit') {
       const wl = p.lightWavelength ?? 532;
       const beamColor = wavelengthNmToHex(wl);
       (laserBeamLine.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
@@ -951,7 +952,7 @@ export function buildPhysicsSpecialRigs(
       if (ctx2d) {
         ctx2d.fillStyle = '#050811';
         ctx2d.fillRect(0, 0, fringeCanvas.width, fringeCanvas.height);
-        const fringeSpacing = Math.max(8, (m.fringeSpacingMm ?? 3.5) * 8);
+        const fringeSpacing = Math.max(8, m.fringeSpacingMm * 8);
         const rgbHex = beamColor.toString(16).padStart(6, '0');
         for (let x = 0; x < fringeCanvas.width; x++) {
           const intensity = Math.pow(Math.cos(((x - 256) / fringeSpacing) * Math.PI), 2);
@@ -962,12 +963,12 @@ export function buildPhysicsSpecialRigs(
         ctx2d.globalAlpha = 1.0;
         fringeTexture.needsUpdate = true;
       }
-    } else if (p.mode === 'photoelectric-planck') {
-      const emitted = m.photoelectricEmitted ?? true;
+    } else if (m.mode === 'photoelectric-planck') {
+      const emitted = m.photoelectricEmitted;
       const wl = p.lightWavelength ?? 400;
       peIncidentBeamMat.color.setHex(wavelengthNmToHex(wl));
       const stopV = p.stoppingPotential ?? 1.5;
-      const maxKe = m.photoelectricMaxKe ?? 1.2;
+      const maxKe = m.photoelectricMaxKe;
 
       peParticles.forEach((particle, idx) => {
         if (!emitted) {

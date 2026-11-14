@@ -26,6 +26,7 @@ import { ExperimentModule } from '../../registry/experimentRegistry';
 import { ExperimentRecord } from '../../utils/scienceEngine';
 import { Lab3DSnapshot } from '../ui/ScientificEnhancementSuite';
 import { labSound } from '../../utils/soundEngine';
+import { useShallow } from 'zustand/react/shallow';
 import { useLabStore } from '../../stores/useLabStore';
 import { StudentWorkflowStepper } from './StudentWorkflowStepper';
 import { useUIStore } from '../../stores/useUIStore';
@@ -88,7 +89,19 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     userRole,
     setUserRole,
     academicLevel,
-  } = useLabStore();
+  } = useLabStore(
+    useShallow((s) => ({
+      activeDomain: s.activeDomain,
+      activeModuleId: s.activeModuleId,
+      isLobbyMode: s.isLobbyMode,
+      setIsLobbyMode: s.setIsLobbyMode,
+      workflowStep: s.workflowStep,
+      setWorkflowStep: s.setWorkflowStep,
+      userRole: s.userRole,
+      setUserRole: s.setUserRole,
+      academicLevel: s.academicLevel,
+    }))
+  );
   const domainAccent = getDomainAccentTokens(experimentModule.domain);
   const tierShortLabel =
     academicLevel === 'smp' ? 'SMP' : academicLevel === 'mahasiswa' ? 'MHS' : 'SMA';
@@ -153,9 +166,32 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     setLiteModeNotification,
     projectorMode,
     toggleProjectorMode,
-  } = useUIStore();
+  } = useUIStore(
+    useShallow((s) => ({
+      drawerOpen: s.drawerOpen,
+      toggleDrawer: s.toggleDrawer,
+      setDrawerTab: s.setDrawerTab,
+      comfortPrefs: s.comfortPrefs,
+      setComfortPrefs: s.setComfortPrefs,
+      activeModal: s.activeModal,
+      openModal: s.openModal,
+      closeModal: s.closeModal,
+      setOnboardingTourOpen: s.setOnboardingTourOpen,
+      liteDeviceMode: s.liteDeviceMode,
+      toggleLiteDeviceMode: s.toggleLiteDeviceMode,
+      liteModeNotification: s.liteModeNotification,
+      setLiteModeNotification: s.setLiteModeNotification,
+      projectorMode: s.projectorMode,
+      toggleProjectorMode: s.toggleProjectorMode,
+    }))
+  );
 
-  const { wsConnected, activeRoomId } = useCollabStore();
+  const { wsConnected, activeRoomId } = useCollabStore(
+    useShallow((s) => ({
+      wsConnected: s.wsConnected,
+      activeRoomId: s.activeRoomId,
+    }))
+  );
 
   // 3-State Connectivity Status for 3T Areas
   const [isOnline, setIsOnline] = useState<boolean>(() =>
