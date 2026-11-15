@@ -29,6 +29,8 @@ import {
   handleRoomCreate,
   handleRoomJoin,
   handleRoomLeave,
+  handleRoomRejoin,
+  handleSimulationSnapshotPush,
   handleStudentTelemetrySync,
 } from './wsRoomManager';
 import {
@@ -162,6 +164,12 @@ export function createCollabSocketServer(
             break;
           case 'ROOM_JOIN':
             if (hasPayload) handleRoomJoin(ws, payload, services);
+            break;
+          case 'ROOM_REJOIN':
+            if (hasPayload) handleRoomRejoin(ws, payload, services);
+            break;
+          case 'SIMULATION_SNAPSHOT_PUSH':
+            if (hasPayload) handleSimulationSnapshotPush(ws, payload, services);
             break;
           case 'ROOM_LEAVE':
             handleRoomLeave(ws, services);

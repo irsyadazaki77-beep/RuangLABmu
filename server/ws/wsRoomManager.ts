@@ -169,9 +169,173 @@ export function handleRoomJoin(
     isReconnect
   );
 
-  ws.send(JSON.stringify(snapshot.roomJoinedMessage));
+  // Restore participant `connected = 1` in SQLite and fetch latest `simulation_snapshots`
+  const restored = state.rejoinParticipantSession(
+    room.pin || roomId,
+    roomClient.userId,
+    roomId,
+    now
+  );
+  const latestSimParams = restored?.latestSnapshot?.params ?? null;
+
+  ws.send(
+    JSON.stringify({
+      ...snapshot.roomJoinedMessage,
+      payload: {
+        ...snapshot.roomJoinedMessage.payload,
+        latestSimulationSnapshot: latestSimParams,
+      },
+    })
+  );
   ws.send(JSON.stringify(snapshot.paramLocksSyncMessage));
+  if (latestSimParams && restored?.latestSnapshot) {
+    ws.send(
+      JSON.stringify({
+        type: 'SIMULATION_SNAPSHOT_RESTORE',
+        payload: {
+          roomPin: room.pin || roomId,
+          roomId,
+          params: latestSimParams,
+          updatedAt: restored.latestSnapshot.updatedAt,
+        },
+      })
+    );
+  }
   broadcastRoom(roomId, snapshot.roomStateSyncMessage);
+}
+
+export function handleRoomRejoin(
+  ws: ExtWebSocket,
+  payload: Record<string, unknown>,
+  services: WsHandlerServices
+): void {
+  const { state, broadcastRoom } = services;
+  const roomPin =
+    typeof payload.roomPin === 'string'
+      ? payload.roomPin.trim()
+      : typeof payload.pin === 'string'
+        ? payload.pin.trim()
+        : '';
+  const participantId =
+    typeof payload.participantId === 'string'
+      ? payload.participantId.trim()
+      : typeof payload.userId === 'string'
+        ? payload.userId.trim()
+        : ws.userId || '';
+  const roomIdHint =
+    typeof payload.roomId === 'string' ? payload.roomId.trim().toUpperCase() : undefined;
+
+  if (!roomPin || !participantId) {
+    ws.send(
+      JSON.stringify({
+        type: 'ROOM_ERROR',
+        payload: {
+          message: 'Parameter roomPin dan participantId wajib diisi untuk pemulihan sesi 3T.',
+          code: 'INVALID_REJOIN_PAYLOAD',
+        },
+      })
+    );
+    return;
+  }
+
+  const now = Date.now();
+  const restored = state.rejoinParticipantSession(roomPin, participantId, roomIdHint, now);
+  if (!restored) {
+    ws.send(
+      JSON.stringify({
+        type: 'ROOM_ERROR',
+        payload: {
+          message: 'Sesi meja praktikum tidak ditemukan atau telah kedaluwarsa.',
+          code: 'ROOM_SESSION_EXPIRED',
+        },
+      })
+    );
+    return;
+  }
+
+  if (restored.room) {
+    handleRoomJoin(
+      ws,
+      {
+        roomId: restored.room.roomId,
+        pin: restored.room.pin,
+        name:
+          (typeof payload.name === 'string' && payload.name.trim()) ||
+          restored.participant.display_name,
+        role: restored.participant.role,
+        userId: participantId,
+        groupId: typeof payload.groupId === 'string' ? payload.groupId : ws.groupId,
+        isReconnect: true,
+      },
+      services
+    );
+    return;
+  }
+
+  // Fallback if only relational row exists
+  if (restored.latestSnapshot) {
+    ws.send(
+      JSON.stringify({
+        type: 'SIMULATION_SNAPSHOT_RESTORE',
+        payload: {
+          roomPin: restored.dbRoom.pin,
+          roomId: roomIdHint || restored.dbRoom.pin,
+          params: restored.latestSnapshot.params,
+          updatedAt: restored.latestSnapshot.updatedAt,
+        },
+      })
+    );
+  }
+  if (roomIdHint) {
+    broadcastRoom(roomIdHint, {
+      type: 'SIMULATION_SNAPSHOT_RESTORE',
+      payload: {
+        roomPin: restored.dbRoom.pin,
+        roomId: roomIdHint,
+        params: restored.latestSnapshot?.params ?? {},
+        updatedAt: restored.latestSnapshot?.updatedAt ?? now,
+      },
+    });
+  }
+}
+
+export function handleSimulationSnapshotPush(
+  ws: ExtWebSocket,
+  payload: Record<string, unknown>,
+  services: WsHandlerServices
+): void {
+  const { state, broadcastRoom } = services;
+  const roomPin =
+    typeof payload.roomPin === 'string' && payload.roomPin.trim()
+      ? payload.roomPin.trim()
+      : ws.roomId || '';
+  const params = payload.params;
+  if (!roomPin || !params || typeof params !== 'object') return;
+
+  const now = Date.now();
+  const saved = state.saveRoomSimulationSnapshot(
+    roomPin,
+    params as Record<string, unknown>,
+    now
+  );
+  const targetRoomId =
+    (typeof payload.roomId === 'string' && payload.roomId.trim().toUpperCase()) ||
+    ws.roomId;
+  if (targetRoomId) {
+    broadcastRoom(
+      targetRoomId,
+      {
+        type: 'SIMULATION_SNAPSHOT_RESTORE',
+        payload: {
+          roomPin: saved.room_pin,
+          roomId: targetRoomId,
+          params: params as Record<string, unknown>,
+          updatedAt: saved.updated_at,
+        },
+      },
+      ws
+    );
+  }
 }
 
 export function handleRoomLeave(
@@ -181,6 +345,9 @@ export function handleRoomLeave(
   const { state, broadcastRoom } = services;
   if (ws.roomId && state.activeLabRooms.has(ws.roomId)) {
     const room = state.activeLabRooms.get(ws.roomId)!;
+    if (ws.userId && room.pin) {
+      state.database.setParticipantConnected(room.pin, ws.userId, false);
+    }
     delete room.clients[ws.socketId];
     if (room.teacherSocketId === ws.socketId) {
       room.teacherSocketId = undefined;
@@ -272,6 +439,9 @@ export function cleanupSocketRoomAndLocks(
 
   if (ws.roomId && state.activeLabRooms.has(ws.roomId)) {
     const room = state.activeLabRooms.get(ws.roomId)!;
+    if (ws.userId && room.pin) {
+      state.database.setParticipantConnected(room.pin, ws.userId, false);
+    }
     delete room.clients[ws.socketId];
     if (room.teacherSocketId === ws.socketId) {
       room.teacherSocketId = undefined;

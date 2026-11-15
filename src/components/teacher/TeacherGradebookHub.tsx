@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   GraduationCap,
@@ -15,8 +15,16 @@ import {
   FolderOpen,
   Upload,
   Printer,
+  ArrowUpDown,
+  ChevronDown,
+  Sparkles,
 } from 'lucide-react';
 import { LabSubmission } from '../../types/submissionTypes';
+import {
+  evaluateSubmissionRubric,
+  parseRubricJson,
+  type EvaluatedRubricReport,
+} from '../../shared/grading/rubricEngine';
 import { labSound } from '../../utils/soundEngine';
 import { exportGoogleClassroomCSV } from '../../utils/csvExporter';
 import { SessionReplayPlayer } from './SessionReplayPlayer';
@@ -33,6 +41,27 @@ export interface TeacherGradebookHubProps {
   activeRoomId?: string;
 }
 
+type SortField = 'submittedAt' | 'score' | 'quizScore' | 'studentName';
+
+function resolveSubmissionRubric(sub: LabSubmission): EvaluatedRubricReport {
+  if (sub.autoRubric && Array.isArray(sub.autoRubric.criteria)) {
+    return sub.autoRubric;
+  }
+  const parsed = parseRubricJson(sub.rubricJson);
+  if (parsed) {
+    return parsed;
+  }
+  return evaluateSubmissionRubric({
+    moduleId: sub.moduleId,
+    domain: sub.domain,
+    hypothesisText: sub.hypothesisText,
+    observationData: sub.observationData,
+    regressionMetrics: sub.regressionMetrics,
+    quizScore: sub.quizScore,
+    conclusionText: sub.conclusionText,
+  });
+}
+
 export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
   isOpen,
   onClose,
@@ -42,7 +71,11 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [domainFilter, setDomainFilter] = useState<string>('Semua');
+  const [moduleFilter, setModuleFilter] = useState<string>('Semua');
   const [statusFilter, setStatusFilter] = useState<'Semua' | 'Belum Dinilai' | 'Sudah Dinilai'>('Semua');
+  const [sortField, setSortField] = useState<SortField>('submittedAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [expandedRubricOpen, setExpandedRubricOpen] = useState<boolean>(true);
   const [selectedSubmission, setSelectedSubmission] = useState<LabSubmission | null>(null);
   const [replaySubmission, setReplaySubmission] = useState<LabSubmission | null>(null);
 
@@ -68,7 +101,6 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
     const fileArray = Array.from(files);
     if (fileArray.length === 0) return;
 
-    // Use Promise.allSettled so 1 corrupted file does NOT fail the entire batch
     const settleResults = await Promise.allSettled(
       fileArray.map(async (file) => {
         try {
@@ -78,9 +110,17 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
             throw new Error(verification.error || 'Format berkas rusak atau integritas tidak lolos');
           }
           const sub = convertPacketToSubmission(verification.packet);
-          return { file, sub };
-        } catch (err: any) {
-          throw new Error(err?.message || 'Gagal membaca atau memverifikasi berkas .rlab');
+          const autoRubric = resolveSubmissionRubric(sub);
+          return {
+            file,
+            sub: {
+              ...sub,
+              autoRubric,
+            },
+          };
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Gagal membaca atau memverifikasi berkas .rlab';
+          throw new Error(msg);
         }
       })
     );
@@ -106,18 +146,15 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
     if (validItems.length > 0) {
       setSubmissions((prev) => {
         const subMap = new Map<string, LabSubmission>();
-        // Populate existing
         for (const s of prev) {
           subMap.set(s.id, s);
         }
 
-        // Apply new or updated submissions (deduplication by submission.id)
         for (const item of validItems) {
           const sub = item.sub;
           if (subMap.has(sub.id)) {
             updatedCount += 1;
             const existing = subMap.get(sub.id)!;
-            // Preserve teacherGrade if incoming does not have one
             subMap.set(sub.id, {
               ...sub,
               teacherGrade: sub.teacherGrade || existing.teacherGrade,
@@ -127,7 +164,6 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
             subMap.set(sub.id, sub);
           }
 
-          // Asynchronously persist to backend if reachable
           fetch('/api/submissions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -138,7 +174,8 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
         const merged = Array.from(subMap.values());
         if (!selectedSubmission && validItems.length > 0) {
           setSelectedSubmission(validItems[0].sub);
-          setGradingScore(Math.min(100, Math.max(70, validItems[0].sub.quizScore)));
+          const rubricScore = validItems[0].sub.autoRubric?.score ?? validItems[0].sub.quizScore;
+          setGradingScore(Math.min(100, Math.max(70, rubricScore)));
         }
         return merged;
       });
@@ -180,12 +217,22 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.submissions)) {
-          setSubmissions(data.submissions);
-          if (data.submissions.length > 0 && !selectedSubmission) {
-            const first = data.submissions[0];
+          const enriched: LabSubmission[] = data.submissions.map((s: LabSubmission) => ({
+            ...s,
+            autoRubric: resolveSubmissionRubric(s),
+          }));
+          setSubmissions(enriched);
+          if (enriched.length > 0 && !selectedSubmission) {
+            const first = enriched[0];
             setSelectedSubmission(first);
-            setGradingScore(first.teacherGrade?.score ?? Math.min(100, Math.max(70, first.quizScore)));
-            setGradingFeedback(first.teacherGrade?.feedback || '');
+            const defaultScore =
+              first.teacherGrade?.score ??
+              first.autoRubric?.score ??
+              Math.min(100, Math.max(70, first.quizScore));
+            setGradingScore(defaultScore);
+            setGradingFeedback(
+              first.teacherGrade?.feedback || first.autoRubric?.summaryFeedback || ''
+            );
           }
         }
       }
@@ -204,16 +251,35 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
 
   const handleSelectSubmission = (sub: LabSubmission) => {
     labSound.playClick();
-    setSelectedSubmission(sub);
-    setGradingScore(sub.teacherGrade?.score ?? Math.min(100, Math.max(70, sub.quizScore)));
-    setGradingFeedback(sub.teacherGrade?.feedback || '');
+    const rubric = resolveSubmissionRubric(sub);
+    setSelectedSubmission({ ...sub, autoRubric: rubric });
+    setGradingScore(
+      sub.teacherGrade?.score ?? rubric.score ?? Math.min(100, Math.max(70, sub.quizScore))
+    );
+    setGradingFeedback(sub.teacherGrade?.feedback || rubric.summaryFeedback || '');
   };
 
   const handleExportClassroomCSV = () => {
     labSound.playSuccessChime();
-    exportGoogleClassroomCSV(submissions);
+    exportGoogleClassroomCSV(
+      submissions.map((s) => ({
+        ...s,
+        autoRubricScore: resolveSubmissionRubric(s).score,
+      })),
+      true
+    );
     setToastMessage(`Rekap CSV Google Classroom (${submissions.length} siswa) berhasil diunduh!`);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleToggleSort = (field: SortField) => {
+    labSound.playClick();
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
   };
 
   const handleSaveGrade = async (e: React.FormEvent) => {
@@ -233,15 +299,18 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
 
       if (res.ok) {
         const data = await res.json();
+        const updatedSub: LabSubmission = {
+          ...data.submission,
+          autoRubric: resolveSubmissionRubric(data.submission),
+        };
         labSound.playSuccessChime();
         setToastMessage(`Nilai untuk ${selectedSubmission.studentName} berhasil disimpan!`);
         setTimeout(() => setToastMessage(null), 3000);
 
-        // Update local state
         setSubmissions((prev) =>
-          prev.map((s) => (s.id === selectedSubmission.id ? data.submission : s))
+          prev.map((s) => (s.id === selectedSubmission.id ? updatedSub : s))
         );
-        setSelectedSubmission(data.submission);
+        setSelectedSubmission(updatedSub);
       }
     } catch {
       setToastMessage('Gagal menyimpan nilai.');
@@ -250,30 +319,60 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
     }
   };
 
+  const availableModules = useMemo(() => {
+    const set = new Set<string>();
+    submissions.forEach((s) => {
+      if (s.moduleId) set.add(s.moduleId);
+    });
+    return Array.from(set);
+  }, [submissions]);
+
   if (!isOpen) return null;
 
-  const filteredSubmissions = submissions.filter((sub) => {
-    const matchSearch =
-      sub.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sub.moduleId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sub.id.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredSubmissions = submissions
+    .filter((sub) => {
+      const matchSearch =
+        sub.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sub.moduleId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sub.id.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchDomain =
-      domainFilter === 'Semua' || sub.domain.toLowerCase() === domainFilter.toLowerCase();
+      const matchDomain =
+        domainFilter === 'Semua' || sub.domain.toLowerCase() === domainFilter.toLowerCase();
 
-    const isGraded = Boolean(sub.teacherGrade);
-    const matchStatus =
-      statusFilter === 'Semua'
-        ? true
-        : statusFilter === 'Sudah Dinilai'
-        ? isGraded
-        : !isGraded;
+      const matchModule =
+        moduleFilter === 'Semua' || sub.moduleId.toLowerCase() === moduleFilter.toLowerCase();
 
-    return matchSearch && matchDomain && matchStatus;
-  });
+      const isGraded = Boolean(sub.teacherGrade);
+      const matchStatus =
+        statusFilter === 'Semua'
+          ? true
+          : statusFilter === 'Sudah Dinilai'
+          ? isGraded
+          : !isGraded;
+
+      return matchSearch && matchDomain && matchModule && matchStatus;
+    })
+    .sort((a, b) => {
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      if (sortField === 'studentName') {
+        return a.studentName.localeCompare(b.studentName) * dir;
+      }
+      if (sortField === 'score') {
+        const scoreA = a.teacherGrade?.score ?? resolveSubmissionRubric(a).score;
+        const scoreB = b.teacherGrade?.score ?? resolveSubmissionRubric(b).score;
+        return (scoreA - scoreB) * dir;
+      }
+      if (sortField === 'quizScore') {
+        return ((a.quizScore ?? 0) - (b.quizScore ?? 0)) * dir;
+      }
+      const timeA = Date.parse(a.submittedAt) || 0;
+      const timeB = Date.parse(b.submittedAt) || 0;
+      return (timeA - timeB) * dir;
+    });
 
   const gradedCount = submissions.filter((s) => s.teacherGrade).length;
   const pendingCount = submissions.length - gradedCount;
+  const selectedRubric = selectedSubmission ? resolveSubmissionRubric(selectedSubmission) : null;
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-sm">
@@ -325,13 +424,12 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                LMS Pipeline: Periksa hipotesis, grafik regresi OLS, replay kronologi, dan ekspor nilai Google Classroom
+                LMS Pipeline: Evaluasi Rubrik Otomatis RK4, regresi OLS, replay kronologi, dan ekspor CSV UTF-8 BOM
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Hidden file input for .rlab */}
             <input
               ref={fileInputRef}
               type="file"
@@ -341,7 +439,6 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               onChange={handleFilesSelected}
             />
 
-            {/* FITUR 1: Cetak LKS Kosong untuk Fotokopi Kelas 3T */}
             <button
               type="button"
               data-testid="teacher-print-blank-worksheet-btn"
@@ -357,7 +454,6 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               <span>🖨️ Cetak LKS Kosong (Untuk Fotokopi Kelas)</span>
             </button>
 
-            {/* FITUR 3: Tombol Impor File Tugas Siswa (.rlab) untuk Daerah 3T */}
             <button
               type="button"
               data-testid="import-offline-rlab-btn"
@@ -369,7 +465,6 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               <span>📂 Impor File Tugas Siswa (.rlab)</span>
             </button>
 
-            {/* FITUR 5: Ekspor Google Classroom & Sync Nilai */}
             <button
               type="button"
               onClick={handleExportClassroomCSV}
@@ -441,7 +536,6 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               </button>
             </div>
 
-            {/* Failure Breakdown details */}
             {showFailuresDetail && importSummary.failures.length > 0 && (
               <div className="mt-2 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/30 space-y-1.5 max-h-36 overflow-y-auto font-mono text-[11px]">
                 <div className="font-bold text-rose-300">Daftar Berkas Gagal &amp; Penyebab:</div>
@@ -456,9 +550,9 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
           </div>
         )}
 
-        {/* Status Counters & Filters */}
+        {/* Status Counters, Search, Module Filter & Sortable Column Controls */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 text-xs">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300">
               Total Laporan: <strong className="font-mono text-slate-900 dark:text-white tabular-nums">{submissions.length}</strong>
             </span>
@@ -470,6 +564,48 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Selesai Dinilai: {gradedCount}</span>
             </span>
+
+            {/* Sortable Score & Date Column Buttons */}
+            <div className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => handleToggleSort('score')}
+                className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+                  sortField === 'score'
+                    ? 'bg-sky-600 text-white'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Urutkan berdasarkan Skor Akhir / Rubrik"
+              >
+                <ArrowUpDown className="w-3 h-3" />
+                <span>Skor {sortField === 'score' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleSort('quizScore')}
+                className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+                  sortField === 'quizScore'
+                    ? 'bg-sky-600 text-white'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Urutkan berdasarkan Skor Kuis LKS"
+              >
+                <ArrowUpDown className="w-3 h-3" />
+                <span>Kuis {sortField === 'quizScore' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleSort('submittedAt')}
+                className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+                  sortField === 'submittedAt'
+                    ? 'bg-sky-600 text-white'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Urutkan berdasarkan Waktu Pengumpulan"
+              >
+                <span>Waktu {sortField === 'submittedAt' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</span>
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -487,6 +623,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
             <select
               value={domainFilter}
               onChange={(e) => setDomainFilter(e.target.value)}
+              aria-label="Filter Domain Sains"
               className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300"
             >
               <option value="Semua">Semua Domain</option>
@@ -497,8 +634,23 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
             </select>
 
             <select
+              value={moduleFilter}
+              onChange={(e) => setModuleFilter(e.target.value)}
+              aria-label="Filter Modul Praktikum"
+              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300"
+            >
+              <option value="Semua">Semua Modul</option>
+              {availableModules.map((modId) => (
+                <option key={modId} value={modId}>
+                  {modId}
+                </option>
+              ))}
+            </select>
+
+            <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={(e) => setStatusFilter(e.target.value as 'Semua' | 'Belum Dinilai' | 'Sudah Dinilai')}
+              aria-label="Filter Status Penilaian"
               className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300"
             >
               <option value="Semua">Semua Status</option>
@@ -521,6 +673,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               filteredSubmissions.map((sub) => {
                 const isSelected = selectedSubmission?.id === sub.id;
                 const isGraded = Boolean(sub.teacherGrade);
+                const rubric = resolveSubmissionRubric(sub);
 
                 return (
                   <div
@@ -564,11 +717,11 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400">
                             <Clock className="w-3 h-3" />
-                            <span>Perlu Nilai</span>
+                            <span>Rubrik: {rubric.score}/100</span>
                           </span>
                         )}
                         <div className="text-[10px] text-slate-400 mt-1 tabular-nums">
-                          Kuis: {sub.quizScore}/100
+                          Kuis: {sub.quizScore}/100 · RK4: {rubric.score}/100
                         </div>
                       </div>
                     </div>
@@ -578,7 +731,6 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                         "{sub.hypothesisText || 'Tidak ada hipotesis tertulis'}"
                       </p>
 
-                      {/* FITUR 3: Tombol Lihat Replay Praktikum */}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -599,9 +751,9 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
             )}
           </div>
 
-          {/* Quick Review & Grading Form Panel (Right) */}
+          {/* Quick Review, Expandable Auto-Rubric Drawer & Grading Form Panel (Right) */}
           <div className="w-full md:w-1/2 flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-950/30">
-            {selectedSubmission ? (
+            {selectedSubmission && selectedRubric ? (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
                   <div>
@@ -634,6 +786,74 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                       {selectedSubmission.regressionMetrics?.slope?.toFixed(2) ?? '1.00'}
                     </span>
                   </div>
+                </div>
+
+                {/* Expandable Deterministic RK4 Auto-Rubric Breakdown Drawer */}
+                <div
+                  data-testid="teacher-rubric-breakdown-panel"
+                  className="rounded-2xl border border-teal-500/30 bg-white dark:bg-slate-900 overflow-hidden shadow-xs"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setExpandedRubricOpen((prev) => !prev)}
+                    aria-expanded={expandedRubricOpen}
+                    className="w-full px-4 py-3 flex items-center justify-between gap-2 bg-teal-500/10 hover:bg-teal-500/15 transition-colors cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                      <div>
+                        <span className="text-xs font-extrabold text-slate-900 dark:text-white block">
+                          Rincian Rubrik Otomatis &amp; Toleransi Numerik RK4
+                        </span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Toleransi RK4: ±{selectedRubric.rk4TolerancePct}% · Status:{' '}
+                          {selectedRubric.passed ? 'Lulus Kriteria Minimum' : 'Perlu Penguatan'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-mono font-extrabold bg-teal-600 text-white tabular-nums">
+                        {selectedRubric.score}/{selectedRubric.maxScore}
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-slate-500 transition-transform ${
+                          expandedRubricOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </div>
+                  </button>
+
+                  {expandedRubricOpen && (
+                    <div className="p-3.5 space-y-2.5 divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                      <p className="text-[11px] font-medium text-teal-700 dark:text-teal-300 pb-1">
+                        {selectedRubric.summaryFeedback}
+                      </p>
+                      {selectedRubric.criteria.map((crit) => (
+                        <div key={crit.id} className="pt-2 space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-slate-800 dark:text-slate-100">
+                              {crit.label}
+                            </span>
+                            <span
+                              className={`font-mono font-bold px-2 py-0.5 rounded text-[11px] tabular-nums ${
+                                crit.passed
+                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                              }`}
+                            >
+                              {crit.earnedPoints}/{crit.maxPoints} poin
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                            Terukur: {crit.measuredSummary}
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug">
+                            {crit.feedback}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Hipotesis & Kesimpulan */}
@@ -725,6 +945,8 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                     <div className="text-[11px] text-slate-500 dark:text-slate-400">
                       Skor Kuis LKS: <strong className="font-mono text-slate-900 dark:text-white tabular-nums">{selectedSubmission.quizScore}/100</strong>
                       <br />
+                      Rekomendasi Rubrik RK4: <strong className="font-mono text-teal-600 dark:text-teal-400 tabular-nums">{selectedRubric.score}/100</strong>
+                      <br />
                       Status: {selectedSubmission.teacherGrade ? 'Sudah Dinilai' : 'Menunggu Penilaian'}
                     </div>
                   </div>
@@ -766,7 +988,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                   Pilih Laporan Siswa di Panel Kiri
                 </p>
                 <p className="text-xs text-slate-400 max-w-sm">
-                  Klik salah satu laporan yang masuk untuk meninjau data hipotesis, grafik regresi, kuis, dan memberi nilai akhir.
+                  Klik salah satu laporan yang masuk untuk meninjau data hipotesis, grafik regresi, rincian rubrik RK4, dan memberi nilai akhir.
                 </p>
               </div>
             )}
@@ -774,7 +996,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
         </div>
       </div>
 
-      {/* FITUR 3: Session Replay Player Modal */}
+      {/* Session Replay Player Modal */}
       <SessionReplayPlayer
         submission={replaySubmission}
         isOpen={Boolean(replaySubmission)}

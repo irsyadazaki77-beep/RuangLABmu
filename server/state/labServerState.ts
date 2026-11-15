@@ -11,10 +11,18 @@ import {
   resolveDefaultDbPath,
   verifyRoomPinTimingSafe,
 } from './sqliteAdapter';
+import {
+  RuangLabDatabase,
+  type DbGradebookEntryRecord,
+  type DbParticipantRecord,
+  type DbRoomRecord,
+  type DbSimulationSnapshotRecord,
+} from '../db/database';
 
 export {
   DEFAULT_NOTIFICATION_TTL_MS,
   LabSqliteStore,
+  RuangLabDatabase,
   hashRoomPin,
   resolveDefaultDbPath,
   verifyRoomPinTimingSafe,
@@ -140,6 +148,7 @@ class SqliteBackedMap<K extends string, V> extends Map<K, V> {
 export interface LabServerState {
   readonly dbPath: string;
   readonly sqliteStore: LabSqliteStore;
+  readonly database: RuangLabDatabase;
   experimentRecords: ServerExperimentRecord[];
   groupTasks: GroupTask[];
   collabNotes: CollabNote[];
@@ -149,6 +158,47 @@ export interface LabServerState {
   activeLabRooms: Map<string, LabRoom>;
   sessionSnapshots: Map<string, { version: number; session: unknown; updatedAt: number }>;
   touchLabRoom: (roomId: string, now?: number) => void;
+  rejoinParticipantSession: (
+    roomPin: string,
+    participantId: string,
+    roomIdHint?: string,
+    now?: number
+  ) => {
+    room: LabRoom | null;
+    dbRoom: DbRoomRecord;
+    participant: DbParticipantRecord;
+    latestSnapshot: {
+      id: number;
+      roomPin: string;
+      params: Record<string, unknown>;
+      paramsJson: string;
+      updatedAt: number;
+    } | null;
+  } | null;
+  saveRoomSimulationSnapshot: (
+    roomPin: string,
+    params: Record<string, unknown>,
+    now?: number
+  ) => DbSimulationSnapshotRecord;
+  getLatestRoomSimulationSnapshot: (roomPin: string) => {
+    id: number;
+    roomPin: string;
+    params: Record<string, unknown>;
+    paramsJson: string;
+    updatedAt: number;
+  } | null;
+  saveGradebookEntry: (entry: {
+    id: string;
+    roomPin: string;
+    studentId: string;
+    studentName: string;
+    moduleId: string;
+    score: number;
+    rubricJson: string;
+    submittedAt?: number;
+  }) => DbGradebookEntryRecord;
+  getGradebookEntries: (roomPin?: string) => DbGradebookEntryRecord[];
+  pruneExpiredDatabaseRooms: (now?: number) => number;
   pruneExpiredLocks: (now?: number) => void;
   pruneExpiredNotifications: (now?: number) => void;
   pruneIdleRooms: (now?: number) => void;
@@ -194,6 +244,37 @@ export function createLabServerState(options?: {
 
   const resolvedDbPath = options?.dbPath || resolveDefaultDbPath();
   const sqliteStore = new LabSqliteStore(resolvedDbPath);
+  const database = new RuangLabDatabase(resolvedDbPath);
+
+  const syncRoomToRelationalTables = (room: LabRoom) => {
+    const cleanPin = String(room.pin || room.roomId).trim();
+    if (!cleanPin) return;
+    const now = Date.now();
+    const createdAt = room.createdAt || now;
+    const lastActive = room.lastActivityAt ?? createdAt;
+    const expiresAt = lastActive + limits.ROOM_IDLE_TTL_MS;
+    database.upsertRoom({
+      pin: cleanPin,
+      hostId: room.teacherName || room.roomId || 'host',
+      moduleDomain: `${room.domain}:${room.moduleId}`,
+      status: room.isFrozenByTeacher ? 'frozen' : 'active',
+      createdAt,
+      expiresAt,
+    });
+
+    const clients = Object.values(room.clients || {});
+    for (const client of clients) {
+      if (!client || !client.userId) continue;
+      database.upsertParticipant({
+        id: client.userId,
+        roomPin: cleanPin,
+        displayName: client.name || 'Praktikan',
+        role: client.role === 'teacher' ? 'teacher' : 'student',
+        connected: true,
+        lastSeen: now,
+      });
+    }
+  };
 
   const experimentRecords: ServerExperimentRecord[] = [
     {
@@ -380,21 +461,36 @@ export function createLabServerState(options?: {
   });
 
   const activeLabRooms = new SqliteBackedMap<string, LabRoom>({
-    onSet: (_key, room) => sqliteStore.upsertRoom(room),
-    onDelete: (key) => sqliteStore.deleteRoom(key),
+    onSet: (_key, room) => {
+      sqliteStore.upsertRoom(room);
+      syncRoomToRelationalTables(room);
+    },
+    onDelete: (key) => {
+      sqliteStore.deleteRoom(key);
+    },
   });
 
   const sessionSnapshots = new SqliteBackedMap<
     string,
     { version: number; session: unknown; updatedAt: number }
   >({
-    onSet: (key, snap) => sqliteStore.upsertSessionSnapshot(key, snap),
+    onSet: (key, snap) => {
+      sqliteStore.upsertSessionSnapshot(key, snap);
+      if (snap.session && typeof snap.session === 'object') {
+        database.saveSimulationSnapshot(
+          key,
+          snap.session as Record<string, unknown>,
+          snap.updatedAt
+        );
+      }
+    },
     onDelete: (key) => sqliteStore.deleteSessionSnapshot(key),
   });
 
   // Hydrate any pre-existing rooms, snapshots, and locks from SQLite immediately
   for (const room of sqliteStore.loadAllRooms()) {
     activeLabRooms.setSilent(room.roomId, room);
+    syncRoomToRelationalTables(room);
   }
   for (const snap of sqliteStore.loadAllSessionSnapshots()) {
     sessionSnapshots.setSilent(snap.key, snap.value);
@@ -434,6 +530,95 @@ export function createLabServerState(options?: {
     }
   }
 
+  const findRoomByPinOrId = (pinOrRoomId: string): LabRoom | null => {
+    const needle = String(pinOrRoomId || '').trim();
+    if (!needle) return null;
+    const direct = activeLabRooms.get(needle.toUpperCase());
+    if (direct) return direct;
+    for (const room of activeLabRooms.values()) {
+      if (room.pin === needle || room.roomId === needle.toUpperCase()) {
+        return room;
+      }
+    }
+    return null;
+  };
+
+  const rejoinParticipantSession = (
+    roomPin: string,
+    participantId: string,
+    roomIdHint?: string,
+    now = Date.now()
+  ) => {
+    const cleanPin = String(roomPin || '').trim();
+    const cleanParticipantId = String(participantId || '').trim();
+    if (!cleanPin || !cleanParticipantId) return null;
+
+    const matchedRoom =
+      (roomIdHint ? findRoomByPinOrId(roomIdHint) : null) || findRoomByPinOrId(cleanPin);
+
+    if (matchedRoom) {
+      syncRoomToRelationalTables(matchedRoom);
+    }
+
+    const effectivePin = matchedRoom?.pin || cleanPin;
+    const rejoined = database.rejoinParticipantSession(effectivePin, cleanParticipantId, now);
+    if (!rejoined) return null;
+
+    return {
+      room: matchedRoom,
+      dbRoom: rejoined.room,
+      participant: rejoined.participant,
+      latestSnapshot: rejoined.latestSnapshot,
+    };
+  };
+
+  const saveRoomSimulationSnapshot = (
+    roomPin: string,
+    params: Record<string, unknown>,
+    now = Date.now()
+  ) => {
+    const matchedRoom = findRoomByPinOrId(roomPin);
+    const effectivePin = matchedRoom?.pin || String(roomPin).trim();
+    return database.saveSimulationSnapshot(effectivePin, params, now);
+  };
+
+  const getLatestRoomSimulationSnapshot = (roomPin: string) => {
+    const matchedRoom = findRoomByPinOrId(roomPin);
+    const effectivePin = matchedRoom?.pin || String(roomPin).trim();
+    return database.getLatestSimulationSnapshot(effectivePin);
+  };
+
+  const saveGradebookEntry = (entry: {
+    id: string;
+    roomPin: string;
+    studentId: string;
+    studentName: string;
+    moduleId: string;
+    score: number;
+    rubricJson: string;
+    submittedAt?: number;
+  }) => {
+    const matchedRoom = findRoomByPinOrId(entry.roomPin);
+    const effectivePin = matchedRoom?.pin || String(entry.roomPin || 'MANDIRI').trim();
+    return database.upsertGradebookEntry({
+      ...entry,
+      roomPin: effectivePin,
+    });
+  };
+
+  const getGradebookEntries = (roomPin?: string) => {
+    if (!roomPin) {
+      return database.listGradebookEntries();
+    }
+    const matchedRoom = findRoomByPinOrId(roomPin);
+    const effectivePin = matchedRoom?.pin || roomPin.trim();
+    return database.listGradebookEntries(effectivePin);
+  };
+
+  const pruneExpiredDatabaseRooms = (now = Date.now()) => {
+    return database.pruneExpiredRooms(now);
+  };
+
   const touchLabRoom = (roomId: string, now = Date.now()) => {
     const existing = activeLabRooms.get(roomId);
     if (!existing) return;
@@ -468,11 +653,15 @@ export function createLabServerState(options?: {
   };
 
   const pruneIdleRooms = (now = Date.now()) => {
+    database.pruneExpiredRooms(now);
     for (const [roomId, room] of activeLabRooms.entries()) {
       if (roomId === 'LAB-ALPHA') continue;
       const clientCount = Object.keys(room.clients || {}).length;
       const lastActive = room.lastActivityAt ?? room.createdAt;
       if (clientCount === 0 && now - lastActive > limits.ROOM_IDLE_TTL_MS) {
+        if (room.pin) {
+          database.deleteRoomByPin(room.pin);
+        }
         activeLabRooms.delete(roomId);
       }
     }
@@ -486,9 +675,12 @@ export function createLabServerState(options?: {
         }
         return (a[1].lastActivityAt ?? a[1].createdAt) - (b[1].lastActivityAt ?? b[1].createdAt);
       });
-      for (const [roomId] of sortedEntries) {
+      for (const [roomId, room] of sortedEntries) {
         if (activeLabRooms.size <= limits.MAX_ACTIVE_ROOMS) break;
         if (roomId === 'LAB-ALPHA' && activeLabRooms.size <= limits.MAX_ACTIVE_ROOMS + 1) continue;
+        if (room.pin) {
+          database.deleteRoomByPin(room.pin);
+        }
         activeLabRooms.delete(roomId);
       }
     }
@@ -647,17 +839,20 @@ export function createLabServerState(options?: {
     pruneExpiredNotifications(now);
     pruneIdleRooms(now);
     pruneSessionSnapshots(now);
+    database.pruneExpiredRooms(now);
   }, 5 * 60 * 1000);
   maintenanceTimer.unref?.();
 
   const dispose = () => {
     clearInterval(maintenanceTimer);
     sqliteStore.close();
+    database.close();
   };
 
   return {
     dbPath: resolvedDbPath,
     sqliteStore,
+    database,
     experimentRecords,
     groupTasks,
     collabNotes,
@@ -667,6 +862,12 @@ export function createLabServerState(options?: {
     activeLabRooms,
     sessionSnapshots,
     touchLabRoom,
+    rejoinParticipantSession,
+    saveRoomSimulationSnapshot,
+    getLatestRoomSimulationSnapshot,
+    saveGradebookEntry,
+    getGradebookEntries,
+    pruneExpiredDatabaseRooms,
     pruneExpiredLocks,
     pruneExpiredNotifications,
     pruneIdleRooms,

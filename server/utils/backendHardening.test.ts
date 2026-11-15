@@ -7,6 +7,7 @@ import {
   JSON_BODY_LIMITS,
   isOriginAllowed,
   parseAllowedOrigins,
+  resolvePreferredPort,
   selectJsonBodyLimit,
 } from '../../server';
 import {
@@ -19,6 +20,21 @@ import { applyCustomMissionToRoom } from '../ws/collabSocketServer';
 import { verifyTeacherAuthorization } from '../../src/utils/submissionPersistence';
 
 describe('Backend Security Hardening & SQLite Persistence', () => {
+  it('resolves preferred port from CLI --port, npm_config_port, or DEFAULT_APP_PORT when PORT collides with NGINX_PORT', () => {
+    assert.equal(resolvePreferredPort(['node', 'server.ts', '--port', '4100'], { PORT: '8080' }), 4100);
+    assert.equal(resolvePreferredPort(['node', 'server.ts'], { npm_config_port: '3000', PORT: '8080' }), 3000);
+    assert.equal(
+      resolvePreferredPort(['node', 'server.ts'], {
+        PORT: '8080',
+        NGINX_PORT: '8080',
+        DEFAULT_APP_PORT: '3000',
+      }),
+      3000
+    );
+    assert.equal(resolvePreferredPort(['node', 'server.ts'], { PORT: '5000' }), 5000);
+    assert.equal(resolvePreferredPort(['node', 'server.ts'], {}), 3000);
+  });
+
   it('enforces ALLOWED_ORIGINS whitelist strictly in production and permits localhost/LAN only in non-production', () => {
     const allowed = parseAllowedOrigins(
       'https://lab.sekolah.sch.id, https://ruanglabmu.id/',

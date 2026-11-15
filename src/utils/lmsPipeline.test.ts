@@ -1,6 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { exportTableToCSV, formatCSVCell, type CSVColumnDef } from './csvExporter';
+import {
+  exportTableToCSV,
+  exportGoogleClassroomCSV,
+  formatCSVCell,
+  sanitizeCSVFormulaInjection,
+  UTF8_BOM,
+  type CSVColumnDef,
+} from './csvExporter';
+import { createAdaptiveQualityController } from '../hooks/useAdaptiveQuality';
 import type { LabSubmission } from '../types/submissionTypes';
 
 describe('LMS Pipeline & CSV Export Utilities', () => {
@@ -14,7 +22,16 @@ describe('LMS Pipeline & CSV Export Utilities', () => {
     assert.strictEqual(formatCSVCell(42.5), '"42.5"');
   });
 
-  it('exports structured lab observation table into valid CSV content', () => {
+  it('sanitizes spreadsheet formula-injection characters (=, +, -, @)', () => {
+    assert.strictEqual(sanitizeCSVFormulaInjection('=SUM(A1:A10)'), "'=SUM(A1:A10)");
+    assert.strictEqual(sanitizeCSVFormulaInjection('+cmd|"/c calc"!A0'), "'+cmd|\"/c calc\"!A0");
+    assert.strictEqual(sanitizeCSVFormulaInjection('-HYPERLINK("http://evil.tld")'), "'-HYPERLINK(\"http://evil.tld\")");
+    assert.strictEqual(sanitizeCSVFormulaInjection('@IMPORTXML(A1,A2)'), "'@IMPORTXML(A1,A2)");
+    assert.strictEqual(sanitizeCSVFormulaInjection('-9.81'), '-9.81');
+    assert.strictEqual(formatCSVCell('=1+1'), '"\'=1+1"');
+  });
+
+  it('exports structured lab observation table into valid CSV content and supports UTF-8 BOM', () => {
     const columns: CSVColumnDef[] = [
       { key: 'trial', label: 'Percobaan' },
       { key: 'force', label: 'Gaya', unit: 'N' },
@@ -35,12 +52,15 @@ describe('LMS Pipeline & CSV Export Utilities', () => {
     assert.strictEqual(lines[1], '"1","10","2"');
     assert.strictEqual(lines[2], '"2","20","4"');
     assert.strictEqual(lines[3], '"3","30","6"');
+
+    const csvWithBom = exportTableToCSV('Hukum II Newton', columns, rows, false, { includeBomInReturn: true });
+    assert.ok(csvWithBom.startsWith(UTF8_BOM));
   });
 
-  it('validates a LabSubmission payload integrity', () => {
+  it('validates a LabSubmission payload integrity and Google Classroom CSV BOM + sanitization', () => {
     const submission: LabSubmission = {
       id: 'sub-test-123',
-      studentName: 'Aisyah Putri',
+      studentName: '=Aisyah Putri',
       studentId: 'SIS-001',
       roomId: 'room-alpha',
       domain: 'physics',
@@ -70,9 +90,34 @@ describe('LMS Pipeline & CSV Export Utilities', () => {
     };
 
     assert.strictEqual(submission.id, 'sub-test-123');
-    assert.strictEqual(submission.studentName, 'Aisyah Putri');
     assert.strictEqual(submission.quizScore, 100);
-    assert.ok(submission.observationData.length >= 2);
-    assert.ok(submission.teacherGrade && submission.teacherGrade.score >= 0 && submission.teacherGrade.score <= 100);
+    const classroomCsv = exportGoogleClassroomCSV([submission], false, true);
+    assert.ok(classroomCsv.startsWith(UTF8_BOM));
+    assert.ok(classroomCsv.includes('"\'=Aisyah Putri"'));
+  });
+
+  it('steps down adaptive WebGL quality tier when rolling FPS drops below 30 for 2 seconds', () => {
+    const tiers: string[] = [];
+    const controller = createAdaptiveQualityController({
+      initialTier: 'high',
+      onTierChange: (nextTier) => {
+        tiers.push(nextTier);
+      },
+    });
+
+    assert.strictEqual(controller.getTier(), 'high');
+    // Simulate 50ms frame times (0.05s = 20 FPS) for 60 frames (20 warm-up + 40 frames = 2.0s accumulated)
+    for (let i = 0; i < 65; i++) {
+      controller.recordFrameDelta(0.05);
+    }
+    assert.strictEqual(controller.getTier(), 'medium');
+
+    // Simulate another 2.0+ seconds of 20 FPS frames
+    for (let i = 0; i < 45; i++) {
+      controller.recordFrameDelta(0.05);
+    }
+    assert.strictEqual(controller.getTier(), 'low');
+    assert.deepStrictEqual(tiers, ['medium', 'low']);
   });
 });
+

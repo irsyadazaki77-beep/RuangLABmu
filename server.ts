@@ -144,15 +144,30 @@ async function printStartupDiagnostics(activePort: number) {
   }
 }
 
-function resolvePreferredPort(): number {
-  const portArgIndex = process.argv.indexOf('--port');
-  if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
-    const cliPort = Number(process.argv[portArgIndex + 1]);
+export function resolvePreferredPort(
+  argv: string[] = process.argv,
+  env: NodeJS.ProcessEnv = process.env
+): number {
+  const portArgIndex = argv.indexOf('--port');
+  if (portArgIndex !== -1 && argv[portArgIndex + 1]) {
+    const cliPort = Number(argv[portArgIndex + 1]);
     if (Number.isFinite(cliPort) && cliPort > 0) {
       return cliPort;
     }
   }
-  return Number(process.env.PORT) || 3000;
+  if (env.npm_config_port) {
+    const npmPort = Number(env.npm_config_port);
+    if (Number.isFinite(npmPort) && npmPort > 0) {
+      return npmPort;
+    }
+  }
+  if (env.DEFAULT_APP_PORT && env.NGINX_PORT && env.PORT === env.NGINX_PORT) {
+    const defaultAppPort = Number(env.DEFAULT_APP_PORT);
+    if (Number.isFinite(defaultAppPort) && defaultAppPort > 0) {
+      return defaultAppPort;
+    }
+  }
+  return Number(env.PORT) || 3000;
 }
 
 async function startServer() {
@@ -207,6 +222,7 @@ async function startServer() {
     if (shouldRelaxHeadersForEmbeddedPreview(req.headers, strictFrameguard)) {
       res.removeHeader('X-Frame-Options');
       res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+      res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
     }
     next();
   });
@@ -295,30 +311,63 @@ async function startServer() {
     process.env.NODE_ENV === 'production' || isPortableBinary;
 
   if (!useStaticDist) {
-    const viteModuleId = 'vite';
-    const { createServer: createViteServer } = await import(viteModuleId);
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
+    let viteMiddlewares: express.RequestHandler | null = null;
+    const viteReadyPromise = (async () => {
+      const viteModuleId = 'vite';
+      const { createServer: createViteServer } = await import(viteModuleId);
+      const vite = await createViteServer({
+        server: {
+          middlewareMode: true,
+          hmr: process.env.DISABLE_HMR === 'true' ? false : { server },
+        },
+        appType: 'spa',
+      });
+      viteMiddlewares = vite.middlewares;
+    })();
+
+    app.use(async (req, res, next) => {
+      try {
+        if (!viteMiddlewares) {
+          await viteReadyPromise;
+        }
+        if (viteMiddlewares) {
+          viteMiddlewares(req, res, next);
+          return;
+        }
+        next();
+      } catch (err) {
+        next(err);
+      }
     });
-    app.use(vite.middlewares);
+
+    try {
+      activePort = await listenWithPortFallback(server, preferredPort, '0.0.0.0');
+      await viteReadyPromise;
+      await printStartupDiagnostics(activePort);
+    } catch (err) {
+      console.error(
+        `[RuangLABmu ERROR] Gagal menjalankan server:`,
+        err instanceof Error ? err.message : err
+      );
+      process.exit(1);
+    }
   } else {
     const distDir = resolveDistDirectory();
     app.use(express.static(distDir));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distDir, 'index.html'));
     });
-  }
 
-  try {
-    activePort = await listenWithPortFallback(server, preferredPort, '0.0.0.0');
-    await printStartupDiagnostics(activePort);
-  } catch (err) {
-    console.error(
-      `[RuangLABmu ERROR] Gagal menjalankan server:`,
-      err instanceof Error ? err.message : err
-    );
-    process.exit(1);
+    try {
+      activePort = await listenWithPortFallback(server, preferredPort, '0.0.0.0');
+      await printStartupDiagnostics(activePort);
+    } catch (err) {
+      console.error(
+        `[RuangLABmu ERROR] Gagal menjalankan server:`,
+        err instanceof Error ? err.message : err
+      );
+      process.exit(1);
+    }
   }
 }
 

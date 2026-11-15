@@ -1,15 +1,19 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { exportRecordsToCSV } from '../utils/scienceEngine';
 import { ExperimentModule } from '../registry/experimentRegistry';
 import { useLabStore } from '../stores/useLabStore';
 import { useUIStore } from '../stores/useUIStore';
+import { useCollabStore } from '../stores/useCollabStore';
 import { STUDENT_PROFILES } from '../stores/initialLabParams';
 import { saveLastOpenedModuleId } from '../services/gamificationEngine';
 import { useLabParamsSync } from './useLabParamsSync';
 import { useLabCollabBridge } from './useLabCollabBridge';
 import { useLabTelemetryAndXP } from './useLabTelemetryAndXP';
 import { useLabAutoSave } from './useLabAutoSave';
+import { useRoomSocket } from './useRoomSocket';
+import { useSimulationSync } from './useSimulationSync';
+import { useGradebookSubmit } from './useGradebookSubmit';
 
 export function useLabSession() {
   const {
@@ -40,6 +44,7 @@ export function useLabSession() {
     }))
   );
 
+  const activeRoom = useCollabStore((s) => s.activeRoom);
   const comfortPrefs = useUIStore((s) => s.comfortPrefs);
   const [selectedProfileIdx, setSelectedProfileIdx] = useState<number>(0);
   const currentProfile = STUDENT_PROFILES[selectedProfileIdx] ?? STUDENT_PROFILES[0];
@@ -64,6 +69,82 @@ export function useLabSession() {
     setChemistryParams: paramsSync.setChemistryParams,
     setAstronomyParams: paramsSync.setAstronomyParams,
   });
+
+  const sendWsMessage = useCallback(
+    (type: string, payload: unknown) => {
+      if (collabBridge.ws && collabBridge.ws.readyState === WebSocket.OPEN) {
+        collabBridge.ws.send(JSON.stringify({ type, payload }));
+      }
+    },
+    [collabBridge.ws]
+  );
+
+  const handleSnapshotRestored = useCallback(
+    (restoredParams: Record<string, unknown>) => {
+      if (restoredParams.physicsParams && typeof restoredParams.physicsParams === 'object') {
+        paramsSync.setPhysicsParams((prev) => ({
+          ...prev,
+          ...(restoredParams.physicsParams as Record<string, number>),
+        }));
+      }
+      if (
+        restoredParams.chemistryParams &&
+        typeof restoredParams.chemistryParams === 'object'
+      ) {
+        paramsSync.setChemistryParams((prev) => ({
+          ...prev,
+          ...(restoredParams.chemistryParams as Record<string, number>),
+        }));
+      }
+      if (
+        restoredParams.astronomyParams &&
+        typeof restoredParams.astronomyParams === 'object'
+      ) {
+        paramsSync.setAstronomyParams((prev) => ({
+          ...prev,
+          ...(restoredParams.astronomyParams as Record<string, number>),
+        }));
+      }
+    },
+    [paramsSync]
+  );
+
+  const roomSocket = useRoomSocket({
+    activeRoom,
+    currentUserId: currentProfile.name,
+    currentUserName: currentProfile.name,
+    currentUserRole: userRole,
+    activeGroupId: currentProfile.group,
+    sendMessage: sendWsMessage,
+    onSnapshotRestored: handleSnapshotRestored,
+  });
+
+  const simulationSync = useSimulationSync({
+    roomPin: roomSocket.roomPin,
+    roomId: roomSocket.roomId,
+    sendMessage: sendWsMessage,
+  });
+
+  const gradebookSubmit = useGradebookSubmit();
+
+  useEffect(() => {
+    if (!roomSocket.roomPin) return;
+    simulationSync.scheduleSnapshotSync({
+      domain: activeDomain,
+      moduleId: activeModuleId,
+      physicsParams: paramsSync.physicsParams,
+      chemistryParams: paramsSync.chemistryParams,
+      astronomyParams: paramsSync.astronomyParams,
+    });
+  }, [
+    roomSocket.roomPin,
+    activeDomain,
+    activeModuleId,
+    paramsSync.physicsParams,
+    paramsSync.chemistryParams,
+    paramsSync.astronomyParams,
+    simulationSync,
+  ]);
 
   const telemetry = useLabTelemetryAndXP({
     activeDomain,
@@ -189,5 +270,8 @@ export function useLabSession() {
     syncStudentTelemetry: collabBridge.syncStudentTelemetry,
     ws: collabBridge.ws,
     autoSave,
+    roomSocket,
+    simulationSync,
+    gradebookSubmit,
   };
 }

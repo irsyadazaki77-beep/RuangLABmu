@@ -392,9 +392,11 @@ export interface TactileParameterControlProps {
   max: number;
   step: number;
   unit: string;
+  defaultValue?: number;
   onChange: (v: number) => void;
   onHoverChange?: (isHovered: boolean) => void;
   lockedBy?: string;
+  lockedByRole?: 'Siswa' | 'Pengajar' | 'teacher' | 'student';
   badgeText?: string;
   precision?: number;
   accentColor?: string;
@@ -415,9 +417,11 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
   max,
   step,
   unit,
+  defaultValue,
   onChange,
   onHoverChange,
   lockedBy,
+  lockedByRole,
   badgeText,
   precision,
   onFocusLock,
@@ -429,8 +433,13 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const initialDefaultRef = useRef<number>(
+    defaultValue ?? (Number.isFinite(value) ? value : min)
+  );
   const storeAcademicLevel = useLabStore((s) => s.academicLevel);
   const highlightedParamKey = useLabStore((s) => s.highlightedParamKey);
+  const setActiveAdjustedParam = useLabStore((s) => s.setActiveAdjustedParam);
+  const updateLiveParamSnapshot = useLabStore((s) => s.updateLiveParamSnapshot);
   const isHighlighted = Boolean(paramKey && highlightedParamKey === paramKey);
 
   useEffect(() => {
@@ -443,12 +452,25 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
     educationLevel ?? storeAcademicLevel
   );
   const safeVal = Number.isFinite(value) ? value : min;
+  const resolvedDefault = defaultValue ?? initialDefaultRef.current;
+  const displayVarKey = symbol ? `${symbol} (${label})` : label;
+
+  useEffect(() => {
+    updateLiveParamSnapshot(displayVarKey, safeVal, unit);
+  }, [displayVarKey, safeVal, unit, updateLiveParamSnapshot]);
+
   const feedbackText = dynamicFeedback ? dynamicFeedback(safeVal, effectiveLevel) : '';
   const fillPct = Math.min(
     100,
     Math.max(0, ((safeVal - min) / Math.max(1e-6, max - min)) * 100)
   );
   const isLocked = Boolean(lockedBy);
+  const resolvedLockRole =
+    lockedByRole === 'Pengajar' ||
+    lockedByRole === 'teacher' ||
+    (lockedBy && /dr\.|guru|pengajar/i.test(lockedBy))
+      ? 'Pengajar'
+      : 'Siswa';
 
   const decimals =
     precision !== undefined
@@ -465,6 +487,27 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
     const nextRaw = safeVal + dir * step;
     const clamped = Math.min(max, Math.max(min, Number(nextRaw.toFixed(decimals + 1))));
     onChange(clamped);
+    setActiveAdjustedParam({ label: displayVarKey, value: clamped, unit });
+  };
+
+  const handleResetDefault = () => {
+    if (isLocked) return;
+    labSound.playClick();
+    const clamped = Math.min(max, Math.max(min, Number(resolvedDefault.toFixed(decimals + 1))));
+    onChange(clamped);
+    setActiveAdjustedParam({ label: displayVarKey, value: clamped, unit });
+  };
+
+  const handleNumericInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isLocked) return;
+    const raw = e.target.value;
+    if (raw === '' || raw === '-') return;
+    const parsed = parseFloat(raw);
+    if (Number.isFinite(parsed)) {
+      const clamped = Math.min(max, Math.max(min, Number(parsed.toFixed(decimals + 1))));
+      onChange(clamped);
+      setActiveAdjustedParam({ label: displayVarKey, value: clamped, unit });
+    }
   };
 
   return (
@@ -474,10 +517,12 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
       onMouseEnter={() => {
         setIsHovered(true);
         onHoverChange?.(true);
+        setActiveAdjustedParam({ label: displayVarKey, value: safeVal, unit });
       }}
       onMouseLeave={() => {
         setIsHovered(false);
         onHoverChange?.(false);
+        setActiveAdjustedParam(null);
       }}
       animate={{
         borderColor: isHighlighted
@@ -486,7 +531,7 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
           ? 'rgba(14, 165, 233, 0.55)'
           : 'rgba(148, 163, 184, 0.2)',
       }}
-      transition={{ duration: 0.15 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 28, mass: 0.9 }}
       className={`p-3 rounded-xl bg-slate-50/90 dark:bg-slate-800/75 border space-y-2 transition-all ${
         isHighlighted
           ? 'ring-2 ring-amber-400 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.6)] animate-pulse'
@@ -503,6 +548,7 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
                   ? '0 0 12px rgba(14, 165, 233, 0.45)'
                   : '0 0 0px rgba(0,0,0,0)',
               }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28, mass: 0.9 }}
               className="inline-flex items-center justify-center px-2 py-0.5 rounded-md font-mono font-bold text-xs bg-sky-500/15 dark:bg-sky-400/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 shrink-0"
             >
               <SciFormula text={symbol} serifVars />
@@ -543,10 +589,15 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28, mass: 0.9 }}
               className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/40 rounded px-2 py-0.5"
+              title={`Parameter sedang dikendalikan oleh ${lockedBy} (${resolvedLockRole})`}
             >
               <Lock className="w-3 h-3" />
-              Diatur {lockedBy}
+              <span>Diatur {lockedBy}</span>
+              <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-amber-500/20 font-bold">
+                {resolvedLockRole}
+              </span>
             </motion.span>
           ) : (
             <motion.div
@@ -559,14 +610,35 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
                 disabled={isLocked || safeVal <= min}
                 aria-label={`Kurangi ${label}`}
                 onClick={() => handleStep(-1)}
-                className="p-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-sky-500 text-slate-700 dark:text-slate-200 disabled:opacity-40 transition-colors"
+                className="p-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-sky-500 text-slate-700 dark:text-slate-200 disabled:opacity-40 transition-colors cursor-pointer"
               >
                 <Minus className="w-3 h-3" />
               </motion.button>
 
-              <span className="font-mono font-bold text-xs text-slate-900 dark:text-white tabular-nums min-w-[68px] text-center px-1">
-                {safeVal.toFixed(decimals)} <SciFormula text={unit} />
-              </span>
+              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus-within:border-sky-500">
+                <input
+                  type="number"
+                  min={min}
+                  max={max}
+                  step={step}
+                  disabled={isLocked}
+                  value={Number(safeVal.toFixed(decimals))}
+                  onFocus={() => {
+                    onFocusLock?.();
+                    setActiveAdjustedParam({ label: displayVarKey, value: safeVal, unit });
+                  }}
+                  onBlur={() => {
+                    onBlurLock?.();
+                    setActiveAdjustedParam(null);
+                  }}
+                  onChange={handleNumericInputChange}
+                  aria-label={`Input numerik ${label}`}
+                  className="w-14 bg-transparent font-mono font-bold text-xs text-slate-900 dark:text-white tabular-nums text-right focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                  <SciFormula text={unit} />
+                </span>
+              </div>
 
               <motion.button
                 type="button"
@@ -574,9 +646,21 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
                 disabled={isLocked || safeVal >= max}
                 aria-label={`Tambah ${label}`}
                 onClick={() => handleStep(1)}
-                className="p-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-sky-500 text-slate-700 dark:text-slate-200 disabled:opacity-40 transition-colors"
+                className="p-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-sky-500 text-slate-700 dark:text-slate-200 disabled:opacity-40 transition-colors cursor-pointer"
               >
                 <Plus className="w-3 h-3" />
+              </motion.button>
+
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.88 }}
+                disabled={isLocked || Math.abs(safeVal - resolvedDefault) < 1e-6}
+                aria-label={`Reset ${label} ke nilai bawaan`}
+                title={`Reset ke bawaan (${resolvedDefault.toFixed(decimals)}${unit ? ` ${unit}` : ''})`}
+                onClick={handleResetDefault}
+                className="p-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-sky-500 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white disabled:opacity-35 transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
               </motion.button>
             </motion.div>
           )}
@@ -590,7 +674,7 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
             className="h-full bg-gradient-to-r from-sky-500 to-emerald-500 rounded-full"
             initial={false}
             animate={{ width: `${fillPct}%` }}
-            transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
           />
         </div>
         <input
@@ -628,7 +712,7 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
             left: `calc(${fillPct}% - 8px)`,
             scale: isHovered ? 1.18 : 1,
           }}
-          transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
         />
       </div>
 

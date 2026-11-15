@@ -60,6 +60,20 @@ describe('server security header policy', () => {
     );
     assert.equal(
       shouldRelaxHeadersForEmbeddedPreview(
+        { 'sec-fetch-dest': 'iframe', 'sec-fetch-site': 'same-origin' },
+        false
+      ),
+      true
+    );
+    assert.equal(
+      shouldRelaxHeadersForEmbeddedPreview(
+        { 'x-forwarded-host': 'ais-dev-example.asia-east1.run.app' },
+        false
+      ),
+      true
+    );
+    assert.equal(
+      shouldRelaxHeadersForEmbeddedPreview(
         { 'sec-fetch-dest': 'iframe', 'sec-fetch-site': 'cross-site' },
         true
       ),

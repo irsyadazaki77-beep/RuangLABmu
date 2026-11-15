@@ -281,6 +281,40 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             </button>
           </div>
 
+          {/* Live Simulation Parameter Context Strip */}
+          {(() => {
+            const rawParams: Record<string, unknown> =
+              domain === 'Fisika'
+                ? { ...physicsParams }
+                : domain === 'Kimia'
+                  ? { ...chemistryParams }
+                  : domain === 'Astronomi'
+                    ? { ...astronomyParams }
+                    : { ...(biologyContext?.params ?? {}) };
+            const numericEntries = Object.entries(rawParams)
+              .filter(([, v]) => typeof v === 'number')
+              .slice(0, 4);
+            if (numericEntries.length === 0) return null;
+            return (
+              <div
+                data-testid="dr-labmu-sim-context-strip"
+                className="px-4 py-1.5 bg-sky-500/5 border-b border-slate-200/80 dark:border-slate-800/80 flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono text-slate-600 dark:text-slate-300 shrink-0"
+              >
+                <span className="font-bold text-sky-600 dark:text-sky-400 shrink-0">
+                  Konteks 3D:
+                </span>
+                {numericEntries.map(([key, val]) => (
+                  <span
+                    key={key}
+                    className="px-1.5 py-0.5 rounded bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 whitespace-nowrap tabular-nums"
+                  >
+                    {key}: <strong>{(val as number).toFixed(2)}</strong>
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
+
           {/* Chat Turn History */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {activeTurns.map((turn) => (

@@ -10,6 +10,8 @@ export interface FrameAncestorsOptions {
 const DEFAULT_AISTUDIO_FRAME_ANCESTORS = [
   'https://aistudio.google.com',
   'https://*.google.com',
+  'https://*.corp.google.com',
+  'https://localhost.corp.google.com:26001',
   'https://*.googleusercontent.com',
   'https://*.usercontent.goog',
 ] as const;
@@ -70,7 +72,12 @@ export function shouldRelaxHeadersForEmbeddedPreview(
   strictFrameguard = false
 ): boolean {
   if (strictFrameguard) return false;
-  return isCrossOriginIframeRequest(headers);
+  if (isCrossOriginIframeRequest(headers)) return true;
+  const fetchDest = readHeaderValue(headers, 'sec-fetch-dest');
+  if (fetchDest === 'iframe') return true;
+  const forwardedHost = readHeaderValue(headers, 'x-forwarded-host');
+  if (forwardedHost) return true;
+  return false;
 }
 
 export function resolveViteAllowedHosts(env: NodeJS.ProcessEnv = process.env): string[] {

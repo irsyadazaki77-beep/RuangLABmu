@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { motion } from 'motion/react';
 import QRCode from 'qrcode';
 import {
   Search,
@@ -18,6 +19,7 @@ import {
   LogOut,
   X,
   Wifi,
+  WifiOff,
   QrCode as QrCodeIcon,
   BookOpen,
   Layers,
@@ -25,6 +27,7 @@ import {
   ChevronRight,
   ArrowRight,
 } from 'lucide-react';
+import { SPRING_LAYOUT_PILL } from '../styles/motionPresets';
 import {
   ExperimentModule,
   EducationTier,
@@ -264,6 +267,20 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
   } | null>(null);
   const [selectedLanIp, setSelectedLanIp] = useState<string>('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [isOnline3T, setIsOnline3T] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline3T(true);
+    const handleOffline = () => setIsOnline3T(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     setLastModuleId(loadLastOpenedModuleId());
@@ -834,6 +851,35 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
 
           <button
             type="button"
+            data-testid="lobby-teacher-gradebook-toggle-btn"
+            onClick={() => {
+              labSound.playClick();
+              setUserRole(userRole === 'pengajar' ? 'siswa' : 'pengajar');
+            }}
+            className={`px-2.5 py-1 rounded-lg border font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors ${
+              userRole === 'pengajar'
+                ? 'bg-emerald-600 text-white border-emerald-500'
+                : 'bg-stone-100 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-sky-500'
+            }`}
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            <span>{userRole === 'pengajar' ? 'Buku Nilai Guru Aktif' : 'Mode Guru / Buku Nilai'}</span>
+          </button>
+
+          <span
+            data-testid="lobby-3t-status-pill"
+            className={`px-2 py-1 rounded-lg border font-mono text-[10px] font-bold inline-flex items-center gap-1 ${
+              isOnline3T
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+                : 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300'
+            }`}
+          >
+            {isOnline3T ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+            <span>{isOnline3T ? '3T Online' : '3T Offline-Siap'}</span>
+          </span>
+
+          <button
+            type="button"
             data-testid="lobby-open-ai-mission-builder-btn"
             onClick={() => {
               labSound.playClick(620);
@@ -1095,7 +1141,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
 
         {/* Row C: Domain Filter & Search Bar */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Domain Filter Tabs */}
+          {/* Domain Filter Tabs with Framer Motion layoutId Active Indicator */}
           <div className="flex items-center gap-1 p-1 bg-stone-200/60 dark:bg-slate-900 rounded-xl border border-stone-200/80 dark:border-slate-800 overflow-x-auto">
             {[
               { id: 'all', label: 'Semua Domain' },
@@ -1103,23 +1149,33 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               { id: 'kimia', label: 'Kimia' },
               { id: 'biologi', label: 'Biologi' },
               { id: 'astronomi', label: 'Astronomi' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  setSelectedDomain(tab.id as ScienceDomain | 'all');
-                }}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                  selectedDomain === tab.id
-                    ? 'bg-sky-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+            ].map((tab) => {
+              const isSelected = selectedDomain === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setSelectedDomain(tab.id as ScienceDomain | 'all');
+                  }}
+                  className={`relative px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    isSelected
+                      ? 'text-white'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {isSelected && (
+                    <motion.span
+                      layoutId="lobby-domain-active-pill"
+                      transition={SPRING_LAYOUT_PILL}
+                      className="absolute inset-0 rounded-lg bg-sky-600 shadow-2xs -z-0"
+                    />
+                  )}
+                  <span className="relative z-10">{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -1520,10 +1576,19 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                       {conciseDesc}
                     </p>
 
-                    {/* In-depth materials tag */}
-                    <div className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 px-2 py-1 rounded-lg">
-                      <Sparkles className="w-3 h-3 text-emerald-500 shrink-0" />
-                      <span className="truncate">Materi Mendalam: Miskonsepsi &amp; Industri Indonesia</span>
+                    {/* In-depth materials tag & Offline 3T Cache Status */}
+                    <div className="flex items-center justify-between gap-2 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 px-2 py-1 rounded-lg">
+                      <span className="flex items-center gap-1 truncate">
+                        <Sparkles className="w-3 h-3 text-emerald-500 shrink-0" />
+                        <span className="truncate">Miskonsepsi &amp; Industri Indonesia</span>
+                      </span>
+                      <span
+                        data-testid="card-offline-ready-badge"
+                        className="font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/15 border border-emerald-500/30 shrink-0"
+                        title="Modul tersimpan di cache PWA untuk daerah 3T tanpa kuota"
+                      >
+                        Siap Luring 3T
+                      </span>
                     </div>
                   </div>
                 </div>

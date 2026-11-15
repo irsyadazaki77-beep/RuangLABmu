@@ -188,8 +188,11 @@ export type CollabWSMessage =
   | { type: 'PARAM_LOCKS_SYNC'; payload: { locks: ParameterLockPayload[] } }
   | { type: 'ROOM_CREATE'; payload: { roomId?: string; pin: string; domain: 'physics' | 'chemistry' | 'biology' | 'astronomy'; moduleId: string; teacherName: string; teacherUserId: string } }
   | { type: 'ROOM_CREATED'; payload: { room: LabRoom } }
-  | { type: 'ROOM_JOIN'; payload: { roomId: string; pin: string; name: string; role: 'teacher' | 'student'; userId: string; groupId?: string } }
-  | { type: 'ROOM_JOINED'; payload: { room: LabRoom; client: LabRoomClient } }
+  | { type: 'ROOM_JOIN'; payload: { roomId: string; pin: string; name: string; role: 'teacher' | 'student'; userId: string; groupId?: string; isReconnect?: boolean } }
+  | { type: 'ROOM_REJOIN'; payload: { roomPin: string; participantId: string; roomId?: string; name?: string; role?: 'teacher' | 'student'; groupId?: string } }
+  | { type: 'ROOM_JOINED'; payload: { room: LabRoom; client: LabRoomClient; isReconnect?: boolean; latestSimulationSnapshot?: Record<string, unknown> | null } }
+  | { type: 'SIMULATION_SNAPSHOT_PUSH'; payload: { roomPin: string; roomId?: string; params: Record<string, unknown>; updatedAt?: number } }
+  | { type: 'SIMULATION_SNAPSHOT_RESTORE'; payload: { roomPin: string; roomId?: string; params: Record<string, unknown>; updatedAt: number } }
   | { type: 'ROOM_ERROR'; payload: { message: string; code: string } }
   | { type: 'ROOM_LEAVE'; payload: { roomId: string; userId: string } }
   | { type: 'TEACHER_FREEZE_TOGGLE'; payload: { roomId: string; isFrozen: boolean; teacherName: string } }

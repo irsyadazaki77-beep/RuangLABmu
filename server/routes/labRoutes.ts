@@ -80,5 +80,70 @@ export function createLabRouter({ state, getPort }: LabRoutesDeps): express.Rout
     });
   });
 
+  /**
+   * Unstable 3T Network Reconnect Endpoint:
+   * Accepts (roomPin, participantId, optional roomId) and restores `connected = 1` in SQLite
+   * while immediately returning the latest `simulation_snapshots` payload.
+   */
+  router.post('/api/rooms/rejoin', (req, res) => {
+    const { roomPin, participantId, roomId } = req.body || {};
+    const cleanPin = typeof roomPin === 'string' ? roomPin.trim() : '';
+    const cleanParticipantId =
+      typeof participantId === 'string' ? participantId.trim() : '';
+    const cleanRoomId = typeof roomId === 'string' ? roomId.trim() : undefined;
+
+    if (!cleanPin || !cleanParticipantId) {
+      res.status(400).json({
+        error: 'Parameter roomPin dan participantId wajib diisi untuk pemulihan sesi 3T.',
+        code: 'INVALID_REJOIN_PAYLOAD',
+      });
+      return;
+    }
+
+    const restored = state.rejoinParticipantSession(
+      cleanPin,
+      cleanParticipantId,
+      cleanRoomId
+    );
+    if (!restored) {
+      res.status(404).json({
+        error: 'Sesi ruangan tidak ditemukan atau telah kedaluwarsa.',
+        code: 'ROOM_SESSION_EXPIRED',
+      });
+      return;
+    }
+
+    res.json({
+      status: 'rejoined',
+      roomPin: restored.dbRoom.pin,
+      room: restored.room,
+      participant: restored.participant,
+      latestSimulationSnapshot: restored.latestSnapshot?.params ?? null,
+      snapshotUpdatedAt: restored.latestSnapshot?.updatedAt ?? null,
+    });
+  });
+
+  /**
+   * Save or query room simulation parameters snapshot in `simulation_snapshots` table
+   */
+  router.post('/api/rooms/snapshot', (req, res) => {
+    const { roomPin, params } = req.body || {};
+    const cleanPin = typeof roomPin === 'string' ? roomPin.trim() : '';
+    if (!cleanPin || !params || typeof params !== 'object') {
+      res.status(400).json({ error: 'Invalid simulation snapshot payload' });
+      return;
+    }
+    const saved = state.saveRoomSimulationSnapshot(
+      cleanPin,
+      params as Record<string, unknown>
+    );
+    res.json({
+      status: 'ok',
+      snapshotId: saved.id,
+      roomPin: saved.room_pin,
+      updatedAt: saved.updated_at,
+    });
+  });
+
   return router;
 }

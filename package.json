@@ -16,7 +16,7 @@
     "preview": "vite preview",
     "clean": "node -e \"const fs=require('fs');['dist','dist-server','release'].forEach(d=>fs.rmSync(d,{recursive:true,force:true}))\"",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/utils/*.test.ts src/utils/engines/*.test.ts src/workers/*.test.ts server/utils/*.test.ts",
+    "test": "tsx --test src/utils/*.test.ts src/utils/engines/*.test.ts src/shared/grading/*.test.ts src/workers/*.test.ts server/utils/*.test.ts server/db/*.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

@@ -10,6 +10,10 @@ import {
   type CameraSyncPose,
   type StudioComposerHandle,
 } from './threeStudioKit';
+import {
+  createAdaptiveQualityController,
+  type AdaptiveQualityController,
+} from '../hooks/useAdaptiveQuality';
 import { useUIStore } from '../stores/useUIStore';
 
 export interface ThreeStudioHostOptions {
@@ -56,6 +60,7 @@ export interface ThreeStudioHost {
   studioComposer: StudioComposerHandle;
   envTexture: THREE.Texture;
   fpsMonitor: ReturnType<typeof createAdaptiveFpsMonitor>;
+  qualityController: AdaptiveQualityController;
   isSoftwareGl: boolean;
   renderFrame: (dt?: number) => void;
   captureSnapshot: () => string | null;
@@ -101,9 +106,11 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   renderer.setPixelRatio(pixelRatio);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = options.toneMappingExposure ?? 0.85;
+  // Calibrated exposure inside 0.95 - 1.05 range to prevent highlight blowout while keeping crisp lab contrast
+  const rawExposure = options.toneMappingExposure ?? 0.98;
+  renderer.toneMappingExposure = Math.max(0.95, Math.min(1.05, rawExposure));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.domElement.style.touchAction = 'none';
 
   container.innerHTML = '';
@@ -163,9 +170,19 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   renderer.domElement.addEventListener('webglcontextlost', handleWebGLContextLost, false);
   renderer.domElement.addEventListener('webglcontextrestored', handleWebGLContextRestored, false);
 
+  const qualityController = createAdaptiveQualityController({
+    initialTier: initialLite ? 'low' : isSoftwareGl ? 'medium' : 'high',
+    onTierChange: (nextTier, avgFps) => {
+      if (nextTier === 'low') {
+        syncHudBadge(true, false, avgFps);
+      }
+    },
+  });
+
   const fpsMonitor = createAdaptiveFpsMonitor(
     (avgFps) => {
       configureRendererForLiteMode(renderer, true, isSoftwareGl);
+      qualityController.setTier('low', renderer);
       syncHudBadge(true, false, avgFps);
       if (!useUIStore.getState().liteDeviceMode) {
         useUIStore.getState().setLiteDeviceMode(true);
@@ -181,9 +198,11 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   const unsubLite = useUIStore.subscribe((state, prev) => {
     if (state.liteDeviceMode !== prev.liteDeviceMode) {
       configureRendererForLiteMode(renderer, state.liteDeviceMode, isSoftwareGl);
+      qualityController.setTier(state.liteDeviceMode ? 'low' : 'high', renderer);
       syncHudBadge(state.liteDeviceMode, false);
       if (!state.liteDeviceMode) {
         fpsMonitor.resetMonitor();
+        qualityController.reset();
       }
     }
   });
@@ -287,6 +306,9 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
 
   const renderFrame = (dt = 0.016) => {
     if (disposed) return;
+    if (!isSoftwareGl && dt > 0) {
+      qualityController.recordFrameDelta(dt, renderer);
+    }
     studioComposer.render(useUIStore.getState().liteDeviceMode, dt);
   };
 
@@ -321,6 +343,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     studioComposer,
     envTexture,
     fpsMonitor,
+    qualityController,
     isSoftwareGl,
     renderFrame,
     captureSnapshot: () =>
@@ -385,13 +408,13 @@ export function createStudioThreePointLighting(
   const hemiLight = new THREE.HemisphereLight(
     initialColors.ambientSkyHex,
     initialColors.ambientGroundHex,
-    0.45
+    0.52
   );
   scene.add(hemiLight);
 
   const keyPos = options?.keyPosition ?? [6, 12, 8];
   const shadowSize = options?.shadowMapSize ?? 2048;
-  const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
+  const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.02);
   keyLight.position.set(keyPos[0], keyPos[1], keyPos[2]);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.width = shadowSize;
@@ -403,12 +426,12 @@ export function createStudioThreePointLighting(
   keyLight.shadow.camera.right = shadowBound;
   keyLight.shadow.camera.top = shadowBound;
   keyLight.shadow.camera.bottom = -shadowBound;
-  keyLight.shadow.bias = -0.0001;
+  keyLight.shadow.bias = -0.0005;
   keyLight.shadow.normalBias = 0.02;
   scene.add(keyLight);
 
   const rimPos = options?.rimPosition ?? [-7, 5, -6];
-  const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.4);
+  const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.38);
   rimLight.position.set(rimPos[0], rimPos[1], rimPos[2]);
   scene.add(rimLight);
 
@@ -422,7 +445,7 @@ export function createStudioThreePointLighting(
       workbench?.updateTheme(colors);
       hemiLight.color.setHex(colors.ambientSkyHex);
       hemiLight.groundColor.setHex(colors.ambientGroundHex);
-      hemiLight.intensity = Math.min(0.45, colors.ambientIntensity);
+      hemiLight.intensity = Math.min(0.55, colors.ambientIntensity);
     },
   };
 }

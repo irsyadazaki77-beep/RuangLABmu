@@ -3,6 +3,12 @@ import fs from 'fs';
 import path from 'path';
 import { rateLimit } from 'express-rate-limit';
 import { AsyncSubmissionStore } from '../../src/utils/submissionPersistence';
+import {
+  evaluateSubmissionRubric,
+  parseRubricJson,
+  serializeRubricJson,
+  type EvaluatedRubricReport,
+} from '../../src/shared/grading/rubricEngine';
 import type { LabServerState, ServerNotification } from '../state/labServerState';
 import {
   validateCreateSubmissionPayload,
@@ -15,6 +21,7 @@ export interface LabSubmissionRecord {
   studentName: string;
   studentId?: string;
   roomId?: string;
+  roomPin?: string;
   domain: string;
   moduleId: string;
   submittedAt: string;
@@ -37,6 +44,8 @@ export interface LabSubmissionRecord {
     eventType?: string;
     note?: string;
   }>;
+  autoRubric?: EvaluatedRubricReport;
+  rubricJson?: string;
   teacherGrade?: { score: number; feedback: string; gradedAt: string };
 }
 
@@ -70,6 +79,26 @@ export async function createSubmissionRouter({
   const DATA_DIR = path.join(rootDir, 'data');
   const SUBMISSIONS_FILE = path.join(DATA_DIR, 'submissions.json');
 
+  const seedRubric = evaluateSubmissionRubric({
+    moduleId: 'newton-incline',
+    domain: 'physics',
+    hypothesisText:
+      'Percepatan benda berbanding lurus dengan resultan gaya dan berbanding terbalik dengan massa total.',
+    observationData: [
+      { 'No / ID': '1', 'F (N)': 15, 'a (m/s²)': 2.45, Status: 'Valid' },
+      { 'No / ID': '2', 'F (N)': 30, 'a (m/s²)': 4.9, Status: 'Valid' },
+      { 'No / ID': '3', 'F (N)': 45, 'a (m/s²)': 7.3, Status: 'Valid' },
+    ],
+    regressionMetrics: {
+      rSquared: 0.998,
+      slope: 0.162,
+      equation: 'y = 0.162x + 0.015',
+    },
+    quizScore: 95,
+    conclusionText:
+      'Data hasil percobaan membuktikan keabsahan Hukum II Newton secara empiris dengan korelasi R² = 0.998.',
+  });
+
   const initialSubmissionsSeed: LabSubmissionRecord[] = [
     {
       id: 'SUB-2026-001',
@@ -98,6 +127,8 @@ export async function createSubmissionRouter({
       quizScore: 95,
       conclusionText:
         'Data hasil percobaan membuktikan keabsahan Hukum II Newton secara empiris dengan korelasi R² = 0.998.',
+      autoRubric: seedRubric,
+      rubricJson: serializeRubricJson(seedRubric),
       telemetryLog: [
         {
           timestamp: Date.now() - 3900000,
@@ -171,6 +202,36 @@ export async function createSubmissionRouter({
     submissionsList.push(...initialSubmissionsSeed);
   }
 
+  // Ensure all loaded submissions have autoRubric and are synced into SQLite gradebook_entries
+  for (const sub of submissionsList) {
+    if (!sub.autoRubric) {
+      sub.autoRubric =
+        parseRubricJson(sub.rubricJson) ??
+        evaluateSubmissionRubric({
+          moduleId: sub.moduleId,
+          domain: sub.domain,
+          hypothesisText: sub.hypothesisText,
+          observationData: sub.observationData,
+          regressionMetrics: sub.regressionMetrics,
+          quizScore: sub.quizScore,
+          conclusionText: sub.conclusionText,
+        });
+      sub.rubricJson = serializeRubricJson(sub.autoRubric);
+    }
+    state.saveGradebookEntry({
+      id: sub.id,
+      roomPin: sub.roomPin || sub.roomId || 'LAB-ALPHA',
+      studentId: sub.studentId || 'stu-anon',
+      studentName: sub.studentName,
+      moduleId: sub.moduleId,
+      score: sub.teacherGrade?.score ?? sub.autoRubric.score,
+      rubricJson: sub.rubricJson || serializeRubricJson(sub.autoRubric),
+      submittedAt: Number.isFinite(Date.parse(sub.submittedAt))
+        ? Date.parse(sub.submittedAt)
+        : Date.now(),
+    });
+  }
+
   const persistSubmissions = (): Promise<void> => submissionStore.enqueuePersist();
 
   router.post('/api/submissions', (req, res) => {
@@ -189,6 +250,18 @@ export async function createSubmissionRouter({
       const id =
         payload.id ||
         `SUB-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+
+      const autoRubric = evaluateSubmissionRubric({
+        moduleId: payload.moduleId,
+        domain: payload.domain,
+        hypothesisText: payload.hypothesisText,
+        observationData: payload.observationData,
+        regressionMetrics: payload.regressionMetrics,
+        quizScore: payload.quizScore,
+        conclusionText: payload.conclusionText,
+      });
+      const rubricJson = serializeRubricJson(autoRubric);
+
       const newSubmission: LabSubmissionRecord = {
         id,
         studentName: payload.studentName,
@@ -204,11 +277,31 @@ export async function createSubmissionRouter({
         quizScore: payload.quizScore,
         conclusionText: payload.conclusionText,
         telemetryLog: payload.telemetryLog,
-        teacherGrade: payload.teacherGrade,
+        autoRubric,
+        rubricJson,
+        teacherGrade: payload.teacherGrade ?? {
+          score: autoRubric.score,
+          feedback: autoRubric.summaryFeedback,
+          gradedAt: new Date().toISOString(),
+        },
       };
 
       submissionsList.unshift(newSubmission);
       persistSubmissions();
+
+      // Persist to `gradebook_entries` in SQLite
+      state.saveGradebookEntry({
+        id: newSubmission.id,
+        roomPin: newSubmission.roomId || 'LAB-ALPHA',
+        studentId: newSubmission.studentId || 'stu-anon',
+        studentName: newSubmission.studentName,
+        moduleId: newSubmission.moduleId,
+        score: newSubmission.teacherGrade?.score ?? autoRubric.score,
+        rubricJson,
+        submittedAt: Number.isFinite(Date.parse(newSubmission.submittedAt))
+          ? Date.parse(newSubmission.submittedAt)
+          : Date.now(),
+      });
 
       const notif: ServerNotification = {
         id: `notif-sub-${Date.now()}`,
@@ -220,7 +313,7 @@ export async function createSubmissionRouter({
         severity: 'nominal',
         domain: 'Pengajar',
         title: `Laporan Dikumpulkan: ${newSubmission.studentName}`,
-        message: `${newSubmission.studentName} mengumpulkan laporan [${newSubmission.moduleId}] (Tiket: ${newSubmission.id}).`,
+        message: `${newSubmission.studentName} mengumpulkan laporan [${newSubmission.moduleId}] — Skor Rubrik: ${autoRubric.score}/100 (Tiket: ${newSubmission.id}).`,
       };
       state.notifications.unshift(notif);
       state.persistServerState();
@@ -233,6 +326,7 @@ export async function createSubmissionRouter({
         success: true,
         ticketCode: newSubmission.id,
         submission: newSubmission,
+        autoRubric,
       });
     } catch (err) {
       console.error('Error saving submission:', err);
@@ -242,6 +336,13 @@ export async function createSubmissionRouter({
 
   router.get('/api/submissions', (_req, res) => {
     res.json({ submissions: submissionsList });
+  });
+
+  router.get('/api/gradebook', (req, res) => {
+    const roomPin =
+      typeof req.query.roomPin === 'string' ? req.query.roomPin.trim() : undefined;
+    const entries = state.getGradebookEntries(roomPin);
+    res.json({ entries });
   });
 
   router.patch('/api/submissions/:id/grade', (req, res) => {
@@ -269,6 +370,19 @@ export async function createSubmissionRouter({
         gradedAt: new Date().toISOString(),
       };
       persistSubmissions();
+
+      state.saveGradebookEntry({
+        id: item.id,
+        roomPin: item.roomId || 'LAB-ALPHA',
+        studentId: item.studentId || 'stu-anon',
+        studentName: item.studentName,
+        moduleId: item.moduleId,
+        score,
+        rubricJson:
+          item.rubricJson ||
+          (item.autoRubric ? serializeRubricJson(item.autoRubric) : '{}'),
+        submittedAt: Date.now(),
+      });
 
       broadcastAll({
         type: 'submission:graded',

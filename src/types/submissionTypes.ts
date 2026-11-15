@@ -1,10 +1,12 @@
 import { TelemetryReplayEvent } from '../utils/telemetryRecorder';
+import type { EvaluatedRubricReport } from '../shared/grading/rubricEngine';
 
 export interface LabSubmission {
   id: string;
   studentName: string;
   studentId?: string;
   roomId?: string;
+  roomPin?: string;
   domain: string;
   moduleId: string;
   submittedAt: string;
@@ -23,10 +25,13 @@ export interface LabSubmission {
   quizScore: number;
   conclusionText: string;
   telemetryLog?: TelemetryReplayEvent[];
+  autoRubric?: EvaluatedRubricReport;
+  rubricJson?: string;
   teacherGrade?: {
     score: number;
     feedback: string;
     gradedAt: string;
   };
 }
+
 

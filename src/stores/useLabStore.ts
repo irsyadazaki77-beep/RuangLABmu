@@ -63,8 +63,10 @@ export interface LabState {
   timelineMaxTime: number;
   timelineCurrentTime: number;
 
-  // Dr. LabMu Hands-On Slider Highlight
+  // Dr. LabMu Hands-On Slider Highlight & Live Formula Variable Tracking
   highlightedParamKey: string | null;
+  activeAdjustedParam: { label: string; value: number; unit: string } | null;
+  liveParamSnapshot: Record<string, { value: number; unit: string }>;
 
   // Actions
   setActiveDomain: (domain: AnyLabDomain) => void;
@@ -95,6 +97,8 @@ export interface LabState {
   seekTimelineCursor: (cursorIndex: number) => void;
   resetTimelineState: () => void;
   highlightParamSlider: (paramKey: string, durationMs?: number) => void;
+  setActiveAdjustedParam: (param: { label: string; value: number; unit: string } | null) => void;
+  updateLiveParamSnapshot: (label: string, value: number, unit: string) => void;
   getIndonesianDomain: () => IndonesianDomain;
 }
 
@@ -125,6 +129,8 @@ export const useLabStore = create<LabState>((set, get) => ({
   timelineMaxTime: 0,
   timelineCurrentTime: 0,
   highlightedParamKey: null,
+  activeAdjustedParam: null,
+  liveParamSnapshot: {},
 
   setActiveDomain: (domain: AnyLabDomain) => {
     const canonical = DOMAIN_TO_EN[domain] || 'physics';
@@ -136,6 +142,8 @@ export const useLabStore = create<LabState>((set, get) => ({
       timelineMinTime: 0,
       timelineMaxTime: 0,
       timelineCurrentTime: 0,
+      activeAdjustedParam: null,
+      liveParamSnapshot: {},
     });
   },
 
@@ -148,6 +156,8 @@ export const useLabStore = create<LabState>((set, get) => ({
       timelineMinTime: 0,
       timelineMaxTime: 0,
       timelineCurrentTime: 0,
+      activeAdjustedParam: null,
+      liveParamSnapshot: {},
     });
   },
 
@@ -286,6 +296,25 @@ export const useLabStore = create<LabState>((set, get) => ({
       }
       highlightParamTimer = null;
     }, clampedMs);
+  },
+
+  setActiveAdjustedParam: (activeAdjustedParam) => {
+    set({ activeAdjustedParam });
+  },
+
+  updateLiveParamSnapshot: (label: string, value: number, unit: string) => {
+    set((state) => {
+      const existing = state.liveParamSnapshot[label];
+      if (existing && existing.value === value && existing.unit === unit) {
+        return state;
+      }
+      return {
+        liveParamSnapshot: {
+          ...state.liveParamSnapshot,
+          [label]: { value, unit },
+        },
+      };
+    });
   },
 
   getIndonesianDomain: () => {

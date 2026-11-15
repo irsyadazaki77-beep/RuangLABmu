@@ -116,9 +116,12 @@ export class SpatialCursorManager {
    */
   public update(
     remoteCursors: Record<string, SpatialCursorPayload>,
-    cameraPos?: THREE.Vector3
+    cameraPos?: THREE.Vector3,
+    dtSeconds: number = 0.016
   ): void {
     const activeIds = new Set(Object.keys(remoteCursors));
+    const safeDt = Math.max(0.001, Math.min(0.1, dtSeconds));
+    const lerpAlpha = 1 - Math.exp(-15 * safeDt);
 
     // Remove cursors that left or timed out
     for (const [userId, instance] of this.instances.entries()) {
@@ -160,14 +163,14 @@ export class SpatialCursorManager {
         instance.sprite.scale.set(1.8, 1.8 * aspect, 1);
       }
 
-      // Smoothly interpolate (LERP = 0.25) from current mesh position toward incoming target position
+      // Smoothly interpolate using frame-rate-independent exponential damping toward incoming target position
       const [targetX, targetY, targetZ] = cursor.position;
       const curPos = instance.sphere.position;
       const isInitialPlacement =
         curPos.x === 0 && curPos.y === 0 && curPos.z === 0 && instance.lastTextKey === textKey;
-      const tx = isInitialPlacement ? targetX : curPos.x + (targetX - curPos.x) * 0.25;
-      const ty = isInitialPlacement ? targetY : curPos.y + (targetY - curPos.y) * 0.25;
-      const tz = isInitialPlacement ? targetZ : curPos.z + (targetZ - curPos.z) * 0.25;
+      const tx = isInitialPlacement ? targetX : curPos.x + (targetX - curPos.x) * lerpAlpha;
+      const ty = isInitialPlacement ? targetY : curPos.y + (targetY - curPos.y) * lerpAlpha;
+      const tz = isInitialPlacement ? targetZ : curPos.z + (targetZ - curPos.z) * lerpAlpha;
 
       instance.sphere.position.set(tx, ty, tz);
       instance.halo.position.set(tx, Math.max(0.02, ty - 0.05), tz);

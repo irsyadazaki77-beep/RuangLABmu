@@ -1,6 +1,8 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { MotionConfig } from 'motion/react';
 import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
+import { SPRING_TACTILE } from './styles/motionPresets';
 import { labSound } from './utils/soundEngine';
 import { useLabStore } from './stores/useLabStore';
 import { useUIStore } from './stores/useUIStore';
@@ -320,8 +322,9 @@ export default function App() {
   ]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[var(--comfort-bg)] text-[var(--comfort-text)] transition-colors duration-200">
-      {/* 1. Header Komposisi Terpadu */}
+    <MotionConfig reducedMotion="user" transition={SPRING_TACTILE}>
+      <div className="h-screen w-screen overflow-hidden flex flex-col bg-[var(--comfort-bg)] text-[var(--comfort-text)] transition-colors duration-200">
+        {/* 1. Header Komposisi Terpadu */}
       <TopNavigationHeader
         experimentModule={currentExperimentModule}
         recordsCount={records.length}
@@ -536,6 +539,7 @@ export default function App() {
 
       {/* 4. In-App PWA Offline Install Banner */}
       <PWAInstallBanner />
-    </div>
+      </div>
+    </MotionConfig>
   );
 }

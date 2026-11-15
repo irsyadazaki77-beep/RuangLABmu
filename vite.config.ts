@@ -14,25 +14,23 @@ function crossOriginIsolationPlugin(): Plugin {
     name: 'cross-origin-isolation-headers',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-        res.setHeader(
-          'Cross-Origin-Embedder-Policy',
-          shouldRelaxHeadersForEmbeddedPreview(req.headers, strictFrameguard)
-            ? 'unsafe-none'
-            : 'require-corp'
-        );
+        const relax = shouldRelaxHeadersForEmbeddedPreview(req.headers, strictFrameguard);
+        if (relax) {
+          res.removeHeader('X-Frame-Options');
+        }
+        res.setHeader('Cross-Origin-Opener-Policy', relax ? 'unsafe-none' : 'same-origin');
+        res.setHeader('Cross-Origin-Embedder-Policy', relax ? 'unsafe-none' : 'require-corp');
         next();
       });
     },
     configurePreviewServer(server) {
       server.middlewares.use((req, res, next) => {
-        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-        res.setHeader(
-          'Cross-Origin-Embedder-Policy',
-          shouldRelaxHeadersForEmbeddedPreview(req.headers, strictFrameguard)
-            ? 'unsafe-none'
-            : 'require-corp'
-        );
+        const relax = shouldRelaxHeadersForEmbeddedPreview(req.headers, strictFrameguard);
+        if (relax) {
+          res.removeHeader('X-Frame-Options');
+        }
+        res.setHeader('Cross-Origin-Opener-Policy', relax ? 'unsafe-none' : 'same-origin');
+        res.setHeader('Cross-Origin-Embedder-Policy', relax ? 'unsafe-none' : 'require-corp');
         next();
       });
     },

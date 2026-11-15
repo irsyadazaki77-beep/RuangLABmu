@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Play,
   Pause,
@@ -9,6 +9,7 @@ import {
   Zap,
   Activity,
   ShieldAlert,
+  Gauge,
 } from 'lucide-react';
 import { SimulationFrame } from '../utils/simulationBuffer';
 import {
@@ -19,6 +20,8 @@ import {
 } from '../utils/uncertaintyEngine';
 import { labSound } from '../utils/soundEngine';
 
+export type PlaybackSpeedMultiplier = 0.25 | 0.5 | 1 | 2;
+
 export interface SimulationPlaybackBarProps {
   currentFrame: SimulationFrame | null;
   bounds: { minFrame: number; maxFrame: number; count: number };
@@ -26,13 +29,17 @@ export interface SimulationPlaybackBarProps {
   onPlay: () => void;
   onPause: () => void;
   onReset: () => void;
-  onStepForward: () => void;
   onStepBackward: () => void;
+  onStepForward: () => void;
   onSeek: (frameIndex: number) => void;
   noiseEnabled: boolean;
   onToggleNoise: (enabled: boolean) => void;
   instrumentType?: InstrumentSpecs['type'];
+  playbackSpeed?: PlaybackSpeedMultiplier;
+  onPlaybackSpeedChange?: (speed: PlaybackSpeedMultiplier) => void;
 }
+
+const SPEED_OPTIONS: PlaybackSpeedMultiplier[] = [0.25, 0.5, 1, 2];
 
 export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
   currentFrame,
@@ -47,7 +54,11 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
   noiseEnabled,
   onToggleNoise,
   instrumentType = 'stopwatch',
+  playbackSpeed: controlledSpeed,
+  onPlaybackSpeedChange,
 }) => {
+  const [internalSpeed, setInternalSpeed] = useState<PlaybackSpeedMultiplier>(1);
+  const currentSpeed = controlledSpeed ?? internalSpeed;
   const activeInstrument = DEFAULT_INSTRUMENTS[instrumentType] ?? DEFAULT_INSTRUMENTS.stopwatch;
   const stopwatchInstrument = DEFAULT_INSTRUMENTS.stopwatch;
   const rawTime = currentFrame ? currentFrame.timestamp : 0;
@@ -65,7 +76,7 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
       aria-label="Panel Kontrol Playback Simulasi & Scrubber Waktu"
       className="bg-slate-900/95 text-slate-100 border border-slate-700/80 rounded-xl p-3.5 shadow-md space-y-3"
     >
-      {/* Top Row: Playback Buttons + Timeline Scrubber + Time Display */}
+      {/* Top Row: Playback Buttons + Timeline Scrubber + Speed Selector + Time Display */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Playback Button Group */}
         <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700 p-1 rounded-xl">
@@ -162,8 +173,34 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
           />
         </div>
 
-        {/* Time Readout with Optional Instrument Uncertainty Badge */}
+        {/* Speed Selector (0.25x, 0.5x, 1x, 2x) + Time Readout */}
         <div className="flex items-center gap-2 font-mono text-xs shrink-0">
+          <div
+            className="inline-flex items-center gap-0.5 bg-slate-800/90 border border-slate-700 rounded-lg p-0.5"
+            role="group"
+            aria-label="Kecepatan Playback Simulasi"
+          >
+            <Gauge className="w-3.5 h-3.5 text-sky-400 ml-1 mr-0.5 hidden sm:inline" />
+            {SPEED_OPTIONS.map((spd) => (
+              <button
+                key={spd}
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setInternalSpeed(spd);
+                  onPlaybackSpeedChange?.(spd);
+                }}
+                className={`px-1.5 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                  currentSpeed === spd
+                    ? 'bg-sky-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {spd}x
+              </button>
+            ))}
+          </div>
+
           <div className="bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-slate-200">
             <span className="text-slate-400">t = </span>
             {noiseEnabled ? (
