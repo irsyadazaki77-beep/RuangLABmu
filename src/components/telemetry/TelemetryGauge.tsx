@@ -87,8 +87,8 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({
       data-testid="telemetry-svg-gauge"
       className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-3 flex flex-col justify-between gap-2 shadow-xs"
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] truncate">
+      <div className="flex items-center justify-between gap-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-normal text-[var(--comfort-text-muted)] truncate">
           {label}
         </span>
         <span

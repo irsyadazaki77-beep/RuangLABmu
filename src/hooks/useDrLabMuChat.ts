@@ -261,11 +261,14 @@ export function useDrLabMuChat({
     // 1. Try dedicated structured Socratic endpoint if online
     const isClientOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     if (!isClientOffline) {
+      const askController = new AbortController();
+      const askTimeoutId = window.setTimeout(() => askController.abort(), 8000);
       try {
         const res = await fetch('/api/dr-labmu/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ telemetry: payload }),
+          signal: askController.signal,
         });
         if (res.status === 429) {
           const retrySec = parseRateLimitRetryAfter(
@@ -296,10 +299,14 @@ export function useDrLabMuChat({
         }
       } catch {
         // fallback to secondary endpoint or local offline engine
+      } finally {
+        window.clearTimeout(askTimeoutId);
       }
 
       // 2. Try conversational endpoint if structured endpoint didn't respond
       if (!structuredResult) {
+        const chatController = new AbortController();
+        const chatTimeoutId = window.setTimeout(() => chatController.abort(), 8000);
         try {
           const res = await fetch('/api/ai/dr-labmu', {
             method: 'POST',
@@ -312,6 +319,7 @@ export function useDrLabMuChat({
               })),
               telemetry: payload,
             }),
+            signal: chatController.signal,
           });
 
           if (res.status === 429) {
@@ -353,6 +361,8 @@ export function useDrLabMuChat({
           }
         } catch {
           // fallback to deterministic local engine
+        } finally {
+          window.clearTimeout(chatTimeoutId);
         }
       }
     }
@@ -446,6 +456,8 @@ export function useDrLabMuChat({
     );
 
     let replyText = '';
+    const visionController = new AbortController();
+    const visionTimeoutId = window.setTimeout(() => visionController.abort(), 8000);
     try {
       const res = await fetch('/api/ai/vision-diagnose', {
         method: 'POST',
@@ -455,6 +467,7 @@ export function useDrLabMuChat({
           telemetry: payload,
           studentQuery: queryText,
         }),
+        signal: visionController.signal,
       });
       if (res.status === 429) {
         const retrySec = parseRateLimitRetryAfter(
@@ -473,6 +486,8 @@ export function useDrLabMuChat({
       }
     } catch {
       // fallback
+    } finally {
+      window.clearTimeout(visionTimeoutId);
     }
 
     const fallbackStructured = generateOfflineSocraticMentorResponse(payload);

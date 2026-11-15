@@ -26,6 +26,9 @@ import {
   LabNotification,
 } from '../utils/scienceEngine';
 import { labSound } from '../utils/soundEngine';
+import { useShallow } from 'zustand/react/shallow';
+import { useLabStore } from '../stores/useLabStore';
+import { useUIStore } from '../stores/useUIStore';
 import { useDrLabMuChat } from '../hooks/useDrLabMuChat';
 import { formatDrLabMuActionChipLabel } from '../utils/drLabMuActions';
 
@@ -114,6 +117,19 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
     externalPromptRequest,
   });
 
+  const { isLobbyMode, userRole, workflowStep } = useLabStore(
+    useShallow((s) => ({
+      isLobbyMode: s.isLobbyMode,
+      userRole: s.userRole,
+      workflowStep: s.workflowStep,
+    }))
+  );
+  const teacherViewMode = useUIStore((s) => s.teacherViewMode);
+  const isFullBleedActiveLab =
+    !isLobbyMode &&
+    ((userRole === 'siswa' && workflowStep === 2) ||
+      (userRole === 'pengajar' && teacherViewMode === 'lab3d'));
+
   const hasLowR2Alert =
     liveTelemetry.analytics.rSquared < 0.85 && liveTelemetry.recordedData.length >= 3;
 
@@ -174,7 +190,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             role="alert"
             className="px-3 py-2 rounded-xl bg-amber-950/70 border border-amber-600/50 text-amber-200 text-xs flex items-center gap-2 shadow-sm"
           >
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
             <span className="text-[11px] leading-tight">
               <strong>Lab Sync Terputus (Offline):</strong> Kolaborasi multi-user sedang mencoba menyambung ulang. Mode eksperimen lokal tetap aktif secara penuh.
             </span>
@@ -317,6 +333,17 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
 
           {/* Chat Turn History */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {isLoading && (
+              <div
+                data-testid="dr-labmu-thinking-bubble"
+                className="flex justify-start"
+              >
+                <div className="max-w-[88%] px-3.5 py-2.5 rounded-2xl rounded-tl-xs bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800/60 text-xs text-sky-800 dark:text-sky-200 flex items-center gap-2 shadow-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                  <span className="font-semibold">Dr. LabMu sedang menganalisis telemetri 3D...</span>
+                </div>
+              </div>
+            )}
             {activeTurns.map((turn) => (
               <div key={turn.id} className="space-y-2 text-xs">
                 {/* Student Bubble */}
@@ -459,7 +486,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                 title={isListeningVoice ? 'Hentikan rekaman' : 'Input Suara Bahasa Indonesia'}
                 className={`p-2 rounded-xl border transition-all cursor-pointer shrink-0 ${
                   isListeningVoice
-                    ? 'bg-rose-600 border-rose-400 text-white animate-pulse'
+                    ? 'bg-rose-600 border-rose-400 text-white'
                     : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-sky-400'
                 }`}
               >
@@ -537,7 +564,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
             onClick={() => setOpen(false)}
-            className="fixed inset-0 top-14 bg-slate-950/60 backdrop-blur-xs z-40"
+            className={`fixed inset-0 ${isFullBleedActiveLab ? 'top-0' : 'top-14'} bg-slate-950/65 z-40`}
           />
           <motion.aside
             key="dr-labmu-drawer"
@@ -547,7 +574,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             role="dialog"
             aria-label="Laci Samping Dr. LabMu & Log Sesi"
-            className="fixed top-14 right-0 bottom-0 w-full max-w-[440px] z-50 flex flex-col bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl select-text"
+            className={`fixed ${isFullBleedActiveLab ? 'top-0' : 'top-14'} right-0 bottom-0 w-full max-w-[440px] z-50 flex flex-col bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl select-text`}
           >
             {panelInner}
           </motion.aside>

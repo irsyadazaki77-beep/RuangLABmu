@@ -40,6 +40,7 @@ import {
 } from './ui/ConceptLabelsOverlay';
 import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
 import { useThreeStudioScene } from './scenes/useThreeStudioScene';
+import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../stores/useUIStore';
 
 interface PhysicsScene3DProps {
@@ -114,6 +115,14 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     onCameraSyncChange,
     onCaptureSnapshot,
   });
+
+  const { leftDrawerOpen, rightTelemetryOpen, zenMode } = useUIStore(
+    useShallow((s) => ({
+      leftDrawerOpen: s.leftDrawerOpen,
+      rightTelemetryOpen: s.rightTelemetryOpen,
+      zenMode: s.zenMode,
+    }))
+  );
 
   const [hudCollapsed] = useState(false);
   const [followCamEnabled, setFollowCamEnabled] = useState<boolean>(true);
@@ -455,7 +464,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           );
         }
 
-        teacherCollabBridge.tick(nowMs);
+        teacherCollabBridge.tick(nowMs, frameDt);
         controls.update();
 
         const syncConceptLabelsNow = () => {
@@ -517,7 +526,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       />
 
       {showMeasureTools && (
-        <div className="pointer-events-none absolute bottom-4 left-4 flex flex-wrap items-center gap-3 rounded-xl bg-slate-950/90 border border-sky-400/35 px-3 py-1.5 shadow-xl z-20 text-xs font-mono">
+        <div
+          className={`pointer-events-none absolute flex flex-wrap items-center gap-3 rounded-xl bg-slate-950/92 border border-sky-400/35 px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
+            isFullscreen
+              ? 'bottom-4 left-4'
+              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+          }`}
+        >
           <span className="flex items-center gap-1.5 text-sky-300">
             <Ruler className="w-3.5 h-3.5 text-sky-400" />
             <span>Mistar:</span>
@@ -531,13 +546,19 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       )}
 
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
+        <div className="pointer-events-none absolute bottom-24 lg:bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
           <span className="h-2 w-2 rounded-full bg-sky-400" />
           <span>Menyetel 3D: {dragToast.label} = <b className="text-white">{dragToast.value}</b></span>
         </div>
       )}
 
-      <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20 opacity-80 hover:opacity-100 transition-opacity">
+      <div
+        className={`pointer-events-auto absolute flex items-center gap-1 rounded-xl bg-slate-900/92 border border-white/15 px-2 py-1 shadow-lg z-20 opacity-90 hover:opacity-100 transition-all ${
+          isFullscreen
+            ? 'top-3 right-3'
+            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'}`
+        }`}
+      >
         <button
           type="button"
           data-testid="toggle-3d-measure-btn"

@@ -25,6 +25,7 @@ import { labSound } from '../utils/soundEngine';
 import { triggerDomainApparatusSnap } from '../utils/engines/multiApparatusEngine';
 import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
+import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import {
@@ -83,7 +84,14 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
   cameraSyncPose,
   onCameraSyncChange,
 }) => {
-  const liteDeviceMode = useUIStore((s) => s.liteDeviceMode);
+  const { liteDeviceMode, leftDrawerOpen, rightTelemetryOpen, zenMode } = useUIStore(
+    useShallow((s) => ({
+      liteDeviceMode: s.liteDeviceMode,
+      leftDrawerOpen: s.leftDrawerOpen,
+      rightTelemetryOpen: s.rightTelemetryOpen,
+      zenMode: s.zenMode,
+    }))
+  );
 
   const {
     activeComfortTheme,
@@ -239,9 +247,10 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     });
 
     // Deep-space photometric lighting
-    const ambientLight = new THREE.AmbientLight(
+    const ambientLight = new THREE.HemisphereLight(
       initialColors.ambientSkyHex,
-      initialColors.ambientIntensity
+      initialColors.ambientGroundHex,
+      Math.min(0.6, initialColors.ambientIntensity)
     );
     scene.add(ambientLight);
 
@@ -262,7 +271,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     astroKeyLight.shadow.camera.right = shadowBound;
     astroKeyLight.shadow.camera.top = shadowBound;
     astroKeyLight.shadow.camera.bottom = -shadowBound;
-    astroKeyLight.shadow.bias = -0.0001;
+    astroKeyLight.shadow.bias = -0.0005;
     astroKeyLight.shadow.normalBias = 0.02;
     scene.add(astroKeyLight);
 
@@ -327,6 +336,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         scene.background = new THREE.Color(0x0b0f17);
         scene.fog = new THREE.FogExp2(0x0b0f17, 0.008);
         ambientLight.color.setHex(colors.ambientSkyHex);
+        ambientLight.groundColor.setHex(colors.ambientGroundHex);
         ambientLight.intensity = Math.min(0.45, colors.ambientIntensity);
       },
       applyLiteMode: (isLite) => {
@@ -398,7 +408,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       renderer,
       isSoftwareGl,
       fpsMonitor,
-      onFrame: ({ dt, elapsed, isLite }) => {
+      onFrame: ({ nowMs, dt, elapsed, isLite }) => {
         const {
           params: p,
           metrics: m,
@@ -455,7 +465,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
           camTransitionActive = smoothCameraTransition(camera, controls, desiredCamPos, desiredTarget, 0.12);
         }
 
-        teacherCollabBridge.tick();
+        teacherCollabBridge.tick(nowMs, dt);
         controls.update();
 
         const showLabels = showConceptLabelsRef.current;
@@ -526,7 +536,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
       {/* Interactive Raycaster Drag Toast */}
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
+        <div className="pointer-events-none absolute bottom-24 lg:bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
           <span className="h-2 w-2 rounded-full bg-sky-400" />
           <span>
             Menyetel Astronomi 3D: {dragToast.label} = <b className="text-white">{dragToast.value}</b>
@@ -537,7 +547,11 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       {/* Visual Scale Comparison Badge for Orbital Readability */}
       <div
         data-testid="astronomy-scale-badge"
-        className="pointer-events-none absolute bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-lg bg-slate-950/80 backdrop-blur-md border border-slate-700/60 px-2.5 py-1 text-[10px] font-mono text-slate-300 shadow-md"
+        className={`pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-lg bg-slate-950/92 border border-slate-700/60 px-2.5 py-1 text-[10px] font-mono text-slate-300 shadow-md ${
+          isFullscreen
+            ? 'bottom-3 left-3'
+            : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+        }`}
       >
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
         <span>
@@ -546,7 +560,13 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       </div>
 
       {/* Consolidated Top-Right Capsule Bar */}
-      <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20 opacity-80 hover:opacity-100 transition-opacity">
+      <div
+        className={`pointer-events-auto absolute flex items-center gap-1 rounded-xl bg-slate-900/92 border border-white/15 px-2 py-1 shadow-lg z-20 opacity-90 hover:opacity-100 transition-all ${
+          isFullscreen
+            ? 'top-3 right-3'
+            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'}`
+        }`}
+      >
         <button
           type="button"
           data-testid="snap-dock-apparatus-btn"

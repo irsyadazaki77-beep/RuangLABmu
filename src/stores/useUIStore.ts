@@ -12,6 +12,15 @@ export type ActiveModal =
   | 'gradebook'
   | 'ai-mission-builder';
 export type MobileTab = 'canvas' | 'variables' | 'worksheet' | 'ai';
+export type LobbyViewMode = 'chapters' | 'all';
+export type LobbyDomainFilter = 'all' | 'fisika' | 'kimia' | 'biologi' | 'astronomi';
+export type TeacherViewMode = 'dashboard' | 'lab3d';
+export type LiveQualityTier = 'high' | 'medium' | 'low';
+
+export interface LivePerfStats {
+  fps: number;
+  qualityTier: LiveQualityTier;
+}
 
 const DEFAULT_COMFORT_PREFS: VisualComfortPreferences = {
   theme: 'light',
@@ -54,6 +63,13 @@ export interface UIState {
   liteDeviceMode: boolean;
   liteModeNotification: string | null;
   showConceptLabels: boolean;
+  lobbySearchQuery: string;
+  lobbyViewMode: LobbyViewMode;
+  lobbySelectedDomain: LobbyDomainFilter;
+  teacherViewMode: TeacherViewMode;
+  livePerfStats: LivePerfStats;
+  leftDrawerOpen: boolean;
+  rightTelemetryOpen: boolean;
 
   // Actions
   toggleZenMode: () => void;
@@ -76,6 +92,13 @@ export interface UIState {
   toggleProjectorMode: () => void;
   setShowConceptLabels: (show: boolean) => void;
   toggleConceptLabels: () => void;
+  setLobbySearchQuery: (query: string) => void;
+  setLobbyViewMode: (mode: LobbyViewMode) => void;
+  setLobbySelectedDomain: (domain: LobbyDomainFilter) => void;
+  setTeacherViewMode: (mode: TeacherViewMode) => void;
+  setLivePerfStats: (stats: LivePerfStats) => void;
+  setLeftDrawerOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  setRightTelemetryOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
 }
 
 function loadInitialLiteMode(): boolean {
@@ -115,6 +138,13 @@ export const useUIStore = create<UIState>((set) => ({
   liteDeviceMode: loadInitialLiteMode(),
   liteModeNotification: null,
   showConceptLabels: true,
+  lobbySearchQuery: '',
+  lobbyViewMode: 'chapters',
+  lobbySelectedDomain: 'all',
+  teacherViewMode: 'dashboard',
+  livePerfStats: { fps: 60, qualityTier: 'high' },
+  leftDrawerOpen: true,
+  rightTelemetryOpen: true,
 
   toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
 
@@ -174,6 +204,19 @@ export const useUIStore = create<UIState>((set) => ({
   setLiteModeNotification: (liteModeNotification: string | null) => set({ liteModeNotification }),
   setShowConceptLabels: (showConceptLabels: boolean) => set({ showConceptLabels }),
   toggleConceptLabels: () => set((state) => ({ showConceptLabels: !state.showConceptLabels })),
+  setLobbySearchQuery: (lobbySearchQuery: string) => set({ lobbySearchQuery }),
+  setLobbyViewMode: (lobbyViewMode: LobbyViewMode) => set({ lobbyViewMode }),
+  setLobbySelectedDomain: (lobbySelectedDomain: LobbyDomainFilter) => set({ lobbySelectedDomain }),
+  setTeacherViewMode: (teacherViewMode: TeacherViewMode) => set({ teacherViewMode }),
+  setLivePerfStats: (livePerfStats: LivePerfStats) => set({ livePerfStats }),
+  setLeftDrawerOpen: (open) =>
+    set((state) => ({
+      leftDrawerOpen: typeof open === 'function' ? open(state.leftDrawerOpen) : open,
+    })),
+  setRightTelemetryOpen: (open) =>
+    set((state) => ({
+      rightTelemetryOpen: typeof open === 'function' ? open(state.rightTelemetryOpen) : open,
+    })),
 
   setProjectorMode: (projectorMode: boolean) => {
     try {

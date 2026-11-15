@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sliders, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import { labSound } from '../../utils/soundEngine';
+import { PrecisionSlider } from '../controls/PrecisionSlider';
 
 export interface FormulaVariableToken {
   key: string;
@@ -531,27 +532,19 @@ export const InteractiveFormulaPrimer: React.FC<InteractiveFormulaPrimerProps> =
 
             {/* Active Variable Scrubber */}
             {activeVar && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">
-                    Geser {activeVar.label} ({activeVar.symbol}):
-                  </span>
-                  <span className="font-mono font-bold text-sky-600 dark:text-sky-400 tabular-nums">
-                    {currentValues[activeVar.key]} {activeVar.unit}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  data-testid="primer-variable-slider"
-                  aria-label={`Geser variabel ${activeVar.label}`}
-                  min={activeVar.min}
-                  max={activeVar.max}
-                  step={activeVar.step}
-                  value={currentValues[activeVar.key]}
-                  onChange={(e) => handleValueChange(activeVar, Number(e.target.value))}
-                  className="w-full h-1.5 rounded-lg appearance-none bg-stone-200 dark:bg-slate-800 accent-sky-600 cursor-pointer"
-                />
-              </div>
+              <PrecisionSlider
+                compact
+                accentColor="sky"
+                testId="primer-variable-slider"
+                label={`${activeVar.label} (${activeVar.symbol})`}
+                min={activeVar.min}
+                max={activeVar.max}
+                step={activeVar.step}
+                unit={activeVar.unit}
+                defaultValue={activeVar.defaultValue}
+                value={currentValues[activeVar.key]}
+                onChange={(nextVal) => handleValueChange(activeVar, nextVal)}
+              />
             )}
 
             {/* 1-Sentence Live Mathematical Intuition Callout */}

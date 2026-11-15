@@ -39,6 +39,7 @@ import {
 } from '../utils/pedagogicalHelpers';
 import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
+import { PrecisionSlider } from './controls/PrecisionSlider';
 
 export interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -400,25 +401,30 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               onResetBToMatchA={() => setRealityBParams({ ...params })}
               onClose={() => setIsDualRealityMode(false)}
               realityBControls={
-                <div className="w-full flex items-center justify-between gap-3">
-                  <span className="font-semibold text-amber-300 shrink-0">
-                    {astroVar.label}:{' '}
-                    <strong className="font-mono">
-                      {astroVar.valB} {astroVar.unit}
-                    </strong>
-                  </span>
-                  <input
-                    type="range"
-                    aria-label={astroVar.label}
+                <div className="w-full min-w-[240px]">
+                  <PrecisionSlider
+                    compact
+                    accentColor="amber"
+                    label={astroVar.label}
+                    unit={astroVar.unit}
                     min={astroVar.min}
                     max={astroVar.max}
                     step={astroVar.step}
                     value={astroVar.valB}
-                    onChange={(e) => {
-                      const nextVal = Number(e.target.value);
-                      setRealityBParams((prev) => ({ ...prev, [astroVar.key]: nextVal }));
-                    }}
-                    className="flex-1 max-w-[220px] accent-amber-400 cursor-pointer"
+                    defaultValue={
+                      astroVar.key === 'darkMatterHaloFraction'
+                        ? params.darkMatterHaloFraction
+                        : astroVar.key === 'exoplanetRadiusEarth'
+                        ? params.exoplanetRadiusEarth
+                        : astroVar.key === 'starEffectiveTempK'
+                        ? params.starEffectiveTempK
+                        : astroVar.key === 'galaxyDistanceMpc'
+                        ? params.galaxyDistanceMpc ?? 120
+                        : params.customSemiMajorAxisAu
+                    }
+                    onChange={(nextVal) =>
+                      setRealityBParams((prev) => ({ ...prev, [astroVar.key]: nextVal }))
+                    }
                   />
                 </div>
               }
@@ -446,8 +452,8 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
       }
       topOverlay={
         focusedPlanetBadge ? (
-          <div className="px-3 py-1.5 rounded-xl bg-sky-950/80 backdrop-blur-md border border-sky-500/50 text-sky-200 text-xs font-mono font-bold shadow-lg flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+          <div className="px-3 py-1.5 rounded-xl bg-sky-950/92 border border-sky-500/50 text-sky-200 text-xs font-mono font-bold shadow-lg flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-sky-400" />
             <span>Fokus Planet: {focusedPlanetBadge} (v = {metrics.meanOrbitalVelocityKms} km/s)</span>
           </div>
         ) : null

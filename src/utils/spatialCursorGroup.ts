@@ -3,6 +3,7 @@ import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SpatialCursorPayload } from './collabProtocol';
 import { useCollabStore } from '../stores/useCollabStore';
 import { emitLabEvent, LAB_EVENTS } from './labEventBus';
+import { computeExpDampingAlpha } from './spatialHudHelpers';
 
 interface CursorVisualInstance {
   group: THREE.Group;
@@ -291,7 +292,7 @@ export class SpatialCursorManager {
 }
 
 export interface TeacherCollabBridgeHandle {
-  tick: (nowMs?: number) => void;
+  tick: (nowMs?: number, dtSec?: number) => void;
   dispose: () => void;
 }
 
@@ -453,7 +454,7 @@ export function attachTeacherCollabBridge(opts: {
   domElement.addEventListener('pointerleave', handlePointerLeave);
   controls.addEventListener('change', handleControlsChange);
 
-  const tick = (nowMs: number = performance.now()) => {
+  const tick = (nowMs: number = performance.now(), dtSec: number = 0.016) => {
     const state = useCollabStore.getState();
     const activeLaser = state.remoteTeacherLaser || state.localTeacherLaserPreview;
 
@@ -499,8 +500,9 @@ export function attachTeacherCollabBridge(opts: {
         controls.target.distanceToSquared(desiredCamTarget) > 1e-4
       ) {
         isApplyingTeacherCam = true;
-        camera.position.lerp(desiredCamPos, 0.14);
-        controls.target.lerp(desiredCamTarget, 0.14);
+        const camAlpha = computeExpDampingAlpha(dtSec, 10);
+        camera.position.lerp(desiredCamPos, camAlpha);
+        controls.target.lerp(desiredCamTarget, camAlpha);
         controls.update();
         isApplyingTeacherCam = false;
       }

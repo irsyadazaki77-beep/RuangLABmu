@@ -158,7 +158,7 @@ export function buildPhysicsCoreStage(
     bumpScale: 0.006,
     metalness: 0.88,
     roughness: 0.24,
-    envMapIntensity: 1.35,
+    envMapIntensity: 0.85,
   });
   const darkFrameMat = new THREE.MeshStandardMaterial({
     color: 0x1e293b,
@@ -167,7 +167,7 @@ export function buildPhysicsCoreStage(
     bumpScale: 0.005,
     metalness: 0.62,
     roughness: 0.36,
-    envMapIntensity: 1.05,
+    envMapIntensity: 0.55,
   });
   const primaryMassMat = new THREE.MeshPhysicalMaterial({
     color: 0x0284c7,
@@ -175,14 +175,14 @@ export function buildPhysicsCoreStage(
     roughness: 0.2,
     clearcoat: 0.85,
     clearcoatRoughness: 0.12,
-    envMapIntensity: 1.25,
+    envMapIntensity: 0.78,
   });
   const brassMat = new THREE.MeshStandardMaterial({
     color: 0xd97706,
     roughnessMap: metalTex?.roughnessMap ?? null,
     metalness: 0.84,
     roughness: 0.24,
-    envMapIntensity: 1.3,
+    envMapIntensity: 0.82,
   });
 
   // Floating accent glow ring gizmo for hover & drag

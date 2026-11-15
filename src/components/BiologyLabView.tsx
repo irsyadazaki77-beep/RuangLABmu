@@ -37,6 +37,7 @@ import {
 } from '../utils/pedagogicalHelpers';
 import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
+import { PrecisionSlider } from './controls/PrecisionSlider';
 
 export interface BiologyLabViewProps {
   activeStudentName: string;
@@ -332,25 +333,20 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
               onClose={() => setIsDualRealityMode(false)}
               realityBControls={
                 p0 ? (
-                  <div className="w-full flex items-center justify-between gap-3">
-                    <span className="font-semibold text-amber-300 shrink-0">
-                      {p0.label} (B):{' '}
-                      <strong className="font-mono">
-                        {valB} {p0.unit}
-                      </strong>
-                    </span>
-                    <input
-                      type="range"
-                      aria-label={`${p0.label} Realitas B`}
+                  <div className="w-full max-w-md">
+                    <PrecisionSlider
+                      compact
+                      accentColor="amber"
+                      label={`${p0.label} (B)`}
                       min={p0.min}
                       max={p0.max}
                       step={p0.step}
+                      unit={p0.unit}
                       value={valB}
-                      onChange={(e) => {
-                        const nextVal = Number(e.target.value);
-                        setRealityBParamsState((prev) => ({ ...prev, [p0.key]: nextVal }));
-                      }}
-                      className="flex-1 max-w-[220px] accent-amber-400 cursor-pointer"
+                      defaultValue={p0.defaultValue}
+                      onChange={(nextVal) =>
+                        setRealityBParamsState((prev) => ({ ...prev, [p0.key]: nextVal }))
+                      }
                     />
                   </div>
                 ) : undefined

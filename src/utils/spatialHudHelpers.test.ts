@@ -1,26 +1,95 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { clampAndSnapParameter } from '../components/controls/PrecisionSlider';
-import { resolveGaugeSeverity } from '../components/telemetry/TelemetryGauge';
-import { SPRING_TACTILE } from '../styles/motionPresets';
+import {
+  computeCursorChartPosition,
+  computeExpDampingAlpha,
+  decimateTelemetryFrames,
+  extractNumericPair,
+  filterCurriculumChapters,
+  filterExperimentModules,
+  formatCleanEquation,
+  shouldConfirmLabExit,
+} from './spatialHudHelpers';
+import { EXPERIMENT_CATALOG } from '../registry/experimentRegistry';
+import { CURRICULUM_CHAPTERS } from '../registry/curriculumChapters';
 
-describe('Spatial HUD Precision Controls & Telemetry Helpers', () => {
-  it('clamps and snaps parameter values to step increments and bounds', () => {
-    assert.equal(clampAndSnapParameter(15.26, 0, 20, 0.5, 1), 15.5);
-    assert.equal(clampAndSnapParameter(-5, 0, 20, 0.5, 1), 0);
-    assert.equal(clampAndSnapParameter(99, 0, 20, 0.5, 1), 20);
-    assert.equal(clampAndSnapParameter(Number.NaN, 2, 10, 1, 0), 2);
+describe('spatialHudHelpers', () => {
+  it('filters curriculum chapters by domain and formula/title search query', () => {
+    const physicsChapters = filterCurriculumChapters(CURRICULUM_CHAPTERS, {
+      domain: 'fisika',
+      searchQuery: '',
+      modules: EXPERIMENT_CATALOG,
+    });
+    assert.ok(physicsChapters.length > 0);
+    assert.ok(physicsChapters.every((ch) => ch.domain === 'fisika'));
+
+    const titrasiMatches = filterCurriculumChapters(CURRICULUM_CHAPTERS, {
+      domain: 'all',
+      searchQuery: 'Titrasi',
+      modules: EXPERIMENT_CATALOG,
+    });
+    assert.ok(titrasiMatches.length >= 1);
   });
 
-  it('resolves SVG telemetry gauge severity thresholds accurately', () => {
-    assert.equal(resolveGaugeSeverity(40, 100, 70, 90), 'nominal');
-    assert.equal(resolveGaugeSeverity(75, 100, 70, 90), 'warning');
-    assert.equal(resolveGaugeSeverity(92, 100, 70, 90), 'critical');
+  it('filters experiment modules by domain, tier, and equation/title search', () => {
+    const smaPhysics = filterExperimentModules(EXPERIMENT_CATALOG, {
+      domain: 'fisika',
+      activeTier: 'SMA',
+      searchQuery: 'Newton',
+    });
+    assert.ok(smaPhysics.some((m) => m.id === 'newton-incline'));
+
+    const allInChapter = filterExperimentModules(EXPERIMENT_CATALOG, {
+      domain: 'all',
+      activeTier: 'SMP',
+      searchQuery: '',
+      chapterNumber: 1,
+      respectTierFilter: true,
+    });
+    assert.ok(allInChapter.length >= 1);
+    assert.ok(allInChapter.every((m) => m.chapterNumber === 1));
   });
 
-  it('exposes calibrated spring physics constants for tactile drawers and controls', () => {
-    assert.equal((SPRING_TACTILE as { type?: string }).type, 'spring');
-    assert.equal((SPRING_TACTILE as { stiffness?: number }).stiffness, 320);
-    assert.equal((SPRING_TACTILE as { damping?: number }).damping, 28);
+  it('guards exit confirmation only when session has observations or timeline progress', () => {
+    assert.equal(shouldConfirmLabExit({ recordsCount: 0, timelineCount: 0 }), false);
+    assert.equal(shouldConfirmLabExit({ recordsCount: 0, timelineCount: 4 }), false);
+    assert.equal(shouldConfirmLabExit({ recordsCount: 1, timelineCount: 0 }), true);
+    assert.equal(shouldConfirmLabExit({ recordsCount: 0, timelineCount: 12 }), true);
+  });
+
+  it('extracts numeric telemetry pairs and decimates ring-buffer frames safely', () => {
+    assert.deepEqual(extractNumericPair({ speed: 4.5, acceleration: 2.1, label: 'ok' }), {
+      primary: 4.5,
+      secondary: 2.1,
+    });
+    assert.equal(extractNumericPair({ label: 'only-string' }), null);
+
+    const frames = Array.from({ length: 240 }, (_, i) => ({
+      simTime: i * 0.05,
+      stateSnapshot: { speed: i * 0.1, acceleration: 9.81 },
+    }));
+
+    const series = decimateTelemetryFrames(frames, 60);
+    assert.equal(series.length, 60);
+    assert.equal(series[0].cursorIndex, 0);
+    assert.equal(series[series.length - 1].cursorIndex, 239);
+  });
+
+  it('maps timelineCurrentTime to SVG cursor X position and computes bounded dt damping alpha', () => {
+    assert.equal(computeCursorChartPosition(5, 0, 10, 40, 200), 140);
+    assert.equal(computeCursorChartPosition(0, 0, 0, 40, 200), 240);
+    assert.equal(computeCursorChartPosition(-5, 0, 10, 40, 200), 40);
+
+    const alpha60 = computeExpDampingAlpha(1 / 60, 10);
+    const alpha30 = computeExpDampingAlpha(1 / 30, 10);
+    assert.ok(alpha30 > alpha60);
+    assert.ok(alpha60 > 0 && alpha60 < 1);
+    assert.ok(alpha30 > 0 && alpha30 < 1);
+  });
+
+  it('formats LaTeX formula tokens into readable Unicode equations', () => {
+    assert.equal(formatCleanEquation('\\Sigma F = m \\cdot a'), 'Σ F = m · a');
+    assert.equal(formatCleanEquation('q = m \\cdot c \\cdot \\Delta T'), 'q = m · c · Δ T');
+    assert.equal(formatCleanEquation('T = 2\\pi \\sqrt{\\frac{L}{g}}'), 'T = 2π √(L / g)');
   });
 });

@@ -58,7 +58,7 @@ export const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
   return (
     <nav
       aria-label="Navigasi Bawah Ruang Laboratorium"
-      className="lg:hidden shrink-0 h-16 bg-slate-950/95 border-t border-slate-800 backdrop-blur-md px-2 flex items-center justify-around z-30 select-none"
+      className="lg:hidden shrink-0 h-16 bg-slate-950 border-t border-slate-800 px-2 flex items-center justify-around z-30 select-none"
     >
       {navItems.map((item) => {
         const isActive = mobileTab === item.id;
@@ -96,7 +96,7 @@ export const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
                 </span>
               )}
               {item.alert && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400" />
               )}
             </div>
             <span className="text-[10px] tracking-tight">{item.label}</span>

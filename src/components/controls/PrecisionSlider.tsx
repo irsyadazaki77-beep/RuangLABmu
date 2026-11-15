@@ -27,6 +27,8 @@ export interface PrecisionSliderProps {
   onBlurRelease?: () => void;
   precisionDecimals?: number;
   isHighlighted?: boolean;
+  compact?: boolean;
+  testId?: string;
 }
 
 const ACCENT_TRACK_MAP: Record<
@@ -113,6 +115,8 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
   onBlurRelease,
   precisionDecimals,
   isHighlighted = false,
+  compact = false,
+  testId,
 }) => {
   const decimals =
     precisionDecimals ??
@@ -168,7 +172,9 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
     <div
       onMouseEnter={() => setActiveAdjustedParam({ label, value, unit })}
       onMouseLeave={() => setActiveAdjustedParam(null)}
-      className={`rounded-xl border p-2.5 transition-all select-none ${
+      className={`rounded-xl border transition-all select-none ${
+        compact ? 'p-1.5' : 'p-2.5'
+      } ${
         isHighlighted
           ? 'border-amber-400 bg-amber-500/10 ring-2 ring-amber-400/50 shadow-sm'
           : isLockedByCollaborator
@@ -177,9 +183,9 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
       } ${palette.ring}`}
     >
       {/* Top Row: Label + Lock Indicator + Value Badge + Reset */}
-      <div className="flex items-center justify-between gap-2 mb-1.5">
+      <div className={`flex items-center justify-between gap-2 ${compact ? 'mb-1' : 'mb-1.5'}`}>
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-xs font-semibold text-[var(--comfort-text)] truncate">
+          <span className={`${compact ? 'text-[11px]' : 'text-xs'} font-semibold text-[var(--comfort-text)] truncate`}>
             {label}
           </span>
           {lockedBy && (
@@ -286,6 +292,7 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
 
           <input
             type="range"
+            data-testid={testId}
             aria-label={label}
             min={min}
             max={max}

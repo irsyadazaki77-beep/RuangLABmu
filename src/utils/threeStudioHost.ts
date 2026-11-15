@@ -122,7 +122,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   if (hudStatusBadge) {
     hudStatusBadge.setAttribute('data-testid', 'hud-performance-tier-badge');
     hudStatusBadge.style.cssText =
-      'position:absolute;bottom:10px;left:10px;z-index:12;pointer-events:none;padding:3px 8px;border-radius:8px;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:700;background:rgba(15,23,42,0.82);border:1px solid rgba(56,189,248,0.35);color:#bae6fd;display:none;align-items:center;gap:6px;backdrop-filter:blur(4px);';
+      'position:absolute;bottom:10px;left:10px;z-index:12;pointer-events:none;padding:3px 8px;border-radius:8px;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:700;background:rgba(15,23,42,0.92);border:1px solid rgba(56,189,248,0.35);color:#bae6fd;display:none;align-items:center;gap:6px;';
     container.appendChild(hudStatusBadge);
   }
 
@@ -303,6 +303,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   let disposed = false;
   let lastW = width;
   let lastH = height;
+  let lastPerfSyncAt = 0;
 
   const renderFrame = (dt = 0.016) => {
     if (disposed) return;
@@ -310,6 +311,15 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
       qualityController.recordFrameDelta(dt, renderer);
     }
     studioComposer.render(useUIStore.getState().liteDeviceMode, dt);
+    const nowPerf = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (dt > 0 && nowPerf - lastPerfSyncAt >= 900) {
+      lastPerfSyncAt = nowPerf;
+      const avgFps = fpsMonitor.getAverageFps() || qualityController.getRollingFps();
+      useUIStore.getState().setLivePerfStats({
+        fps: Math.max(1, Math.round(avgFps)),
+        qualityTier: qualityController.getTier(),
+      });
+    }
   };
 
   const handleResize = () => {

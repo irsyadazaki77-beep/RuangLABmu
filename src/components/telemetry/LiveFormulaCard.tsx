@@ -2,6 +2,8 @@ import React from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { Calculator, Sparkles } from 'lucide-react';
 import { useLabStore } from '../../stores/useLabStore';
+import { formatCleanEquation } from '../../utils/spatialHudHelpers';
+import { SciFormula } from '../ui/ScientificNotation';
 
 export interface LiveFormulaCardProps {
   moduleTitle: string;
@@ -47,7 +49,7 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
       <div className="rounded-lg bg-slate-950/90 border border-slate-800 px-3 py-2 text-center">
         <div className="text-[10px] text-slate-400 mb-0.5 truncate">{moduleTitle}</div>
         <div className="font-mono text-sm font-bold text-cyan-300 tracking-wide break-words">
-          {formulaEquation || 'F = m · a'}
+          <SciFormula text={formatCleanEquation(formulaEquation || 'F = m · a')} />
         </div>
       </div>
 

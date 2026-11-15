@@ -232,8 +232,9 @@ export function useLabSessionAutoSave({
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              ...snapshot,
+              storageKey,
               version: currentSequenceVersion,
+              session: snapshot,
             }),
             signal,
           });

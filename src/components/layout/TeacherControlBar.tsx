@@ -25,7 +25,7 @@ export interface TeacherControlBarProps {
   isLobbyMode: boolean;
   setIsLobbyMode: (val: boolean) => void;
   teacherViewMode: 'dashboard' | 'lab3d';
-  setTeacherViewMode: React.Dispatch<React.SetStateAction<'dashboard' | 'lab3d'>>;
+  setTeacherViewMode: (mode: 'dashboard' | 'lab3d') => void;
   teacherLaserActive: boolean;
   setTeacherLaserActive: (val: boolean) => void;
   teacherCameraSyncEnabled: boolean;
@@ -105,7 +105,7 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
           onClick={() => {
             labSound.playClick(600);
             if (isLobbyMode) setIsLobbyMode(false);
-            setTeacherViewMode((prev) => (prev === 'dashboard' ? 'lab3d' : 'dashboard'));
+            setTeacherViewMode(teacherViewMode === 'dashboard' ? 'lab3d' : 'dashboard');
           }}
           className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
             teacherViewMode === 'lab3d' && !isLobbyMode

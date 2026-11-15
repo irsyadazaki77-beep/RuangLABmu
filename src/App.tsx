@@ -338,6 +338,8 @@ export default function App() {
         capturedSnapshots={capturedSnapshots}
         bestRSquared={recordsRegression.rSquared}
         latestLksScore={latestLksScore}
+        onLeaveRoom={leaveRoom}
+        onToggleTeacherFreeze={toggleTeacherFreeze}
       />
 
       {/* Exam Submission Recovery & Retry Banner */}

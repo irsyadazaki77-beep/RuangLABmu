@@ -247,6 +247,8 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     activeModal,
     openModal,
     closeModal,
+    teacherViewMode,
+    setTeacherViewMode,
   } = useUIStore(
     useShallow((s) => ({
       zenMode: s.zenMode,
@@ -257,6 +259,8 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
       activeModal: s.activeModal,
       openModal: s.openModal,
       closeModal: s.closeModal,
+      teacherViewMode: s.teacherViewMode,
+      setTeacherViewMode: s.setTeacherViewMode,
     }))
   );
 
@@ -264,7 +268,6 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
     externalDrLabMuPrompt
   );
   const [pip3DMode, setPip3DMode] = useState<'pip' | 'split' | 'minimized'>('pip');
-  const [teacherViewMode, setTeacherViewMode] = useState<'dashboard' | 'lab3d'>('dashboard');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -378,7 +381,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
 
       {/* STUDENT SCREEN FREEZE OVERLAY WHEN LOCKED BY TEACHER (FITUR 1) */}
       {userRole === 'siswa' && isFrozenByTeacher && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-50 bg-slate-950/92 flex items-center justify-center p-6">
           <div className="max-w-md w-full rounded-2xl bg-slate-900 border-2 border-amber-500/80 p-6 text-center space-y-4 shadow-2xl">
             <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-400 mx-auto">
               <Lock className="w-7 h-7" />
@@ -513,11 +516,11 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
             {userRole === 'siswa' && (remoteTeacherCameraSync?.enabled || remoteTeacherLaser?.active) && (
               <div
                 data-testid="student-follow-teacher-cam-pill"
-                className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/90 backdrop-blur-md border border-indigo-400/60 text-xs text-slate-100 shadow-xl"
+                className="absolute top-14 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-indigo-400/60 text-xs text-slate-100 shadow-xl"
               >
                 {remoteTeacherLaser?.active && (
                   <span className="inline-flex items-center gap-1.5 text-rose-300 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
                     <span>
                       Laser {remoteTeacherLaser.teacherName}: {remoteTeacherLaser.hoveredObject || 'Aparatus 3D'}
                     </span>
@@ -582,7 +585,7 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
               {effectiveStep !== 2 && (
                 <div className="px-3 py-1.5 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between gap-2 text-[11px] text-slate-200 shrink-0 z-20">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
                     <span className="font-mono font-bold text-sky-400 truncate">
                       Live 3D PiP · {experimentModule.title}
                     </span>

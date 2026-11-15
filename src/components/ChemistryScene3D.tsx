@@ -27,6 +27,7 @@ import {
 } from '../utils/engines/multiApparatusEngine';
 import { toggleImmersiveVRSession } from '../utils/webXRStudioAdapter';
 import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar';
+import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
@@ -113,6 +114,14 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     onCameraSyncChange,
     onCaptureSnapshot,
   });
+
+  const { leftDrawerOpen, rightTelemetryOpen, zenMode } = useUIStore(
+    useShallow((s) => ({
+      leftDrawerOpen: s.leftDrawerOpen,
+      rightTelemetryOpen: s.rightTelemetryOpen,
+      zenMode: s.zenMode,
+    }))
+  );
 
   const [showProbe3D, setShowProbe3D] = useState<boolean>(false);
   const showProbe3DRef = useRef<boolean>(false);
@@ -356,6 +365,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     });
 
     let prevSimTime = -1;
+    let wasProbeVisible = false;
+    let lastProbeHudMs = -1;
 
     const loopHandle = startStudioRenderLoop({
       renderer,
@@ -411,9 +422,13 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
             usePh ? 'ph' : 'thermometer',
             probeVal
           );
-          if (Math.floor(nowMs / 150) !== Math.floor((nowMs - dt * 1000) / 150)) {
+          if (!wasProbeVisible || lastProbeHudMs < 0 || nowMs - lastProbeHudMs >= 150) {
+            wasProbeVisible = true;
+            lastProbeHudMs = nowMs;
             setProbeHudText({ text: probeOut.formatted, color: probeOut.severityHex });
           }
+        } else {
+          wasProbeVisible = false;
         }
 
         cursorManager.update(
@@ -431,7 +446,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           );
         }
 
-        teacherCollabBridge.tick();
+        teacherCollabBridge.tick(nowMs, dt);
         controls.update();
 
         const cDom = conceptDomRef.current;
@@ -483,24 +498,41 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         onBindSlot={bindConceptSlot}
       />
 
-      {showProbe3D && probeHudText && (
-        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-xl bg-slate-950/90 border border-white/15 px-3 py-1.5 shadow-xl z-20 text-xs font-mono">
+      {showProbe3D && (
+        <div
+          className={`pointer-events-none absolute flex items-center gap-2 rounded-xl bg-slate-950/92 border border-white/15 px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
+            isFullscreen
+              ? 'bottom-4 left-4'
+              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+          }`}
+        >
           <Thermometer className="w-3.5 h-3.5 text-sky-400" />
           <span className="text-slate-400">Sensor Probe 3D:</span>
-          <span className="font-bold" style={{ color: probeHudText.color }}>
-            {probeHudText.text}
+          <span className="font-bold" style={{ color: probeHudText?.color ?? '#38bdf8' }}>
+            {probeHudText?.text ??
+              (params.mode === 'acid-base-titration' ||
+              params.mode === 'electrochemistry-cell' ||
+              params.mode === 'spectrophotometry-beer'
+                ? `pH ${(metrics.currentPh ?? 7.0).toFixed(2)}`
+                : `${(metrics.finalTempC ?? params.initialTempC ?? 25).toFixed(1)} °C`)}
           </span>
         </div>
       )}
 
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
+        <div className="pointer-events-none absolute bottom-24 lg:bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
           <span className="h-2 w-2 rounded-full bg-sky-400" />
           <span>Menyetel Kimia 3D: {dragToast.label} = <b className="text-white">{dragToast.value}</b></span>
         </div>
       )}
 
-      <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20 opacity-80 hover:opacity-100 transition-opacity">
+      <div
+        className={`pointer-events-auto absolute flex items-center gap-1 rounded-xl bg-slate-900/92 border border-white/15 px-2 py-1 shadow-lg z-20 opacity-90 hover:opacity-100 transition-all ${
+          isFullscreen
+            ? 'top-3 right-3'
+            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'}`
+        }`}
+      >
         <button
           type="button"
           data-testid="toggle-3d-probe-btn"

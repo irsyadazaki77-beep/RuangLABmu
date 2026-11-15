@@ -93,7 +93,7 @@ export const TimeScrubberBar: React.FC<TimeScrubberBarProps> = (props) => {
     <div
       data-testid="floating-time-scrubber-bar"
       aria-label="Scrubber Garis Waktu Ring-Buffer Simulasi"
-      className="bg-slate-900/90 backdrop-blur-md text-slate-100 border border-slate-700/80 rounded-2xl px-3.5 py-2 shadow-xl flex flex-wrap items-center justify-between gap-3"
+      className="bg-slate-950/92 text-slate-100 border border-slate-700/80 rounded-2xl px-3.5 py-2 shadow-xl flex flex-wrap items-center justify-between gap-3"
     >
       {/* Play/Pause + Single-Frame Step + Reset */}
       <div className="flex items-center gap-1">

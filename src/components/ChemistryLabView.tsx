@@ -40,6 +40,7 @@ import {
 } from '../utils/pedagogicalHelpers';
 import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
+import { PrecisionSlider } from './controls/PrecisionSlider';
 
 export interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -424,29 +425,32 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               onResetBToMatchA={() => setRealityBParams({ ...params })}
               onClose={() => setIsDualRealityMode(false)}
               realityBControls={
-                <div className="w-full flex items-center justify-between gap-3">
-                  <span className="font-semibold text-amber-300 shrink-0">
-                    {chemVar.label}:{' '}
-                    <strong className="font-mono">
-                      {chemVar.valB} {chemVar.unit}
-                    </strong>
-                  </span>
-                  <input
-                    type="range"
-                    aria-label={chemVar.label}
+                <div className="w-full min-w-[240px]">
+                  <PrecisionSlider
+                    compact
+                    accentColor="amber"
+                    label={chemVar.label}
+                    unit={chemVar.unit}
                     min={chemVar.min}
                     max={chemVar.max}
                     step={chemVar.step}
                     value={chemVar.valB}
-                    onChange={(e) => {
-                      const nextVal = Number(e.target.value);
+                    defaultValue={
+                      chemVar.key === 'titrantAddedMl'
+                        ? params.titrantAddedMl
+                        : chemVar.key === 'gasVolumeL'
+                        ? params.gasVolumeL ?? 10
+                        : chemVar.key === 'cathodeConcM'
+                        ? params.cathodeConcM
+                        : params.initialTempC
+                    }
+                    onChange={(nextVal) =>
                       setRealityBParams((prev) =>
                         chemVar.key === 'initialTempC'
                           ? { ...prev, initialTempC: nextVal, kineticsTempC: nextVal }
                           : { ...prev, [chemVar.key]: nextVal }
-                      );
-                    }}
-                    className="flex-1 max-w-[220px] accent-amber-400 cursor-pointer"
+                      )
+                    }
                   />
                 </div>
               }
@@ -521,7 +525,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
       }
       safetyModal={
         safetyHazard.isHazardous && !hazardModalDismissed ? (
-          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-slate-950/85 flex items-center justify-center p-4">
             <div className="max-w-lg w-full rounded-2xl bg-slate-900 border-2 border-rose-500/80 shadow-2xl p-6 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="inline-block px-2.5 py-0.5 rounded-md bg-rose-500/20 text-[11px] font-mono font-bold text-rose-300">

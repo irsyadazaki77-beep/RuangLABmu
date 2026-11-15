@@ -134,7 +134,7 @@ export function buildChemistryCoreStage(
     bumpScale: 0.005,
     metalness: 0.62,
     roughness: 0.36,
-    envMapIntensity: 1.05,
+    envMapIntensity: 0.55,
   });
   const brushedSteelMat = new THREE.MeshStandardMaterial({
     color: 0xcbd5e1,
@@ -143,14 +143,14 @@ export function buildChemistryCoreStage(
     bumpScale: 0.006,
     metalness: 0.88,
     roughness: 0.24,
-    envMapIntensity: 1.35,
+    envMapIntensity: 0.85,
   });
   const brassMat = new THREE.MeshStandardMaterial({
     color: 0xd97706,
     roughnessMap: metalTex?.roughnessMap ?? null,
     metalness: 0.84,
     roughness: 0.26,
-    envMapIntensity: 1.25,
+    envMapIntensity: 0.8,
   });
   const glassMat = createBorosilicateGlassMaterial(initialLiteOrSw, {
     color: 0xecfeff,

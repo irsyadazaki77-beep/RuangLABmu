@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   Activity,
+  AlertTriangle,
   ArrowLeft,
   Bot,
-  Camera,
   Check,
   ChevronDown,
   ChevronUp,
@@ -18,20 +18,27 @@ import {
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
-  Sparkles,
+  Sliders,
   Trash2,
   Wifi,
   WifiOff,
+  Zap,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useLabStore, DOMAIN_TO_ID } from '../../stores/useLabStore';
 import { useCollabStore } from '../../stores/useCollabStore';
-import { useAdaptiveQuality } from '../../hooks/useAdaptiveQuality';
 import { getExperimentById } from '../../registry/experimentRegistry';
 import { LiveFormulaCard } from '../telemetry/LiveFormulaCard';
 import { TelemetryGauge } from '../telemetry/TelemetryGauge';
-import { SPRING_DRAWER, SPRING_TACTILE } from '../../styles/motionPresets';
+import { LiveTimeSeriesChart } from '../telemetry/LiveTimeSeriesChart';
+import {
+  DRAWER_LEFT_VARIANTS,
+  DRAWER_RIGHT_VARIANTS,
+  MODAL_POPOVER_VARIANTS,
+  SPRING_TACTILE,
+} from '../../styles/motionPresets';
 import { labSound } from '../../utils/soundEngine';
+import { shouldConfirmLabExit } from '../../utils/spatialHudHelpers';
 import type { ExperimentRecord } from '../../utils/scienceEngine';
 
 export type CameraPreset = string;
@@ -95,19 +102,13 @@ export interface StandardLabViewShellProps {
   sidebar: React.ReactNode;
 }
 
-const CAMERA_PRESETS: Array<{ id: CameraPreset; label: string }> = [
-  { id: 'iso', label: 'Isometrik' },
-  { id: 'front', label: 'Depan' },
-  { id: 'top', label: 'Atas' },
-  { id: 'side', label: 'Samping' },
-];
-
 /**
- * Full-Bleed Spatial HUD Workspace & Responsive Workbench Shell
- * - 3D Viewport centerpiece with floating Spatial HUD top bar
- * - Keyboard shortcuts '[' (toggle Parameter Drawer) and ']' (toggle Telemetry & Formula HUD)
- * - "Focus 3D" button collapsing all side panels simultaneously
- * - Mobile collapsible bottom sheet with zero horizontal overflow
+ * Full-Bleed Spatial HUD Workspace (100vw x 100vh centerpiece)
+ * - Floating Top Bar with Exit Confirmation, Breadcrumb, PIN Copy, 3T Status, Live FPS/Quality
+ * - Left Drawer ([): Parameters & Precision Controls
+ * - Right Drawer (]): SVG Gauges, LiveFormulaCard, LiveTimeSeriesChart, Trials & Socratic AI
+ * - Focus 3D button collapses both side drawers simultaneously
+ * - Mobile (<1024px) collapsible bottom sheet keeps the 3D apparatus unobstructed
  */
 export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
   domain,
@@ -122,8 +123,6 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
   isHazardous = false,
   shutterFlash = false,
   zenMode: propZenMode,
-  activeCameraPreset = 'iso',
-  onSelectCameraPreset,
   dualModeActive = false,
   onToggleDualMode,
   dualViewport,
@@ -136,27 +135,56 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
     storeZenMode,
     toggleZenMode,
     setDrawerTab,
-    sidebarWidthPx,
-    setSidebarWidthPx,
+    liteDeviceMode,
+    toggleLiteDeviceMode,
+    livePerfStats,
+    mobileTab,
+    setMobileTab,
+    leftDrawerOpen,
+    setLeftDrawerOpen,
+    rightTelemetryOpen,
+    setRightTelemetryOpen,
+    teacherViewMode,
   } = useUIStore(
     useShallow((s) => ({
       storeZenMode: s.zenMode,
       toggleZenMode: s.toggleZenMode,
       setDrawerTab: s.setDrawerTab,
-      sidebarWidthPx: s.sidebarWidthPx,
-      setSidebarWidthPx: s.setSidebarWidthPx,
+      liteDeviceMode: s.liteDeviceMode,
+      toggleLiteDeviceMode: s.toggleLiteDeviceMode,
+      livePerfStats: s.livePerfStats,
+      mobileTab: s.mobileTab,
+      setMobileTab: s.setMobileTab,
+      leftDrawerOpen: s.leftDrawerOpen,
+      setLeftDrawerOpen: s.setLeftDrawerOpen,
+      rightTelemetryOpen: s.rightTelemetryOpen,
+      setRightTelemetryOpen: s.setRightTelemetryOpen,
+      teacherViewMode: s.teacherViewMode,
     }))
   );
 
-  const zenMode = propZenMode ?? storeZenMode;
-
-  const { activeDomain, activeModuleId, setIsLobbyMode } = useLabStore(
+  const {
+    activeDomain,
+    activeModuleId,
+    setIsLobbyMode,
+    timelineCount,
+    workflowStep,
+    userRole,
+  } = useLabStore(
     useShallow((s) => ({
       activeDomain: s.activeDomain,
       activeModuleId: s.activeModuleId,
       setIsLobbyMode: s.setIsLobbyMode,
+      timelineCount: s.timelineCount,
+      workflowStep: s.workflowStep,
+      userRole: s.userRole,
     }))
   );
+
+  const isFullBleedStage =
+    (userRole === 'siswa' && workflowStep === 2) ||
+    (userRole === 'pengajar' && teacherViewMode === 'lab3d');
+  const zenMode = isFullBleedStage ? storeZenMode : (propZenMode ?? storeZenMode);
 
   const { activeRoomId, wsConnected } = useCollabStore(
     useShallow((s) => ({
@@ -165,13 +193,10 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
     }))
   );
 
-  const { tier: qualityTier, controller: qualityController } = useAdaptiveQuality(true);
-  const currentFps = Math.round(qualityController.getRollingFps());
-
-  const [leftDrawerOpen, setLeftDrawerOpen] = useState(true);
-  const [rightTelemetryOpen, setRightTelemetryOpen] = useState(true);
-  const [mobileSheetExpanded, setMobileSheetExpanded] = useState(true);
+  const [mobileSheetExpanded, setMobileSheetExpanded] = useState(false);
+  const [mobileSheetTab, setMobileSheetTab] = useState<'params' | 'telemetry'>('params');
   const [copiedPin, setCopiedPin] = useState(false);
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(() =>
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
@@ -187,7 +212,17 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
     };
   }, []);
 
-  // Keyboard shortcuts '[' and ']' to toggle Parameter Drawer & Telemetry/Formula HUD
+  // Sync mobile bottom navigation selection with bottom sheet visibility
+  useEffect(() => {
+    if (mobileTab === 'variables') {
+      setMobileSheetTab('params');
+      setMobileSheetExpanded(true);
+    } else if (mobileTab === 'canvas') {
+      setMobileSheetExpanded(false);
+    }
+  }, [mobileTab]);
+
+  // Keyboard shortcuts '[' and ']' to toggle Left & Right HUD Drawers
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -229,28 +264,76 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
     });
   };
 
+  const handleRequestExitToLobby = () => {
+    labSound.playClick();
+    if (shouldConfirmLabExit({ recordsCount, timelineCount })) {
+      setExitConfirmOpen(true);
+    } else {
+      setIsLobbyMode(true);
+    }
+  };
+
   const handleToggleFocus3D = () => {
     labSound.playClick();
     toggleZenMode();
   };
 
-  const isSidebarVisible = !zenMode && leftDrawerOpen;
-  const isRightTelemetryVisible = !zenMode && rightTelemetryOpen;
+  // Mini-3D PiP / Split viewport on Stages 3 & 4 passes zenMode=true explicitly
+  const isMiniViewportMode = !isFullBleedStage && propZenMode === true;
+  const isLeftVisible = !zenMode && leftDrawerOpen;
+  const isRightVisible = !zenMode && rightTelemetryOpen;
+
+  const primaryMetric = telemetryMetrics[0];
+  const secondaryMetric = telemetryMetrics[1];
+
+  if (isMiniViewportMode) {
+    return (
+      <div className="relative w-full h-full overflow-hidden bg-slate-950">
+        {canvas}
+        {topOverlay && (
+          <div className="pointer-events-none absolute top-2 left-2 right-2 z-20 flex items-center justify-between">
+            <div className="pointer-events-auto">{topOverlay}</div>
+          </div>
+        )}
+        {safetyModal}
+      </div>
+    );
+  }
 
   return (
     <div
       data-testid="spatial-hud-shell"
-      className="space-y-3 w-full max-w-full overflow-x-hidden transition-colors duration-300"
+      className="relative w-full h-full min-h-0 overflow-hidden bg-slate-950 select-none"
     >
-      {/* 1. Spatial HUD Floating Top Bar: Breadcrumb + Room PIN + 3T Status + FPS/Quality + Drawer Toggles */}
+      {/* 1. FULL-BLEED 3D VIEWPORT CENTERPIECE */}
+      <div
+        className={`absolute inset-0 z-0 ${
+          isHazardous ? 'ring-2 ring-inset ring-rose-500/70' : ''
+        }`}
+      >
+        {dualModeActive && dualViewport ? (
+          <div className="w-full h-full pt-16 pb-20 px-3 overflow-y-auto bg-slate-950">
+            {dualViewport}
+          </div>
+        ) : (
+          canvas
+        )}
+      </div>
+
+      {/* Camera Snapshot Shutter Flash */}
+      {shutterFlash && (
+        <div className="pointer-events-none absolute inset-0 z-40 bg-white/70 transition-opacity duration-150" />
+      )}
+
+      {/* 2. MINIMAL FLOATING TOP BAR */}
       <div
         data-testid="spatial-hud-top-bar"
-        className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)]/95 backdrop-blur-md px-3 py-2 shadow-sm"
+        className="absolute top-2.5 left-2.5 right-2.5 sm:left-3 sm:right-3 z-30 flex items-center justify-between gap-1.5 sm:gap-2 rounded-2xl border border-slate-700/80 bg-slate-950/92 text-slate-100 px-2.5 sm:px-3 py-1.5 shadow-xl"
       >
-        {/* Breadcrumb: Lobby / [Domain] / [Module] */}
+        {/* Left: Exit / Back + Breadcrumb */}
         <nav
           aria-label="Breadcrumb Ruang Praktikum"
-          className="flex items-center gap-1.5 text-xs min-w-0"
+          className="flex items-center gap-1 sm:gap-1.5 text-xs min-w-0"
         >
           {onBackToPreLab && (
             <button
@@ -260,39 +343,38 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
                 onBackToPreLab();
               }}
               title="Kembali ke Tahap 1 Briefing Pra-Lab"
-              className="p-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800 text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] transition-colors cursor-pointer shrink-0"
+              aria-label="Kembali ke Briefing Pra-Lab"
+              className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
             </button>
           )}
           <button
             type="button"
-            onClick={() => {
-              labSound.playClick();
-              setIsLobbyMode(true);
-            }}
-            className="font-semibold text-[var(--comfort-text-muted)] hover:text-sky-500 transition-colors cursor-pointer shrink-0"
+            onClick={handleRequestExitToLobby}
+            aria-label="Kembali ke Katalog Laboratorium"
+            className="font-semibold text-slate-300 hover:text-sky-400 transition-colors cursor-pointer shrink-0"
           >
             Lobby
           </button>
-          <span className="text-[var(--comfort-text-muted)]">/</span>
-          <span className="font-semibold text-sky-600 dark:text-sky-400 shrink-0 capitalize">
+          <span className="text-slate-600">/</span>
+          <span className="font-semibold text-sky-400 shrink-0 capitalize hidden sm:inline">
             {domainLabel}
           </span>
-          <span className="text-[var(--comfort-text-muted)]">/</span>
-          <span className="font-bold text-[var(--comfort-text)] truncate max-w-[160px] sm:max-w-[260px]">
+          <span className="text-slate-600 hidden sm:inline">/</span>
+          <span className="font-bold text-white truncate max-w-[95px] sm:max-w-[240px]">
             {moduleTitle}
           </span>
         </nav>
 
-        {/* Right HUD Pills: Room PIN Copy + 3T Connection + FPS/Quality Tier + Dual Reality + Panel Controls */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* Right: Room PIN + 3T Status + Live FPS/Quality/Lite + A/B + Drawer Toggles + Focus 3D + Dr. LabMu */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {activeRoomId && (
             <button
               type="button"
               onClick={handleCopyRoomPin}
               title="Salin PIN Room Kolaborasi"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 font-mono text-[11px] font-bold hover:bg-emerald-500/25 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-bold hover:bg-emerald-500/25 transition-colors cursor-pointer"
             >
               <span>PIN: {activeRoomId}</span>
               {copiedPin ? (
@@ -303,40 +385,58 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
             </button>
           )}
 
-          {/* Live 3T Connection / Offline Sync Pill */}
           <span
             data-testid="hud-3t-connection-pill"
             className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-mono font-bold ${
               isOnline
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                : 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-300'
+                ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-300'
+                : 'bg-amber-500/15 border-amber-500/45 text-amber-300'
             }`}
             title={
               isOnline
                 ? wsConnected
                   ? 'Sinkronisasi Real-Time Aktif'
-                  : 'Jaringan Online (Siap Sinkron)'
-                : 'Mode Luring 3T Aktif (Antrean Lokal SQLite/IndexedDB)'
+                  : 'Online (PWA 3T Siap)'
+                : 'Mode Luring 3T Aktif'
             }
           >
             {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            <span className="hidden sm:inline">
-              {isOnline ? '3T Sinkron' : 'Mode Luring 3T'}
+            <span className="hidden md:inline">
+              {isOnline ? '3T Sinkron' : 'Mode Luring'}
             </span>
           </span>
 
-          {/* Rolling FPS & Adaptive Quality Tier Badge */}
-          <span
-            data-testid="hud-fps-quality-badge"
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-900/85 border border-slate-700/80 text-cyan-300 font-mono text-[10px] font-bold tabular-nums"
-            title="Kualitas Adaptif WebGL 3T & Frame Rate"
+          {/* Live FPS & Adaptive Quality / 3T Lite Toggle */}
+          <button
+            type="button"
+            data-testid="hud-lite-mode-toggle-btn"
+            onClick={() => {
+              labSound.playClick(liteDeviceMode ? 680 : 520);
+              toggleLiteDeviceMode();
+            }}
+            title={
+              liteDeviceMode
+                ? 'Mode Ringan 3T Aktif (Klik untuk Kualitas Penuh)'
+                : 'Klik untuk Mengaktifkan Mode Ringan 3T'
+            }
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border font-mono text-[10px] font-bold tabular-nums transition-colors cursor-pointer ${
+              liteDeviceMode
+                ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-200'
+                : 'bg-slate-900 border-slate-700 text-cyan-300 hover:border-cyan-500/50'
+            }`}
           >
-            <Cpu className="w-3 h-3 text-cyan-400" />
-            <span>{currentFps} FPS</span>
-            <span className="uppercase text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-200">
-              {qualityTier}
+            {liteDeviceMode ? (
+              <Zap className="w-3 h-3 text-amber-400" />
+            ) : (
+              <Cpu className="w-3 h-3 text-cyan-400" />
+            )}
+            <span data-testid="hud-fps-quality-badge">
+              {Math.round(livePerfStats.fps)} FPS
             </span>
-          </span>
+            <span className="uppercase text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-200">
+              {liteDeviceMode ? 'lite' : livePerfStats.qualityTier}
+            </span>
+          </button>
 
           {onToggleDualMode && (
             <button
@@ -345,15 +445,15 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
                 labSound.playClick();
                 onToggleDualMode();
               }}
-              className={`hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
+              className={`hidden md:inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
                 dualModeActive
-                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-600 dark:text-amber-300'
-                  : 'bg-[var(--comfort-bg)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                  : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
               }`}
               title="Bandingkan Dua Realitas Parameter (A vs B)"
             >
               <Columns2 className="w-3.5 h-3.5" />
-              <span>Komparasi A/B</span>
+              <span>A/B</span>
             </button>
           )}
 
@@ -366,23 +466,23 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
               setLeftDrawerOpen((prev) => !prev);
             }}
             aria-label="Toggle Panel Parameter ([)"
-            title="Tampilkan/Sembunyikan Panel Parameter (Pintasan: [)"
+            title="Tampilkan/Sembunyikan Panel Parameter ([)"
             className={`hidden lg:inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
-              isSidebarVisible
-                ? 'bg-sky-500/15 border-sky-500/40 text-sky-700 dark:text-sky-300'
-                : 'bg-[var(--comfort-bg)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)]'
+              isLeftVisible
+                ? 'bg-sky-500/20 border-sky-500/50 text-sky-300'
+                : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
             }`}
           >
-            {isSidebarVisible ? (
+            {isLeftVisible ? (
               <PanelLeftClose className="w-3.5 h-3.5" />
             ) : (
               <PanelLeftOpen className="w-3.5 h-3.5" />
             )}
-            <span>Kontrol</span>
+            <span>Parameter</span>
             <kbd className="text-[9px] font-mono opacity-75">[</kbd>
           </button>
 
-          {/* Right Telemetry & Formula Toggle ']' */}
+          {/* Right Drawer Toggle ']' */}
           <button
             type="button"
             onClick={() => {
@@ -391,23 +491,23 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
               setRightTelemetryOpen((prev) => !prev);
             }}
             aria-label="Toggle Panel Telemetri & Rumus (])"
-            title="Tampilkan/Sembunyikan Telemetri & Rumus Hidup (Pintasan: ])"
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
-              isRightTelemetryVisible
-                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
-                : 'bg-[var(--comfort-bg)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)]'
+            title="Tampilkan/Sembunyikan Telemetri & Grafik (])"
+            className={`hidden lg:inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
+              isRightVisible
+                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
             }`}
           >
-            {isRightTelemetryVisible ? (
+            {isRightVisible ? (
               <PanelRightClose className="w-3.5 h-3.5" />
             ) : (
               <PanelRightOpen className="w-3.5 h-3.5" />
             )}
-            <span className="hidden sm:inline">Telemetri</span>
+            <span>Telemetri</span>
             <kbd className="text-[9px] font-mono opacity-75">]</kbd>
           </button>
 
-          {/* Focus 3D Button (Collapses all drawers simultaneously) */}
+          {/* Focus 3D Button (Collapses both drawers simultaneously) */}
           <motion.button
             type="button"
             whileTap={{ scale: 0.95 }}
@@ -415,148 +515,179 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
             onClick={handleToggleFocus3D}
             data-testid="focus-3d-toggle-btn"
             aria-pressed={zenMode}
-            title="Mode Fokus 3D Penuh (Sembunyikan Semua Panel)"
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all cursor-pointer ${
+            title="Focus 3D Penuh (Sembunyikan Kedua Panel)"
+            className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-colors cursor-pointer ${
               zenMode
-                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-xs'
-                : 'bg-[var(--comfort-bg)] border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500/50'
+                ? 'bg-amber-500 text-slate-950 border-amber-400'
+                : 'bg-slate-900 border-slate-700 text-slate-100 hover:border-sky-500/50'
             }`}
           >
             {zenMode ? (
               <>
                 <Minimize2 className="w-3.5 h-3.5" />
-                <span>Keluar Focus 3D</span>
+                <span className="hidden sm:inline">Keluar Focus 3D</span>
               </>
             ) : (
               <>
                 <Maximize2 className="w-3.5 h-3.5" />
-                <span>Focus 3D</span>
+                <span className="hidden sm:inline">Focus 3D</span>
               </>
             )}
           </motion.button>
+
+          {/* Quick Dr. LabMu Socratic Assistant Button */}
+          <button
+            type="button"
+            onClick={() => {
+              labSound.playClick();
+              setDrawerTab('ai');
+            }}
+            aria-label="Buka Asisten Dr. LabMu"
+            title="Diskusi Sokratik Dr. LabMu"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold transition-colors cursor-pointer"
+          >
+            <Bot className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Dr. LabMu</span>
+          </button>
         </div>
       </div>
 
-      {/* 2. Main Spatial Grid: Full-Bleed 3D Viewport + Collapsible Side Panels */}
-      <div
-        className={`grid grid-cols-1 ${
-          isSidebarVisible ? 'lg:grid-cols-12' : 'lg:grid-cols-1'
-        } gap-4 items-start transition-all duration-300`}
-      >
-        {/* Left / Centerpiece Column: 3D Viewport + Floating Camera/Telemetry Overlays */}
+      {/* 3. FLOATING VIEWPORT OVERLAY (Left-aligned below top-16 scene capsule to prevent overlap) */}
+      {!dualModeActive && topOverlay && (
         <div
-          className={`${
-            isSidebarVisible ? 'lg:col-span-7 xl:col-span-8' : 'lg:col-span-1'
-          } flex flex-col gap-3 min-w-0`}
+          className={`pointer-events-none absolute top-[110px] z-20 flex items-center left-3 ${
+            isLeftVisible ? 'lg:left-[356px]' : 'lg:left-3'
+          }`}
         >
-          {dualModeActive && dualViewport ? (
-            dualViewport
-          ) : (
-            <div
-              className={`relative w-full ${
-                zenMode
-                  ? 'h-[80vh] min-h-[520px]'
-                  : 'aspect-4/3 sm:aspect-16/10 min-h-[300px] sm:min-h-[440px] max-h-[70vh]'
-              } rounded-2xl overflow-hidden border bg-slate-950 shadow-2xl transition-all duration-300 ${
-                isHazardous
-                  ? 'border-rose-500/80 ring-2 ring-rose-500/40'
-                  : 'border-cyan-500/35 shadow-cyan-950/25'
-              }`}
-            >
-              {/* 3D Canvas */}
-              {canvas}
+          <div className="pointer-events-auto flex items-center gap-1.5">{topOverlay}</div>
+        </div>
+      )}
 
-              {/* Camera Snapshot Shutter Flash */}
-              {shutterFlash && (
-                <div className="pointer-events-none absolute inset-0 z-40 bg-white/80 animate-ping" />
-              )}
-
-              {/* Floating Top-Left Overlay (e.g. Vector Toggle) + Camera Presets */}
-              <div className="pointer-events-none absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2">
-                <div className="pointer-events-auto flex items-center gap-1.5">
-                  {topOverlay}
-                </div>
-
-                {onSelectCameraPreset && (
-                  <div className="pointer-events-auto inline-flex items-center gap-1 p-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-slate-700/80 text-[11px] font-mono">
-                    <Camera className="w-3.5 h-3.5 text-sky-400 ml-1 mr-0.5 hidden sm:inline" />
-                    {CAMERA_PRESETS.map((preset) => (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => {
-                          labSound.playClick();
-                          onSelectCameraPreset(preset.id);
-                        }}
-                        className={`px-2 py-0.5 rounded-lg transition-colors cursor-pointer ${
-                          activeCameraPreset === preset.id
-                            ? 'bg-sky-500 text-slate-950 font-bold'
-                            : 'text-slate-300 hover:text-white'
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Floating Bottom-Left Oscilloscope / Microscopic Readout Pill */}
-              {oscilloscope && !zenMode && (
-                <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-20 flex flex-wrap items-end justify-between gap-2">
-                  <div className="pointer-events-auto max-w-md rounded-xl bg-slate-950/85 backdrop-blur-md border border-slate-800 px-3 py-2 text-xs text-slate-200 shadow-lg space-y-0.5">
-                    <div className="font-mono text-[11px] font-bold text-sky-300 truncate">
-                      {oscilloscope.microscopicStateLabel}
-                    </div>
-                    <p className="text-[10px] text-slate-400 line-clamp-1">
-                      {oscilloscope.microscopicDetail}
-                    </p>
-                  </div>
-
-                  <div className="pointer-events-auto flex items-center gap-1.5">
-                    {telemetryMetrics.slice(0, 3).map((m) => (
-                      <div
-                        key={m.id}
-                        className="rounded-xl bg-slate-950/85 backdrop-blur-md border border-slate-800 px-2.5 py-1.5 font-mono text-xs tabular-nums shadow-lg"
-                      >
-                        <div className="text-[9px] text-slate-400 truncate max-w-[96px]">
-                          {m.label}
-                        </div>
-                        <div className="font-bold text-white">
-                          {Number.isFinite(m.value)
-                            ? m.value.toFixed(m.precision ?? 2)
-                            : '0.00'}{' '}
-                          <span className="text-[10px] text-sky-300 font-normal">
-                            {m.unit}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+      {/* 4. COLLAPSIBLE LEFT DRAWER (Desktop >=1024px): Parameters & Precision Controls */}
+      <AnimatePresence initial={false}>
+        {isLeftVisible && (
+          <motion.aside
+            key="spatial-left-drawer"
+            data-testid="spatial-left-drawer"
+            variants={DRAWER_LEFT_VARIANTS}
+            initial="closed"
+            animate="open"
+            exit="closed"
+            aria-label="Panel Parameter & Kontrol Eksperimen"
+            className="hidden lg:flex flex-col absolute top-16 bottom-16 left-3 w-[332px] z-20 rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
+          >
+            <div className="px-3.5 py-2.5 border-b border-[var(--comfort-border)] flex items-center justify-between shrink-0">
+              <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-sky-500" />
+                <span>Parameter Eksperimen</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setLeftDrawerOpen(false)}
+                aria-label="Tutup Panel Parameter"
+                className="p-1 rounded-md text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
+              >
+                <PanelLeftClose className="w-3.5 h-3.5" />
+              </button>
             </div>
-          )}
 
-          {/* Student Hypothesis Reminder & Recent Recorded Observations Strip */}
-          {!zenMode && (hypothesisText || recentRecords.length > 0) && (
-            <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-3 space-y-2 text-xs">
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
               {hypothesisText && (
-                <div className="flex items-start gap-2 text-[var(--comfort-text)]">
-                  <span className="px-2 py-0.5 rounded bg-sky-500/15 text-sky-600 dark:text-sky-300 font-mono text-[10px] font-bold shrink-0">
+                <div className="p-2.5 rounded-xl bg-[var(--comfort-bg)] border border-[var(--comfort-border)] text-xs space-y-1">
+                  <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-600 dark:text-sky-300 font-mono text-[10px] font-bold">
                     Hipotesis Awal
                   </span>
-                  <p className="text-xs italic text-[var(--comfort-text-muted)] line-clamp-2">
+                  <p className="text-[11px] italic text-[var(--comfort-text-muted)] line-clamp-2">
                     &ldquo;{hypothesisText}&rdquo;
                   </p>
                 </div>
               )}
 
+              {sidebar}
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
+      {/* 5. COLLAPSIBLE RIGHT DRAWER (Desktop >=1024px): Telemetry, Formula, Time-Series Chart & Socratic AI */}
+      <AnimatePresence initial={false}>
+        {isRightVisible && (
+          <motion.aside
+            key="spatial-telemetry-hud-panel"
+            data-testid="spatial-telemetry-hud-panel"
+            variants={DRAWER_RIGHT_VARIANTS}
+            initial="closed"
+            animate="open"
+            exit="closed"
+            aria-label="Panel Telemetri, Rumus Hidup & Grafik"
+            className="hidden lg:flex flex-col absolute top-16 bottom-16 right-3 w-[348px] z-20 rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
+          >
+            <div className="px-3.5 py-2.5 border-b border-[var(--comfort-border)] flex items-center justify-between shrink-0">
+              <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Telemetri &amp; Rumus</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setRightTelemetryOpen(false)}
+                aria-label="Tutup Panel Telemetri"
+                className="p-1 rounded-md text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
+              >
+                <PanelRightClose className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5">
+              {/* Microscopic Readout Strip */}
+              {oscilloscope && (
+                <div className="rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-200 space-y-0.5">
+                  <div className="font-mono text-[11px] font-bold text-sky-300 truncate">
+                    {oscilloscope.microscopicStateLabel}
+                  </div>
+                  <p className="text-[10px] text-slate-400 line-clamp-2">
+                    {oscilloscope.microscopicDetail}
+                  </p>
+                </div>
+              )}
+
+              {/* Live SVG Radial Gauges */}
+              {telemetryMetrics.length > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  {telemetryMetrics.slice(0, 2).map((metric) => (
+                    <TelemetryGauge
+                      key={metric.id}
+                      label={metric.label}
+                      value={metric.value}
+                      min={metric.min}
+                      max={metric.max}
+                      unit={metric.unit}
+                      decimals={metric.precision ?? 2}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Live Governing Equation & Active Variable Substitution */}
+              <LiveFormulaCard
+                moduleTitle={moduleTitle}
+                formulaEquation={formulaEquation}
+                domainLabel={domainLabel}
+              />
+
+              {/* Synchronized Ring-Buffer Time-Series Chart */}
+              <LiveTimeSeriesChart
+                primaryLabel={primaryMetric?.label}
+                primaryUnit={primaryMetric?.unit}
+                secondaryLabel={secondaryMetric?.label}
+                secondaryUnit={secondaryMetric?.unit}
+              />
+
+              {/* Recent Recorded Trials & Step 3 Navigation */}
               {recentRecords.length > 0 && (
-                <div className="space-y-1.5 pt-1 border-t border-[var(--comfort-border)]">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[11px] font-bold text-[var(--comfort-text-muted)]">
-                      Log Pengamatan Terakhir ({recordsCount} titik data):
+                <div className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-bg)] p-2.5 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-[10px] font-bold text-[var(--comfort-text-muted)]">
+                      Data Tercatat ({recordsCount})
                     </span>
                     {onProceedToAnalysis && (
                       <button
@@ -564,20 +695,20 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
                         onClick={onProceedToAnalysis}
                         className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
                       >
-                        Buka Grafik Regresi &amp; LKS →
+                        Grafik &amp; LKS →
                       </button>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="space-y-1 max-h-28 overflow-y-auto">
                     {recentRecords.slice(0, 4).map((rec, idx) => (
                       <div
                         key={rec.id}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--comfort-bg)] border border-[var(--comfort-border)] font-mono text-[11px]"
+                        className="flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] font-mono text-[10px]"
                       >
-                        <span className="font-bold text-sky-600 dark:text-sky-400">
+                        <span className="font-bold text-sky-600 dark:text-sky-400 shrink-0">
                           #{idx + 1}
                         </span>
-                        <span className="truncate max-w-[160px] text-[var(--comfort-text)]">
+                        <span className="truncate flex-1 text-[var(--comfort-text)]">
                           {rec.parametersSummary}
                         </span>
                         {onDeleteRecord && (
@@ -585,7 +716,7 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
                             type="button"
                             onClick={() => onDeleteRecord(rec.id)}
                             aria-label={`Hapus data percobaan ${idx + 1}`}
-                            className="text-slate-400 hover:text-rose-500 cursor-pointer"
+                            className="text-slate-400 hover:text-rose-500 cursor-pointer shrink-0"
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>
@@ -595,107 +726,177 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Socratic AI Trigger */}
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setDrawerTab('ai');
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-700 dark:text-sky-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Bot className="w-4 h-4" />
+                <span>Diskusi Sokratik Dr. LabMu</span>
+              </button>
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
+      {/* 6. MOBILE COLLAPSIBLE BOTTOM SHEET (<1024px) */}
+      {!zenMode && (
+        <div
+          data-testid="mobile-lab-bottom-sheet"
+          className="lg:hidden absolute left-2 right-2 bottom-2 z-30 rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
+        >
+          <div className="px-3 py-2 flex items-center justify-between gap-2 border-b border-[var(--comfort-border)]">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileSheetTab('params');
+                  setMobileSheetExpanded(true);
+                }}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
+                  mobileSheetExpanded && mobileSheetTab === 'params'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-[var(--comfort-bg)] text-[var(--comfort-text-muted)]'
+                }`}
+              >
+                Parameter
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileSheetTab('telemetry');
+                  setMobileSheetExpanded(true);
+                }}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
+                  mobileSheetExpanded && mobileSheetTab === 'telemetry'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-[var(--comfort-bg)] text-[var(--comfort-text-muted)]'
+                }`}
+              >
+                Telemetri &amp; Grafik
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const next = !mobileSheetExpanded;
+                setMobileSheetExpanded(next);
+                if (!next) setMobileTab('canvas');
+              }}
+              aria-label={mobileSheetExpanded ? 'Tutup Sheet Instrumen' : 'Buka Sheet Instrumen'}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--comfort-bg)] border border-[var(--comfort-border)] text-[11px] font-semibold cursor-pointer"
+            >
+              <span>{mobileSheetExpanded ? 'Tutup' : 'Buka Panel'}</span>
+              {mobileSheetExpanded ? (
+                <ChevronDown className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronUp className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
+
+          {mobileSheetExpanded && (
+            <div className="max-h-[44vh] overflow-y-auto p-3 space-y-2.5">
+              {mobileSheetTab === 'params' ? (
+                sidebar
+              ) : (
+                <>
+                  <LiveFormulaCard
+                    moduleTitle={moduleTitle}
+                    formulaEquation={formulaEquation}
+                    domainLabel={domainLabel}
+                  />
+                  {telemetryMetrics.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {telemetryMetrics.slice(0, 2).map((metric) => (
+                        <TelemetryGauge
+                          key={metric.id}
+                          label={metric.label}
+                          value={metric.value}
+                          min={metric.min}
+                          max={metric.max}
+                          unit={metric.unit}
+                          decimals={metric.precision ?? 2}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <LiveTimeSeriesChart
+                    primaryLabel={primaryMetric?.label}
+                    primaryUnit={primaryMetric?.unit}
+                    secondaryLabel={secondaryMetric?.label}
+                    secondaryUnit={secondaryMetric?.unit}
+                  />
+                </>
+              )}
             </div>
           )}
         </div>
+      )}
 
-        {/* Right / Collapsible Drawer Column (Desktop Drawer & Mobile Bottom Sheet) */}
-        <AnimatePresence initial={false}>
-          {isSidebarVisible && (
-            <motion.aside
-              key="spatial-side-drawer"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={SPRING_DRAWER}
-              aria-label="Panel Kontrol Parameter & Telemetri Eksperimen"
-              data-sidebar-width={sidebarWidthPx}
-              onDoubleClick={() => setSidebarWidthPx(DEFAULT_SIDEBAR_WIDTH_PX)}
-              className="lg:col-span-5 xl:col-span-4 w-full min-w-0 lg:sticky lg:top-2 lg:max-h-[calc(100vh-6.5rem)] lg:overflow-y-auto rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-3 sm:p-4 shadow-lg space-y-3 transition-colors duration-200"
+      {/* 7. EXIT CONFIRMATION MODAL (When records or timeline history exist) */}
+      <AnimatePresence>
+        {exitConfirmOpen && (
+          <div
+            data-testid="lab-exit-confirm-modal"
+            className="fixed inset-0 z-50 bg-slate-950/80 flex items-center justify-center p-4"
+            onClick={() => setExitConfirmOpen(false)}
+          >
+            <motion.div
+              variants={MODAL_POPOVER_VARIANTS}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-sm w-full rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 shadow-2xl p-5 space-y-4 text-slate-900 dark:text-slate-100"
             >
-              {/* Mobile Bottom-Sheet Collapse Handle (<1024px) */}
-              <div className="flex lg:hidden items-center justify-between pb-2 border-b border-[var(--comfort-border)]">
-                <span className="text-xs font-bold uppercase tracking-wider text-[var(--comfort-text)] flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-sky-500" />
-                  Panel Instrumen &amp; Parameter
-                </span>
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-500 shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    Keluar ke Lobby Katalog?
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Anda memiliki{' '}
+                    <strong>{recordsCount} data pengamatan</strong> dan jejak simulasi aktif. Kembali ke Lobby akan menutup sesi praktikum 3D ini.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setMobileSheetExpanded((prev) => !prev)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--comfort-bg)] border border-[var(--comfort-border)] text-xs font-semibold text-[var(--comfort-text)] cursor-pointer"
+                  onClick={() => setExitConfirmOpen(false)}
+                  className="px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
-                  {mobileSheetExpanded ? (
-                    <>
-                      <span>Ringkas Panel</span>
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </>
-                  ) : (
-                    <>
-                      <span>Buka Panel</span>
-                      <ChevronUp className="w-3.5 h-3.5" />
-                    </>
-                  )}
+                  Tetap di Lab
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setExitConfirmOpen(false);
+                    setIsLobbyMode(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold cursor-pointer"
+                >
+                  Keluar ke Lobby
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
-              <div className={`${mobileSheetExpanded ? 'block' : 'hidden lg:block'} space-y-3`}>
-                {/* Collapsible Right-Drawer Telemetry Section: LiveFormulaCard + SVG Gauges + Socratic AI Trigger */}
-                {isRightTelemetryVisible && (
-                  <div
-                    data-testid="spatial-telemetry-hud-panel"
-                    className="space-y-2.5 pb-3 border-b border-[var(--comfort-border)]"
-                  >
-                    <LiveFormulaCard
-                      moduleTitle={moduleTitle}
-                      formulaEquation={formulaEquation}
-                      domainLabel={domainLabel}
-                    />
-
-                    {telemetryMetrics.length > 0 && (
-                      <div className="grid grid-cols-2 gap-2">
-                        {telemetryMetrics.slice(0, 2).map((metric) => (
-                          <TelemetryGauge
-                            key={metric.id}
-                            label={metric.label}
-                            value={metric.value}
-                            min={metric.min}
-                            max={metric.max}
-                            unit={metric.unit}
-                            decimals={metric.precision ?? 2}
-                          />
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between gap-2 pt-0.5">
-                      <span className="text-[10px] font-mono text-[var(--comfort-text-muted)] flex items-center gap-1">
-                        <Activity className="w-3 h-3 text-emerald-500" />
-                        Telemetri Sinkron RK4
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          labSound.playClick();
-                          setDrawerTab('ai');
-                        }}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-700 dark:text-sky-300 text-[11px] font-bold transition-colors cursor-pointer"
-                      >
-                        <Bot className="w-3.5 h-3.5" />
-                        <span>Diskusi Sokratik Dr. LabMu</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Domain-Specific Parameter Sliders & Apparatus Controls */}
-                {sidebar}
-              </div>
-            </motion.aside>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* 3. Safety Hazard Modal Overlay */}
+      {/* 8. SAFETY HAZARD MODAL */}
       {safetyModal}
     </div>
   );

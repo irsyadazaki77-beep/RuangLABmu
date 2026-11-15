@@ -9,6 +9,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { labSound } from '../../utils/soundEngine';
+import { PrecisionSlider } from '../controls/PrecisionSlider';
 
 export interface FormulaToken {
   symbol: string;       // e.g., "F", "=", "m", "·", "g", "·", "sin(θ)"
@@ -487,8 +488,10 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                       )}
                     </div>
 
-                    <input
-                      type="range"
+                    <PrecisionSlider
+                      compact
+                      accentColor="emerald"
+                      label={`Uji ${activeVarToken.symbol}`}
                       min={activeVarToken.min ?? 0}
                       max={
                         activeVarToken.max ??
@@ -499,19 +502,20 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                           (activeVarToken.min ?? 0)) /
                         50
                       }
+                      unit={activeVarToken.unit}
+                      defaultValue={activeVarToken.value}
                       value={
                         resolveTokenValue(activeVarToken) ??
                         activeVarToken.value
                       }
-                      onChange={(e) => {
+                      onChange={(nextVal) => {
                         const k =
                           activeVarToken.paramKey || activeVarToken.symbol;
                         setWhatIfValues((prev) => ({
                           ...prev,
-                          [k]: Number(e.target.value),
+                          [k]: nextVal,
                         }));
                       }}
-                      className="w-full accent-emerald-500 cursor-pointer"
                     />
 
                     {/* Live Causal Prediction & Apply Button */}

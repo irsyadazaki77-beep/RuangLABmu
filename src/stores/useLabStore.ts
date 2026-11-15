@@ -55,13 +55,19 @@ export interface LabState {
   isSubmissionLocked: boolean;
   dockedConnections: ApparatusDockingConnection[];
 
-  // Time-Travel Scrubber State
+  // Time-Travel Scrubber & Live Time-Series Chart State
   isTimeTraveling: boolean;
   timelineCount: number;
   timelineCursor: number;
   timelineMinTime: number;
   timelineMaxTime: number;
   timelineCurrentTime: number;
+  liveTelemetrySeries: Array<{
+    cursorIndex: number;
+    t: number;
+    primary: number;
+    secondary?: number;
+  }>;
 
   // Dr. LabMu Hands-On Slider Highlight & Live Formula Variable Tracking
   highlightedParamKey: string | null;
@@ -93,6 +99,9 @@ export interface LabState {
     timelineCurrentTime?: number;
     isTimeTraveling?: boolean;
   }) => void;
+  setLiveTelemetrySeries: (
+    series: Array<{ cursorIndex: number; t: number; primary: number; secondary?: number }>
+  ) => void;
   setIsTimeTraveling: (isTimeTraveling: boolean) => void;
   seekTimelineCursor: (cursorIndex: number) => void;
   resetTimelineState: () => void;
@@ -128,6 +137,7 @@ export const useLabStore = create<LabState>((set, get) => ({
   timelineMinTime: 0,
   timelineMaxTime: 0,
   timelineCurrentTime: 0,
+  liveTelemetrySeries: [],
   highlightedParamKey: null,
   activeAdjustedParam: null,
   liveParamSnapshot: {},
@@ -142,6 +152,7 @@ export const useLabStore = create<LabState>((set, get) => ({
       timelineMinTime: 0,
       timelineMaxTime: 0,
       timelineCurrentTime: 0,
+      liveTelemetrySeries: [],
       activeAdjustedParam: null,
       liveParamSnapshot: {},
     });
@@ -156,6 +167,7 @@ export const useLabStore = create<LabState>((set, get) => ({
       timelineMinTime: 0,
       timelineMaxTime: 0,
       timelineCurrentTime: 0,
+      liveTelemetrySeries: [],
       activeAdjustedParam: null,
       liveParamSnapshot: {},
     });
@@ -194,6 +206,7 @@ export const useLabStore = create<LabState>((set, get) => ({
       timelineMinTime: 0,
       timelineMaxTime: 0,
       timelineCurrentTime: 0,
+      liveTelemetrySeries: [],
     });
     emitLabEvent(LAB_EVENTS.RESET_TRIAL, { timestamp: Date.now() });
   },
@@ -257,6 +270,10 @@ export const useLabStore = create<LabState>((set, get) => ({
     set((state) => ({ ...state, ...status }));
   },
 
+  setLiveTelemetrySeries: (liveTelemetrySeries) => {
+    set({ liveTelemetrySeries });
+  },
+
   setIsTimeTraveling: (isTimeTraveling: boolean) => {
     set({ isTimeTraveling });
   },
@@ -280,6 +297,7 @@ export const useLabStore = create<LabState>((set, get) => ({
       timelineMinTime: 0,
       timelineMaxTime: 0,
       timelineCurrentTime: 0,
+      liveTelemetrySeries: [],
     });
   },
 

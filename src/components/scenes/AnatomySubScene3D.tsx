@@ -17,7 +17,9 @@ import {
 import { SpatialCursorPayload } from '../../utils/collabProtocol';
 import { attachTeacherCollabBridge } from '../../utils/spatialCursorGroup';
 import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
+import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../../stores/useUIStore';
+import { WebGLErrorBoundary } from '../three/WebGLErrorBoundary';
 import { LAB_EVENTS, subscribeLabEvent } from '../../utils/labEventBus';
 import {
   ConceptLabelDomRef,
@@ -204,7 +206,14 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   onCameraSyncChange,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const showConceptLabels = useUIStore((s) => s.showConceptLabels);
+  const { showConceptLabels, leftDrawerOpen, rightTelemetryOpen, zenMode } = useUIStore(
+    useShallow((s) => ({
+      showConceptLabels: s.showConceptLabels,
+      leftDrawerOpen: s.leftDrawerOpen,
+      rightTelemetryOpen: s.rightTelemetryOpen,
+      zenMode: s.zenMode,
+    }))
+  );
   const showConceptLabelsRef = useRef(showConceptLabels);
   showConceptLabelsRef.current = showConceptLabels;
 
@@ -1093,7 +1102,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       }
 
       updateFrame(effectiveT, dt);
-      teacherCollabBridge.tick();
+      teacherCollabBridge.tick(nowStamp, rawDt);
       controls.update();
 
       const showLabels = showConceptLabelsRef.current;
@@ -1225,8 +1234,10 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   }, [mode, sceneKey]);
 
   return (
-    <div className="relative w-full h-full min-h-[420px] bg-slate-950 rounded-2xl overflow-hidden border border-slate-800/80 select-none">
-      <div ref={mountRef} data-testid="anatomy-simulation-canvas" className="w-full h-full min-h-[420px]" />
+    <div className="relative w-full h-full min-h-[420px] bg-slate-950 overflow-hidden select-none">
+      <WebGLErrorBoundary sceneTitle="Anatomi 3D Interaktif">
+        <div ref={mountRef} data-testid="anatomy-simulation-canvas" className="w-full h-full min-h-[420px]" />
+      </WebGLErrorBoundary>
 
       <ConceptLabelsLayer
         slots={[
@@ -1239,16 +1250,20 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       />
 
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-slate-950/90 border border-cyan-400/50 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-cyan-200">
-          <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+        <div className="pointer-events-none absolute bottom-24 lg:bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-slate-950/92 border border-cyan-400/50 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-cyan-200">
+          <span className="h-2 w-2 rounded-full bg-cyan-400" />
           <span className="text-slate-300">{dragToast.label}:</span>
           <span className="font-bold text-cyan-300">{dragToast.value}</span>
         </div>
       )}
 
       {/* Top HUD: X-Ray & Cross-Section Layer Toggle */}
-      <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-1 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-1 shadow-lg">
+      <div
+        className={`absolute top-16 flex flex-wrap items-center justify-between gap-2 pointer-events-none z-20 ${
+          !zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'
+        } ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'}`}
+      >
+        <div className="pointer-events-auto flex items-center gap-1 bg-slate-900/92 border border-slate-700/80 rounded-xl p-1 shadow-lg">
           {([
             { id: 'outer', label: 'Lapisan Luar', Icon: Eye, activeBg: 'bg-rose-600' },
             { id: 'xray', label: 'Mode X-Ray Transparan', Icon: Sparkles, activeBg: 'bg-cyan-600' },
@@ -1269,7 +1284,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         </div>
 
         {/* Interactive Anatomical Pins Bar */}
-        <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-1.5 shadow-lg">
+        <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 bg-slate-900/92 border border-slate-700/80 rounded-xl p-1.5 shadow-lg">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-cyan-400 px-1.5">
             Pin Anatomi 3D:
           </span>
@@ -1294,7 +1309,11 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
       {/* Floating Anatomical Pin Info Card */}
       {selectedPin && (
-        <div className="absolute bottom-16 right-3 z-20 w-80 max-w-[calc(100%-1.5rem)] bg-slate-900/95 backdrop-blur-md border border-cyan-500/50 rounded-xl p-3.5 text-slate-100 shadow-2xl">
+        <div
+          className={`absolute bottom-24 lg:bottom-20 z-20 w-80 max-w-[calc(100%-1.5rem)] bg-slate-900/95 border border-cyan-500/50 rounded-xl p-3.5 text-slate-100 shadow-2xl ${
+            !zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'
+          }`}
+        >
           <div className="flex items-start justify-between gap-2 mb-1.5">
             <div>
               <span className="inline-block text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 mb-1">

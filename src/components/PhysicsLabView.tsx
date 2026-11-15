@@ -44,6 +44,7 @@ import {
 } from '../utils/pedagogicalHelpers';
 import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
+import { PrecisionSlider } from './controls/PrecisionSlider';
 
 export interface PhysicsLabViewProps {
   params: PhysicsParams;
@@ -497,25 +498,20 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               onResetBToMatchA={() => setRealityBParams({ ...params })}
               onClose={() => setIsDualRealityMode(false)}
               realityBControls={
-                <div className="w-full flex items-center justify-between gap-3">
-                  <span className="font-semibold text-amber-300 shrink-0">
-                    {primaryVar.label}:{' '}
-                    <strong className="font-mono">
-                      {primaryVar.valB} {primaryVar.unit}
-                    </strong>
-                  </span>
-                  <input
-                    type="range"
-                    aria-label={primaryVar.label}
+                <div className="w-full min-w-[240px]">
+                  <PrecisionSlider
+                    compact
+                    accentColor="amber"
+                    label={primaryVar.label}
+                    unit={primaryVar.unit}
                     min={primaryVar.min}
                     max={primaryVar.max}
                     step={primaryVar.step}
                     value={primaryVar.valB}
-                    onChange={(e) => {
-                      const nextVal = Number(e.target.value);
-                      setRealityBParams((prev) => ({ ...prev, [primaryVar.key]: nextVal }));
-                    }}
-                    className="flex-1 max-w-[220px] accent-amber-400 cursor-pointer"
+                    defaultValue={primaryVar.valA}
+                    onChange={(nextVal) =>
+                      setRealityBParams((prev) => ({ ...prev, [primaryVar.key]: nextVal }))
+                    }
                   />
                 </div>
               }
@@ -548,10 +544,10 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
         <button
           type="button"
           onClick={() => setShowVectorOverlay(!showVectorOverlay)}
-          className={`backdrop-blur-md border rounded-xl px-3 py-1.5 text-xs font-mono font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shadow-md ${
+          className={`border rounded-xl px-3 py-1.5 text-xs font-mono font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shadow-md ${
             showVectorOverlay
-              ? 'bg-sky-500/20 border-sky-400/50 text-sky-300'
-              : 'bg-slate-900/80 border-slate-700 text-slate-400'
+              ? 'bg-sky-950/92 border-sky-400/60 text-sky-300'
+              : 'bg-slate-900/92 border-slate-700 text-slate-300'
           }`}
         >
           {showVectorOverlay ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -598,7 +594,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       }
       safetyModal={
         safetyHazard.isHazardous && !hazardModalDismissed ? (
-          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-slate-950/85 flex items-center justify-center p-4">
             <div className="max-w-lg w-full rounded-2xl bg-slate-900 border-2 border-rose-500/80 shadow-2xl p-6 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="inline-block px-2.5 py-0.5 rounded-md bg-rose-500/20 text-[11px] font-mono font-bold text-rose-300">

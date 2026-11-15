@@ -118,7 +118,7 @@ export class WebGLErrorBoundary extends Component<
         {showRecoveryOverlay && (
           <div
             data-testid="lab-webgl-error-fallback"
-            className="absolute inset-0 z-30 w-full h-full min-h-[280px] rounded-2xl bg-slate-950/90 backdrop-blur-md border border-amber-500/30 flex flex-col items-center justify-center p-6 text-center select-none"
+            className="absolute inset-0 z-30 w-full h-full min-h-[280px] rounded-2xl bg-slate-950/95 border border-amber-500/30 flex flex-col items-center justify-center p-6 text-center select-none"
           >
             <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center mb-3 shadow-inner">
               <AlertTriangle className="w-6 h-6 text-amber-400" />

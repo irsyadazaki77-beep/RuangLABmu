@@ -102,7 +102,11 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     return unsub;
   }, []);
 
-  const is3DStageActive = userRole === 'siswa' && !isLobbyMode && workflowStep === 2;
+  const teacherViewMode = useUIStore((s) => s.teacherViewMode);
+  const is3DStageActive =
+    !isLobbyMode &&
+    ((userRole === 'siswa' && workflowStep === 2) ||
+      (userRole === 'pengajar' && teacherViewMode === 'lab3d'));
 
   const handleToggleSimulation = () => {
     labSound.playClick();
@@ -195,11 +199,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     <div
       role="toolbar"
       aria-label="Dock Kontrol Cepat RuangLABmu"
-      className={`fixed bottom-3 -translate-x-1/2 z-40 flex flex-col items-stretch gap-1.5 px-2.5 py-1.5 rounded-2xl lab-glass-panel shadow-2xl border border-slate-300/80 dark:border-slate-700/80 transition-all duration-200 select-none ${
-        zenMode
-          ? 'left-1/2'
-          : 'left-1/2 lg:left-[calc(50%-9rem)] xl:left-[calc(50%-11rem)]'
-      }`}
+      className="fixed bottom-[124px] lg:bottom-3 left-1/2 -translate-x-1/2 z-20 lg:z-40 max-w-[calc(100vw-16px)] lg:max-w-none flex flex-col items-stretch gap-1.5 px-2.5 py-1.5 rounded-2xl bg-slate-950/92 text-slate-100 shadow-2xl border border-slate-700/80 transition-all duration-200 select-none"
     >
       {/* Slim Time-Travel Scrubber Slider */}
       {timelineCount > 1 && (
@@ -238,7 +238,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         </div>
       )}
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto">
       {/* 1. Play/Jeda */}
       <button
         type="button"
@@ -457,7 +457,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         }}
         title="[Z] Fokus Penuh (Sembunyikan Sidebar Kontrol)"
         aria-label={zenMode ? 'Keluar dari Mode Fokus (Shortcut Z)' : 'Aktifkan Mode Fokus (Shortcut Z)'}
-        className={`px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+        className={`hidden lg:flex px-2 py-1 rounded-xl text-xs font-semibold items-center gap-1 transition-all cursor-pointer ${
           zenMode
             ? 'bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-500/40'
             : 'text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800/80'
@@ -489,8 +489,8 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         }
         className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer relative shrink-0 ${
           voiceState.fullDuplexEnabled
-            ? 'bg-rose-500 text-white shadow-sm ring-2 ring-rose-400/50 animate-pulse'
-            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800/80 hover:text-rose-500'
+            ? 'bg-rose-500 text-white shadow-sm ring-2 ring-rose-400/50'
+            : 'text-slate-300 hover:bg-slate-800/80 hover:text-rose-400'
         }`}
       >
         {voiceState.fullDuplexEnabled ? (
@@ -500,8 +500,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         )}
         {voiceState.fullDuplexEnabled && (
           <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-400 border border-slate-950" />
           </span>
         )}
       </button>

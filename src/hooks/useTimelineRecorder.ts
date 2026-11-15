@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
 import {
   getDomainTimelineBuffer,
+  SimulationTimelineBuffer,
   TimelineFrame,
 } from '../utils/simulationTimelineBuffer';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
+import { decimateTelemetryFrames } from '../utils/spatialHudHelpers';
 
 export interface UseTimelineRecorderOptions<TParams, TState> {
   domain: string;
@@ -16,9 +18,27 @@ export interface UseTimelineRecorderOptions<TParams, TState> {
   onRestoreFrame: (frame: TimelineFrame<TParams, TState>) => void;
 }
 
+function syncDecimatedTelemetry<TParams, TState>(
+  buf: SimulationTimelineBuffer<TParams, TState>
+): void {
+  const count = buf.getCount();
+  if (count === 0) {
+    useLabStore.getState().setLiveTelemetrySeries([]);
+    return;
+  }
+  const frames: Array<{ simTime: number; stateSnapshot: TState }> = [];
+  for (let i = 0; i < count; i += 1) {
+    const frame = buf.getAt(i);
+    if (frame) {
+      frames.push({ simTime: frame.simTime, stateSnapshot: frame.stateSnapshot });
+    }
+  }
+  useLabStore.getState().setLiveTelemetrySeries(decimateTelemetryFrames(frames, 96));
+}
+
 /**
  * Records simulation snapshots into the 600-frame ring buffer (~30Hz = 20s)
- * and synchronizes Time-Travel scrubbing & branching resume with LabControlDock.
+ * and synchronizes Time-Travel scrubbing, decimated telemetry series, & branching resume.
  */
 export function useTimelineRecorder<TParams, TState>({
   domain,
@@ -74,6 +94,7 @@ export function useTimelineRecorder<TParams, TState>({
         timelineMaxTime: range.maxTime,
         timelineCurrentTime: simTime,
       });
+      syncDecimatedTelemetry(buf);
     }
   }, [domain, simTime, isPlaying, params, stateSnapshot]);
 
@@ -114,6 +135,7 @@ export function useTimelineRecorder<TParams, TState>({
         timelineCurrentTime: range.maxTime,
         isTimeTraveling: false,
       });
+      syncDecimatedTelemetry(buf);
     });
 
     const unsubReset = subscribeLabEvent(LAB_EVENTS.RESET_TRIAL, () => {

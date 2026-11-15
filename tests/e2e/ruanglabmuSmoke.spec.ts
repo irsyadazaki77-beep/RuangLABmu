@@ -1,4 +1,16 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
+
+async function exitLabToLobby(page: Page) {
+  await page.getByRole('button', { name: 'Kembali ke Katalog Laboratorium' }).click();
+  const exitConfirmModal = page.getByTestId('lab-exit-confirm-modal');
+  try {
+    await exitConfirmModal.waitFor({ state: 'visible', timeout: 1200 });
+    await exitConfirmModal.getByRole('button', { name: 'Keluar ke Lobby' }).click();
+  } catch {
+    // Modal does not appear if no records or timeline frames were captured yet
+  }
+  await expect(page.getByTestId('lobby-compact-filter-bar')).toBeVisible();
+}
 
 test.describe('RuangLABmu E2E Smoke Suite', () => {
   test('Skenario 1 (Desktop 1366x768): Katalog, Theme Switcher (Terang/Sepia/Gelap) & Pencarian Modul tanpa error', async ({
@@ -28,10 +40,18 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/');
 
-    // Pastikan judul katalog tampil
-    await expect(
-      page.getByRole('heading', { name: /Katalog Laboratorium Sains Interaktif 3D/i })
-    ).toBeVisible();
+    // Pastikan 2-row Lobby (Compact Filter Bar + Diet Chapter Cards + Quick Start Banner) tampil
+    await expect(page.getByTestId('lobby-compact-filter-bar')).toBeVisible();
+    await expect(page.getByTestId('quick-start-hero-bar')).toBeVisible();
+    await expect(page.getByTestId('diet-chapter-card-1')).toBeVisible();
+
+    // Uji modal detail Bab Kurikulum saat klik "Buka Bab"
+    await page.getByTestId('diet-chapter-card-1').getByRole('button', { name: /Buka Bab/i }).click();
+    const chapterModal = page.getByTestId('chapter-detail-modal');
+    await expect(chapterModal).toBeVisible();
+    await expect(chapterModal.getByText(/Capaian Pembelajaran Inti/i)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(chapterModal).toHaveCount(0);
 
     // Uji perpindahan tema (Terang / Sepia / Gelap) melalui menu Pengaturan
     const settingsBtn = page.getByTestId('settings-popover-trigger-btn');
@@ -62,9 +82,9 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
       page.getByRole('heading', { name: /Titrasi Asam-Basa/i }).first()
     ).toBeVisible();
 
-    // Reset pencarian & buka tampilan semua modul untuk memverifikasi Hukum II Newton
+    // Reset pencarian & buka tampilan Semua Modul untuk memverifikasi Hukum II Newton
     await searchInput.fill('');
-    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
+    await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await expect(
       page.getByRole('heading', { name: /Hukum II Newton/i }).first()
     ).toBeVisible();
@@ -73,31 +93,40 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     expect(fatalConsoleErrors).toEqual([]);
   });
 
-  test('Skenario 2 (Lab 3D & Pedagogical UX): Render <canvas> Fisika & Kimia di dalam LabErrorBoundary + Asisten Sokratik Offline Dr. LabMu (tanpa NaN)', async ({
+  test('Skenario 2 (Lab 3D & Pedagogical UX): Render <canvas> Fisika & Kimia di dalam Spatial HUD + Asisten Sokratik Offline Dr. LabMu (tanpa NaN)', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/');
 
     // 1. Masuk ke 1 modul Fisika
-    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
+    await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Fisika', exact: true }).click();
     await page
       .getByRole('button', { name: /Mulai Praktikum/i })
       .first()
       .click();
 
-    // Lanjut dari Tahap 1 (Pre-Lab) ke Tahap 2 (Simulasi 3D)
+    // Lanjut dari Tahap 1 (Pre-Lab) ke Tahap 2 (Simulasi 3D Full-Bleed Spatial HUD)
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
 
     const cockpit3D = page.getByTestId('main-3d-cockpit');
     await expect(cockpit3D).toBeVisible();
+    await expect(page.getByTestId('spatial-hud-shell')).toBeVisible();
+    await expect(page.getByTestId('spatial-left-drawer')).toBeVisible();
+    await expect(page.getByTestId('spatial-telemetry-hud-panel')).toBeVisible();
     await expect(page.getByTestId('lab-webgl-error-fallback')).toHaveCount(0);
     await expect(cockpit3D.locator('canvas').first()).toBeVisible();
 
+    // Uji tombol Focus 3D untuk melipat kedua drawer sekaligus lalu buka kembali
+    await page.getByTestId('focus-3d-toggle-btn').click();
+    await expect(page.getByTestId('spatial-left-drawer')).toHaveCount(0);
+    await expect(page.getByTestId('spatial-telemetry-hud-panel')).toHaveCount(0);
+    await page.getByTestId('focus-3d-toggle-btn').click();
+
     // 2. Kembali ke Katalog & masuk ke 1 modul Kimia
-    await page.getByRole('button', { name: 'Kembali ke Katalog Laboratorium' }).click();
-    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
+    await exitLabToLobby(page);
+    await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Kimia', exact: true }).click();
     await page
       .getByRole('button', { name: /Mulai Praktikum/i })
@@ -144,9 +173,8 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
 
-    await expect(
-      page.getByRole('heading', { name: /Katalog Laboratorium Sains Interaktif 3D/i })
-    ).toBeVisible();
+    await expect(page.getByTestId('lobby-compact-filter-bar')).toBeVisible();
+    await expect(page.getByTestId('diet-chapter-card-1')).toBeVisible();
 
     // Verifikasi tidak ada horizontal overflow yang merusak layout
     const overflowLobby = await page.evaluate(() => {
@@ -162,7 +190,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.keyboard.press('Escape');
 
     // Klik modul pertama di tampilan mobile
-    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
+    await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page
       .getByRole('button', { name: /Mulai Praktikum/i })
       .first()
@@ -193,8 +221,11 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     try {
       await Promise.all([teacherPage.goto('/'), studentPage.goto('/')]);
 
-      // 1. Guru membuat Room PIN
-      await teacherPage.getByRole('button', { name: '+ Buat Room' }).click();
+      // 1. Guru membuka Meja Bersama dan membuat Room PIN
+      await teacherPage.getByTestId('navbar-meja-bersama-btn').click();
+      await expect(teacherPage.getByTestId('meja-bersama-popover')).toBeVisible();
+      await teacherPage.getByTestId('meja-bersama-popover').getByRole('button', { name: '+ Buat Room' }).click();
+
       const roomIdInputTeacher = teacherPage.getByPlaceholder('Contoh: LAB-ALPHA');
       const pinInputTeacher = teacherPage.getByTestId('room-pin-input');
       await roomIdInputTeacher.fill(testRoomId);
@@ -203,8 +234,11 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
 
       await expect(teacherPage.getByText(new RegExp(`MEJA AKTIF: ${testRoomId}`, 'i'))).toBeVisible();
 
-      // 2. Siswa bergabung ke Room ID & PIN yang sama
-      await studentPage.getByRole('button', { name: 'Masuk dengan PIN' }).click();
+      // 2. Siswa membuka Meja Bersama dan bergabung ke Room ID & PIN yang sama
+      await studentPage.getByTestId('navbar-meja-bersama-btn').click();
+      await expect(studentPage.getByTestId('meja-bersama-popover')).toBeVisible();
+      await studentPage.getByTestId('meja-bersama-popover').getByRole('button', { name: 'Masuk dengan PIN' }).click();
+
       const roomIdInputStudent = studentPage.getByPlaceholder('Contoh: LAB-ALPHA');
       const pinInputStudent = studentPage.getByTestId('room-pin-input');
       await roomIdInputStudent.fill(testRoomId);
@@ -239,7 +273,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.goto('/');
 
     // 1. Fisika: masuk simulasi -> uji Alat Ukur 3D (Mistar & Busur) + Snap-to-Port + drag canvas
-    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
+    await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Fisika', exact: true }).click();
     await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
@@ -251,7 +285,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.getByTestId('toggle-3d-measure-btn').click();
     await expect(page.getByText(/Mistar:/i)).toBeVisible();
     await expect(page.getByText(/Busur:/i)).toBeVisible();
-    await page.getByTestId('snap-dock-apparatus-btn').click();
+    await cockpit3D.getByTestId('snap-dock-apparatus-btn').first().click();
 
     // Drag sedikit pada kanvas 3D Fisika
     const physCanvas = page.getByTestId('physics-simulation-canvas');
@@ -263,17 +297,15 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
       await page.mouse.up();
     }
 
-    // 2. Toggle Mode Hemat Daya 3T (Lite Mode) melalui menu Pengaturan
-    await page.getByTestId('settings-popover-trigger-btn').click();
-    const liteToggleBtn = page.getByTestId('lite-device-mode-toggle-btn');
-    await expect(liteToggleBtn).toBeVisible();
-    await liteToggleBtn.click();
-    await expect(liteToggleBtn).toContainText(/AKTIF/i);
-    await page.keyboard.press('Escape');
+    // 2. Toggle Mode Hemat Daya 3T (Lite Mode) langsung dari Floating Top Bar HUD
+    const hudLiteBtn = page.getByTestId('hud-lite-mode-toggle-btn');
+    await expect(hudLiteBtn).toBeVisible();
+    await hudLiteBtn.click();
+    await expect(hudLiteBtn).toContainText(/lite/i);
 
     // 3. Pindah ke Kimia dalam Lite 3T Mode -> uji Probe Digital 3D & Snap-to-Port
-    await page.getByRole('button', { name: 'Kembali ke Katalog Laboratorium' }).click();
-    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
+    await exitLabToLobby(page);
+    await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Kimia', exact: true }).click();
     await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
@@ -281,11 +313,11 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await expect(page.getByTestId('lab-webgl-error-fallback')).toHaveCount(0);
     await page.getByTestId('toggle-3d-probe-btn').click();
     await expect(page.getByText(/Sensor Probe 3D:/i)).toBeVisible();
-    await page.getByTestId('snap-dock-apparatus-btn').click();
+    await cockpit3D.getByTestId('snap-dock-apparatus-btn').first().click();
 
     // 4. Pindah ke Biologi -> uji Mistar 3D & kanvas tanpa error WebGL
-    await page.getByRole('button', { name: 'Kembali ke Katalog Laboratorium' }).click();
-    await page.getByRole('button', { name: /Semua 28 Modul Sains/i }).click();
+    await exitLabToLobby(page);
+    await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Biologi', exact: true }).click();
     await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();

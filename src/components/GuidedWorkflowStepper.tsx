@@ -159,7 +159,7 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
 
       {/* 2. BOTTOM SMART NEXT-STEP NAVIGATOR BAR (Fixed bottom) */}
       <footer
-        className="fixed bottom-0 inset-x-0 h-16 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 text-white px-4 z-40 flex items-center justify-between select-none shadow-lg"
+        className="fixed bottom-0 inset-x-0 h-16 bg-slate-950 border-t border-slate-800 text-white px-4 z-40 flex items-center justify-between select-none shadow-lg"
       >
         <div className="max-w-[1380px] w-full mx-auto flex items-center justify-between gap-4">
           {/* Left Context Guidance */}
@@ -245,7 +245,7 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
                 }}
                 className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md ${
                   hasEnoughData
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white ring-2 ring-emerald-500/40 animate-pulse'
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white ring-2 ring-emerald-500/40'
                     : 'bg-sky-600 hover:bg-sky-500 text-white'
                 }`}
               >

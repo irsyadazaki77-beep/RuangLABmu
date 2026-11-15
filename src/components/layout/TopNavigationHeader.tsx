@@ -1,4 +1,5 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   Atom,
   CheckCircle2,
@@ -20,6 +21,14 @@ import {
   X,
   Monitor,
   Printer,
+  Users,
+  KeyRound,
+  Plus,
+  Lock,
+  Unlock,
+  LogOut,
+  ChevronDown,
+  UserCircle2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ExperimentModule } from '../../registry/experimentRegistry';
@@ -34,6 +43,7 @@ import { useCollabStore } from '../../stores/useCollabStore';
 import { buildShareableModuleUrl } from '../../hooks/useUrlRouterSync';
 import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
 import { getDomainAccentTokens } from '../../utils/layoutFlowHelpers';
+import { MODAL_POPOVER_VARIANTS, SPRING_TACTILE } from '../../styles/motionPresets';
 import {
   GamificationProfile,
   ScientificBadge,
@@ -61,6 +71,8 @@ export interface TopNavigationHeaderProps {
   capturedSnapshots?: Lab3DSnapshot[];
   bestRSquared?: number;
   latestLksScore?: number;
+  onLeaveRoom?: () => void;
+  onToggleTeacherFreeze?: (isFrozen: boolean) => void;
 }
 
 export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
@@ -75,6 +87,8 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
   capturedSnapshots = [],
   bestRSquared = 0,
   latestLksScore = 0,
+  onLeaveRoom,
+  onToggleTeacherFreeze,
 }) => {
   const { t, i18n } = useTranslation();
   const activeLang: 'id' | 'en' = i18n.language?.startsWith('en') ? 'en' : 'id';
@@ -102,24 +116,97 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
       academicLevel: s.academicLevel,
     }))
   );
+
+  const {
+    drawerOpen,
+    toggleDrawer,
+    setDrawerTab,
+    comfortPrefs,
+    setComfortPrefs,
+    activeModal,
+    openModal,
+    closeModal,
+    setOnboardingTourOpen,
+    liteDeviceMode,
+    toggleLiteDeviceMode,
+    liteModeNotification,
+    setLiteModeNotification,
+    projectorMode,
+    toggleProjectorMode,
+    lobbySearchQuery,
+    setLobbySearchQuery,
+    teacherViewMode,
+  } = useUIStore(
+    useShallow((s) => ({
+      drawerOpen: s.drawerOpen,
+      toggleDrawer: s.toggleDrawer,
+      setDrawerTab: s.setDrawerTab,
+      comfortPrefs: s.comfortPrefs,
+      setComfortPrefs: s.setComfortPrefs,
+      activeModal: s.activeModal,
+      openModal: s.openModal,
+      closeModal: s.closeModal,
+      setOnboardingTourOpen: s.setOnboardingTourOpen,
+      liteDeviceMode: s.liteDeviceMode,
+      toggleLiteDeviceMode: s.toggleLiteDeviceMode,
+      liteModeNotification: s.liteModeNotification,
+      setLiteModeNotification: s.setLiteModeNotification,
+      projectorMode: s.projectorMode,
+      toggleProjectorMode: s.toggleProjectorMode,
+      lobbySearchQuery: s.lobbySearchQuery,
+      setLobbySearchQuery: s.setLobbySearchQuery,
+      teacherViewMode: s.teacherViewMode,
+    }))
+  );
+
+  const {
+    wsConnected,
+    activeRoomId,
+    roomPin,
+    roomMembers,
+    isFrozenByTeacher,
+    openRoomModal,
+  } = useCollabStore(
+    useShallow((s) => ({
+      wsConnected: s.wsConnected,
+      activeRoomId: s.activeRoomId,
+      roomPin: s.roomPin,
+      roomMembers: s.roomMembers,
+      isFrozenByTeacher: s.isFrozenByTeacher,
+      openRoomModal: s.openRoomModal,
+    }))
+  );
+
   const domainAccent = getDomainAccentTokens(experimentModule.domain);
   const tierShortLabel =
     academicLevel === 'smp' ? 'SMP' : academicLevel === 'mahasiswa' ? 'MHS' : 'SMA';
 
   const [isGradebookOpen, setIsGradebookOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [collabOpen, setCollabOpen] = useState(false);
   const [shareToastVisible, setShareToastVisible] = useState(false);
+  const [isConnectivityTooltipOpen, setIsConnectivityTooltipOpen] = useState(false);
+
   const prefsContainerRef = useRef<HTMLDivElement>(null);
+  const collabContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!prefsOpen) return;
+    if (!prefsOpen && !collabOpen && !isConnectivityTooltipOpen) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (prefsContainerRef.current && !prefsContainerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (prefsOpen && prefsContainerRef.current && !prefsContainerRef.current.contains(target)) {
         setPrefsOpen(false);
+      }
+      if (collabOpen && collabContainerRef.current && !collabContainerRef.current.contains(target)) {
+        setCollabOpen(false);
       }
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPrefsOpen(false);
+      if (e.key === 'Escape') {
+        setPrefsOpen(false);
+        setCollabOpen(false);
+        setIsConnectivityTooltipOpen(false);
+      }
     };
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
@@ -127,7 +214,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [prefsOpen]);
+  }, [prefsOpen, collabOpen, isConnectivityTooltipOpen]);
 
   // Gamification state & celebration modal
   const [gamificationProfile, setGamificationProfile] = useState<GamificationProfile>(() =>
@@ -150,54 +237,10 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     return unsubscribe;
   }, []);
 
-  const {
-    drawerOpen,
-    toggleDrawer,
-    setDrawerTab,
-    comfortPrefs,
-    setComfortPrefs,
-    activeModal,
-    openModal,
-    closeModal,
-    setOnboardingTourOpen,
-    liteDeviceMode,
-    toggleLiteDeviceMode,
-    liteModeNotification,
-    setLiteModeNotification,
-    projectorMode,
-    toggleProjectorMode,
-  } = useUIStore(
-    useShallow((s) => ({
-      drawerOpen: s.drawerOpen,
-      toggleDrawer: s.toggleDrawer,
-      setDrawerTab: s.setDrawerTab,
-      comfortPrefs: s.comfortPrefs,
-      setComfortPrefs: s.setComfortPrefs,
-      activeModal: s.activeModal,
-      openModal: s.openModal,
-      closeModal: s.closeModal,
-      setOnboardingTourOpen: s.setOnboardingTourOpen,
-      liteDeviceMode: s.liteDeviceMode,
-      toggleLiteDeviceMode: s.toggleLiteDeviceMode,
-      liteModeNotification: s.liteModeNotification,
-      setLiteModeNotification: s.setLiteModeNotification,
-      projectorMode: s.projectorMode,
-      toggleProjectorMode: s.toggleProjectorMode,
-    }))
-  );
-
-  const { wsConnected, activeRoomId } = useCollabStore(
-    useShallow((s) => ({
-      wsConnected: s.wsConnected,
-      activeRoomId: s.activeRoomId,
-    }))
-  );
-
-  // 3-State Connectivity Status for 3T Areas
+  // Unified 3-State Connectivity Status (Single Source of Truth)
   const [isOnline, setIsOnline] = useState<boolean>(() =>
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
-  const [isConnectivityTooltipOpen, setIsConnectivityTooltipOpen] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -222,7 +265,9 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
   const connectivityMode: 'online-cloud' | 'lan-hotspot' | 'offline-standalone' =
     wsConnected && isLocalLanHost
       ? 'lan-hotspot'
-      : wsConnected && isOnline && !isLocalLanHost
+      : isOnline && wsConnected && !isLocalLanHost
+      ? 'online-cloud'
+      : isOnline
       ? 'online-cloud'
       : 'offline-standalone';
 
@@ -255,7 +300,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     }, 2800);
   };
 
-  // Keep root HTML attributes synchronized with active comfort preferences at all times
+  // Synchronize comfort preferences onto root HTML attributes
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
@@ -285,590 +330,755 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     setAppLanguage(lang);
   };
 
-  return (
-    <header className="sticky top-0 h-14 shrink-0 flex items-center justify-between gap-1.5 sm:gap-2 px-2 sm:px-5 bg-white/85 dark:bg-slate-950/85 backdrop-blur-md border-b border-stone-200/80 dark:border-slate-800 text-slate-900 dark:text-slate-100 z-40 select-none transition-colors duration-200">
-      {/* Zone 1: Brand Identity ("RuangLABmu") & Back to Catalog */}
-      <div className="flex items-center gap-2 shrink-0 min-w-0">
-        <button
-          type="button"
-          onClick={() => {
-            labSound.playClick();
-            setIsLobbyMode(true);
-          }}
-          aria-label="Kembali ke RuangLABmu Lobby"
-          className="flex items-center gap-2 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
-        >
-          <span className="w-8 h-8 rounded-xl bg-sky-600 flex items-center justify-center shadow-xs shrink-0">
-            <Atom className="w-4 h-4 text-white" />
-          </span>
-          <span className={`font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white whitespace-nowrap ${!isLobbyMode ? 'hidden sm:inline' : ''}`}>
-            RuangLABmu
-          </span>
-          {isLobbyMode && (
-            <span className="hidden xl:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 whitespace-nowrap">
-              {t('nav.virtualScienceLab')}
-            </span>
-          )}
-        </button>
+  const isFullBleedActiveLab =
+    !isLobbyMode &&
+    ((userRole === 'siswa' && workflowStep === 2) ||
+      (userRole === 'pengajar' && teacherViewMode === 'lab3d'));
 
-        {!isLobbyMode && userRole === 'siswa' && (
-          <>
+  const memberCount = Object.keys(roomMembers).length;
+  const activeProfile = studentProfiles[selectedProfileIdx] ?? studentProfiles[0];
+
+  return (
+    <>
+      {!isFullBleedActiveLab && (
+        <header className="sticky top-0 h-14 shrink-0 flex items-center justify-between gap-2 px-3 sm:px-5 bg-white/95 dark:bg-slate-950/95 border-b border-stone-200/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 z-40 select-none transition-colors duration-200">
+          {/* 1. Brand Identity + Compact Context */}
+          <div className="flex items-center gap-2 shrink-0 min-w-0">
             <button
               type="button"
               onClick={() => {
                 labSound.playClick();
                 setIsLobbyMode(true);
               }}
-              aria-label="Kembali ke Katalog Laboratorium"
-              className="text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-sky-600 dark:hover:text-white bg-stone-100 dark:bg-slate-900 border border-stone-200 dark:border-slate-800 hover:border-stone-300 dark:hover:border-slate-700 px-2 sm:px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0"
+              aria-label="Kembali ke RuangLABmu Lobby"
+              className="flex items-center gap-2 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
             >
-              <span>{t('nav.backToCatalog')}</span>
+              <span className="w-8 h-8 rounded-xl bg-sky-600 flex items-center justify-center shadow-xs shrink-0">
+                <Atom className="w-4 h-4 text-white" />
+              </span>
+              <span className="font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white whitespace-nowrap">
+                RuangLABmu
+              </span>
             </button>
-            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px] xl:max-w-[250px] pl-2 border-l border-stone-200 dark:border-slate-800">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${domainAccent.dotClass}`} />
-              <span
-                className="font-semibold text-slate-800 dark:text-slate-200 truncate"
-                title={`${experimentModule.domain} · ${experimentModule.title}`}
-              >
-                {experimentModule.title}
-              </span>
-              <span className="hidden xl:inline-flex px-1.5 py-0.2 rounded font-mono text-[10px] font-bold bg-stone-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-stone-200 dark:border-slate-700 shrink-0">
-                {tierShortLabel}
-              </span>
-            </div>
-          </>
-        )}
-      </div>
 
-      {/* Zone 2: 4-Step Workflow Stepper (Center when inside Lab Workspace) */}
-      <div className="hidden md:flex items-center justify-center shrink-0">
-        {userRole === 'siswa' && !isLobbyMode && (
-          <StudentWorkflowStepper
-            workflowStep={workflowStep}
-            setWorkflowStep={setWorkflowStep}
-            recordsCount={recordsCount}
-            lksGraded={lksGraded}
-          />
-        )}
-      </div>
+            {!isLobbyMode && userRole === 'siswa' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setIsLobbyMode(true);
+                  }}
+                  aria-label="Kembali ke Katalog Laboratorium"
+                  className="text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-sky-600 dark:hover:text-white bg-stone-100 dark:bg-slate-900 border border-stone-200 dark:border-slate-800 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0"
+                >
+                  <span>{t('nav.backToCatalog')}</span>
+                </button>
+                <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[200px] pl-2 border-l border-stone-200 dark:border-slate-800">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${domainAccent.dotClass}`} />
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                    {experimentModule.title}
+                  </span>
+                  <span className="px-1.5 py-0.2 rounded font-mono text-[10px] font-bold bg-stone-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-stone-200 dark:border-slate-700 shrink-0">
+                    {tierShortLabel}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
 
-      {/* Zone 3: Consolidated Minimalist Utilities (Strictly 4 Clean Groups: Connection Pill, Profile Pill, Settings Popover, Dr. LabMu) */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 relative">
-        {/* GRUP 1: Pill Status Koneksi Ringkas (3-State Connectivity Badge) */}
-        <div className="relative">
-          <button
-            type="button"
-            data-testid="tri-state-connectivity-badge"
-            onClick={() => {
-              labSound.playClick();
-              setIsConnectivityTooltipOpen((prev) => !prev);
-            }}
-            aria-expanded={isConnectivityTooltipOpen}
-            aria-label={`Status Konektivitas: ${
-              connectivityMode === 'online-cloud'
-                ? 'Online Cloud'
-                : connectivityMode === 'lan-hotspot'
-                ? 'LAN Kelas (Tanpa Kuota)'
-                : 'Mode Luring Mandiri'
-            }`}
-            title="Klik untuk detail koneksi & status penyimpanan data"
-            className={`px-2 sm:px-2.5 py-1 flex items-center gap-1 sm:gap-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all whitespace-nowrap shrink-0 shadow-2xs ${
-              connectivityMode === 'online-cloud'
-                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/35 hover:bg-emerald-500/20'
-                : connectivityMode === 'lan-hotspot'
-                ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/35 hover:bg-sky-500/20'
-                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/35 hover:bg-amber-500/20'
-            }`}
-          >
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${
-                connectivityMode === 'online-cloud'
-                  ? 'bg-emerald-500 animate-pulse'
-                  : connectivityMode === 'lan-hotspot'
-                  ? 'bg-sky-500 animate-pulse'
-                  : 'bg-amber-500'
-              }`}
-            />
-            <span className="font-bold">
-              {connectivityMode === 'online-cloud' ? (
-                'Online'
-              ) : connectivityMode === 'lan-hotspot' ? (
-                <>
-                  <span className="sm:hidden">LAN</span>
-                  <span className="hidden sm:inline">LAN Kelas</span>
-                </>
-              ) : (
-                'Luring'
-              )}
-            </span>
-          </button>
-
-          {/* Tooltip Dialog Ringkas Status Penyimpanan Data Siswa */}
-          {isConnectivityTooltipOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setIsConnectivityTooltipOpen(false)}
-              />
-              <div
-                data-testid="connectivity-status-tooltip"
-                className="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-2xl p-4 z-50 text-xs space-y-3 animate-fade-in"
-              >
-                <div className="flex items-start justify-between gap-2 border-b border-stone-200/80 dark:border-slate-800 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
-                        connectivityMode === 'online-cloud'
-                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                          : connectivityMode === 'lan-hotspot'
-                          ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400'
-                          : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
-                      }`}
-                    >
-                      {connectivityMode === 'online-cloud' && <Globe className="w-4 h-4" />}
-                      {connectivityMode === 'lan-hotspot' && <Wifi className="w-4 h-4" />}
-                      {connectivityMode === 'offline-standalone' && <HardDrive className="w-4 h-4" />}
-                    </div>
-                    <div>
-                      <div className="font-bold text-slate-900 dark:text-white text-xs">
-                        {connectivityMode === 'online-cloud'
-                          ? '🟢 Mode Online Cloud'
-                          : connectivityMode === 'lan-hotspot'
-                          ? '🔵 Mode LAN Kelas (Tanpa Kuota)'
-                          : '🟠 Mode Luring Mandiri'}
-                      </div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                        Host: {hostname || 'localhost'}
-                      </div>
-                    </div>
-                  </div>
+          {/* 2. Center: Search Bar (Lobby) or Workflow Stepper (Stages 1/3/4) */}
+          <div className="flex-1 flex items-center justify-center min-w-0 max-w-md mx-2">
+            {isLobbyMode ? (
+              <div className="relative w-full">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={lobbySearchQuery}
+                  onChange={(e) => setLobbySearchQuery(e.target.value)}
+                  placeholder="Cari modul atau rumus..."
+                  aria-label="Cari modul atau rumus..."
+                  className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl bg-stone-100/90 dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-sky-500 transition-colors"
+                />
+                {lobbySearchQuery && (
                   <button
                     type="button"
-                    onClick={() => setIsConnectivityTooltipOpen(false)}
-                    aria-label="Tutup Detail Konektivitas"
-                    className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                    onClick={() => setLobbySearchQuery('')}
+                    aria-label="Hapus kata kunci pencarian"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-3 h-3" />
                   </button>
-                </div>
-
-                <div className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
-                  {connectivityMode === 'online-cloud' && (
-                    <p>
-                      Terhubung ke server cloud RuangLABmu dengan internet aktif. Data percobaan, telemetri, dan progres tersinkronisasi otomatis.
-                    </p>
-                  )}
-                  {connectivityMode === 'lan-hotspot' && (
-                    <p>
-                      Terhubung langsung ke server laptop Guru via Hotspot Wi-Fi lokal kelas tanpa mengonsumsi kuota internet. Nilai dan data pengamatan Anda langsung diterima buku nilai guru!
-                    </p>
-                  )}
-                  {connectivityMode === 'offline-standalone' && (
-                    <p>
-                      Berjalan 100% di memori lokal perangkat (PWA + Offline Dr. LabMu). Data observasi, regresi, dan kuis Anda tersimpan aman secara luring tanpa memerlukan sinyal internet.
-                    </p>
-                  )}
-                </div>
-
-                {/* Status Penyimpanan Data Siswa */}
-                <div className="p-2.5 rounded-xl bg-stone-100 dark:bg-slate-950 border border-stone-200/90 dark:border-slate-800 space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Status Penyimpanan Data:
-                  </div>
-                  <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">
-                    {connectivityMode === 'online-cloud'
-                      ? '✓ Database Cloud + Cache PWA Lokal'
-                      : connectivityMode === 'lan-hotspot'
-                      ? '✓ Buku Nilai Laptop Guru (LAN) + Backup Lokal'
-                      : '✓ Memori Lokal (IndexedDB & LocalStorage)'}
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {connectivityMode === 'offline-standalone'
-                      ? 'Tip 3T: Anda dapat mengunduh berkas (.rlab) di lembar kerja untuk dikumpulkan ke guru lewat Bluetooth atau flashdisk.'
-                      : 'Data aman dari risiko kehilangan koneksi sewaktu-waktu.'}
-                  </p>
-                </div>
+                )}
               </div>
-            </>
-          )}
-        </div>
+            ) : (
+              userRole === 'siswa' && (
+                <div className="hidden md:flex items-center justify-center">
+                  <StudentWorkflowStepper
+                    workflowStep={workflowStep}
+                    setWorkflowStep={setWorkflowStep}
+                    recordsCount={recordsCount}
+                    lksGraded={lksGraded}
+                  />
+                </div>
+              )
+            )}
+          </div>
 
-        {/* GRUP 2: Pill Profil & Peran (Lv.X · Siswa/Guru + Akses Portofolio/Gradebook) */}
-        <button
-          type="button"
-          data-testid="open-portfolio-btn"
-          onClick={() => {
-            labSound.playClick();
-            if (userRole === 'pengajar') {
-              setIsGradebookOpen(true);
-              openModal('gradebook');
-            } else {
-              openModal('portfolio');
-            }
-          }}
-          aria-label={`Profil ${userRole === 'pengajar' ? 'Guru' : 'Siswa'} Level ${gamificationProfile.level}`}
-          title={
-            userRole === 'pengajar'
-              ? 'Buka Buku Nilai & Rekap Laporan Guru'
-              : 'Buka Portofolio Sains, Radar Kompetensi STEM & Koleksi Lencana'
-          }
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
-        >
-          {userRole === 'pengajar' ? (
-            <GraduationCap className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          ) : (
-            <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-          )}
-          <span className="font-mono text-[11px] font-bold tabular-nums">
-            Lv.{gamificationProfile.level}
-          </span>
-          <span className="hidden sm:inline text-slate-400 dark:text-slate-500">·</span>
-          <span className="hidden sm:inline font-bold">
-            {userRole === 'pengajar' ? 'Guru' : 'Siswa'}
-          </span>
-        </button>
-
-        {/* GRUP 3: Unified Popover Menu "⚙️ Pengaturan & Alat" (SettingsPopover) */}
-        <div ref={prefsContainerRef} className="relative">
-          <button
-            type="button"
-            data-testid="settings-popover-trigger-btn"
-            onClick={() => {
-              labSound.playClick();
-              setPrefsOpen((prev) => !prev);
-            }}
-            aria-expanded={prefsOpen}
-            aria-label="Pengaturan & Alat"
-            title="⚙️ Pengaturan & Alat (Tema, Bahasa, Hemat Daya, Salin Link, Command Palette, Tur UI)"
-            className={`p-1.5 sm:px-2 sm:py-1 flex items-center gap-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
-              prefsOpen
-                ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
-                : 'bg-stone-100 dark:bg-slate-900 border-stone-200/80 dark:border-slate-800 hover:border-sky-500/50 text-slate-700 dark:text-slate-300'
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span className="hidden md:inline text-[11px]">⚙️</span>
-          </button>
-
-          {prefsOpen && (
-            <>
-              <div
-                data-testid="settings-popover-menu"
-                className="absolute right-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-2xl p-3.5 space-y-3 z-50 text-xs animate-fade-in"
+          {/* 3. Right Utilities: 1 Unified Connection Pill + 1 Meja Bersama Button + 1 Dr. LabMu/Profile Dropdown */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 relative">
+            {/* A. Unified Connection Status Pill (Single Source of Truth) */}
+            <div className="relative">
+              <button
+                type="button"
+                data-testid="tri-state-connectivity-badge"
+                onClick={() => {
+                  labSound.playClick();
+                  setIsConnectivityTooltipOpen((prev) => !prev);
+                }}
+                aria-expanded={isConnectivityTooltipOpen}
+                aria-label={`Status Konektivitas: ${
+                  connectivityMode === 'online-cloud'
+                    ? 'Online'
+                    : connectivityMode === 'lan-hotspot'
+                    ? 'LAN Kelas'
+                    : 'Luring'
+                }`}
+                className={`px-2.5 py-1 flex items-center gap-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
+                  connectivityMode === 'online-cloud'
+                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/35 hover:bg-emerald-500/20'
+                    : connectivityMode === 'lan-hotspot'
+                    ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/35 hover:bg-sky-500/20'
+                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/35 hover:bg-amber-500/20'
+                }`}
               >
-                {/* 1. Pemilih Tema */}
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Tema Tampilan
-                  </span>
-                  <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800">
-                    {(
-                      [
-                        { id: 'light' as ComfortThemeMode, label: t('nav.themeLight'), Icon: Sun },
-                        { id: 'sepia' as ComfortThemeMode, label: t('nav.themeSepia'), Icon: BookOpen },
-                        { id: 'dark' as ComfortThemeMode, label: t('nav.themeDark'), Icon: Moon },
-                      ] as const
-                    ).map(({ id, label, Icon }) => {
-                      const active = comfortPrefs.theme === id;
-                      return (
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${
+                    connectivityMode === 'online-cloud'
+                      ? 'bg-emerald-500'
+                      : connectivityMode === 'lan-hotspot'
+                      ? 'bg-sky-500'
+                      : 'bg-amber-500'
+                  }`}
+                />
+                <span className="font-bold">
+                  {connectivityMode === 'online-cloud'
+                    ? 'Online'
+                    : connectivityMode === 'lan-hotspot'
+                    ? 'LAN Kelas'
+                    : 'Luring'}
+                </span>
+              </button>
+
+              <AnimatePresence>
+                {isConnectivityTooltipOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsConnectivityTooltipOpen(false)}
+                    />
+                    <motion.div
+                      variants={MODAL_POPOVER_VARIANTS}
+                      initial="hidden"
+                      animate="visible"
+                      exit="exit"
+                      data-testid="connectivity-status-tooltip"
+                      className="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-2xl p-4 z-50 text-xs space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-2 border-b border-stone-200/80 dark:border-slate-800 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
+                              connectivityMode === 'online-cloud'
+                                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                : connectivityMode === 'lan-hotspot'
+                                ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400'
+                                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                            }`}
+                          >
+                            {connectivityMode === 'online-cloud' && <Globe className="w-4 h-4" />}
+                            {connectivityMode === 'lan-hotspot' && <Wifi className="w-4 h-4" />}
+                            {connectivityMode === 'offline-standalone' && <HardDrive className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900 dark:text-white text-xs">
+                              {connectivityMode === 'online-cloud'
+                                ? 'Mode Online 3T Siap'
+                                : connectivityMode === 'lan-hotspot'
+                                ? 'Mode LAN Kelas (Tanpa Kuota)'
+                                : 'Mode Luring Mandiri'}
+                            </div>
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                              Host: {hostname || 'localhost'} · {wsConnected ? 'Sync Aktif' : 'Cache Lokal'}
+                            </div>
+                          </div>
+                        </div>
                         <button
-                          key={id}
                           type="button"
-                          onClick={() => handleThemeSwitch(id)}
-                          className={`py-1.5 px-1 rounded-lg font-semibold flex items-center justify-center gap-1 cursor-pointer transition-colors ${
-                            active
-                              ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          onClick={() => setIsConnectivityTooltipOpen(false)}
+                          aria-label="Tutup Detail Konektivitas"
+                          className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                        {connectivityMode === 'lan-hotspot'
+                          ? 'Terhubung ke server laptop Guru via Wi-Fi lokal kelas tanpa kuota internet. Data & nilai tersinkron ke Buku Nilai Guru.'
+                          : connectivityMode === 'online-cloud'
+                          ? 'Koneksi jaringan aktif. Modul simulasi tetap dicache otomatis di perangkat (PWA) untuk ketahanan sinyal 3T.'
+                          : 'Berjalan 100% di memori lokal perangkat (PWA + Offline Dr. LabMu). Seluruh data pengamatan dan LKS aman tersimpan lokal.'}
+                      </p>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* B. Single Meja Bersama Button + Popover */}
+            <div ref={collabContainerRef} className="relative">
+              <button
+                type="button"
+                data-testid="navbar-meja-bersama-btn"
+                onClick={() => {
+                  labSound.playClick();
+                  setPrefsOpen(false);
+                  setCollabOpen((prev) => !prev);
+                }}
+                aria-expanded={collabOpen}
+                className={`px-2.5 py-1 flex items-center gap-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
+                  activeRoomId
+                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                    : collabOpen
+                    ? 'bg-sky-600 text-white border-sky-600'
+                    : 'bg-stone-100 dark:bg-slate-900 border-stone-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-sky-500/50'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">
+                  {activeRoomId ? `Room: ${activeRoomId}` : 'Meja Bersama'}
+                </span>
+                {activeRoomId && (
+                  <span className="px-1 py-0.2 rounded bg-emerald-500/20 font-mono text-[10px] font-bold tabular-nums">
+                    {memberCount}
+                  </span>
+                )}
+                <ChevronDown className="w-3 h-3 opacity-75" />
+              </button>
+
+              <AnimatePresence>
+                {collabOpen && (
+                  <motion.div
+                    variants={MODAL_POPOVER_VARIANTS}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    data-testid="meja-bersama-popover"
+                    className="absolute right-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-2xl p-3.5 space-y-3 z-50 text-xs"
+                  >
+                    <div className="flex items-center justify-between border-b border-stone-200/80 dark:border-slate-800 pb-2">
+                      <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
+                        <Users className="w-4 h-4 text-sky-500" />
+                        <span>Meja Bersama (Kolaborasi)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCollabOpen(false)}
+                        aria-label="Tutup Popover Meja Bersama"
+                        className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {activeRoomId ? (
+                      <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+                        <div className="flex items-center justify-between font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                          <span>Room: {activeRoomId}</span>
+                          <span>{memberCount} Peserta</span>
+                        </div>
+                        {roomPin && (
+                          <div className="text-[11px] font-mono text-slate-600 dark:text-slate-300">
+                            PIN Meja: <strong>{roomPin}</strong>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5 pt-1">
+                          {userRole === 'pengajar' && onToggleTeacherFreeze && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                labSound.playClick(540);
+                                onToggleTeacherFreeze(!isFrozenByTeacher);
+                              }}
+                              className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer ${
+                                isFrozenByTeacher
+                                  ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                              }`}
+                            >
+                              {isFrozenByTeacher ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                              <span>{isFrozenByTeacher ? 'Buka Kunci' : 'Kunci Layar'}</span>
+                            </button>
+                          )}
+                          {onLeaveRoom && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                labSound.playClick();
+                                onLeaveRoom();
+                                setCollabOpen(false);
+                              }}
+                              className="py-1.5 px-2.5 rounded-lg border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 hover:text-rose-600 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                            >
+                              <LogOut className="w-3 h-3" />
+                              <span>Keluar</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Gabung meja praktikum kelompok dengan PIN atau buat ruangan baru via Internet maupun Hotspot LAN kelas.
+                      </p>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          labSound.playClick();
+                          setCollabOpen(false);
+                          openRoomModal('join');
+                        }}
+                        className="py-2 px-2.5 rounded-xl border border-stone-300 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 hover:bg-stone-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <KeyRound className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                        <span>Masuk dengan PIN</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          labSound.playClick();
+                          setCollabOpen(false);
+                          openRoomModal('create');
+                        }}
+                        className="py-2 px-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5 shrink-0" />
+                        <span>+ Buat Room</span>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* C. Unified Dr. LabMu / User Profile & Settings Dropdown */}
+            <div ref={prefsContainerRef} className="relative">
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.97 }}
+                transition={SPRING_TACTILE}
+                data-testid="settings-popover-trigger-btn"
+                onClick={() => {
+                  labSound.playClick();
+                  setCollabOpen(false);
+                  setPrefsOpen((prev) => !prev);
+                }}
+                aria-expanded={prefsOpen}
+                aria-label="Dr. LabMu, Profil & Pengaturan"
+                className={`relative px-2.5 py-1 flex items-center gap-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
+                  prefsOpen
+                    ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                    : 'bg-white dark:bg-slate-900 border-stone-200/90 dark:border-slate-800 hover:border-sky-500/50 text-slate-800 dark:text-slate-200'
+                }`}
+              >
+                {userRole === 'pengajar' ? (
+                  <GraduationCap
+                    className={`w-3.5 h-3.5 shrink-0 ${prefsOpen ? 'text-white' : 'text-emerald-500'}`}
+                  />
+                ) : (
+                  <UserCircle2
+                    className={`w-3.5 h-3.5 shrink-0 ${prefsOpen ? 'text-white' : 'text-sky-500'}`}
+                  />
+                )}
+                <span className="hidden sm:inline font-bold">
+                  {userRole === 'pengajar' ? 'Guru' : activeProfile?.name?.split(' ')[0] || 'Siswa'}
+                </span>
+                <span
+                  className={`font-mono text-[10px] font-bold px-1.5 py-0.2 rounded tabular-nums ${
+                    prefsOpen
+                      ? 'bg-white/20 text-white'
+                      : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                  }`}
+                >
+                  Lv.{gamificationProfile.level}
+                </span>
+                <SlidersHorizontal className="w-3 h-3 opacity-75 shrink-0" />
+                {hasLowR2Alert && (
+                  <span
+                    className="w-2 h-2 rounded-full bg-amber-400 absolute -top-0.5 -right-0.5"
+                    title="Deviasi Data Terdeteksi!"
+                  />
+                )}
+              </motion.button>
+
+              <AnimatePresence>
+                {prefsOpen && (
+                  <motion.div
+                    variants={MODAL_POPOVER_VARIANTS}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    data-testid="settings-popover-menu"
+                    className="absolute right-0 mt-2 w-80 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-2xl p-3.5 space-y-3 z-50 text-xs max-h-[82vh] overflow-y-auto"
+                  >
+                    {/* Profile + Quick Actions: Dr. LabMu & Portfolio/Gradebook */}
+                    <div className="space-y-2 pb-2.5 border-b border-stone-200/80 dark:border-slate-800">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 dark:text-white truncate">
+                            {activeProfile?.name || 'Alya Pratama'}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {activeProfile?.group || 'Kelompok 1'} · Level {gamificationProfile.level} ({gamificationProfile.xp} XP)
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          data-testid="open-portfolio-btn"
+                          onClick={() => {
+                            labSound.playClick();
+                            setPrefsOpen(false);
+                            if (userRole === 'pengajar') {
+                              setIsGradebookOpen(true);
+                              openModal('gradebook');
+                            } else {
+                              openModal('portfolio');
+                            }
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer shrink-0"
+                        >
+                          <Trophy className="w-3.5 h-3.5" />
+                          <span>{userRole === 'pengajar' ? 'Buku Nilai' : 'Portofolio'}</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          data-onboarding="dr-labmu-trigger"
+                          onClick={() => {
+                            labSound.playClick();
+                            setPrefsOpen(false);
+                            if (drawerOpen) toggleDrawer();
+                            else setDrawerTab('ai');
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-700 dark:text-sky-300 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>Asisten Dr. LabMu</span>
+                          {notificationsCount > 0 && (
+                            <span className="font-mono text-[10px] opacity-80">({notificationsCount})</span>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          data-testid="lobby-teacher-gradebook-toggle-btn"
+                          onClick={() => {
+                            labSound.playClick();
+                            const nextRole = userRole === 'pengajar' ? 'siswa' : 'pengajar';
+                            setUserRole(nextRole);
+                            if (nextRole === 'pengajar') {
+                              setIsGradebookOpen(true);
+                              openModal('gradebook');
+                              setPrefsOpen(false);
+                            }
+                          }}
+                          className={`px-2.5 py-1.5 rounded-xl border font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer ${
+                            userRole === 'pengajar'
+                              ? 'bg-emerald-600 text-white border-emerald-500'
+                              : 'bg-stone-100 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-sky-500'
                           }`}
                         >
-                          <Icon className="w-3 h-3 text-amber-500 dark:text-sky-400 shrink-0" />
-                          <span>{label}</span>
+                          <GraduationCap className="w-3.5 h-3.5" />
+                          <span>{userRole === 'pengajar' ? 'Buku Nilai Aktif' : 'Mode Guru'}</span>
                         </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 2. Saklar Bahasa & Mode Pengguna */}
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-stone-200/80 dark:border-slate-800">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Bahasa
-                    </span>
-                    <div className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 font-mono font-bold">
-                      <button
-                        type="button"
-                        onClick={() => handleLanguageSwitch('id')}
-                        className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
-                          activeLang === 'id'
-                            ? 'bg-sky-600 text-white'
-                            : 'text-slate-500 dark:text-slate-400'
-                        }`}
-                      >
-                        ID
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleLanguageSwitch('en')}
-                        className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
-                          activeLang === 'en'
-                            ? 'bg-sky-600 text-white'
-                            : 'text-slate-500 dark:text-slate-400'
-                        }`}
-                      >
-                        EN
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Peran
-                    </span>
-                    <div className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 font-semibold text-[11px]">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          labSound.playClick();
-                          setUserRole('siswa');
-                        }}
-                        className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
-                          userRole === 'siswa'
-                            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                            : 'text-slate-500 dark:text-slate-400'
-                        }`}
-                      >
-                        Siswa
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          labSound.playClick();
-                          setUserRole('pengajar');
-                        }}
-                        className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
-                          userRole === 'pengajar'
-                            ? 'bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-300 shadow-xs'
-                            : 'text-slate-500 dark:text-slate-400'
-                        }`}
-                      >
-                        Guru
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. Toggles: Mode Proyektor Kelas & Mode Hemat Daya 3T */}
-                <div className="pt-2 border-t border-stone-200/80 dark:border-slate-800 space-y-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Mode Visual Ruang Kelas 3T
-                  </span>
-
-                  {/* Toggle Mode Proyektor Kelas */}
-                  <button
-                    type="button"
-                    data-testid="projector-mode-toggle-btn"
-                    onClick={() => {
-                      labSound.playClick(projectorMode ? 480 : 720);
-                      toggleProjectorMode();
-                    }}
-                    title="Perbesar angka telemetri & indikator 1.5x dengan kontras tinggi untuk tayangan layar proyektor kelas"
-                    className={`w-full px-2.5 py-1.5 flex items-center justify-between rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
-                      projectorMode
-                        ? 'bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/70 shadow-xs ring-1 ring-amber-400/40'
-                        : 'bg-stone-100 dark:bg-slate-950 border-stone-200/80 dark:border-slate-800 hover:border-amber-500/40 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Monitor
-                        className={`w-4 h-4 ${
-                          projectorMode ? 'text-amber-500' : 'text-slate-400'
-                        }`}
-                      />
-                      <span>📽️ Mode Proyektor Kelas (1.5x)</span>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        projectorMode
-                          ? 'bg-amber-500 text-slate-950'
-                          : 'bg-stone-200 dark:bg-slate-800 text-slate-500'
-                      }`}
-                    >
-                      {projectorMode ? 'AKTIF' : 'NONAKTIF'}
-                    </span>
-                  </button>
-
-                  {/* Toggle Mode Hemat Daya 3T */}
-                  <button
-                    type="button"
-                    data-testid="lite-device-mode-toggle-btn"
-                    onClick={() => {
-                      labSound.playClick(liteDeviceMode ? 440 : 660);
-                      toggleLiteDeviceMode();
-                    }}
-                    className={`w-full px-2.5 py-1.5 flex items-center justify-between rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
-                      liteDeviceMode
-                        ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40'
-                        : 'bg-stone-100 dark:bg-slate-950 border-stone-200/80 dark:border-slate-800 hover:border-amber-500/40 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Zap
-                        className={`w-4 h-4 ${
-                          liteDeviceMode ? 'text-amber-500 fill-amber-500' : 'text-slate-400'
-                        }`}
-                      />
-                      <span>Mode Hemat Daya 3T (30 FPS)</span>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        liteDeviceMode
-                          ? 'bg-amber-500 text-slate-950'
-                          : 'bg-stone-200 dark:bg-slate-800 text-slate-500'
-                      }`}
-                    >
-                      {liteDeviceMode ? 'AKTIF' : 'NONAKTIF'}
-                    </span>
-                  </button>
-                </div>
-
-                {/* 4. Alat Praktikum: Cetak LKS Kosong, Salin Link, Command Palette & Tur Panduan */}
-                <div className="space-y-1.5 pt-2 border-t border-stone-200/80 dark:border-slate-800">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Alat Praktikum
-                  </span>
-                  <div className="grid grid-cols-1 gap-1 font-medium">
-                    <button
-                      type="button"
-                      data-testid="header-print-blank-worksheet-btn"
-                      onClick={() => {
-                        labSound.playClick();
-                        setPrefsOpen(false);
-                        void import('../../utils/academicReportExporter').then((m) =>
-                          m.printBlankStudentWorksheet(experimentModule, 'SMA')
-                        );
-                      }}
-                      title="Cetak format LKS kosong hemat tinta untuk difotokopi bagi siswa kelas"
-                      className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-800 dark:text-sky-200 text-xs font-semibold cursor-pointer transition-colors"
-                    >
-                      <Printer className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-                      <span>🖨️ Cetak LKS Kosong (Fotokopi Kelas)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      data-testid="share-module-link-btn"
-                      onClick={() => {
-                        void handleShareModuleLink();
-                        setPrefsOpen(false);
-                      }}
-                      className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs cursor-pointer transition-colors"
-                    >
-                      <Link2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-                      <span>Salin Link Modul Praktikum</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        labSound.playClick();
-                        setPrefsOpen(false);
-                        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
-                      }}
-                      className="w-full px-2.5 py-1.5 flex items-center justify-between rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span>Pencarian Cepat (Command Palette)</span>
                       </div>
-                      <span className="font-mono text-[10px] text-slate-400">Ctrl+K</span>
-                    </button>
+                    </div>
 
-                    <button
-                      type="button"
-                      data-testid="open-onboarding-tour-btn"
-                      onClick={() => {
-                        labSound.playClick();
-                        setPrefsOpen(false);
-                        setOnboardingTourOpen(true);
-                      }}
-                      className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs cursor-pointer transition-colors"
-                    >
-                      <HelpCircle className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-                      <span>Tur Panduan UI Interaktif</span>
-                    </button>
+                    {/* Theme Selector */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Tema Tampilan
+                      </span>
+                      <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800">
+                        {(
+                          [
+                            { id: 'light' as ComfortThemeMode, label: t('nav.themeLight'), Icon: Sun },
+                            { id: 'sepia' as ComfortThemeMode, label: t('nav.themeSepia'), Icon: BookOpen },
+                            { id: 'dark' as ComfortThemeMode, label: t('nav.themeDark'), Icon: Moon },
+                          ] as const
+                        ).map(({ id, label, Icon }) => {
+                          const active = comfortPrefs.theme === id;
+                          return (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => handleThemeSwitch(id)}
+                              className={`py-1.5 px-1 rounded-lg font-semibold flex items-center justify-center gap-1 cursor-pointer transition-colors ${
+                                active
+                                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                              }`}
+                            >
+                              <Icon className="w-3 h-3 text-amber-500 dark:text-sky-400 shrink-0" />
+                              <span>{label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                    {userRole === 'pengajar' && (
+                    {/* Language & Role */}
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-stone-200/80 dark:border-slate-800">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Bahasa
+                        </span>
+                        <div className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 font-mono font-bold">
+                          <button
+                            type="button"
+                            onClick={() => handleLanguageSwitch('id')}
+                            className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
+                              activeLang === 'id'
+                                ? 'bg-sky-600 text-white'
+                                : 'text-slate-500 dark:text-slate-400'
+                            }`}
+                          >
+                            ID
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleLanguageSwitch('en')}
+                            className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
+                              activeLang === 'en'
+                                ? 'bg-sky-600 text-white'
+                                : 'text-slate-500 dark:text-slate-400'
+                            }`}
+                          >
+                            EN
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Peran
+                        </span>
+                        <div className="flex items-center p-0.5 rounded-lg bg-stone-100 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 font-semibold text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              labSound.playClick();
+                              setUserRole('siswa');
+                            }}
+                            className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
+                              userRole === 'siswa'
+                                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                                : 'text-slate-500 dark:text-slate-400'
+                            }`}
+                          >
+                            Siswa
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              labSound.playClick();
+                              setUserRole('pengajar');
+                            }}
+                            className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
+                              userRole === 'pengajar'
+                                ? 'bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-300 shadow-xs'
+                                : 'text-slate-500 dark:text-slate-400'
+                            }`}
+                          >
+                            Guru
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3T Visual Classroom Modes */}
+                    <div className="pt-2 border-t border-stone-200/80 dark:border-slate-800 space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Mode Visual Ruang Kelas 3T
+                      </span>
+
+                      <button
+                        type="button"
+                        data-testid="projector-mode-toggle-btn"
+                        onClick={() => {
+                          labSound.playClick(projectorMode ? 480 : 720);
+                          toggleProjectorMode();
+                        }}
+                        className={`w-full px-2.5 py-1.5 flex items-center justify-between rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                          projectorMode
+                            ? 'bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/70'
+                            : 'bg-stone-100 dark:bg-slate-950 border-stone-200/80 dark:border-slate-800 hover:border-amber-500/40 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Monitor className={`w-4 h-4 ${projectorMode ? 'text-amber-500' : 'text-slate-400'}`} />
+                          <span>Mode Proyektor Kelas (1.5x)</span>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            projectorMode
+                              ? 'bg-amber-500 text-slate-950'
+                              : 'bg-stone-200 dark:bg-slate-800 text-slate-500'
+                          }`}
+                        >
+                          {projectorMode ? 'AKTIF' : 'NONAKTIF'}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        data-testid="lite-device-mode-toggle-btn"
+                        onClick={() => {
+                          labSound.playClick(liteDeviceMode ? 440 : 660);
+                          toggleLiteDeviceMode();
+                        }}
+                        className={`w-full px-2.5 py-1.5 flex items-center justify-between rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                          liteDeviceMode
+                            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40'
+                            : 'bg-stone-100 dark:bg-slate-950 border-stone-200/80 dark:border-slate-800 hover:border-amber-500/40 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Zap
+                            className={`w-4 h-4 ${
+                              liteDeviceMode ? 'text-amber-500 fill-amber-500' : 'text-slate-400'
+                            }`}
+                          />
+                          <span>Mode Hemat Daya 3T (30 FPS)</span>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            liteDeviceMode
+                              ? 'bg-amber-500 text-slate-950'
+                              : 'bg-stone-200 dark:bg-slate-800 text-slate-500'
+                          }`}
+                        >
+                          {liteDeviceMode ? 'AKTIF' : 'NONAKTIF'}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Lab Tools */}
+                    <div className="space-y-1 pt-2 border-t border-stone-200/80 dark:border-slate-800">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Alat Praktikum
+                      </span>
+                      <button
+                        type="button"
+                        data-testid="header-print-blank-worksheet-btn"
+                        onClick={() => {
+                          labSound.playClick();
+                          setPrefsOpen(false);
+                          void import('../../utils/academicReportExporter').then((m) =>
+                            m.printBlankStudentWorksheet(experimentModule, 'SMA')
+                          );
+                        }}
+                        className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-800 dark:text-sky-200 text-xs font-semibold cursor-pointer transition-colors"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                        <span>Cetak LKS Kosong (Fotokopi Kelas)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        data-testid="share-module-link-btn"
+                        onClick={() => {
+                          void handleShareModuleLink();
+                          setPrefsOpen(false);
+                        }}
+                        className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs cursor-pointer transition-colors"
+                      >
+                        <Link2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                        <span>Salin Link Modul Praktikum</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          labSound.playClick();
+                          setPrefsOpen(false);
+                          window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+                        }}
+                        className="w-full px-2.5 py-1.5 flex items-center justify-between rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>Pencarian Cepat (Command Palette)</span>
+                        </div>
+                        <span className="font-mono text-[10px] text-slate-400">Ctrl+K</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        data-testid="open-onboarding-tour-btn"
+                        onClick={() => {
+                          labSound.playClick();
+                          setPrefsOpen(false);
+                          setOnboardingTourOpen(true);
+                        }}
+                        className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs cursor-pointer transition-colors"
+                      >
+                        <HelpCircle className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                        <span>Tur Panduan UI Interaktif</span>
+                      </button>
+
                       <button
                         type="button"
                         data-testid="header-open-ai-mission-builder-btn"
                         onClick={() => {
                           labSound.playClick(620);
                           setPrefsOpen(false);
+                          if (userRole !== 'pengajar') {
+                            setUserRole('pengajar');
+                          }
                           openModal('ai-mission-builder');
                         }}
                         className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 text-xs font-semibold cursor-pointer transition-colors"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                        <span>✨ Buat Misi Praktikum AI (Guru)</span>
+                        <span>Buat Misi Praktikum AI (Guru)</span>
                       </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Share Link Confirmation Toast */}
-        {shareToastVisible && (
-          <div
-            role="status"
-            data-testid="share-link-toast"
-            className="fixed top-16 right-4 z-50 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-xl flex items-center gap-2 animate-fade-in"
-          >
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>Tautan praktikum berhasil disalin!</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
-        )}
+        </header>
+      )}
 
-        {/* GRUP 4: Tombol Utama "💬 Dr. LabMu" */}
-        <button
-          type="button"
-          data-onboarding="dr-labmu-trigger"
-          onClick={() => {
-            labSound.playClick();
-            if (drawerOpen) {
-              toggleDrawer();
-            } else {
-              setDrawerTab('ai');
-            }
-          }}
-          aria-label={drawerOpen ? 'Tutup Asisten Dr. LabMu' : 'Buka Asisten Dr. LabMu'}
-          title="[A] Tanya Dr. LabMu (Asisten Sokratik AI)"
-          className={`relative px-2 sm:px-2.5 py-1 flex items-center gap-1 sm:gap-1.5 rounded-lg border font-semibold text-xs transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
-            drawerOpen
-              ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
-              : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-stone-200 dark:border-slate-800 hover:border-sky-500/50 dark:hover:border-slate-700'
-          }`}
+      {/* Share Link Confirmation Toast */}
+      {shareToastVisible && (
+        <div
+          role="status"
+          data-testid="share-link-toast"
+          className="fixed top-16 right-4 z-50 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-xl flex items-center gap-2"
         >
-          <MessageCircle
-            className={`w-3.5 h-3.5 ${drawerOpen ? 'text-white' : 'text-sky-600 dark:text-sky-400'}`}
-          />
-          <span>Dr. LabMu</span>
-          {hasLowR2Alert && (
-            <span
-              className="w-2 h-2 rounded-full bg-amber-400 animate-ping absolute -top-0.5 -right-0.5"
-              title="Deviasi Data Terdeteksi!"
-            />
-          )}
-          {notificationsCount > 0 && !hasLowR2Alert && (
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-stone-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tabular-nums">
-              {notificationsCount}
-            </span>
-          )}
-        </button>
-      </div>
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>Tautan praktikum berhasil disalin!</span>
+        </div>
+      )}
 
       {/* Teacher Gradebook Hub Modal */}
       {isGradebookOpen && (
@@ -884,14 +1094,14 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         </Suspense>
       )}
 
-      {/* Dashboard Portofolio Sains & STEM Radar (Lazy-Loaded) */}
+      {/* Student Portfolio Modal */}
       {activeModal === 'portfolio' && (
         <Suspense fallback={null}>
           <StudentPortfolioModal
             isOpen={activeModal === 'portfolio'}
             onClose={closeModal}
-            studentName={(studentProfiles[selectedProfileIdx] ?? studentProfiles[0])?.name || 'Alya Pratama'}
-            studentGroup={(studentProfiles[selectedProfileIdx] ?? studentProfiles[0])?.group || 'Kelompok 1'}
+            studentName={activeProfile?.name || 'Alya Pratama'}
+            studentGroup={activeProfile?.group || 'Kelompok 1'}
             profile={gamificationProfile}
             records={records}
             snapshots={capturedSnapshots}
@@ -903,7 +1113,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         </Suspense>
       )}
 
-      {/* Student Gamification & Badges Celebration Modal */}
+      {/* Gamification Badge Celebration Modal */}
       {isBadgeModalOpen && (
         <Suspense fallback={null}>
           <BadgeNotificationModal
@@ -924,7 +1134,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         <div
           role="status"
           data-testid="lite-mode-notification-toast"
-          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs shadow-2xl flex items-center gap-2 border border-amber-300 animate-bounce cursor-pointer"
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs shadow-2xl flex items-center gap-2 border border-amber-300 cursor-pointer"
           onClick={() => setLiteModeNotification(null)}
         >
           <Zap className="w-4 h-4 fill-slate-950 shrink-0" />
@@ -932,7 +1142,6 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
           <span className="text-[10px] opacity-75 underline ml-1">(Tutup)</span>
         </div>
       )}
-    </header>
+    </>
   );
 };
-

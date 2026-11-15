@@ -23,7 +23,9 @@ import {
 } from './ui/ConceptLabelsOverlay';
 import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
 import { useThreeStudioScene } from './scenes/useThreeStudioScene';
+import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../stores/useUIStore';
+import { PrecisionSlider } from './controls/PrecisionSlider';
 
 interface BiologyScene3DProps {
   mode: CoreBiologyStageMode | AnatomyModuleId;
@@ -105,6 +107,14 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   simTimePropRef.current = simTime;
   const externalSimTimeRef = useRef(simTimeRef);
   externalSimTimeRef.current = simTimeRef;
+
+  const { leftDrawerOpen, rightTelemetryOpen, zenMode } = useUIStore(
+    useShallow((s) => ({
+      leftDrawerOpen: s.leftDrawerOpen,
+      rightTelemetryOpen: s.rightTelemetryOpen,
+      zenMode: s.zenMode,
+    }))
+  );
 
   const [clickedBadge, setClickedBadge] = useState<string | null>(null);
   const [snapToast, setSnapToast] = useState<string | null>(null);
@@ -325,7 +335,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       renderer,
       isSoftwareGl,
       fpsMonitor,
-      onFrame: ({ dt: delta, elapsed, isLite }) => {
+      onFrame: ({ nowMs, dt: delta, elapsed, isLite }) => {
         const effectiveLite = isLite || isSoftwareGl;
         rulerHandle.group.visible = showRuler3DRef.current;
 
@@ -359,7 +369,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           );
         }
 
-        teacherCollabBridge.tick();
+        teacherCollabBridge.tick(nowMs, delta);
         controls.update();
 
         const syncBioLabelsNow = () => {
@@ -542,7 +552,13 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       )}
 
       {showRuler3D && (
-        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-xl bg-slate-950/90 border border-emerald-400/40 px-3 py-1.5 shadow-xl z-20 text-xs font-mono">
+        <div
+          className={`pointer-events-none absolute flex items-center gap-2 rounded-xl bg-slate-950/92 border border-emerald-400/40 px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
+            isFullscreen
+              ? 'bottom-4 left-4'
+              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+          }`}
+        >
           <Ruler className="w-3.5 h-3.5 text-emerald-400" />
           <span className="text-slate-400">Mistar 3D:</span>
           <span className="font-bold text-emerald-300">{rulerReadout ?? '23.00 ± 0.05 cm'}</span>
@@ -550,21 +566,27 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       )}
 
       {dragToast && (
-        <div className="pointer-events-none absolute top-14 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-slate-950/90 border border-emerald-400/50 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-emerald-200">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+        <div className="pointer-events-none absolute top-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-slate-950/92 border border-emerald-400/50 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-emerald-200">
+          <span className="h-2 w-2 rounded-full bg-emerald-400" />
           <span className="text-slate-300">{dragToast.label}:</span>
           <span className="font-bold text-emerald-300">{dragToast.value}</span>
         </div>
       )}
 
       {snapToast && (
-        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-emerald-950/95 border border-emerald-400/50 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-emerald-200">
+        <div className="pointer-events-none absolute bottom-24 lg:bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-emerald-950/95 border border-emerald-400/50 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-emerald-200">
           <span className="h-2 w-2 rounded-full bg-emerald-400" />
           <span>{snapToast}</span>
         </div>
       )}
 
-      <div className="pointer-events-auto absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/15 px-2 py-1 shadow-lg z-20 opacity-80 hover:opacity-100 transition-opacity">
+      <div
+        className={`pointer-events-auto absolute flex items-center gap-1 rounded-xl bg-slate-900/92 border border-white/15 px-2 py-1 shadow-lg z-20 opacity-90 hover:opacity-100 transition-all ${
+          isFullscreen
+            ? 'top-3 right-3'
+            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'}`
+        }`}
+      >
         <button
           type="button"
           data-testid="toggle-3d-ruler-btn"
@@ -662,32 +684,42 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         </button>
       </div>
 
-      <div className="pointer-events-auto absolute top-3 left-3 flex items-center gap-2 rounded-xl bg-slate-900/80 backdrop-blur-md border border-emerald-500/30 px-3 py-1.5 shadow-lg z-20">
-        <div className="flex items-center gap-1.5 text-emerald-400 text-[11px] font-semibold">
-          <Focus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Fokus Lensa</span>
+      <div
+        className={`pointer-events-auto absolute w-56 sm:w-64 rounded-xl bg-slate-900/92 border border-emerald-500/30 p-1.5 shadow-lg z-20 ${
+          isFullscreen
+            ? 'top-3 left-3'
+            : `top-[110px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+        }`}
+      >
+        <div className="flex items-center gap-1.5 px-1 pb-0.5 text-emerald-400 text-[10px] font-semibold">
+          <Focus className="w-3 h-3 shrink-0" />
+          <span>Fokus Lensa Mikroskop</span>
         </div>
-        <input
-          type="range"
-          aria-label="Fokus Lensa Mikroskop 3D"
+        <PrecisionSlider
+          compact
+          accentColor="emerald"
+          label="Fokus Lensa"
           min={0}
           max={100}
           step={1}
+          unit="%"
+          defaultValue={75}
           value={lensFocus}
-          onChange={(e) => {
-            const nextFocus = Number(e.target.value);
+          onChange={(nextFocus) => {
             setLensFocus(nextFocus);
             cameraCtrlRef.current?.setPreset(activePreset);
           }}
-          className="w-20 sm:w-28 accent-emerald-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
         />
-        <span className="text-[11px] font-mono tabular-nums text-emerald-200 font-bold min-w-[32px] text-right">
-          {lensFocus}%
-        </span>
       </div>
 
       {clickedBadge && (
-        <div className="absolute top-14 left-3 z-30 px-3 py-1 rounded-xl bg-emerald-950/90 border border-emerald-500/40 text-emerald-200 text-xs font-medium shadow-lg flex items-center gap-2 pointer-events-none">
+        <div
+          className={`absolute z-30 px-3 py-1 rounded-xl bg-emerald-950/92 border border-emerald-500/40 text-emerald-200 text-xs font-medium shadow-lg flex items-center gap-2 pointer-events-none ${
+            isFullscreen
+              ? 'top-20 left-3'
+              : `top-[204px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+          }`}
+        >
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
           <span>{clickedBadge}</span>
         </div>
