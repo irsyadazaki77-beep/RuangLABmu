@@ -27,8 +27,9 @@ export default defineConfig({
     launchOptions: {
       ...(customExecutablePath ? { executablePath: customExecutablePath } : {}),
       args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
+        ...(process.env.CI === 'true'
+          ? ['--no-sandbox', '--disable-setuid-sandbox']
+          : []),
         '--use-gl=angle',
         '--use-angle=swiftshader',
         '--enable-unsafe-swiftshader',
@@ -42,7 +43,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: process.env.CI ? 'npm start' : 'npm run dev',
+    command: process.env.CI ? 'bun run start' : 'bun run dev',
     url: 'http://localhost:3000/api/health',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

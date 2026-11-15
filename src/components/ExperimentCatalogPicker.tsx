@@ -10,7 +10,6 @@ import {
   FlaskConical,
   Leaf,
   Orbit,
-  GraduationCap,
   Sparkles,
 } from 'lucide-react';
 import {
@@ -21,7 +20,6 @@ import {
 } from '../registry/experimentRegistry';
 import {
   CURRICULUM_CHAPTERS,
-  CurriculumChapter,
 } from '../registry/curriculumChapters';
 import { labSound } from '../utils/soundEngine';
 

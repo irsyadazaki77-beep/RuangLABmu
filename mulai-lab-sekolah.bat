@@ -27,7 +27,7 @@ echo [OK] Node.js terdeteksi: %NODE_VER%
 
 if not exist "node_modules" (
     echo [INFO] Folder 'node_modules' belum ada. Memasang paket laboratorium...
-    call npm install
+    call bun install --frozen-lockfile
     if %ERRORLEVEL% NEQ 0 (
         echo [ERROR] Gagal memasang dependensi. Pastikan koneksi internet aktif saat instalasi pertama.
         pause
@@ -45,7 +45,7 @@ goto AFTER_BUILD
 :DO_BUILD
 echo [INFO] Berkas build produksi belum lengkap. Menyiapkan sistem laboratorium...
 echo Sedang menjalankan kompilasi awal ^(hanya memakan waktu 30-60 detik^)...
-call npm run build
+call bun run build
 if %ERRORLEVEL% NEQ 0 (
     echo [PERINGATAN] Build produksi terkendala. Membuka dalam mode pengembang ^(dev mode^)...
     goto START_DEV
@@ -83,7 +83,7 @@ echo    SERVER AKTIF! JANGAN TUTUP JENDELA INI SELAMA PRAKTIKUM BERLANGSUNG
 echo    Tekan Ctrl + C di jendela ini untuk mematikan server setelah kelas selesai.
 echo ===============================================================================
 echo.
-npm start
+bun run start
 goto END
 
 :START_DEV
@@ -93,9 +93,10 @@ echo klik "Allow access" agar HP siswa di Wi-Fi lokal dapat terhubung!
 echo Menyalakan server via mode dev...
 timeout /t 2 /nobreak >nul
 start http://localhost:3000
-npm run dev
+bun run dev
 
 :END
 echo.
 echo Server telah berhenti. Tekan sembarang tombol untuk menutup jendela ini.
 pause >nul
+

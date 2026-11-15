@@ -60,6 +60,124 @@ function readHeaderValue(headers: IncomingHttpHeaders, name: string): string {
   return typeof raw === 'string' ? raw.trim().toLowerCase() : '';
 }
 
+export interface EmbeddedPreviewSecurityOptions {
+  isProduction?: boolean;
+  allowEmbeddedPreview?: boolean;
+  allowedOrigins?: Iterable<string>;
+  appUrl?: string;
+  allowedFrameAncestorsEnv?: string;
+}
+
+export interface CspDirectivesOptions {
+  isProduction: boolean;
+  frameAncestors: string[];
+}
+
+export function buildContentSecurityPolicyDirectives(
+  options: CspDirectivesOptions
+): Record<string, Iterable<string> | null> {
+  return {
+    defaultSrc: ["'self'"],
+    scriptSrc: options.isProduction
+      ? ["'self'", 'blob:']
+      : ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'blob:'],
+    scriptSrcAttr: ["'none'"],
+    workerSrc: ["'self'", 'blob:'],
+    styleSrc: ["'self'", "'unsafe-inline'"],
+    fontSrc: ["'self'", 'data:'],
+    imgSrc: ["'self'", 'data:', 'blob:'],
+    connectSrc: ["'self'", 'ws:', 'wss:'],
+    frameAncestors: options.frameAncestors,
+    upgradeInsecureRequests: null,
+  };
+}
+
+function extractOriginFromHeaderUrl(rawUrl: string): string {
+  if (!rawUrl) return '';
+  try {
+    return new URL(rawUrl).origin.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function matchesWildcardOriginPattern(origin: string, pattern: string): boolean {
+  const cleanOrigin = origin.trim().toLowerCase().replace(/\/+$/, '');
+  const cleanPattern = pattern.trim().toLowerCase().replace(/\/+$/, '');
+  if (!cleanOrigin || !cleanPattern || cleanPattern === "'self'") return false;
+  if (cleanOrigin === cleanPattern) return true;
+
+  if (cleanPattern.endsWith(':*')) {
+    const prefix = cleanPattern.slice(0, -2);
+    return cleanOrigin === prefix || cleanOrigin.startsWith(`${prefix}:`);
+  }
+
+  if (cleanPattern.includes('*.')) {
+    const [scheme, rest] = cleanPattern.split('://');
+    if (!scheme || !rest || !rest.startsWith('*.')) return false;
+    const domainSuffix = rest.slice(1); // e.g. .google.com
+    try {
+      const parsed = new URL(cleanOrigin);
+      return (
+        parsed.protocol === `${scheme}:` &&
+        (parsed.hostname.endsWith(domainSuffix) ||
+          parsed.hostname === domainSuffix.slice(1))
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+export function isPreviewOriginWhitelisted(
+  candidateOrigin: string,
+  options: EmbeddedPreviewSecurityOptions = {}
+): boolean {
+  const normalized = extractOriginFromHeaderUrl(candidateOrigin);
+  if (!normalized) return false;
+
+  const isProduction =
+    options.isProduction ?? process.env.NODE_ENV === 'production';
+
+  const patterns = new Set<string>(
+    buildFrameAncestorsList({
+      isProduction,
+      appUrl: options.appUrl ?? process.env.APP_URL,
+      allowedFrameAncestorsEnv:
+        options.allowedFrameAncestorsEnv ?? process.env.ALLOWED_FRAME_ANCESTORS,
+      strictFrameguard: false,
+    })
+  );
+
+  if (options.allowedOrigins) {
+    for (const orig of options.allowedOrigins) {
+      const trimmed = String(orig || '').trim().replace(/\/+$/, '');
+      if (trimmed) patterns.add(trimmed);
+    }
+  }
+
+  if (process.env.ALLOWED_ORIGINS) {
+    for (const part of process.env.ALLOWED_ORIGINS.split(',')) {
+      const trimmed = part.trim().replace(/\/+$/, '');
+      if (trimmed) patterns.add(trimmed);
+    }
+  }
+
+  if (!isProduction) {
+    patterns.add('https://*.run.app');
+  }
+
+  for (const pattern of patterns) {
+    if (matchesWildcardOriginPattern(normalized, pattern)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function isCrossOriginIframeRequest(headers: IncomingHttpHeaders): boolean {
   const fetchDest = readHeaderValue(headers, 'sec-fetch-dest');
   if (fetchDest !== 'iframe') return false;
@@ -69,14 +187,62 @@ export function isCrossOriginIframeRequest(headers: IncomingHttpHeaders): boolea
 
 export function shouldRelaxHeadersForEmbeddedPreview(
   headers: IncomingHttpHeaders,
-  strictFrameguard = false
+  strictFrameguard = false,
+  options: EmbeddedPreviewSecurityOptions = {}
 ): boolean {
   if (strictFrameguard) return false;
+
+  const isProduction =
+    options.isProduction ?? process.env.NODE_ENV === 'production';
+  const allowEmbeddedPreview =
+    options.allowEmbeddedPreview ??
+    process.env.ALLOW_EMBEDDED_PREVIEW === 'true';
+
+  // Standard production mode NEVER relaxes X-Frame-Options or COEP/COOP
+  if (isProduction && !allowEmbeddedPreview) {
+    return false;
+  }
+
+  const rawOrigin = readHeaderValue(headers, 'origin');
+  const rawReferer = readHeaderValue(headers, 'referer');
+  const candidateOrigin =
+    extractOriginFromHeaderUrl(rawOrigin) ||
+    extractOriginFromHeaderUrl(rawReferer);
+
+  // If an explicit Origin or Referer is present, it must match the valid origin whitelist
+  if (candidateOrigin && !isPreviewOriginWhitelisted(candidateOrigin, options)) {
+    return false;
+  }
+
+  // In production with ALLOW_EMBEDDED_PREVIEW === 'true', require both an iframe destination
+  // and a verified whitelisted Origin/Referer header (never trust bare sec-fetch-dest or x-forwarded-host)
+  if (isProduction) {
+    const fetchDest = readHeaderValue(headers, 'sec-fetch-dest');
+    if (fetchDest !== 'iframe') return false;
+    if (!candidateOrigin) return false;
+    return isPreviewOriginWhitelisted(candidateOrigin, options);
+  }
+
+  // Non-production dev/preview environment
   if (isCrossOriginIframeRequest(headers)) return true;
   const fetchDest = readHeaderValue(headers, 'sec-fetch-dest');
   if (fetchDest === 'iframe') return true;
+
   const forwardedHost = readHeaderValue(headers, 'x-forwarded-host');
-  if (forwardedHost) return true;
+  if (forwardedHost) {
+    const cleanHost = forwardedHost.split(',')[0]?.trim().split(':')[0] ?? '';
+    if (
+      cleanHost === 'localhost' ||
+      cleanHost === '127.0.0.1' ||
+      cleanHost.endsWith('.run.app') ||
+      cleanHost.endsWith('.google.com') ||
+      cleanHost.endsWith('.googleusercontent.com') ||
+      cleanHost.endsWith('.usercontent.goog')
+    ) {
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -114,3 +280,4 @@ export function resolveViteAllowedHosts(env: NodeJS.ProcessEnv = process.env): s
 
   return Array.from(hosts);
 }
+

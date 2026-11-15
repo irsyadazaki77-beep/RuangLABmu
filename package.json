@@ -10,13 +10,13 @@
     "dev": "tsx server.ts",
     "build:client": "vite build",
     "build:server": "esbuild server.ts --bundle --platform=node --target=node22 --outfile=dist-server/server.cjs --external:express --external:ws --external:bun:sqlite --external:node:sqlite",
-    "build": "npm run build:client && npm run build:server",
+    "build": "bun run build:client && bun run build:server",
     "build:portable": "tsx scripts/build-portable.ts",
     "start": "node -e \"process.env.NODE_ENV='production'; require('./dist-server/server.cjs')\"",
     "preview": "vite preview",
     "clean": "node -e \"const fs=require('fs');['dist','dist-server','release'].forEach(d=>fs.rmSync(d,{recursive:true,force:true}))\"",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/utils/*.test.ts src/utils/engines/*.test.ts src/shared/grading/*.test.ts src/workers/*.test.ts server/utils/*.test.ts server/db/*.test.ts",
+    "test": "tsx --test 'src/**/*.test.ts' 'server/**/*.test.ts'",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -49,7 +49,6 @@
     "@types/three": "^0.187.0",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.1.1",
-    "autoprefixer": "^10.4.21",
     "esbuild": "^0.28.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",

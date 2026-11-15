@@ -10,10 +10,11 @@ import { saveLastOpenedModuleId } from '../services/gamificationEngine';
 import { useLabParamsSync } from './useLabParamsSync';
 import { useLabCollabBridge } from './useLabCollabBridge';
 import { useLabTelemetryAndXP } from './useLabTelemetryAndXP';
-import { useLabAutoSave } from './useLabAutoSave';
+import { useLabSessionAutoSave } from './useLabSessionAutoSave';
 import { useRoomSocket } from './useRoomSocket';
 import { useSimulationSync } from './useSimulationSync';
 import { useGradebookSubmit } from './useGradebookSubmit';
+import { shouldShowConceptLabelsByDefault } from '../utils/pedagogicalHelpers';
 
 export function useLabSession() {
   const {
@@ -46,6 +47,12 @@ export function useLabSession() {
 
   const activeRoom = useCollabStore((s) => s.activeRoom);
   const comfortPrefs = useUIStore((s) => s.comfortPrefs);
+  const setShowConceptLabels = useUIStore((s) => s.setShowConceptLabels);
+
+  useEffect(() => {
+    setShowConceptLabels(shouldShowConceptLabelsByDefault(academicLevel));
+  }, [academicLevel, setShowConceptLabels]);
+
   const [selectedProfileIdx, setSelectedProfileIdx] = useState<number>(0);
   const currentProfile = STUDENT_PROFILES[selectedProfileIdx] ?? STUDENT_PROFILES[0];
 
@@ -168,7 +175,7 @@ export function useLabSession() {
     backendSubmitQuizScore: collabBridge.submitQuizScore,
   });
 
-  const autoSave = useLabAutoSave({
+  const autoSave = useLabSessionAutoSave({
     studentId: currentProfile.name,
     activeModuleId,
     activeWorkflowStep: workflowStep,

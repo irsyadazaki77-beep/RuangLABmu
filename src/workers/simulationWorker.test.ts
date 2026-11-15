@@ -136,4 +136,35 @@ describe('simulationWorker hardening & transferable buffer invariants', () => {
     assert.ok(Math.abs(res.vxNext - 10) < 1e-9);
     assert.ok(Math.abs(res.ayNext + 9.81) < 1e-9);
   });
+
+  it('dispatches simulation steps across modular Physics, Chemistry, Biology, and Astronomy domain engines', async () => {
+    const { WorkerSimulationContext } = await import('./simulationWorker');
+    const ctx = new WorkerSimulationContext();
+
+    // 1. Physics domain
+    ctx.init('newton-incline', { mass: 4.0, appliedForce: 45, inclineAngle: 15 });
+    const physStep = ctx.step();
+    assert.equal(physStep.frame.frameIndex, 1);
+    assert.ok('block' in physStep.frame.positions);
+
+    // 2. Chemistry domain
+    ctx.init('enzyme-kinetics', { substrateConcMm: 10.0, temperatureC: 37.0, solutionPh: 7.0 });
+    const chemStep = ctx.step();
+    assert.equal(chemStep.frame.frameIndex, 1);
+    assert.ok('substrate' in chemStep.frame.positions);
+    assert.ok((chemStep.frame.scalars?.productConcMm ?? 0) > 0);
+
+    // 3. Biology domain
+    ctx.init('predator-prey-dynamics', { preyPopulationX: 40, predatorPopulationY: 9 });
+    const bioStep = ctx.step();
+    assert.equal(bioStep.frame.frameIndex, 1);
+    assert.ok('ecosystem' in bioStep.frame.positions);
+
+    // 4. Astronomy domain
+    ctx.init('orbital-gravity', { centralStarMassSolar: 1.0, semiMajorAxisAu: 1.0, eccentricity: 0.017 });
+    const astroStep = ctx.step();
+    assert.equal(astroStep.frame.frameIndex, 1);
+    assert.ok('planet' in astroStep.frame.positions);
+  });
 });
+

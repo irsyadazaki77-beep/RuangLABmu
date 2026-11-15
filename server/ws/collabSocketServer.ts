@@ -8,7 +8,6 @@ import type {
   ServerNotification,
 } from '../state/labServerState';
 import {
-  applyCustomMissionToRoom,
   handleRoomSetCustomMission,
   handleTeacherFreezeToggle,
 } from './wsMissionHandler';

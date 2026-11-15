@@ -33,17 +33,34 @@ jobs:
         with:
           bun-version: '1.4.x'
 
+      - name: Cache Bun Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Install Dependencies
         run: bun install --frozen-lockfile
 
       - name: TypeScript Lint (tsc --noEmit)
-        run: npm run lint
+        run: bun run lint
 
       - name: Run Quantitative & Collab Engine Unit Tests
-        run: npm test
+        run: bun run test
 
       - name: Build Production Client & Server Bundles
-        run: npm run build
+        run: bun run build
+
+      - name: Upload Production Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruanglabmu-build-bundles
+          path: |
+            dist/
+            dist-server/
+          retention-days: 1
 
   e2e-smoke:
     name: Playwright E2E Smoke Suite (Headless Chromium & WebSocket)
@@ -65,21 +82,40 @@ jobs:
         with:
           bun-version: '1.4.x'
 
+      - name: Cache Bun Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Install Dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install Playwright Chromium Browser
-        run: npx playwright install --with-deps chromium
+      - name: Cache Playwright Browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
-      - name: Build Production Bundles
-        run: npm run build
+      - name: Install Playwright Chromium Browser
+        run: bunx playwright install --with-deps chromium
+
+      - name: Download Production Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ruanglabmu-build-bundles
+          path: .
 
       - name: Run Playwright E2E Smoke Tests
         env:
           CI: 'true'
           APP_URL: 'http://localhost:3000'
           ALLOWED_ORIGINS: 'http://localhost:3000,http://127.0.0.1:3000'
-        run: npm run test:e2e
+        run: bun run test:e2e
 
       - name: Upload Playwright Report & Traces on Failure
         if: failure()
@@ -90,3 +126,4 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+

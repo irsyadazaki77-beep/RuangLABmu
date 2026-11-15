@@ -1,7 +1,7 @@
 import { EXPERIMENT_CATALOG } from '../src/registry/experimentRegistry';
 import { PRESET_MYSTERY_CHALLENGES } from '../src/utils/mysteryChallengeEngine';
 import { LAB_MISSIONS_CATALOG } from '../src/registry/missionRegistry';
-import { WORKSHEET_QUESTIONS, gradeWorksheetAnswers } from '../src/utils/engines/statisticsAndRegression';
+import { WORKSHEET_QUESTIONS } from '../src/utils/engines/statisticsAndRegression';
 
 console.log('=== AUDIT RUANGLABMU LEARNING MATERIALS ===');
 

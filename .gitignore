@@ -15,4 +15,10 @@ playwright-report/
 test-results/
 data/submissions.json
 data/*.tmp
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.sqlite*
+package-lock.json
+
 

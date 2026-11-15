@@ -21,6 +21,11 @@ import {
   loadPendingExamSubmissions,
   submitExamPayload,
 } from './utils/examSubmissionQueue';
+import { buildSubmissionTelemetryTimeline } from './utils/telemetryRecorder';
+import {
+  computeRecordsRegressionSummary,
+  parseReplayParameters,
+} from './utils/labTelemetryHelpers';
 
 const GlobalModalPortal = React.lazy(() =>
   import('./components/layout/GlobalModalPortal').then((m) => ({ default: m.GlobalModalPortal }))
@@ -46,11 +51,6 @@ export const AstronomyLabView = React.lazy(() =>
 export const TeacherDashboardView = React.lazy(() =>
   import('./components/TeacherDashboardView').then((m) => ({ default: m.TeacherDashboardView }))
 );
-import { buildSubmissionTelemetryTimeline } from './utils/telemetryRecorder';
-import {
-  computeRecordsRegressionSummary,
-  parseReplayParameters,
-} from './utils/labTelemetryHelpers';
 
 function AppLabThemeSkeleton() {
   return (

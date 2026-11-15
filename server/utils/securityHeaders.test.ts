@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  buildContentSecurityPolicyDirectives,
   buildFrameAncestorsList,
   isCrossOriginIframeRequest,
   resolveViteAllowedHosts,
@@ -34,7 +35,7 @@ describe('server security header policy', () => {
     assert.deepEqual(strictList, ["'self'"]);
   });
 
-  it('relaxes X-Frame-Options and COEP only for cross-origin iframe navigations unless strictFrameguard is true', () => {
+  it('never relaxes X-Frame-Options or COEP/COOP in standard production even when client headers are spoofed', () => {
     assert.equal(isCrossOriginIframeRequest({ 'sec-fetch-dest': 'document' }), false);
     assert.equal(
       isCrossOriginIframeRequest({
@@ -51,34 +52,105 @@ describe('server security header policy', () => {
       true
     );
 
+    // Standard production (isProduction: true, allowEmbeddedPreview: false) blocks all spoofed headers
     assert.equal(
       shouldRelaxHeadersForEmbeddedPreview(
-        { 'sec-fetch-dest': 'iframe', 'sec-fetch-site': 'cross-site' },
-        false
+        {
+          'sec-fetch-dest': 'iframe',
+          'sec-fetch-site': 'cross-site',
+          origin: 'https://aistudio.google.com',
+        },
+        false,
+        { isProduction: true, allowEmbeddedPreview: false }
+      ),
+      false
+    );
+    assert.equal(
+      shouldRelaxHeadersForEmbeddedPreview(
+        { 'x-forwarded-host': 'ais-dev-example.asia-east1.run.app' },
+        false,
+        { isProduction: true, allowEmbeddedPreview: false }
+      ),
+      false
+    );
+
+    // Production with ALLOW_EMBEDDED_PREVIEW=true only relaxes for whitelisted origins inside iframe
+    assert.equal(
+      shouldRelaxHeadersForEmbeddedPreview(
+        {
+          'sec-fetch-dest': 'iframe',
+          'sec-fetch-site': 'cross-site',
+          origin: 'https://aistudio.google.com',
+        },
+        false,
+        {
+          isProduction: true,
+          allowEmbeddedPreview: true,
+          allowedOrigins: ['https://lms.sekolah.sch.id'],
+        }
       ),
       true
     );
     assert.equal(
       shouldRelaxHeadersForEmbeddedPreview(
-        { 'sec-fetch-dest': 'iframe', 'sec-fetch-site': 'same-origin' },
-        false
+        {
+          'sec-fetch-dest': 'iframe',
+          'sec-fetch-site': 'cross-site',
+          origin: 'https://evil-attacker.example.com',
+        },
+        false,
+        {
+          isProduction: true,
+          allowEmbeddedPreview: true,
+          allowedOrigins: ['https://lms.sekolah.sch.id'],
+        }
+      ),
+      false
+    );
+
+    // Non-production dev mode permits valid preview iframes unless strictFrameguard is true or origin is untrusted
+    assert.equal(
+      shouldRelaxHeadersForEmbeddedPreview(
+        { 'sec-fetch-dest': 'iframe', 'sec-fetch-site': 'cross-site' },
+        false,
+        { isProduction: false }
       ),
       true
     );
     assert.equal(
       shouldRelaxHeadersForEmbeddedPreview(
         { 'x-forwarded-host': 'ais-dev-example.asia-east1.run.app' },
-        false
+        false,
+        { isProduction: false }
       ),
       true
     );
     assert.equal(
       shouldRelaxHeadersForEmbeddedPreview(
         { 'sec-fetch-dest': 'iframe', 'sec-fetch-site': 'cross-site' },
-        true
+        true,
+        { isProduction: false }
       ),
       false
     );
+  });
+
+  it('enforces strict CSP scriptSrc without unsafe-inline or unsafe-eval in production', () => {
+    const prodDirectives = buildContentSecurityPolicyDirectives({
+      isProduction: true,
+      frameAncestors: ["'self'"],
+    });
+    const prodScripts = Array.from(prodDirectives.scriptSrc ?? []);
+    assert.equal(prodScripts.includes("'unsafe-inline'"), false);
+    assert.equal(prodScripts.includes("'unsafe-eval'"), false);
+    assert.ok(prodScripts.includes("'self'"));
+
+    const devDirectives = buildContentSecurityPolicyDirectives({
+      isProduction: false,
+      frameAncestors: ["'self'"],
+    });
+    const devScripts = Array.from(devDirectives.scriptSrc ?? []);
+    assert.equal(devScripts.includes("'unsafe-eval'"), true);
   });
 
   it('resolves Cloud Run, APP_URL, and NG_ALLOWED_HOSTS into Vite allowedHosts cleanly', () => {
@@ -93,3 +165,4 @@ describe('server security header policy', () => {
     assert.ok(hosts.includes('*.example.edu'));
   });
 });
+

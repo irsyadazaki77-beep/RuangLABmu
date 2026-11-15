@@ -1,5 +1,3 @@
-import { SimulationFrame } from '../utils/simulationBuffer';
-
 export type SimulationMode =
   | 'newton-incline'
   | 'projectile-gravity'

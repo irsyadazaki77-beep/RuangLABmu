@@ -17,6 +17,7 @@ import { createLabRouter } from './server/routes/labRoutes';
 import { createSubmissionRouter } from './server/routes/submissionRoutes';
 import { createAiRouter } from './server/routes/aiRoutes';
 import {
+  buildContentSecurityPolicyDirectives,
   buildFrameAncestorsList,
   shouldRelaxHeadersForEmbeddedPreview,
 } from './server/utils/securityHeaders';
@@ -182,6 +183,7 @@ async function startServer() {
   );
 
   const strictFrameguard = process.env.STRICT_FRAMEGUARD === 'true';
+  const allowEmbeddedPreview = process.env.ALLOW_EMBEDDED_PREVIEW === 'true';
   const frameAncestors = buildFrameAncestorsList({
     isProduction,
     appUrl: process.env.APP_URL,
@@ -195,20 +197,10 @@ async function startServer() {
       frameguard: { action: 'sameorigin' },
       contentSecurityPolicy: {
         useDefaults: true,
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: isProduction
-            ? ["'self'", 'blob:']
-            : ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'blob:'],
-          scriptSrcAttr: ["'none'"],
-          workerSrc: ["'self'", 'blob:'],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          fontSrc: ["'self'", 'data:'],
-          imgSrc: ["'self'", 'data:', 'blob:'],
-          connectSrc: ["'self'", 'ws:', 'wss:'],
+        directives: buildContentSecurityPolicyDirectives({
+          isProduction,
           frameAncestors,
-          upgradeInsecureRequests: null,
-        },
+        }),
       },
       crossOriginEmbedderPolicy: { policy: 'require-corp' },
       crossOriginOpenerPolicy: { policy: 'same-origin' },
@@ -216,10 +208,18 @@ async function startServer() {
     })
   );
 
-  // Allow trusted cross-origin preview iframes (e.g. AI Studio) governed by CSP frame-ancestors
-  // while keeping X-Frame-Options: SAMEORIGIN and COEP: require-corp on top-level/standalone requests.
+  // Allow trusted cross-origin preview iframes ONLY in non-production or when ALLOW_EMBEDDED_PREVIEW === 'true'
+  // and verified against the origin whitelist; standard production strictly enforces COOP: same-origin & COEP: require-corp.
   app.use((req, res, next) => {
-    if (shouldRelaxHeadersForEmbeddedPreview(req.headers, strictFrameguard)) {
+    if (
+      shouldRelaxHeadersForEmbeddedPreview(req.headers, strictFrameguard, {
+        isProduction,
+        allowEmbeddedPreview,
+        allowedOrigins,
+        appUrl: process.env.APP_URL,
+        allowedFrameAncestorsEnv: process.env.ALLOWED_FRAME_ANCESTORS,
+      })
+    ) {
       res.removeHeader('X-Frame-Options');
       res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
       res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');

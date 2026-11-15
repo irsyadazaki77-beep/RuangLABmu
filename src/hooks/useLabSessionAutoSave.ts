@@ -239,6 +239,19 @@ export function useLabSessionAutoSave({
             signal,
           });
 
+          if (response.status === 409) {
+            const conflictData = (await response.json().catch(() => null)) as {
+              latestVersion?: number;
+            } | null;
+            if (conflictData && typeof conflictData.latestVersion === 'number') {
+              versionCounterRef.current = Math.max(
+                versionCounterRef.current,
+                conflictData.latestVersion
+              );
+            }
+            return;
+          }
+
           // Prevent out-of-order response from overwriting newer state metadata
           if (
             signal.aborted ||
@@ -331,3 +344,7 @@ export function useLabSessionAutoSave({
     discardAndRestart,
   };
 }
+
+export { useLabSessionAutoSave as useLabAutoSave };
+export default useLabSessionAutoSave;
+

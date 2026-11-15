@@ -330,11 +330,6 @@ export const MainLabWorkspace: React.FC<MainLabWorkspaceProps> = ({
 
   // Mission Engine State & 3T LAN Hotspot Info (extracted to useWorkspaceMissions)
   const {
-    domainMissions,
-    selectedMissionId,
-    setSelectedMissionId,
-    activeMission,
-    missionProgress,
     lanInfo,
   } = useWorkspaceMissions({
     activeDomain,

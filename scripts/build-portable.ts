@@ -101,7 +101,7 @@ export async function buildPortableRelease(
   // 1. Build frontend SPA assets to dist/ using Vite
   if (!options.skipClientBuild) {
     console.log('\n[1/3] Membangun aset frontend 3D & PWA ke folder dist/ (vite build)...');
-    runStep('npx', ['vite', 'build'], rootDir);
+    runStep('bunx', ['vite', 'build'], rootDir);
   }
 
   // 2. Prepare release/ directory & copy dist/ + data/ seed

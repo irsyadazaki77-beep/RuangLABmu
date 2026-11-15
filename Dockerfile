@@ -18,7 +18,7 @@ RUN bun install --frozen-lockfile
 
 # Copy full application source and build client (dist/) + server (dist-server/server.cjs)
 COPY . .
-RUN npm run build
+RUN bun run build
 
 # ============================================================================
 # Stage 2: Lightweight Production Runtime Image (Bun + Node 22 Alpine)

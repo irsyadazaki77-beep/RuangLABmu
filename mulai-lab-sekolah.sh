@@ -23,7 +23,7 @@ echo -e "          Skrip Peluncur Otomatis Server Sekolah 3T (Sekali Klik)"
 echo -e "${CYAN}===============================================================================${NC}"
 echo ""
 
-echo -e "${BLUE}[1/4] Memeriksa instalasi Node.js & npm...${NC}"
+echo -e "${BLUE}[1/4] Memeriksa instalasi Node.js & Bun...${NC}"
 if ! command -v node >/dev/null 2>&1; then
     echo -e "${RED}[ERROR] Node.js belum terpasang di komputer ini!${NC}"
     echo "Silakan pasang Node.js (versi 22+) dari https://nodejs.org/ terlebih dahulu."
@@ -37,7 +37,7 @@ echo -e "${BLUE}[2/4] Memeriksa berkas build laboratorium...${NC}"
 if [ ! -d "dist" ] || [ ! -d "dist-server" ]; then
     echo -e "${YELLOW}[INFO] Berkas 'dist' belum ditemukan. Menyiapkan sistem laboratorium...${NC}"
     echo "Sedang menjalankan kompilasi awal (memakan waktu ~30 detik)..."
-    npm run build
+    bun run build
 fi
 echo -e "${GREEN}[OK] Berkas laboratorium siap dijalankan.${NC}"
 echo ""
@@ -98,4 +98,5 @@ echo -e "   Tekan ${YELLOW}Ctrl + C${NC} di terminal ini untuk mematikan server 
 echo -e "${GREEN}===============================================================================${NC}"
 echo ""
 
-npm start
+bun run start
+
