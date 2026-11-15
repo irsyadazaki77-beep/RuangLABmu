@@ -320,7 +320,13 @@ export class LabSqliteStore {
 
   public upsertSessionSnapshot(
     snapshotId: string,
-    entry: { version: number; session: unknown; updatedAt: number },
+    entry: {
+      version: number;
+      session: unknown;
+      updatedAt: number;
+      ownerStudentId?: string;
+      ownerTokenHash?: string;
+    },
     roomId = 'GLOBAL'
   ): void {
     if (this.isClosed) return;
@@ -354,7 +360,13 @@ export class LabSqliteStore {
 
   public loadAllSessionSnapshots(): Array<{
     key: string;
-    value: { version: number; session: unknown; updatedAt: number };
+    value: {
+      version: number;
+      session: unknown;
+      updatedAt: number;
+      ownerStudentId?: string;
+      ownerTokenHash?: string;
+    };
   }> {
     if (this.isClosed) return [];
     const rows = this.driver
@@ -362,7 +374,13 @@ export class LabSqliteStore {
       .all();
     const out: Array<{
       key: string;
-      value: { version: number; session: unknown; updatedAt: number };
+      value: {
+        version: number;
+        session: unknown;
+        updatedAt: number;
+        ownerStudentId?: string;
+        ownerTokenHash?: string;
+      };
     }> = [];
     for (const row of rows) {
       try {
@@ -370,6 +388,8 @@ export class LabSqliteStore {
           version: number;
           session: unknown;
           updatedAt: number;
+          ownerStudentId?: string;
+          ownerTokenHash?: string;
         };
         if (parsed && typeof parsed.version === 'number') {
           out.push({ key: String(row.snapshot_id), value: parsed });

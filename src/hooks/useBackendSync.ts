@@ -186,11 +186,18 @@ export function isValidBackendWsMessage(candidate: unknown): candidate is Valida
       return true;
     }
 
-    case 'ROOM_CREATED':
+    case 'ROOM_CREATED': {
+      if (!isPlainObject(payload.room)) return false;
+      return isNonEmptyString(payload.room.roomId) && typeof payload.room.pin === 'string';
+    }
+
     case 'ROOM_JOINED':
     case 'ROOM_STATE_SYNC': {
       if (!isPlainObject(payload.room)) return false;
-      return isNonEmptyString(payload.room.roomId) && typeof payload.room.pin === 'string';
+      return (
+        isNonEmptyString(payload.room.roomId) &&
+        (payload.room.pin === undefined || typeof payload.room.pin === 'string')
+      );
     }
 
     case 'ROOM_MISSION_UPDATED': {
@@ -310,6 +317,10 @@ export function isValidBackendWsMessage(candidate: unknown): candidate is Valida
 
     case 'PARAM_LOCKS_SYNC': {
       return Array.isArray(payload.locks);
+    }
+
+    case 'PARAM_LOCK_RESET_ALL': {
+      return true;
     }
 
     case 'session:autosaved': {
@@ -595,12 +606,14 @@ export function useBackendSync(
               : identityRef.current.role === 'Pengajar'
               ? 'teacher'
               : 'student';
+          const effectivePin =
+            room.pin || activeRoomSessionRef.current?.pin || store.roomPin || '';
           activeRoomSessionRef.current = {
             roomId: room.roomId,
-            pin: room.pin,
+            pin: effectivePin,
             role: joinedClientRole,
           };
-          store.setActiveRoom(room);
+          store.setActiveRoom({ ...room, pin: effectivePin });
           store.closeRoomModal();
           if (Array.isArray(payload.paramLocks)) {
             store.syncLocks(payload.paramLocks as ParameterLockPayload[]);
@@ -628,6 +641,8 @@ export function useBackendSync(
           useCollabStore
             .getState()
             .syncLocks(payload.locks as ParameterLockPayload[]);
+        } else if (type === 'PARAM_LOCK_RESET_ALL') {
+          useCollabStore.getState().clearLocks();
         } else if (type === 'PARAM_LOCK_ACQUIRE') {
           useCollabStore
             .getState()
@@ -996,6 +1011,7 @@ export function useBackendSync(
     (roomId: string, pin: string, joinAsRole?: 'teacher' | 'student') => {
       useCollabStore.getState().setRoomError(null);
       const resolvedRole = joinAsRole || (role === 'Pengajar' ? 'teacher' : 'student');
+      useCollabStore.getState().setRoomPin(pin.trim());
       activeRoomSessionRef.current = {
         roomId: roomId.toUpperCase().trim(),
         pin: pin.trim(),
@@ -1004,6 +1020,7 @@ export function useBackendSync(
       sendWs('ROOM_JOIN', {
         roomId,
         pin,
+        teacherPin: resolvedRole === 'teacher' ? pin.trim() : undefined,
         name: studentName,
         role: resolvedRole,
         userId: `user-${studentName.replace(/\s+/g, '-').toLowerCase()}`,

@@ -226,14 +226,35 @@ export function useLabSessionAutoSave({
       // 2. Asynchronous server-side session sync with AbortController cancellation
       const syncToBackend = async () => {
         try {
+          let sessionToken = '';
+          try {
+            const tokenKey = 'ruanglab_session_owner_token_v1';
+            const existingToken = window.localStorage.getItem(tokenKey);
+            if (existingToken && existingToken.trim().length >= 8) {
+              sessionToken = existingToken.trim();
+            } else {
+              sessionToken =
+                typeof window.crypto !== 'undefined' &&
+                typeof window.crypto.randomUUID === 'function'
+                  ? `st-${window.crypto.randomUUID()}`
+                  : `st-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+              window.localStorage.setItem(tokenKey, sessionToken);
+            }
+          } catch {
+            sessionToken = `st-fallback-${studentId}`;
+          }
+
           const response = await fetch('/api/session/autosave', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'X-Session-Token': sessionToken,
             },
             body: JSON.stringify({
               storageKey,
               version: currentSequenceVersion,
+              sessionToken,
+              studentId,
               session: snapshot,
             }),
             signal,

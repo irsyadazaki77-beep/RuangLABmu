@@ -184,6 +184,7 @@ export type CollabWSMessage =
   | { type: 'CURSOR_3D_LEAVE'; payload: { userId: string; groupId: string } }
   | { type: 'PARAM_LOCK_ACQUIRE'; payload: ParameterLockPayload }
   | { type: 'PARAM_LOCK_RELEASE'; payload: { groupId: string; domain: string; paramKey: string; userId: string } }
+  | { type: 'PARAM_LOCK_RESET_ALL'; payload: { roomId?: string; groupId?: string; clearedCount?: number } }
   | { type: 'PARAM_VALUE_SYNC'; payload: { groupId: string; domain: string; paramKey: string; value: number; updatedBy: string } }
   | { type: 'PARAM_LOCKS_SYNC'; payload: { locks: ParameterLockPayload[] } }
   | { type: 'ROOM_CREATE'; payload: { roomId?: string; pin: string; domain: 'physics' | 'chemistry' | 'biology' | 'astronomy'; moduleId: string; teacherName: string; teacherUserId: string } }

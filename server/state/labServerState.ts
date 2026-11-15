@@ -156,7 +156,16 @@ export interface LabServerState {
   notifications: ServerNotification[];
   parameterLocks: Map<string, ParameterLockPayload>;
   activeLabRooms: Map<string, LabRoom>;
-  sessionSnapshots: Map<string, { version: number; session: unknown; updatedAt: number }>;
+  sessionSnapshots: Map<
+    string,
+    {
+      version: number;
+      session: unknown;
+      updatedAt: number;
+      ownerStudentId?: string;
+      ownerTokenHash?: string;
+    }
+  >;
   touchLabRoom: (roomId: string, now?: number) => void;
   rejoinParticipantSession: (
     roomPin: string,
@@ -472,7 +481,13 @@ export function createLabServerState(options?: {
 
   const sessionSnapshots = new SqliteBackedMap<
     string,
-    { version: number; session: unknown; updatedAt: number }
+    {
+      version: number;
+      session: unknown;
+      updatedAt: number;
+      ownerStudentId?: string;
+      ownerTokenHash?: string;
+    }
   >({
     onSet: (key, snap) => {
       sqliteStore.upsertSessionSnapshot(key, snap);

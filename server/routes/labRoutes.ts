@@ -1,15 +1,43 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import os from 'os';
+import { getSessionStorageKey } from '../../src/utils/sessionRecovery';
+import {
+  hashRoomPin,
+  verifyRoomPinTimingSafe,
+  type LabServerState,
+} from '../state/labServerState';
+import { sanitizeRoomForBroadcast } from '../utils/collabReconnectSync';
 import { detectLanIps } from '../utils/lanNetwork';
-import type { LabServerState } from '../state/labServerState';
+import { rateLimitKeyGenerator } from '../utils/rateLimitKey';
 
 export interface LabRoutesDeps {
   state: LabServerState;
   getPort: () => number;
+  rejoinRateLimitMax?: number;
+  rejoinRateLimitWindowMs?: number;
 }
 
-export function createLabRouter({ state, getPort }: LabRoutesDeps): express.Router {
+export function createLabRouter({
+  state,
+  getPort,
+  rejoinRateLimitMax = 20,
+  rejoinRateLimitWindowMs = 60 * 1000,
+}: LabRoutesDeps): express.Router {
   const router = express.Router();
+
+  const rejoinRateLimiter = rateLimit({
+    windowMs: rejoinRateLimitWindowMs,
+    max: rejoinRateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: rateLimitKeyGenerator,
+    message: {
+      error:
+        'Terlalu banyak permintaan pemulihan sesi ruangan (/api/rooms/rejoin). Silakan coba lagi dalam 1 menit.',
+      code: 'RATE_LIMITED',
+    },
+  });
 
   router.get('/api/health', (_req, res) => {
     res.json({
@@ -53,24 +81,111 @@ export function createLabRouter({ state, getPort }: LabRoutesDeps): express.Rout
   });
 
   router.post('/api/session/autosave', (req, res) => {
-    const { storageKey, version, session } = req.body || {};
-    if (!storageKey || typeof storageKey !== 'string' || typeof version !== 'number') {
+    const { storageKey, version, session, sessionToken: bodyToken, studentId: bodyStudentId } =
+      req.body || {};
+    if (
+      !storageKey ||
+      typeof storageKey !== 'string' ||
+      storageKey.trim().length === 0 ||
+      storageKey.length > 180 ||
+      typeof version !== 'number' ||
+      !Number.isFinite(version)
+    ) {
       res.status(400).json({ error: 'Invalid session autosave payload' });
       return;
     }
-    const existing = state.sessionSnapshots.get(storageKey);
-    if (existing && existing.version > version) {
-      res.status(409).json({
-        status: 'stale_rejected',
-        latestVersion: existing.version,
-      });
-      return;
+
+    const cleanStorageKey = storageKey.trim();
+    const headerToken = req.headers['x-session-token'];
+    const rawToken =
+      typeof bodyToken === 'string' && bodyToken.trim()
+        ? bodyToken.trim()
+        : typeof headerToken === 'string' && headerToken.trim()
+          ? headerToken.trim()
+          : '';
+
+    const sessionObj =
+      session && typeof session === 'object' && !Array.isArray(session)
+        ? (session as Record<string, unknown>)
+        : null;
+    const claimedStudentId =
+      typeof bodyStudentId === 'string' && bodyStudentId.trim()
+        ? bodyStudentId.trim()
+        : sessionObj && typeof sessionObj.studentId === 'string' && sessionObj.studentId.trim()
+          ? sessionObj.studentId.trim()
+          : '';
+    const claimedModuleId =
+      sessionObj && typeof sessionObj.moduleId === 'string' && sessionObj.moduleId.trim()
+        ? sessionObj.moduleId.trim()
+        : '';
+
+    // Verify storageKey matches the canonical key for (studentId, moduleId) when prefixed
+    if (
+      cleanStorageKey.startsWith('ruanglab_session_') &&
+      claimedStudentId &&
+      claimedModuleId
+    ) {
+      const expectedKey = getSessionStorageKey(claimedStudentId, claimedModuleId);
+      if (cleanStorageKey !== expectedKey) {
+        res.status(403).json({
+          error: 'Kunci penyimpanan sesi tidak sesuai dengan identitas pemilik sesi.',
+          code: 'SESSION_OWNERSHIP_MISMATCH',
+        });
+        return;
+      }
     }
+
+    const effectiveOwnerSecret = rawToken
+      ? `token:${rawToken}`
+      : claimedStudentId
+        ? `student:${claimedStudentId}:ip:${rateLimitKeyGenerator(req)}`
+        : `ip:${rateLimitKeyGenerator(req)}`;
+
+    const existing = state.sessionSnapshots.get(cleanStorageKey);
+    if (existing) {
+      if (
+        existing.ownerStudentId &&
+        claimedStudentId &&
+        existing.ownerStudentId !== claimedStudentId
+      ) {
+        res.status(403).json({
+          error: 'Akses ditolak: Anda tidak berhak menimpa sesi praktikum milik siswa lain.',
+          code: 'SESSION_OWNERSHIP_MISMATCH',
+        });
+        return;
+      }
+
+      if (
+        existing.ownerTokenHash &&
+        !verifyRoomPinTimingSafe(effectiveOwnerSecret, existing.ownerTokenHash)
+      ) {
+        res.status(403).json({
+          error: 'Akses ditolak: Token kepemilikan sesi (sessionToken) tidak valid.',
+          code: 'SESSION_OWNERSHIP_MISMATCH',
+        });
+        return;
+      }
+
+      if (existing.version > version) {
+        res.status(409).json({
+          status: 'stale_rejected',
+          latestVersion: existing.version,
+        });
+        return;
+      }
+    }
+
     const now = Date.now();
-    state.sessionSnapshots.set(storageKey, {
+    const ownerTokenHash =
+      existing?.ownerTokenHash || hashRoomPin(effectiveOwnerSecret, 'autosave-owner-salt');
+    const ownerStudentId = claimedStudentId || existing?.ownerStudentId;
+
+    state.sessionSnapshots.set(cleanStorageKey, {
       version,
       session,
       updatedAt: now,
+      ownerStudentId,
+      ownerTokenHash,
     });
     state.pruneSessionSnapshots(now);
     res.json({
@@ -85,7 +200,7 @@ export function createLabRouter({ state, getPort }: LabRoutesDeps): express.Rout
    * Accepts (roomPin, participantId, optional roomId) and restores `connected = 1` in SQLite
    * while immediately returning the latest `simulation_snapshots` payload.
    */
-  router.post('/api/rooms/rejoin', (req, res) => {
+  router.post('/api/rooms/rejoin', rejoinRateLimiter, (req, res) => {
     const { roomPin, participantId, roomId } = req.body || {};
     const cleanPin = typeof roomPin === 'string' ? roomPin.trim() : '';
     const cleanParticipantId =
@@ -116,7 +231,7 @@ export function createLabRouter({ state, getPort }: LabRoutesDeps): express.Rout
     res.json({
       status: 'rejoined',
       roomPin: restored.dbRoom.pin,
-      room: restored.room,
+      room: restored.room ? sanitizeRoomForBroadcast(restored.room) : null,
       participant: restored.participant,
       latestSimulationSnapshot: restored.latestSnapshot?.params ?? null,
       snapshotUpdatedAt: restored.latestSnapshot?.updatedAt ?? null,

@@ -11,26 +11,30 @@
 | **Frontend Runtime** | React 19 + TypeScript (`strict: true`) + Vite 6 | UI deklaratif dengan *domain-level code-splitting* (`React.lazy` + `Suspense`) untuk modul Fisika, Kimia, Biologi, dan Astronomi. |
 | **State Management** | Zustand + `useShallow` | Penyimpanan reaktif tersegmentasi (`useLabStore`, `useUIStore`, `useCollabStore`) tanpa *unnecessary re-render* pada loop 60 FPS. |
 | **3D Spatial & WebXR** | Three.js + PostProcessing + WebXR | Mesin visualisasi 3D PBR (`ACESFilmicToneMapping`, `toneMappingExposure = 0.98`, `SRGBColorSpace`), gelas borosilikat IOR 1.47, *3D measurement tools* (mistar, busur derajat, probe digital), dan *WebGL Context-Loss ErrorBoundary*. |
-| **Numerical Solver** | Web Worker (`src/workers/simulationWorker.ts`) | Integrator persamaan diferensial biasa **Runge-Kutta Orde 4 (RK4)** *off-main-thread* dengan *ring-buffer timeline scrubber* (`simulationTimelineBuffer.ts`). |
-| **Backend & WebSocket** | Express + `ws` (`server.ts`, `server/ws/*`) | Server HTTP + WebSocket (`/ws-lab`) untuk sinkronisasi kursor 3D, penguncian parameter (*parameter locks*), pembekuan layar oleh guru (*teacher freeze*), dan *custom AI mission broadcast*. |
+| **Numerical Solver** | Web Worker (`src/workers/simulation.worker.ts`, `src/workers/domains/*`, `src/workers/integrators/*`) | Integrator persamaan diferensial biasa **Runge-Kutta Orde 4 (`rk4.ts`)** dan **Velocity Verlet Simlektik (`verlet.ts`)** *off-main-thread* dengan solver per domain (`physics.ts`, `chemistry.ts`, `biology.ts`, `astronomy.ts`), `SharedArrayBuffer` ring buffer (`simulationBuffer.ts`), dan *timeline scrubber* (`simulationTimelineBuffer.ts`). |
+| **Backend & WebSocket** | Express + `ws` (`server.ts`, `server/ws/*`) | Server HTTP + WebSocket (`/ws-lab`) dengan heartbeat `ping`/`pong` 30 detik, proteksi anti-*role-escalation*, sanitasi PIN, sinkronisasi kursor 3D, penguncian parameter (*parameter locks*), `PARAM_LOCK_RESET_ALL`, pembekuan layar oleh guru (*teacher freeze*), dan *custom AI mission broadcast*. |
 | **Database Layer** | `bun:sqlite` / `node:sqlite` (`server/db/database.ts`) | Penyimpanan relasional persisten dengan `PRAGMA journal_mode = WAL;` dan `PRAGMA foreign_keys = ON;` untuk tabel `rooms`, `participants`, `simulation_snapshots`, dan `gradebook_entries`. |
 | **Auto-Grading Engine** | `src/shared/grading/rubricEngine.ts` | Mesin penilaian rubrik deterministik yang memvalidasi hipotesis, kelengkapan tabel observasi, deviasi numerik RK4, kuis pasca-lab, dan sintesis kesimpulan. |
 
 ---
 
-## 2. Aliran Data Simulasi: RK4 Worker → Zustand `useShallow` → Three.js Render Loop
+## 2. Aliran Data Simulasi: Modular RK4/Verlet Worker → Zustand `useShallow` → Three.js Render Loop
 
 ```text
-[TactileParameterControl (Slider / Input Numerik / Fine Step)]
+[TactileParameterControl / PrecisionSlider (Slider / Input Numerik / Fine Step)]
        │
        ▼ (Acquire Lock via WebSocket + Update Store)
 [Zustand Store (useLabStore / useShallow)]
        │
        ├──► [useSimulationSync.ts] ──(Throttled Snapshot)──► [SQLite: simulation_snapshots]
        │
-       ▼ (PostMessage ke Off-Thread Worker)
-[RK4 Web Worker (simulationWorker.ts)]
-  • Menyelesaikan dy/dt menggunakan Runge-Kutta Orde 4 (k1, k2, k3, k4)
+       ▼ (PostMessage / Zero-Copy SharedArrayBuffer Ring Buffer)
+[Modular Web Worker (src/workers/simulation.worker.ts)]
+  • Integrator Murni (src/workers/integrators/):
+      - rk4.ts    : Runge-Kutta Orde 4 (k1, k2, k3, k4)
+      - verlet.ts : Symplectic Velocity Verlet
+  • Solver Domain (src/workers/domains/):
+      - physics.ts, chemistry.ts, biology.ts, astronomy.ts
   • Menghitung konservasi energi (Ek, Ep, E_termal, E_total) & ketidakpastian alat (NST)
        │
        ▼ (Frame Telemetry & Ring-Buffer Snapshot)
@@ -87,3 +91,21 @@ Setiap laporan praktikum yang dikirimkan siswa (baik daring melalui `POST /api/s
 5. **Sintesis Kesimpulan Berbasis Bukti Data** (15 poin)
 
 Hasil evaluasi disimpan sebagai JSON terstruktur (`rubric_json`) di tabel `gradebook_entries`, ditampilkan secara transparan pada *drawer* rincian rubrik di **Teacher Gradebook Hub**, dan dapat diekspor ke CSV yang kompatibel dengan Excel/Google Classroom (dilengkapi prefix UTF-8 BOM `\uFEFF` serta sanitasi *formula injection* `=`, `+`, `-`, `@`).
+
+---
+
+## 6. Hardening Keamanan WebSocket/REST & Ketahanan Heartbeat 3T
+
+1. **Pencegahan *Role Escalation* & Sanitasi PIN (`server/ws/wsRoomManager.ts` & `server/utils/collabReconnectSync.ts`)**:
+   - `handleRoomJoin` tidak pernah mempercayai `payload.role` (`'teacher'` / `'Pengajar'`) dari klien secara mentah. Klaim akses pengajar wajib diverifikasi melalui `verifyTeacherAuthorization` (`src/utils/submissionPersistence.ts`). Bila tidak terotorisasi, server menolak klaim dengan `ROOM_ERROR` (`code: 'UNAUTHORIZED_TEACHER_ROLE'`) dan memaksa peran menjadi `'Siswa'`.
+   - `handleRoomJoin` membatasi percobaan PIN salah menggunakan *attempt limiter* per-IP/per-socket (`MAX_JOIN_PIN_ATTEMPTS = 5` per 60 detik) sebelum memblokir sementara dengan kode `RATE_LIMITED`.
+   - Seluruh broadcast `ROOM_STATE_SYNC`, `ROOM_JOINED`, dan `ROOM_MISSION_UPDATED` disanitasi menggunakan `sanitizeRoomForBroadcast` sehingga field `pin` dan `pinHash` tidak pernah diekspos ke publik (`pin` hanya dikirim pada respons privat `ROOM_CREATED` ke pembuat ruangan).
+
+2. **WebSocket Heartbeat `ping`/`pong` 30 Detik & `PARAM_LOCK_RESET_ALL` (`server/ws/collabSocketServer.ts` & `server/ws/wsSpatialSync.ts`)**:
+   - Setiap koneksi WebSocket ditandai `isAlive = true` saat terhubung dan saat menerima frame `pong`.
+   - Interval `WS_HEARTBEAT_INTERVAL_MS` (`30_000 ms`) menjalankan `runWsHeartbeatSweep`: koneksi zombie pada jaringan 3T (`isAlive === false`) diterminasi (`ws.terminate()`) dan dibersihkan via `cleanupSocketRoomAndLocks(ws, services)` sehingga tidak menyandera `parameterLocks` maupun `room.teacherSocketId`.
+   - Event `PARAM_LOCK_RESET_ALL` memungkinkan pengajar terotorisasi melepas seluruh kunci parameter di ruangan secara instan bila perangkat siswa mengalami *hang*.
+
+3. **Proteksi Endpoint REST (`server/routes/labRoutes.ts`)**:
+   - `POST /api/rooms/rejoin` dilindungi oleh `express-rate-limit` (`windowMs: 60_000`, `max: 20`) berbasis `rateLimitKeyGenerator` (`server/utils/rateLimitKey.ts`) untuk mencegah *brute-force* kombinasi `roomPin` dan `participantId`.
+   - `POST /api/session/autosave` memvalidasi kepemilikan sesi melalui kecocokan `storageKey` dengan `studentId` serta pengikatan token pemilik (`X-Session-Token` / `sessionToken` yang disimpan sebagai `ownerTokenHash`), menolak penimpaan sesi oleh klien lain dengan `403 Forbidden` (`SESSION_OWNERSHIP_MISMATCH`) dan menolak versi usang dengan `409 Conflict` (`stale_rejected`).

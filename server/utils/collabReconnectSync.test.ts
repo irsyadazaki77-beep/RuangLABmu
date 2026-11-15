@@ -100,6 +100,8 @@ describe('WebSocket Room Reconnect & Snapshot Resync Helpers', () => {
     assert.equal(snapshot.roomJoinedMessage.payload.room.isFrozenByTeacher, true);
     assert.equal(snapshot.roomJoinedMessage.payload.room.customMission?.title, 'Misi Air Danau');
     assert.equal(snapshot.roomJoinedMessage.payload.paramLocks.length, 1);
+    assert.equal('pin' in snapshot.roomJoinedMessage.payload.room, false);
+    assert.equal('pin' in snapshot.roomStateSyncMessage.payload.room, false);
 
     assert.equal(snapshot.paramLocksSyncMessage.type, 'PARAM_LOCKS_SYNC');
     assert.equal(snapshot.paramLocksSyncMessage.payload.roomId, 'LAB-A1');

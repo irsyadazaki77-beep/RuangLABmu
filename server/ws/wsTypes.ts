@@ -9,6 +9,8 @@ export interface ExtWebSocket extends WebSocket {
   groupId?: string;
   domain?: 'fisika' | 'kimia' | 'biologi' | 'astronomi';
   roomId?: string;
+  isAlive?: boolean;
+  remoteIp?: string;
 }
 
 export interface CollabSocketContext {

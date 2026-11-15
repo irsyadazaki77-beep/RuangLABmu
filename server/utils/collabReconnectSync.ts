@@ -32,6 +32,26 @@ export function getRoomScopedLocks(
   return result;
 }
 
+export type SanitizedLabRoom = Omit<LabRoom, 'pin'> & {
+  pin?: undefined;
+  pinHash?: undefined;
+};
+
+/**
+ * Strips sensitive `pin` and `pinHash` fields before broadcasting room state
+ * to clients via `ROOM_STATE_SYNC` or non-creator snapshots.
+ */
+export function sanitizeRoomForBroadcast(
+  room: LabRoom & { pinHash?: string }
+): LabRoom {
+  const {
+    pin: _pin,
+    pinHash: _pinHash,
+    ...safeRoom
+  } = room as LabRoom & { pin?: string; pinHash?: string };
+  return safeRoom as unknown as LabRoom;
+}
+
 export interface RoomReconnectSnapshot {
   roomJoinedMessage: {
     type: 'ROOM_JOINED';
@@ -74,12 +94,13 @@ export function buildRoomReconnectSnapshot(
     client.groupId,
     nowMs
   );
+  const sanitizedRoom = sanitizeRoomForBroadcast(room);
 
   return {
     roomJoinedMessage: {
       type: 'ROOM_JOINED',
       payload: {
-        room,
+        room: sanitizedRoom,
         client,
         isReconnect,
         paramLocks: roomLocks,
@@ -95,7 +116,7 @@ export function buildRoomReconnectSnapshot(
     roomStateSyncMessage: {
       type: 'ROOM_STATE_SYNC',
       payload: {
-        room,
+        room: sanitizedRoom,
       },
     },
   };

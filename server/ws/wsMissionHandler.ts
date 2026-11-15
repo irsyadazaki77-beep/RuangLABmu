@@ -1,5 +1,6 @@
 import type { CustomAIMissionPayload, LabRoom } from '../../src/utils/collabProtocol';
 import { generateSecureRoomPin, hashRoomPin } from '../state/labServerState';
+import { sanitizeRoomForBroadcast } from '../utils/collabReconnectSync';
 import { authorizeTeacherAction } from './wsAuth';
 import type { ExtWebSocket, WsHandlerServices } from './wsTypes';
 
@@ -76,18 +77,19 @@ export function handleRoomSetCustomMission(
     teacherName
   );
   state.pruneIdleRooms();
+  const sanitizedRoom = sanitizeRoomForBroadcast(updatedRoom);
 
   broadcastAll({
     type: 'ROOM_MISSION_UPDATED',
     payload: {
       roomId: updatedRoom.roomId,
       customMission: updatedRoom.customMission || null,
-      room: updatedRoom,
+      room: sanitizedRoom,
     },
   });
   broadcastRoom(updatedRoom.roomId, {
     type: 'ROOM_STATE_SYNC',
-    payload: { room: updatedRoom },
+    payload: { room: sanitizedRoom },
   });
 }
 
@@ -124,6 +126,6 @@ export function handleTeacherFreezeToggle(
   });
   broadcastRoom(auth.targetRoomId, {
     type: 'ROOM_STATE_SYNC',
-    payload: { room: auth.room },
+    payload: { room: sanitizeRoomForBroadcast(auth.room) },
   });
 }

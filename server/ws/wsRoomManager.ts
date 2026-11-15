@@ -4,13 +4,72 @@ import {
   StudentLiveTelemetry,
   generateRandomRoomId,
 } from '../../src/utils/collabProtocol';
+import { verifyTeacherAuthorization } from '../../src/utils/submissionPersistence';
 import {
   generateSecureRoomPin,
   hashRoomPin,
   verifyRoomPinTimingSafe,
 } from '../state/labServerState';
-import { buildRoomReconnectSnapshot } from '../utils/collabReconnectSync';
+import {
+  buildRoomReconnectSnapshot,
+  sanitizeRoomForBroadcast,
+} from '../utils/collabReconnectSync';
 import type { ExtWebSocket, WsHandlerServices } from './wsTypes';
+
+export const MAX_JOIN_PIN_ATTEMPTS = 5;
+export const JOIN_PIN_WINDOW_MS = 60_000;
+
+interface JoinPinAttemptState {
+  failedCount: number;
+  windowStartMs: number;
+  blockedUntilMs: number;
+}
+
+const joinPinAttempts = new Map<string, JoinPinAttemptState>();
+
+export function resetJoinPinAttemptsForTest(): void {
+  joinPinAttempts.clear();
+}
+
+function getJoinAttemptKey(ws: ExtWebSocket): string {
+  const ip = typeof ws.remoteIp === 'string' && ws.remoteIp.trim() ? ws.remoteIp.trim() : '';
+  return ip || ws.socketId || 'anonymous-socket';
+}
+
+function isJoinAttemptRateLimited(key: string, now = Date.now()): boolean {
+  const entry = joinPinAttempts.get(key);
+  if (!entry) return false;
+  if (entry.blockedUntilMs > now) {
+    return true;
+  }
+  if (now - entry.windowStartMs > JOIN_PIN_WINDOW_MS) {
+    joinPinAttempts.delete(key);
+    return false;
+  }
+  return entry.failedCount >= MAX_JOIN_PIN_ATTEMPTS;
+}
+
+function recordFailedJoinPinAttempt(key: string, now = Date.now()): boolean {
+  const existing = joinPinAttempts.get(key);
+  if (!existing || now - existing.windowStartMs > JOIN_PIN_WINDOW_MS) {
+    joinPinAttempts.set(key, {
+      failedCount: 1,
+      windowStartMs: now,
+      blockedUntilMs: 0,
+    });
+    return false;
+  }
+
+  existing.failedCount += 1;
+  if (existing.failedCount >= MAX_JOIN_PIN_ATTEMPTS) {
+    existing.blockedUntilMs = now + JOIN_PIN_WINDOW_MS;
+  }
+  return existing.failedCount > MAX_JOIN_PIN_ATTEMPTS;
+}
+
+function clearJoinPinAttempts(key: string): void {
+  joinPinAttempts.delete(key);
+}
 
 export function handleRoomCreate(
   ws: ExtWebSocket,
@@ -74,8 +133,14 @@ export function handleRoomCreate(
   ws.roomId = roomId;
   ws.role = 'Pengajar';
 
-  ws.send(JSON.stringify({ type: 'ROOM_CREATED', payload: { room: newRoom } }));
-  broadcastRoom(roomId, { type: 'ROOM_STATE_SYNC', payload: { room: newRoom } });
+  // Send full room (including PIN) privately ONLY to the room creator
+  const { pinHash: _pinHash, ...creatorRoomPayload } = newRoom;
+  ws.send(JSON.stringify({ type: 'ROOM_CREATED', payload: { room: creatorRoomPayload } }));
+  // Broadcast sanitized room state (without PIN or pinHash) to room peers
+  broadcastRoom(roomId, {
+    type: 'ROOM_STATE_SYNC',
+    payload: { room: sanitizeRoomForBroadcast(newRoom) },
+  });
 }
 
 export function handleRoomJoin(
@@ -84,6 +149,23 @@ export function handleRoomJoin(
   services: WsHandlerServices
 ): void {
   const { state, broadcastRoom } = services;
+  const now = Date.now();
+  const attemptKey = getJoinAttemptKey(ws);
+
+  if (isJoinAttemptRateLimited(attemptKey, now)) {
+    ws.send(
+      JSON.stringify({
+        type: 'ROOM_ERROR',
+        payload: {
+          message:
+            'Terlalu banyak percobaan PIN salah. Silakan tunggu 1 menit sebelum mencoba kembali.',
+          code: 'RATE_LIMITED',
+        },
+      })
+    );
+    return;
+  }
+
   const rawRoomId = typeof payload.roomId === 'string' ? payload.roomId : '';
   const inputPin = typeof payload.pin === 'string' ? payload.pin : String(payload.pin ?? '');
   const name = typeof payload.name === 'string' ? payload.name : undefined;
@@ -110,6 +192,20 @@ export function handleRoomJoin(
 
   const expectedSecret = room.pinHash || room.pin;
   if (expectedSecret && !verifyRoomPinTimingSafe(inputPin, expectedSecret)) {
+    const exceededNow = recordFailedJoinPinAttempt(attemptKey, now);
+    if (exceededNow) {
+      ws.send(
+        JSON.stringify({
+          type: 'ROOM_ERROR',
+          payload: {
+            message:
+              'Terlalu banyak percobaan PIN salah. Silakan tunggu 1 menit sebelum mencoba kembali.',
+            code: 'RATE_LIMITED',
+          },
+        })
+      );
+      return;
+    }
     ws.send(
       JSON.stringify({
         type: 'ROOM_ERROR',
@@ -122,16 +218,67 @@ export function handleRoomJoin(
     return;
   }
 
+  clearJoinPinAttempts(attemptKey);
+
+  const resolvedUserId = userId || ws.userId || `user-${now}`;
+  const wantsTeacherRole =
+    role === 'teacher' || role === 'Pengajar' || role === 'Guru';
+
+  const isExistingRoomTeacherReconnect = Boolean(
+    payload.isVerifiedTeacherReconnect ||
+      (isReconnect &&
+        Object.values(room.clients).some(
+          (c) => c.userId === resolvedUserId && c.role === 'teacher'
+        ))
+  );
+  const hasActiveOtherTeacher = Boolean(
+    room.teacherSocketId &&
+      room.teacherSocketId !== ws.socketId &&
+      !isExistingRoomTeacherReconnect
+  );
+
+  const teacherAuth = verifyTeacherAuthorization({
+    socketId: ws.socketId,
+    claimedRole: wantsTeacherRole ? 'Pengajar' : 'Siswa',
+    providedPin:
+      typeof payload.teacherPin === 'string' ? payload.teacherPin : undefined,
+    providedToken:
+      typeof payload.teacherToken === 'string' ? payload.teacherToken : undefined,
+    roomPin: hasActiveOtherTeacher ? undefined : room.pin,
+    roomPinHash: hasActiveOtherTeacher ? undefined : room.pinHash,
+    roomTeacherSocketId: room.teacherSocketId,
+    isSocketAlreadyVerifiedTeacher:
+      ws.role === 'Pengajar' || isExistingRoomTeacherReconnect,
+  });
+
+  if (wantsTeacherRole && !teacherAuth.authorized) {
+    ws.role = 'Siswa';
+    ws.send(
+      JSON.stringify({
+        type: 'ROOM_ERROR',
+        payload: {
+          message:
+            teacherAuth.reason ||
+            'Otorisasi Pengajar ditolak: Klien tidak memiliki hak akses guru untuk ruangan ini.',
+          code: 'UNAUTHORIZED_TEACHER_ROLE',
+        },
+      })
+    );
+    return;
+  }
+
   if (ws.roomId && ws.roomId !== roomId && state.activeLabRooms.has(ws.roomId)) {
     const prev = state.activeLabRooms.get(ws.roomId)!;
     delete prev.clients[ws.socketId];
     state.touchLabRoom(ws.roomId);
-    broadcastRoom(ws.roomId, { type: 'ROOM_STATE_SYNC', payload: { room: prev } });
+    broadcastRoom(ws.roomId, {
+      type: 'ROOM_STATE_SYNC',
+      payload: { room: sanitizeRoomForBroadcast(prev) },
+    });
   }
 
   const clientRole: 'teacher' | 'student' =
-    role === 'teacher' || role === 'Pengajar' ? 'teacher' : 'student';
-  const resolvedUserId = userId || ws.userId || `user-${Date.now()}`;
+    wantsTeacherRole && teacherAuth.authorized ? 'teacher' : 'student';
 
   for (const [existingSockId, existingClient] of Object.entries(room.clients)) {
     if (existingSockId !== ws.socketId && existingClient.userId === resolvedUserId) {
@@ -139,7 +286,6 @@ export function handleRoomJoin(
     }
   }
 
-  const now = Date.now();
   const roomClient: LabRoomClient = {
     socketId: ws.socketId,
     userId: resolvedUserId,
@@ -166,7 +312,8 @@ export function handleRoomJoin(
     room,
     roomClient,
     state.parameterLocks,
-    isReconnect
+    isReconnect,
+    now
   );
 
   // Restore participant `connected = 1` in SQLite and fetch latest `simulation_snapshots`
@@ -266,6 +413,7 @@ export function handleRoomRejoin(
         userId: participantId,
         groupId: typeof payload.groupId === 'string' ? payload.groupId : ws.groupId,
         isReconnect: true,
+        isVerifiedTeacherReconnect: restored.participant.role === 'teacher',
       },
       services
     );
@@ -355,7 +503,10 @@ export function handleRoomLeave(
     const oldId = ws.roomId;
     state.touchLabRoom(oldId);
     ws.roomId = undefined;
-    broadcastRoom(oldId, { type: 'ROOM_STATE_SYNC', payload: { room } });
+    broadcastRoom(oldId, {
+      type: 'ROOM_STATE_SYNC',
+      payload: { room: sanitizeRoomForBroadcast(room) },
+    });
   }
 }
 
@@ -447,6 +598,9 @@ export function cleanupSocketRoomAndLocks(
       room.teacherSocketId = undefined;
     }
     state.touchLabRoom(ws.roomId);
-    broadcastRoom(ws.roomId, { type: 'ROOM_STATE_SYNC', payload: { room } });
+    broadcastRoom(ws.roomId, {
+      type: 'ROOM_STATE_SYNC',
+      payload: { room: sanitizeRoomForBroadcast(room) },
+    });
   }
 }

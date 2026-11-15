@@ -90,21 +90,29 @@ export const useCollabStore = create<CollabState>((set) => ({
   setActiveRoomId: (activeRoomId: string | null) => set({ activeRoomId }),
 
   setActiveRoom: (room: LabRoom | null) =>
-    set((state) => ({
-      activeRoom: room,
-      activeRoomId: room ? room.roomId : null,
-      activeCustomMission:
-        room && room.customMission !== undefined
-          ? room.customMission
-          : room === null
-          ? null
-          : state.activeCustomMission,
-      roomPin: room ? room.pin : null,
-      roomError: null,
-      isFrozenByTeacher: room ? room.isFrozenByTeacher : false,
-      teacherName: room ? room.teacherName || null : null,
-      roomMembers: room ? room.clients || {} : {},
-    })),
+    set((state) => {
+      const preservedPin = room
+        ? room.pin ||
+          (state.activeRoom?.roomId === room.roomId ? state.activeRoom.pin : '') ||
+          state.roomPin ||
+          ''
+        : null;
+      return {
+        activeRoom: room ? { ...room, pin: preservedPin || '' } : null,
+        activeRoomId: room ? room.roomId : null,
+        activeCustomMission:
+          room && room.customMission !== undefined
+            ? room.customMission
+            : room === null
+            ? null
+            : state.activeCustomMission,
+        roomPin: preservedPin || null,
+        roomError: null,
+        isFrozenByTeacher: room ? room.isFrozenByTeacher : false,
+        teacherName: room ? room.teacherName || null : null,
+        roomMembers: room ? room.clients || {} : {},
+      };
+    }),
 
   setActiveCustomMission: (activeCustomMission: CustomAIMissionPayload | null) =>
     set((state) => ({

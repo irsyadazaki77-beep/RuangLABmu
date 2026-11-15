@@ -37,6 +37,7 @@ import {
   handleCursor3DMove,
   handleParamLockAcquire,
   handleParamLockRelease,
+  handleParamLockResetAll,
   handleParamValueSync,
   handleTeacherCameraSync,
   handleTeacherLaserRay,
@@ -50,6 +51,42 @@ import type { CollabSocketContext, ExtWebSocket, WsHandlerServices } from './wsT
 
 export type { CollabSocketContext, ExtWebSocket } from './wsTypes';
 export { applyCustomMissionToRoom } from './wsMissionHandler';
+
+export const WS_HEARTBEAT_INTERVAL_MS = 30_000;
+
+/**
+ * Executes a single heartbeat sweep across all connected WebSocket clients.
+ * Terminates and cleans up any zombie 3T socket that failed to respond with `pong`
+ * since the previous sweep, releasing its `parameterLocks` and `room.teacherSocketId`.
+ */
+export function runWsHeartbeatSweep(
+  clients: Iterable<WebSocket>,
+  services: WsHandlerServices
+): number {
+  let terminatedCount = 0;
+  for (const rawClient of clients) {
+    const ws = rawClient as ExtWebSocket;
+    if (ws.isAlive === false) {
+      cleanupSocketRoomAndLocks(ws, services);
+      try {
+        ws.terminate();
+      } catch {
+        // Ignore terminate error on already closed socket
+      }
+      terminatedCount += 1;
+    } else {
+      ws.isAlive = false;
+      try {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.ping();
+        }
+      } catch {
+        // Ignore ping error on closing socket
+      }
+    }
+  }
+  return terminatedCount;
+}
 
 export function createCollabSocketServer(
   server: http.Server,
@@ -122,9 +159,24 @@ export function createCollabSocketServer(
     broadcastGroup,
   };
 
-  wss.on('connection', (socket) => {
+  const heartbeatInterval = setInterval(() => {
+    runWsHeartbeatSweep(wss.clients, services);
+  }, WS_HEARTBEAT_INTERVAL_MS);
+  heartbeatInterval.unref?.();
+
+  wss.on('close', () => {
+    clearInterval(heartbeatInterval);
+  });
+
+  wss.on('connection', (socket, req) => {
     const ws = socket as ExtWebSocket;
     ws.socketId = `sock-${crypto.randomUUID()}`;
+    ws.isAlive = true;
+    ws.remoteIp = req?.socket?.remoteAddress || undefined;
+
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
 
     state.pruneExpiredLocks();
 
@@ -143,6 +195,7 @@ export function createCollabSocketServer(
     );
 
     ws.on('message', (data) => {
+      ws.isAlive = true;
       try {
         const parsed = JSON.parse(data.toString());
         const envelope = validateWsMessageEnvelope(parsed);
@@ -208,6 +261,9 @@ export function createCollabSocketServer(
           case 'PARAM_LOCK_RELEASE':
             if (hasPayload) handleParamLockRelease(ws, payload, services);
             break;
+          case 'PARAM_LOCK_RESET_ALL':
+            handleParamLockResetAll(ws, payload || {}, services);
+            break;
           case 'PARAM_VALUE_SYNC':
             if (hasPayload) handleParamValueSync(ws, payload, services);
             break;
@@ -265,6 +321,11 @@ export function createCollabSocketServer(
       } catch (err) {
         console.error('WebSocket message error:', err);
       }
+    });
+
+    ws.on('error', (err) => {
+      console.error('[RuangLABmu WS Socket Error]:', err);
+      cleanupSocketRoomAndLocks(ws, services);
     });
 
     ws.on('close', () => {

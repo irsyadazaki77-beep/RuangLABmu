@@ -184,3 +184,59 @@ export function handleParamValueSync(
     ws.roomId
   );
 }
+
+export function handleParamLockResetAll(
+  ws: ExtWebSocket,
+  payload: Record<string, unknown>,
+  services: WsHandlerServices
+): void {
+  const { state, broadcastRoom, broadcastAll } = services;
+  const auth = authorizeTeacherAction(
+    ws,
+    payload,
+    state.activeLabRooms,
+    typeof payload.roomId === 'string' ? payload.roomId : undefined,
+    true
+  );
+  if (!auth.authorized) return;
+
+  const targetRoomId = auth.targetRoomId;
+  const targetGroupId =
+    typeof payload.groupId === 'string' && payload.groupId.trim()
+      ? payload.groupId.trim()
+      : undefined;
+
+  let clearedCount = 0;
+  for (const [key, lock] of Array.from(state.parameterLocks.entries())) {
+    const keyPrefix = key.split(':')[0]?.toUpperCase().trim();
+    const matchesRoom = keyPrefix === targetRoomId || targetRoomId === 'LAB-ALPHA';
+    const matchesGroup = Boolean(targetGroupId && lock.groupId === targetGroupId);
+    if (matchesRoom || matchesGroup) {
+      state.parameterLocks.delete(key);
+      clearedCount += 1;
+    }
+  }
+
+  const syncMsg = {
+    type: 'PARAM_LOCKS_SYNC',
+    payload: {
+      roomId: targetRoomId,
+      locks: [],
+    },
+  };
+  const resetMsg = {
+    type: 'PARAM_LOCK_RESET_ALL',
+    payload: {
+      roomId: targetRoomId,
+      clearedCount,
+    },
+  };
+
+  if (ws.roomId || payload.roomId) {
+    broadcastRoom(targetRoomId, syncMsg);
+    broadcastRoom(targetRoomId, resetMsg);
+  } else {
+    broadcastAll(syncMsg);
+    broadcastAll(resetMsg);
+  }
+}
