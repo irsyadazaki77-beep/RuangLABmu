@@ -10,12 +10,20 @@ services:
     dockerfilePath: ./Dockerfile
     plan: starter
     region: singapore
-    healthCheckPath: /api/health
+    healthCheckPath: /readyz
     autoDeploy: true
+    disk:
+      name: ruanglabmu-data
+      mountPath: /app/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 3000
+      - key: DB_PATH
+        value: /app/data/ruanglabmu.db
+      - key: RUANGLAB_DB_PATH
+        value: /app/data/ruanglabmu.db
       - key: GEMINI_API_KEY
         sync: false

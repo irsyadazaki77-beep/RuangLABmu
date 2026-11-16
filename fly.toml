@@ -11,6 +11,12 @@ primary_region = "sin"
 [env]
   NODE_ENV = "production"
   PORT = "3000"
+  DB_PATH = "/app/data/ruanglabmu.db"
+  RUANGLAB_DB_PATH = "/app/data/ruanglabmu.db"
+
+[mounts]
+  source = "ruanglabmu_data"
+  destination = "/app/data"
 
 [http_service]
   internal_port = 3000
@@ -30,7 +36,7 @@ primary_region = "sin"
     interval = "30s"
     method = "GET"
     timeout = "5s"
-    path = "/api/health"
+    path = "/readyz"
 
 [[vm]]
   memory = "512mb"

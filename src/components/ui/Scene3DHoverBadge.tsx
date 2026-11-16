@@ -27,15 +27,17 @@ export const Scene3DHoverBadge: React.FC<Scene3DHoverBadgeProps> = ({
 
   return (
     <div
-      className={`pointer-events-none absolute bottom-16 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium shadow-lg transition-all duration-150 ${ACCENT_CLASSES[accent]}`}
+      data-testid="scene-3d-hover-badge"
+      className={`pointer-events-none absolute bottom-16 left-1/2 z-30 flex -translate-x-1/2 max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium shadow-lg transition-all duration-150 ${ACCENT_CLASSES[accent]}`}
       role="status"
       aria-live="polite"
     >
       <Hand className="h-3.5 w-3.5 shrink-0 opacity-90" />
-      <span className="font-semibold tracking-wide">{hoveredLabel}</span>
-      <span className="hidden text-[10px] opacity-75 sm:inline">
+      <span className="font-semibold tracking-wide truncate">{hoveredLabel}</span>
+      <span className="hidden text-[10px] opacity-75 shrink-0 sm:inline">
         · Seret vertikal untuk ubah parameter
       </span>
     </div>
   );
 };
+

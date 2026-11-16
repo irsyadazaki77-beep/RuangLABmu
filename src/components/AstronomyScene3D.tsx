@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { Maximize2, Minimize2, Link2 } from 'lucide-react';
-import { smoothCameraTransition, type CameraSyncPose } from '../utils/threeStudioKit';
+import { smoothCameraDamp, type CameraSyncPose } from '../utils/threeStudioKit';
 import { initThreeStudioHost, startStudioRenderLoop } from '../utils/threeStudioHost';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
 import {
@@ -178,8 +178,9 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       },
       controls: {
         autoRotateSpeed: 1.2,
+        maxPolarAngle: Math.PI * 0.48,
         minDistance: 3.5,
-        maxDistance: 60,
+        maxDistance: 50,
       },
       onContextRestored: triggerSceneRebuild,
       onUserControlsStart: () => {
@@ -258,7 +259,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     centralStarLight.position.set(0, 0, 0);
     scene.add(centralStarLight);
 
-    const astroShadowSize = isSoftwareGl ? 512 : 2048;
+    const astroShadowSize = isSoftwareGl ? 512 : 1024;
     const astroKeyLight = new THREE.DirectionalLight(0xfff7ed, 1.5);
     astroKeyLight.position.set(8, 14, 10);
     astroKeyLight.castShadow = true;
@@ -274,6 +275,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     astroKeyLight.shadow.bias = -0.0005;
     astroKeyLight.shadow.normalBias = 0.02;
     scene.add(astroKeyLight);
+    host.registerShadowLight(astroKeyLight);
 
     // Multi-Layer Parallax Starfield
     const spectralPalette = [
@@ -333,7 +335,11 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       },
       captureCanvas: () => host.captureSnapshot(),
       applyTheme: (colors) => {
-        scene.background = new THREE.Color(0x0b0f17);
+        if (scene.background instanceof THREE.Color) {
+          scene.background.setHex(0x0b0f17);
+        } else {
+          scene.background = new THREE.Color(0x0b0f17);
+        }
         scene.fog = new THREE.FogExp2(0x0b0f17, 0.008);
         ambientLight.color.setHex(colors.ambientSkyHex);
         ambientLight.groundColor.setHex(colors.ambientGroundHex);
@@ -402,13 +408,19 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     });
 
     const conceptProjVec = new THREE.Vector3();
+    const zeroConceptVec = new THREE.Vector3();
+    const reusableConceptEntries = [
+      { dom: conceptDomRef.current.c1, worldPos: zeroConceptVec, text: '', active: false },
+      { dom: conceptDomRef.current.c2, worldPos: zeroConceptVec, text: '', active: false },
+      { dom: conceptDomRef.current.c3, worldPos: zeroConceptVec, text: '', active: false },
+    ];
     let prevActiveMode = normalizeAstronomyMode(latestRef.current.params.mode);
 
     const loopHandle = startStudioRenderLoop({
       renderer,
       isSoftwareGl,
       fpsMonitor,
-      onFrame: ({ nowMs, dt, elapsed, isLite }) => {
+      onFrame: ({ nowMs, dt, elapsed, isLite, particleScale }) => {
         const {
           params: p,
           metrics: m,
@@ -433,6 +445,10 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
           rig.group.visible = modeKey === activeMode;
         });
 
+        const effectiveStarScale = isLite || isSoftwareGl ? Math.min(0.5, particleScale) : particleScale;
+        nearStarLayer.geometry.setDrawRange(0, Math.max(120, Math.round(500 * effectiveStarScale)));
+        deepStarLayer.geometry.setDrawRange(0, Math.max(200, Math.round(900 * effectiveStarScale)));
+
         // Parallax Starfield depth shift
         nearStarLayer.rotation.y = t * 0.004;
         deepStarLayer.rotation.y = -t * 0.0015;
@@ -448,6 +464,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
           activePlanet: ap,
           t,
           isLite: isLite || isSoftwareGl,
+          particleScale,
           showConceptLabels: showConceptLabelsRef.current,
           isFocusPreset: activePresetRef.current === 'focus',
           isDragging: isDraggingInteractive,
@@ -462,7 +479,14 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         cursorManager.update(latestRef.current.remoteCursors || {}, camera.position);
 
         if (camTransitionActive) {
-          camTransitionActive = smoothCameraTransition(camera, controls, desiredCamPos, desiredTarget, 0.12);
+          camTransitionActive = smoothCameraDamp(
+            camera,
+            controls,
+            desiredCamPos,
+            desiredTarget,
+            dt,
+            10
+          );
         }
 
         teacherCollabBridge.tick(nowMs, dt);
@@ -472,27 +496,30 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         const cw = container.clientWidth || width;
         const ch = container.clientHeight || height;
         const cDom = conceptDomRef.current;
-        const cEntries = [
-          {
-            dom: cDom.c1,
-            worldPos: rigFrame.anchors.c1?.pos ?? new THREE.Vector3(),
-            text: rigFrame.anchors.c1?.text ?? '',
-            active: Boolean(showLabels && rigFrame.anchors.c1),
-          },
-          {
-            dom: cDom.c2,
-            worldPos: rigFrame.anchors.c2?.pos ?? new THREE.Vector3(),
-            text: rigFrame.anchors.c2?.text ?? '',
-            active: Boolean(showLabels && rigFrame.anchors.c2),
-          },
-          {
-            dom: cDom.c3,
-            worldPos: rigFrame.anchors.c3?.pos ?? new THREE.Vector3(),
-            text: rigFrame.anchors.c3?.text ?? '',
-            active: Boolean(showLabels && rigFrame.anchors.c3),
-          },
-        ];
-        updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
+
+        reusableConceptEntries[0].dom = cDom.c1;
+        reusableConceptEntries[0].worldPos = rigFrame.anchors.c1?.pos ?? zeroConceptVec;
+        reusableConceptEntries[0].text = rigFrame.anchors.c1?.text ?? '';
+        reusableConceptEntries[0].active = Boolean(showLabels && rigFrame.anchors.c1);
+
+        reusableConceptEntries[1].dom = cDom.c2;
+        reusableConceptEntries[1].worldPos = rigFrame.anchors.c2?.pos ?? zeroConceptVec;
+        reusableConceptEntries[1].text = rigFrame.anchors.c2?.text ?? '';
+        reusableConceptEntries[1].active = Boolean(showLabels && rigFrame.anchors.c2);
+
+        reusableConceptEntries[2].dom = cDom.c3;
+        reusableConceptEntries[2].worldPos = rigFrame.anchors.c3?.pos ?? zeroConceptVec;
+        reusableConceptEntries[2].text = rigFrame.anchors.c3?.text ?? '';
+        reusableConceptEntries[2].active = Boolean(showLabels && rigFrame.anchors.c3);
+
+        updateProjectedConceptLabels(
+          reusableConceptEntries,
+          camera,
+          cw,
+          ch,
+          showLabels,
+          conceptProjVec
+        );
 
         host.renderFrame(dt);
       },
@@ -550,7 +577,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         className={`pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-lg bg-slate-950/92 border border-slate-700/60 px-2.5 py-1 text-[10px] font-mono text-slate-300 shadow-md ${
           isFullscreen
             ? 'bottom-3 left-3'
-            : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+            : `bottom-28 lg:bottom-[104px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
         }`}
       >
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
@@ -603,9 +630,18 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         <span className="mx-0.5 h-3.5 w-px bg-white/15" aria-hidden="true" />
 
         <div className="hidden md:flex items-center gap-0.5">
+          <button
+            type="button"
+            data-testid="camera-reset-btn"
+            onClick={() => handleSelectCameraPreset('isometric')}
+            title="Reset View ke Sudut 3D Awal"
+            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            Reset
+          </button>
           {(
             [
-              { id: 'isometric', label: 'Iso' },
+              { id: 'isometric', label: '3D' },
               { id: 'ecliptic', label: 'Depan' },
               { id: 'top', label: 'Atas' },
               { id: 'focus', label: 'Fokus' },

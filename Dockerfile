@@ -32,15 +32,17 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV DB_PATH=/app/data/ruanglabmu.db
+ENV RUANGLAB_DB_PATH=/app/data/ruanglabmu.db
 
 # Install deterministic production dependencies from bun.lock
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production \
   && rm -rf /root/.bun/install/cache
 
-# Copy compiled frontend assets and bundled server from builder stage
+# Copy compiled frontend assets, bundled server, and SQLite migrations from builder stage
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/dist-server ./dist-server
+COPY --from=builder /app/server/db/migrations ./server/db/migrations
 
 # Ensure writable data directory for SQLite & atomic state persistence
 RUN mkdir -p /app/data && chown -R node:node /app
@@ -52,6 +54,6 @@ USER node
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:3000/api/health > /dev/null || exit 1
+  CMD wget -qO- http://127.0.0.1:3000/readyz > /dev/null || exit 1
 
 CMD ["node", "dist-server/server.cjs"]

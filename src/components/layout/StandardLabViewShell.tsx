@@ -137,6 +137,10 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
     setDrawerTab,
     liteDeviceMode,
     toggleLiteDeviceMode,
+    qualityMode,
+    setQualityMode,
+    prefer2DFallback,
+    setPrefer2DFallback,
     livePerfStats,
     mobileTab,
     setMobileTab,
@@ -152,6 +156,10 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
       setDrawerTab: s.setDrawerTab,
       liteDeviceMode: s.liteDeviceMode,
       toggleLiteDeviceMode: s.toggleLiteDeviceMode,
+      qualityMode: s.qualityMode,
+      setQualityMode: s.setQualityMode,
+      prefer2DFallback: s.prefer2DFallback,
+      setPrefer2DFallback: s.setPrefer2DFallback,
       livePerfStats: s.livePerfStats,
       mobileTab: s.mobileTab,
       setMobileTab: s.setMobileTab,
@@ -416,7 +424,7 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
             }}
             title={
               liteDeviceMode
-                ? 'Mode Ringan 3T Aktif (Klik untuk Kualitas Penuh)'
+                ? 'Mode Ringan 3T Aktif (Klik untuk Kualitas Otomatis)'
                 : 'Klik untuk Mengaktifkan Mode Ringan 3T'
             }
             className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border font-mono text-[10px] font-bold tabular-nums transition-colors cursor-pointer ${
@@ -436,6 +444,48 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
             <span className="uppercase text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-200">
               {liteDeviceMode ? 'lite' : livePerfStats.qualityTier}
             </span>
+          </button>
+
+          {/* Manual Quality Tier Selector (Otomatis / Hemat Baterai 3T / Tinggi) */}
+          <label className="hidden xl:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-mono text-slate-300">
+            <span className="text-slate-400">Kualitas:</span>
+            <select
+              data-testid="hud-quality-mode-select"
+              aria-label="Pilih Kualitas Grafis 3D"
+              value={qualityMode}
+              onChange={(e) => {
+                const nextMode = e.target.value as 'auto' | '3t-saver' | 'high';
+                labSound.playClick();
+                setQualityMode(nextMode);
+              }}
+              className="bg-transparent text-sky-300 font-bold focus:outline-none cursor-pointer"
+            >
+              <option value="auto" className="bg-slate-900 text-slate-100">Otomatis</option>
+              <option value="3t-saver" className="bg-slate-900 text-slate-100">Hemat Baterai 3T</option>
+              <option value="high" className="bg-slate-900 text-slate-100">Tinggi</option>
+            </select>
+          </label>
+
+          {/* Manual 2D Lightweight Telemetry Fallback Toggle */}
+          <button
+            type="button"
+            data-testid="hud-2d-fallback-toggle-btn"
+            onClick={() => {
+              labSound.playClick();
+              setPrefer2DFallback(!prefer2DFallback);
+            }}
+            title={
+              prefer2DFallback
+                ? 'Kembali ke Visualisasi WebGL 3D'
+                : 'Beralih ke Mode Ringan 2D (Hemat Baterai / Perangkat Non-WebGL)'
+            }
+            className={`hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg border font-mono text-[10px] font-bold transition-colors cursor-pointer ${
+              prefer2DFallback
+                ? 'bg-sky-500/25 border-sky-400/60 text-sky-200'
+                : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
+            }`}
+          >
+            <span>{prefer2DFallback ? '3D' : '2D'}</span>
           </button>
 
           {onToggleDualMode && (

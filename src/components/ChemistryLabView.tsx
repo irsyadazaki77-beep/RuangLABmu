@@ -458,26 +458,28 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                 const pSide = side === 'A' ? params : realityBParams;
                 const mSide = side === 'A' ? metrics : metricsB;
                 return (
-                  <Suspense
-                    fallback={
-                      <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-teal-300">
-                        Menyiapkan Realitas {side}...
-                      </div>
-                    }
-                  >
-                    <ChemistryScene3D
-                      params={pSide}
-                      metrics={mSide}
-                      preset={currentPreset}
-                      redoxPreset={currentRedoxPreset}
-                      reactionProgress={Math.min(1, pSide.titrantAddedMl / Math.max(1, mSide.equivalenceVolumeMl))}
-                      isReacting={pSide.initialTempC > 25}
-                      simTime={simTime}
-                      simTimeRef={simTimeRef}
-                      cameraSyncPose={syncProps.cameraSyncPose}
-                      onCameraSyncChange={syncProps.onCameraSyncChange}
-                    />
-                  </Suspense>
+                  <LabErrorBoundary domain="Kimia" sceneName={`ChemistryScene3D-${side}`}>
+                    <Suspense
+                      fallback={
+                        <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-teal-300">
+                          Menyiapkan Realitas {side}...
+                        </div>
+                      }
+                    >
+                      <ChemistryScene3D
+                        params={pSide}
+                        metrics={mSide}
+                        preset={currentPreset}
+                        redoxPreset={currentRedoxPreset}
+                        reactionProgress={Math.min(1, pSide.titrantAddedMl / Math.max(1, mSide.equivalenceVolumeMl))}
+                        isReacting={pSide.initialTempC > 25}
+                        simTime={simTime}
+                        simTimeRef={simTimeRef}
+                        cameraSyncPose={syncProps.cameraSyncPose}
+                        onCameraSyncChange={syncProps.onCameraSyncChange}
+                      />
+                    </Suspense>
+                  </LabErrorBoundary>
                 );
               }}
             />

@@ -27,6 +27,7 @@ export interface ChemistryRigUpdateContext {
   metrics: ChemistryMetrics;
   simTime: number;
   isLite: boolean;
+  particleScale?: number;
   reacting: boolean;
   isSimTimeAdvancing: boolean;
 }
@@ -163,19 +164,13 @@ export function buildChemistrySpecialRigs(
   saltBridge.castShadow = true;
   redoxGroup.add(saltBridge);
 
-  // Salt Bridge Migrating Ions (K+ cations moving right to cathode, NO3- anions moving left to anode)
+  // Salt Bridge Migrating Ions (InstancedMesh: K+ cations moving right to cathode, NO3- anions moving left to anode)
+  const SALT_ION_COUNT = 6;
   const saltIonGeo = new THREE.SphereGeometry(0.045, 10, 10);
   const cationMat = new THREE.MeshBasicMaterial({ color: 0xc084fc }); // K+
   const anionMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee }); // NO3-
-  const cationMeshes: THREE.Mesh[] = [];
-  const anionMeshes: THREE.Mesh[] = [];
-  for (let i = 0; i < 6; i++) {
-    const cMesh = new THREE.Mesh(saltIonGeo, cationMat);
-    const aMesh = new THREE.Mesh(saltIonGeo, anionMat);
-    redoxGroup.add(cMesh, aMesh);
-    cationMeshes.push(cMesh);
-    anionMeshes.push(aMesh);
-  }
+  const cationPool = createInstancedParticlePool(SALT_ION_COUNT, saltIonGeo, cationMat, redoxGroup);
+  const anionPool = createInstancedParticlePool(SALT_ION_COUNT, saltIonGeo, anionMat, redoxGroup);
 
   // Digital Voltmeter Housing
   const voltMeter = new THREE.Mesh(
@@ -453,7 +448,15 @@ export function buildChemistrySpecialRigs(
   spectroGroup.add(transmittedBeam);
 
   const update = (ctx: ChemistryRigUpdateContext) => {
-    const { params: p, metrics: m, simTime: t, isLite, reacting, isSimTimeAdvancing } = ctx;
+    const {
+      params: p,
+      metrics: m,
+      simTime: t,
+      isLite,
+      particleScale = isLite ? 0.5 : 1,
+      reacting,
+      isSimTimeAdvancing,
+    } = ctx;
 
     const isRedox =
       p.mode === 'electrochemistry-cell' || (p.mode as string) === 'redox-electrochemistry';
@@ -464,17 +467,29 @@ export function buildChemistrySpecialRigs(
 
     if (isRedox) {
       const eCell = Math.max(0.15, Math.abs(m.nernstCellPotentialE ?? 1.1));
+      const activeIons = Math.max(2, Math.round(SALT_ION_COUNT * particleScale));
       // Migrate K+ cations toward right beaker (cathode) and NO3- anions toward left beaker (anode)
-      cationMeshes.forEach((cMesh, idx) => {
-        const u = ((t * 0.25 * eCell) + idx / cationMeshes.length) % 1.0;
-        const angle = Math.PI * (1 - u); // pi (left) -> 0 (right)
-        cMesh.position.set(1.8 * Math.cos(angle), 1.6 + 1.8 * Math.sin(angle), 0.03);
-      });
-      anionMeshes.forEach((aMesh, idx) => {
-        const u = ((t * 0.25 * eCell) + idx / anionMeshes.length) % 1.0;
-        const angle = Math.PI * u; // 0 (right) -> pi (left)
-        aMesh.position.set(1.8 * Math.cos(angle), 1.6 + 1.8 * Math.sin(angle), -0.03);
-      });
+      for (let idx = 0; idx < activeIons; idx++) {
+        const u = ((t * 0.25 * eCell) + idx / activeIons) % 1.0;
+        const cAngle = Math.PI * (1 - u); // pi (left) -> 0 (right)
+        cationPool.setTransform(
+          idx,
+          1.8 * Math.cos(cAngle),
+          1.6 + 1.8 * Math.sin(cAngle),
+          0.03,
+          1
+        );
+        const aAngle = Math.PI * u; // 0 (right) -> pi (left)
+        anionPool.setTransform(
+          idx,
+          1.8 * Math.cos(aAngle),
+          1.6 + 1.8 * Math.sin(aAngle),
+          -0.03,
+          1
+        );
+      }
+      cationPool.commit(activeIons);
+      anionPool.commit(activeIons);
       const pulse = 0.28 + 0.18 * Math.sin(t * 4.2);
       anodeGlowMat.opacity = pulse;
       cathodeGlowMat.opacity = pulse;
@@ -492,7 +507,8 @@ export function buildChemistrySpecialRigs(
       const needleAngle = Math.max(-1.4, Math.min(1.4, (pAtm / 5.0) * Math.PI - Math.PI / 2));
       pressureNeedle.rotation.z = -needleAngle;
 
-      const activeGasCount = isLite ? 24 : GAS_PARTICLES_MAX;
+      const effectiveScale = isLite ? Math.min(0.5, particleScale) : particleScale;
+      const activeGasCount = Math.max(12, Math.round(GAS_PARTICLES_MAX * effectiveScale));
       for (let idx = 0; idx < activeGasCount; idx++) {
         const part = gasParticleStates[idx];
         part.pos.addScaledVector(part.vel, gasState.particleSpeed);

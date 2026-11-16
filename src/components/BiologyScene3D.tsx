@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import {
-  smoothCameraTransition,
+  smoothCameraDamp,
   type CameraSyncPose,
 } from '../utils/threeStudioKit';
 import { createMeasurementRuler3D } from '../utils/threeMeasurementTools';
@@ -161,9 +161,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       },
       controls: {
         target: [0, 1.3, 0],
-        maxPolarAngle: Math.PI * 0.49,
+        maxPolarAngle: Math.PI * 0.48,
         minDistance: 2.0,
-        maxDistance: 20,
+        maxDistance: 18,
         autoRotateSpeed: 1.4,
       },
       onContextRestored: triggerSceneRebuild,
@@ -223,6 +223,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       initialLite,
       isSoftwareGl
     );
+    host.registerShadowLight(coreStage.keyLight);
 
     cameraCtrlRef.current = {
       setPreset: applyCameraPreset,
@@ -234,6 +235,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     };
 
     const conceptProjVec = new THREE.Vector3();
+    const zeroConceptVec = new THREE.Vector3();
 
     const rulerHandle = createMeasurementRuler3D({
       initialA: [-1.15, 0.42, 1.35],
@@ -273,16 +275,30 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     };
 
     let dragToastTimer: ReturnType<typeof setTimeout> | null = null;
+    let clickedBadgeTimer: ReturnType<typeof setTimeout> | null = null;
+    const cachedRulerHandles = rulerHandle.getInteractiveHandles();
+    const interactiveScratch: THREE.Object3D[] = [];
+
     const interactionManager = new ThreeInteractionManager({
       camera,
       domElement: renderer.domElement,
       controls,
       sceneForCursor: scene,
       defaultHoverColor: 0x10b981,
-      getInteractiveObjects: () =>
-        rulerHandle.group.visible
-          ? [...coreStage.apparatusGroup.children, ...rulerHandle.getInteractiveHandles()]
-          : coreStage.apparatusGroup.children,
+      getInteractiveObjects: () => {
+        if (!rulerHandle.group.visible) {
+          return coreStage.apparatusGroup.children;
+        }
+        interactiveScratch.length = 0;
+        const appChildren = coreStage.apparatusGroup.children;
+        for (let i = 0; i < appChildren.length; i += 1) {
+          interactiveScratch.push(appChildren[i]);
+        }
+        for (let i = 0; i < cachedRulerHandles.length; i += 1) {
+          interactiveScratch.push(cachedRulerHandles[i]);
+        }
+        return interactiveScratch;
+      },
       getParamValue: (paramKey) => {
         const val = (latestParamsRef.current as unknown as Record<string, unknown>)[paramKey];
         return typeof val === 'number' ? val : undefined;
@@ -322,7 +338,8 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         const name = obj.name || 'Organel Sel Tumbuhan';
         setClickedBadge(name);
         labSound.playClick(680);
-        setTimeout(() => setClickedBadge(null), 3500);
+        if (clickedBadgeTimer) clearTimeout(clickedBadgeTimer);
+        clickedBadgeTimer = setTimeout(() => setClickedBadge(null), 3500);
       },
       onCursorMove3D: (pos, normal, hoveredName) => {
         if (onEmitCursorRef.current) {
@@ -331,11 +348,17 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       },
     });
 
+    const reusableConceptEntries = [
+      { dom: conceptDomRef.current.c1, worldPos: zeroConceptVec, text: '', active: false },
+      { dom: conceptDomRef.current.c2, worldPos: zeroConceptVec, text: '', active: false },
+      { dom: conceptDomRef.current.c3, worldPos: zeroConceptVec, text: '', active: false },
+    ];
+
     const loopHandle = startStudioRenderLoop({
       renderer,
       isSoftwareGl,
       fpsMonitor,
-      onFrame: ({ nowMs, dt: delta, elapsed, isLite }) => {
+      onFrame: ({ nowMs, dt: delta, elapsed, isLite, particleScale }) => {
         const effectiveLite = isLite || isSoftwareGl;
         rulerHandle.group.visible = showRuler3DRef.current;
 
@@ -356,16 +379,18 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           showConceptLabelsRef.current,
           lensFocusRef.current,
           baseCamPos,
-          desiredCamPos
+          desiredCamPos,
+          particleScale
         );
 
         if (camTransitionActive) {
-          camTransitionActive = smoothCameraTransition(
+          camTransitionActive = smoothCameraDamp(
             camera,
             controls,
             desiredCamPos,
             desiredTarget,
-            0.14
+            delta,
+            10
           );
         }
 
@@ -377,27 +402,30 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           const cw = container.clientWidth || width;
           const ch = container.clientHeight || height;
           const cDom = conceptDomRef.current;
-          const cEntries = [
-            {
-              dom: cDom.c1,
-              worldPos: rigAnchors.c1?.pos ?? new THREE.Vector3(),
-              text: rigAnchors.c1?.text ?? '',
-              active: Boolean(showLabels && rigAnchors.c1),
-            },
-            {
-              dom: cDom.c2,
-              worldPos: rigAnchors.c2?.pos ?? new THREE.Vector3(),
-              text: rigAnchors.c2?.text ?? '',
-              active: Boolean(showLabels && rigAnchors.c2),
-            },
-            {
-              dom: cDom.c3,
-              worldPos: rigAnchors.c3?.pos ?? new THREE.Vector3(),
-              text: rigAnchors.c3?.text ?? '',
-              active: Boolean(showLabels && rigAnchors.c3),
-            },
-          ];
-          updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
+
+          reusableConceptEntries[0].dom = cDom.c1;
+          reusableConceptEntries[0].worldPos = rigAnchors.c1?.pos ?? zeroConceptVec;
+          reusableConceptEntries[0].text = rigAnchors.c1?.text ?? '';
+          reusableConceptEntries[0].active = Boolean(showLabels && rigAnchors.c1);
+
+          reusableConceptEntries[1].dom = cDom.c2;
+          reusableConceptEntries[1].worldPos = rigAnchors.c2?.pos ?? zeroConceptVec;
+          reusableConceptEntries[1].text = rigAnchors.c2?.text ?? '';
+          reusableConceptEntries[1].active = Boolean(showLabels && rigAnchors.c2);
+
+          reusableConceptEntries[2].dom = cDom.c3;
+          reusableConceptEntries[2].worldPos = rigAnchors.c3?.pos ?? zeroConceptVec;
+          reusableConceptEntries[2].text = rigAnchors.c3?.text ?? '';
+          reusableConceptEntries[2].active = Boolean(showLabels && rigAnchors.c3);
+
+          updateProjectedConceptLabels(
+            reusableConceptEntries,
+            camera,
+            cw,
+            ch,
+            showLabels,
+            conceptProjVec
+          );
         };
 
         syncConceptLabelsRef.current = syncBioLabelsNow;
@@ -410,6 +438,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     return () => {
       loopHandle.stop();
       if (dragToastTimer) clearTimeout(dragToastTimer);
+      if (clickedBadgeTimer) clearTimeout(clickedBadgeTimer);
       interactionManager.dispose();
       rulerHandle.dispose();
       coreStage.dispose();
@@ -640,9 +669,22 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         <span className="mx-0.5 h-3.5 w-px bg-white/15" aria-hidden="true" />
 
         <div className="hidden md:flex items-center gap-0.5">
+          <button
+            type="button"
+            data-testid="camera-reset-btn"
+            onClick={() => {
+              labSound.playClick();
+              setActivePreset('isometric');
+              cameraCtrlRef.current?.setPreset('isometric');
+            }}
+            title="Reset View ke Sudut 3D Awal"
+            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            Reset
+          </button>
           {(
             [
-              { id: 'isometric', label: 'Iso' },
+              { id: 'isometric', label: '3D' },
               { id: 'front', label: 'Depan' },
               { id: 'top', label: 'Atas' },
               { id: 'focus', label: 'Fokus' },

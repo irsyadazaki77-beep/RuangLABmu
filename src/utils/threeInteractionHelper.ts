@@ -102,17 +102,31 @@ function resolveInteractiveOptions(obj: THREE.Object3D): {
   };
 }
 
+const _dragRayVec = new THREE.Vector3();
+const _dragHitPoint = new THREE.Vector3();
+
+/**
+ * Pure helper to enforce <= 30 Hz (default 33ms) throttling for hover raycasting.
+ */
+export function shouldRunThrottledRaycast(
+  nowMs: number,
+  lastRaycastMs: number,
+  minIntervalMs = 34
+): boolean {
+  if (!Number.isFinite(nowMs) || !Number.isFinite(lastRaycastMs)) return true;
+  return nowMs - lastRaycastMs >= minIntervalMs;
+}
+
 /**
  * ThreeInteractionHelper
  * Centralized utility for Three.js Raycasting, Hover Emissive Glow, and Direct Drag Manipulation.
  * Supports both `userData.interactive` and legacy `userData.draggableParam` metadata.
- * Automatically disables OrbitControls during active drag to prevent camera jitter.
+ * Throttles hover raycasting to <= 30 Hz and avoids expensive recursive whole-scene traversals.
  */
 export class ThreeInteractionManager {
   private camera: THREE.Camera;
   private domElement: HTMLElement;
   private controls: OrbitControls | null = null;
-  private sceneForCursor: THREE.Scene | null = null;
   private defaultHoverColor: number;
   private dragSpanPx: number;
   private getInteractiveObjects: () => THREE.Object3D[];
@@ -130,6 +144,7 @@ export class ThreeInteractionManager {
   private dragObject: THREE.Object3D | null = null;
   private dragStartPointer = { x: 0, y: 0 };
   private dragStartValue = 0;
+  private lastHoverRaycastMs = 0;
   private lastCursorEmitMs = 0;
 
   private onHoverChange?: (object: THREE.Object3D | null, hitPoint: THREE.Vector3 | null) => void;
@@ -147,7 +162,6 @@ export class ThreeInteractionManager {
     this.camera = options.camera;
     this.domElement = options.domElement;
     this.controls = options.controls ?? null;
-    this.sceneForCursor = options.sceneForCursor ?? null;
     this.defaultHoverColor = options.defaultHoverColor ?? 0x38bdf8;
     this.dragSpanPx = options.dragSpanPx ?? 280;
     this.getInteractiveObjects = options.getInteractiveObjects;
@@ -224,13 +238,18 @@ export class ThreeInteractionManager {
 
       if (resolved.onDrag) {
         this.raycaster.setFromCamera(this.pointer, this.camera);
-        const hitPoint = this.raycaster.ray.origin
-          .clone()
-          .add(this.raycaster.ray.direction.clone().multiplyScalar(5));
-        resolved.onDrag(deltaX, deltaY, hitPoint);
+        _dragRayVec.copy(this.raycaster.ray.direction).multiplyScalar(5);
+        _dragHitPoint.copy(this.raycaster.ray.origin).add(_dragRayVec);
+        resolved.onDrag(deltaX, deltaY, _dragHitPoint);
       }
       return;
     }
+
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (!shouldRunThrottledRaycast(now, this.lastHoverRaycastMs, 34)) {
+      return;
+    }
+    this.lastHoverRaycastMs = now;
 
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const targets = this.getInteractiveObjects();
@@ -238,31 +257,33 @@ export class ThreeInteractionManager {
 
     if (intersects.length > 0) {
       const hitMesh = this.resolveHitTarget(intersects);
-      const hitPoint = intersects[0].point;
+      const hit = intersects[0];
+      const hitPoint = hit.point;
 
       if (hitMesh !== this.hoveredObject) {
         this.clearHover();
         this.applyHover(hitMesh);
       }
       this.onHoverChange?.(this.hoveredObject, hitPoint);
-    } else if (this.hoveredObject) {
-      this.clearHover();
-      this.onHoverChange?.(null, null);
-    }
 
-    if (this.onCursorMove3D && this.sceneForCursor) {
-      const now = performance.now();
-      if (now - this.lastCursorEmitMs >= 45) {
-        const sceneHits = this.raycaster.intersectObjects(this.sceneForCursor.children, true);
-        if (sceneHits.length > 0) {
-          const hit = sceneHits[0];
-          this.onCursorMove3D(
-            [hit.point.x, hit.point.y, hit.point.z],
-            hit.face ? [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z] : undefined,
-            hit.object.name
-          );
-          this.lastCursorEmitMs = now;
-        }
+      if (this.onCursorMove3D && shouldRunThrottledRaycast(now, this.lastCursorEmitMs, 45)) {
+        this.onCursorMove3D(
+          [hitPoint.x, hitPoint.y, hitPoint.z],
+          hit.face ? [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z] : undefined,
+          hit.object.name
+        );
+        this.lastCursorEmitMs = now;
+      }
+    } else {
+      if (this.hoveredObject) {
+        this.clearHover();
+        this.onHoverChange?.(null, null);
+      }
+      if (this.onCursorMove3D && shouldRunThrottledRaycast(now, this.lastCursorEmitMs, 60)) {
+        _dragRayVec.copy(this.raycaster.ray.direction).multiplyScalar(6);
+        _dragHitPoint.copy(this.raycaster.ray.origin).add(_dragRayVec);
+        this.onCursorMove3D([_dragHitPoint.x, _dragHitPoint.y, _dragHitPoint.z]);
+        this.lastCursorEmitMs = now;
       }
     }
   }

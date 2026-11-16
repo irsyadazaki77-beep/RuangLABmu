@@ -31,6 +31,7 @@ export interface AstronomyRigContext {
   activePlanet?: SolarPlanetPreset;
   t: number;
   isLite: boolean;
+  particleScale?: number;
   showConceptLabels: boolean;
   isFocusPreset: boolean;
   isDragging: boolean;
@@ -405,10 +406,45 @@ export function buildSolarKeplerRig(): AstronomyRigHandle {
     };
   };
 
+  const tanDirVec = new THREE.Vector3();
+  const gravDirVec = new THREE.Vector3();
+  const anchorSunPos = new THREE.Vector3(0, 1.65, 0);
+  const anchorPlanetPos = new THREE.Vector3();
+  const anchorHzPos = new THREE.Vector3();
+  const focusTargetVec = new THREE.Vector3();
+  const focusCamPosVec = new THREE.Vector3();
+  const anchorsObj: AstronomyConceptAnchors = {
+    c1: { pos: anchorSunPos, text: 'Matahari (Fokus Elips)' },
+    c2: { pos: anchorPlanetPos, text: '' },
+    c3: undefined,
+  };
+  const anchorHzObj = { pos: anchorHzPos, text: '' };
+  const updateResult: {
+    anchors: AstronomyConceptAnchors;
+    focusTarget?: THREE.Vector3;
+    focusCamPos?: THREE.Vector3;
+  } = {
+    anchors: anchorsObj,
+  };
+
   return {
     group: solarGroup,
     interactiveMeshes: [planetMesh],
-    update: ({ params: p, metrics: m, activePlanet, t, showConceptLabels, isFocusPreset, isDragging }) => {
+    update: ({
+      params: p,
+      metrics: m,
+      activePlanet,
+      t,
+      isLite,
+      particleScale = isLite ? 0.5 : 1,
+      showConceptLabels,
+      isFocusPreset,
+      isDragging,
+    }) => {
+      asteroidInstanced.count = Math.max(
+        40,
+        Math.round(ASTEROID_COUNT * (isLite ? Math.min(0.5, particleScale) : particleScale))
+      );
       sunMesh.rotation.y = t * 0.14;
       sunStdMat.emissiveIntensity = 2.0 + Math.sin(t * 3.2) * 0.35;
       sunCoronaMat.uniforms.uTime.value = t;
@@ -494,39 +530,40 @@ export function buildSolarKeplerRig(): AstronomyRigHandle {
       }
 
       if (showConceptLabels) {
-        const tanDir = new THREE.Vector3(
+        tanDirVec.set(
           -Math.sin(curM) * scaledR,
           Math.cos(curM) * scaledR * Math.sin(incRad),
           Math.cos(curM) * (curPt.b / a) * scaledR
         );
-        orientAndScaleVectorArrow(keplerVelArrow, planetAssembly.position, tanDir, 1.8);
-        const gravDir = planetAssembly.position.clone().negate();
-        orientAndScaleVectorArrow(keplerGravArrow, planetAssembly.position, gravDir, 1.5);
+        orientAndScaleVectorArrow(keplerVelArrow, planetAssembly.position, tanDirVec, 1.8);
+        gravDirVec.copy(planetAssembly.position).negate();
+        orientAndScaleVectorArrow(keplerGravArrow, planetAssembly.position, gravDirVec, 1.5);
       } else {
         keplerVelArrow.visible = false;
         keplerGravArrow.visible = false;
       }
 
-      return {
-        anchors: {
-          c1: { pos: new THREE.Vector3(0, 1.65, 0), text: 'Matahari (Fokus Elips)' },
-          c2: {
-            pos: planetAssembly.position.clone().add(new THREE.Vector3(0, 0.95, 0)),
-            text: `v = ${(m.meanOrbitalVelocityKms ?? 29.8).toFixed(1)} km/s · e = ${e.toFixed(2)}`,
-          },
-          c3: m.isInHabitableZone
-            ? {
-                pos: new THREE.Vector3(hzMid, 0.25, 0),
-                text: `Zona Laik Huni (${m.habitableZoneInnerAu.toFixed(2)}–${m.habitableZoneOuterAu.toFixed(2)} AU)`,
-              }
-            : undefined,
-        },
-        focusTarget: isFocusPreset && !isDragging ? planetAssembly.position.clone() : undefined,
-        focusCamPos:
-          isFocusPreset && !isDragging
-            ? new THREE.Vector3(curPt.ox + 1.9, curPt.oy + 1.4, curPt.oz + 3.2)
-            : undefined,
-      };
+      anchorPlanetPos.copy(planetAssembly.position);
+      anchorPlanetPos.y += 0.95;
+      anchorsObj.c2!.text = `v = ${(m.meanOrbitalVelocityKms ?? 29.8).toFixed(1)} km/s · e = ${e.toFixed(2)}`;
+      if (m.isInHabitableZone) {
+        anchorHzPos.set(-hzMid * 0.92, -0.35, -hzMid * 0.45);
+        anchorHzObj.text = `Zona Laik Huni (${m.habitableZoneInnerAu.toFixed(2)}–${m.habitableZoneOuterAu.toFixed(2)} AU)`;
+        anchorsObj.c3 = anchorHzObj;
+      } else {
+        anchorsObj.c3 = undefined;
+      }
+
+      if (isFocusPreset && !isDragging) {
+        focusTargetVec.copy(planetAssembly.position);
+        focusCamPosVec.set(curPt.ox + 1.9, curPt.oy + 1.4, curPt.oz + 3.2);
+        updateResult.focusTarget = focusTargetVec;
+        updateResult.focusCamPos = focusCamPosVec;
+      } else {
+        updateResult.focusTarget = undefined;
+        updateResult.focusCamPos = undefined;
+      }
+      return updateResult;
     },
     dispose: () => {
       sunPhotosphereTex.dispose();
@@ -652,13 +689,27 @@ export function buildMilkyWayRig(): AstronomyRigHandle {
   let obsAngle = 0;
   let kepAngle = 0;
   let prevT = 0;
+  const obsDirVec = new THREE.Vector3();
+  const kepDirVec = new THREE.Vector3();
+  const anchorCorePos = new THREE.Vector3(0, 1.3, 0);
+  const anchorObsPos = new THREE.Vector3();
+  const anchorKepPos = new THREE.Vector3();
+  const anchorsObj: AstronomyConceptAnchors = {
+    c1: { pos: anchorCorePos, text: 'Sgr A* (Pusat Bima Sakti)' },
+    c2: { pos: anchorObsPos, text: '' },
+    c3: { pos: anchorKepPos, text: '' },
+  };
+  const updateResult = { anchors: anchorsObj };
 
   return {
     group: milkyWayGroup,
     interactiveMeshes: [galacticMarkerStar],
-    update: ({ params: p, metrics: m, t, showConceptLabels }) => {
+    update: ({ params: p, metrics: m, t, isLite, particleScale = isLite ? 0.5 : 1, showConceptLabels }) => {
       const dt = Math.max(0, Math.min(0.1, Math.abs(t - prevT)));
       prevT = t;
+
+      const effectiveScale = isLite ? Math.min(0.5, particleScale) : particleScale;
+      diskGeo.setDrawRange(0, Math.max(300, Math.round(GALAXY_PARTICLES * effectiveScale)));
 
       diskParticles.rotation.y = t * 0.12;
       accretionRing.rotation.z = t * 0.7;
@@ -681,16 +732,18 @@ export function buildMilkyWayRig(): AstronomyRigHandle {
       keplerGhostStar.position.set(rScaled * Math.cos(kepAngle), 0.35, rScaled * Math.sin(kepAngle));
 
       if (showConceptLabels) {
+        obsDirVec.set(-Math.sin(obsAngle), 0, Math.cos(obsAngle));
         orientAndScaleVectorArrow(
           observedVelArrow,
           galacticMarkerStar.position,
-          new THREE.Vector3(-Math.sin(obsAngle), 0, Math.cos(obsAngle)),
+          obsDirVec,
           Math.max(0.6, (vObs / 250) * 2.1)
         );
+        kepDirVec.set(-Math.sin(kepAngle), 0, Math.cos(kepAngle));
         orientAndScaleVectorArrow(
           keplerVelArrow,
           keplerGhostStar.position,
-          new THREE.Vector3(-Math.sin(kepAngle), 0, Math.cos(kepAngle)),
+          kepDirVec,
           Math.max(0.5, (vKep / 250) * 2.1)
         );
       } else {
@@ -698,19 +751,13 @@ export function buildMilkyWayRig(): AstronomyRigHandle {
         keplerVelArrow.visible = false;
       }
 
-      return {
-        anchors: {
-          c1: { pos: new THREE.Vector3(0, 1.3, 0), text: 'Sgr A* (Pusat Bima Sakti)' },
-          c2: {
-            pos: galacticMarkerStar.position.clone().add(new THREE.Vector3(0, 0.75, 0)),
-            text: `v_obs = ${vObs.toFixed(0)} km/s · R = ${rKpc.toFixed(1)} kpc`,
-          },
-          c3: {
-            pos: keplerGhostStar.position.clone().add(new THREE.Vector3(0, 0.7, 0)),
-            text: `Prediksi Kepler: ${vKep.toFixed(0)} km/s (Tanpa DM)`,
-          },
-        },
-      };
+      anchorObsPos.copy(galacticMarkerStar.position);
+      anchorObsPos.y += 0.75;
+      anchorKepPos.copy(keplerGhostStar.position);
+      anchorKepPos.y += 0.7;
+      anchorsObj.c2!.text = `v_obs = ${vObs.toFixed(0)} km/s · R = ${rKpc.toFixed(1)} kpc`;
+      anchorsObj.c3!.text = `Prediksi Kepler: ${vKep.toFixed(0)} km/s (Tanpa DM)`;
+      return updateResult;
     },
     dispose: () => {
       starSpriteTex.dispose();
@@ -815,6 +862,26 @@ export function buildExoplanetTransitRig(): AstronomyRigHandle {
   lcBoard.rotation.x = -0.28;
   transitGroup.add(lcBoard);
 
+  let lastLcParamKey = '';
+  let lastLcPhase = -1;
+  const anchorStarPos = new THREE.Vector3();
+  const anchorPlanetPos = new THREE.Vector3();
+  const anchorCurvePos = new THREE.Vector3(0, -1.25, 1.5);
+  const focusTargetConst = new THREE.Vector3(0, 0.85, 0);
+  const focusCamPosConst = new THREE.Vector3(0, 1.3, 8.8);
+  const anchorsObj: AstronomyConceptAnchors = {
+    c1: { pos: anchorStarPos, text: '' },
+    c2: { pos: anchorPlanetPos, text: '' },
+    c3: { pos: anchorCurvePos, text: '' },
+  };
+  const updateResult: {
+    anchors: AstronomyConceptAnchors;
+    focusTarget?: THREE.Vector3;
+    focusCamPos?: THREE.Vector3;
+  } = {
+    anchors: anchorsObj,
+  };
+
   return {
     group: transitGroup,
     interactiveMeshes: [exoplanetMesh],
@@ -849,80 +916,86 @@ export function buildExoplanetTransitRig(): AstronomyRigHandle {
       sightConeMat.color.setHex(sample.inTransit ? 0xf59e0b : 0x38bdf8);
       sightConeMat.opacity = sample.inTransit ? 0.16 : 0.07;
 
-      // Render crisp 3D Light-Curve Plot on Hologram Canvas
-      const ctx = lcCanvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#070d19';
-        ctx.fillRect(0, 0, lcCanvas.width, lcCanvas.height);
-        ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(2, 2, lcCanvas.width - 4, lcCanvas.height - 4);
+      const lcParamKey = `${starR.toFixed(2)}|${rp.toFixed(2)}|${orbitAu.toFixed(3)}|${sample.inTransit}`;
+      const phaseMoved =
+        lastLcPhase < 0 ||
+        Math.abs(phase01 - lastLcPhase) >= 0.008 ||
+        phase01 < lastLcPhase;
+      if (lcParamKey !== lastLcParamKey || phaseMoved) {
+        lastLcParamKey = lcParamKey;
+        lastLcPhase = phase01;
+        // Render crisp 3D Light-Curve Plot on Hologram Canvas (memoized + throttled)
+        const ctx = lcCanvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#070d19';
+          ctx.fillRect(0, 0, lcCanvas.width, lcCanvas.height);
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(2, 2, lcCanvas.width - 4, lcCanvas.height - 4);
 
-        // Baseline grid & label
-        ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(28, 46);
-        ctx.lineTo(lcCanvas.width - 18, 46);
-        ctx.stroke();
-        ctx.setLineDash([]);
+          // Baseline grid & label
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(28, 46);
+          ctx.lineTo(lcCanvas.width - 18, 46);
+          ctx.stroke();
+          ctx.setLineDash([]);
 
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = 'bold 12px monospace';
-        ctx.fillText('KURVA CAHAYA FOTOMETRI TRANSIT (FLuks Relatif)', 28, 22);
-        ctx.fillStyle = sample.inTransit ? '#fbbf24' : '#38bdf8';
-        ctx.fillText(
-          `ΔF/F = ${m.transitDepthPct.toFixed(3)}% (${Math.round(m.transitDepthPpm)} ppm)${sample.inTransit ? ' · TRANSIT AKTIF' : ''}`,
-          28,
-          164
-        );
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = 'bold 12px monospace';
+          ctx.fillText('KURVA CAHAYA FOTOMETRI TRANSIT (FLuks Relatif)', 28, 22);
+          ctx.fillStyle = sample.inTransit ? '#fbbf24' : '#38bdf8';
+          ctx.fillText(
+            `ΔF/F = ${m.transitDepthPct.toFixed(3)}% (${Math.round(m.transitDepthPpm)} ppm)${sample.inTransit ? ' · TRANSIT AKTIF' : ''}`,
+            28,
+            164
+          );
 
-        // Plot curve across phase [0..1]
-        const plotL = 28;
-        const plotW = lcCanvas.width - 46;
-        const plotTop = 46;
-        const plotRangeY = 84;
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        for (let i = 0; i <= 100; i++) {
-          const ph = i / 100;
-          const pt = computeTransitLightCurveSample(ph, starR, rp, orbitAu);
-          const x = plotL + ph * plotW;
-          const y = plotTop + (1 - pt.visualFluxRatio) * (plotRangeY / 0.32);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+          // Plot curve across phase [0..1]
+          const plotL = 28;
+          const plotW = lcCanvas.width - 46;
+          const plotTop = 46;
+          const plotRangeY = 84;
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          for (let i = 0; i <= 100; i++) {
+            const ph = i / 100;
+            const pt = computeTransitLightCurveSample(ph, starR, rp, orbitAu);
+            const x = plotL + ph * plotW;
+            const y = plotTop + (1 - pt.visualFluxRatio) * (plotRangeY / 0.32);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+
+          // Live Phase Marker Dot
+          const curX = plotL + phase01 * plotW;
+          const curY = plotTop + (1 - sample.visualFluxRatio) * (plotRangeY / 0.32);
+          ctx.fillStyle = sample.inTransit ? '#fbbf24' : '#f8fafc';
+          ctx.beginPath();
+          ctx.arc(curX, curY, 6, 0, Math.PI * 2);
+          ctx.fill();
+          lcTex.needsUpdate = true;
         }
-        ctx.stroke();
-
-        // Live Phase Marker Dot
-        const curX = plotL + phase01 * plotW;
-        const curY = plotTop + (1 - sample.visualFluxRatio) * (plotRangeY / 0.32);
-        ctx.fillStyle = sample.inTransit ? '#fbbf24' : '#f8fafc';
-        ctx.beginPath();
-        ctx.arc(curX, curY, 6, 0, Math.PI * 2);
-        ctx.fill();
-        lcTex.needsUpdate = true;
       }
 
-      return {
-        anchors: {
-          c1: {
-            pos: new THREE.Vector3(0, 0.85 + starVisualScale * 1.65, 0),
-            text: `Bintang R* = ${starR.toFixed(1)} R☉ (${m.spectralClass})`,
-          },
-          c2: {
-            pos: exoplanetMesh.position.clone().add(new THREE.Vector3(0, 0.75, 0)),
-            text: `Eksoplanet Rp = ${rp.toFixed(1)} R⊕ · a = ${orbitAu.toFixed(2)} AU`,
-          },
-          c3: {
-            pos: new THREE.Vector3(0, -1.25, 1.5),
-            text: `Kedalaman ΔF/F = ${m.transitDepthPct.toFixed(3)}%${sample.inTransit ? ' (Transit!)' : ''}`,
-          },
-        },
-        focusTarget: isFocusPreset && !isDragging ? new THREE.Vector3(0, 0.85, 0) : undefined,
-        focusCamPos: isFocusPreset && !isDragging ? new THREE.Vector3(0, 1.3, 8.8) : undefined,
-      };
+      anchorStarPos.set(0, 0.85 + starVisualScale * 1.65, 0);
+      anchorsObj.c1!.text = `Bintang R* = ${starR.toFixed(1)} R☉ (${m.spectralClass})`;
+      anchorPlanetPos.copy(exoplanetMesh.position);
+      anchorPlanetPos.y += 0.75;
+      anchorsObj.c2!.text = `Eksoplanet Rp = ${rp.toFixed(1)} R⊕ · a = ${orbitAu.toFixed(2)} AU`;
+      anchorsObj.c3!.text = `Kedalaman ΔF/F = ${m.transitDepthPct.toFixed(3)}%${sample.inTransit ? ' (Transit!)' : ''}`;
+
+      if (isFocusPreset && !isDragging) {
+        updateResult.focusTarget = focusTargetConst;
+        updateResult.focusCamPos = focusCamPosConst;
+      } else {
+        updateResult.focusTarget = undefined;
+        updateResult.focusCamPos = undefined;
+      }
+      return updateResult;
     },
     dispose: () => {
       hostStarTex.dispose();
@@ -1010,6 +1083,15 @@ export function buildWienSpectrumRig(initialLite: boolean): AstronomyRigHandle {
   spectrumScreen.position.set(3.85, 0, 0);
   wienGroup.add(spectrumScreen);
 
+  let lastSpectrumKey = '';
+  const anchorStarPos = new THREE.Vector3(-4.5, 2.35, 0);
+  const anchorScreenPos = new THREE.Vector3(3.85, 1.45, 0);
+  const anchorsObj: AstronomyConceptAnchors = {
+    c1: { pos: anchorStarPos, text: '' },
+    c2: { pos: anchorScreenPos, text: '' },
+  };
+  const updateResult = { anchors: anchorsObj };
+
   return {
     group: wienGroup,
     interactiveMeshes: [wienStar],
@@ -1024,89 +1106,84 @@ export function buildWienSpectrumRig(initialLite: boolean): AstronomyRigHandle {
       wienCoronaMat.uniforms.uCoreColor.value.setStyle(m.starColorHex);
       wienCoronaMat.uniforms.uRimColor.value.setStyle(m.starColorHex);
 
-      const sCtx = spectrumCanvas.getContext('2d');
-      if (sCtx) {
-        const W = spectrumCanvas.width;
-        const H = spectrumCanvas.height;
-        sCtx.fillStyle = '#070b14';
-        sCtx.fillRect(0, 0, W, H);
+      const tempK = Math.max(2500, p.starEffectiveTempK || 5800);
+      const peakLambda = m.wienPeakWavelengthNm ?? 2.89777e6 / tempK;
+      const specKey = `${Math.round(tempK)}|${peakLambda.toFixed(0)}|${m.starColorHex}|${m.spectralClass}`;
+      if (specKey !== lastSpectrumKey) {
+        lastSpectrumKey = specKey;
+        const sCtx = spectrumCanvas.getContext('2d');
+        if (sCtx) {
+          const W = spectrumCanvas.width;
+          const H = spectrumCanvas.height;
+          sCtx.fillStyle = '#070b14';
+          sCtx.fillRect(0, 0, W, H);
 
-        // Top half (y: 0..108): Planck Blackbody Intensity Curve
-        const tempK = Math.max(2500, p.starEffectiveTempK || 5800);
-        const peakLambda = m.wienPeakWavelengthNm ?? 2.89777e6 / tempK;
-        const lambdaMin = 150;
-        const lambdaMax = 1100;
+          // Top half (y: 0..108): Planck Blackbody Intensity Curve
+          const lambdaMin = 150;
+          const lambdaMax = 1100;
 
-        const planckRaw = (nm: number) => {
-          const x = (nm / 1000) * (tempK / 5800);
-          return Math.pow(1 / Math.max(0.15, x), 5) / (Math.exp(2.47 / Math.max(0.15, x)) - 1);
-        };
-        let maxCurveVal = 1e-6;
-        for (let nm = lambdaMin; nm <= lambdaMax; nm += 15) {
-          maxCurveVal = Math.max(maxCurveVal, planckRaw(nm));
+          const planckRaw = (nm: number) => {
+            const x = (nm / 1000) * (tempK / 5800);
+            return Math.pow(1 / Math.max(0.15, x), 5) / (Math.exp(2.47 / Math.max(0.15, x)) - 1);
+          };
+          let maxCurveVal = 1e-6;
+          for (let nm = lambdaMin; nm <= lambdaMax; nm += 15) {
+            maxCurveVal = Math.max(maxCurveVal, planckRaw(nm));
+          }
+
+          sCtx.strokeStyle = m.starColorHex || '#facc15';
+          sCtx.lineWidth = 3;
+          sCtx.beginPath();
+          for (let px = 0; px <= W; px += 4) {
+            const nm = lambdaMin + (px / W) * (lambdaMax - lambdaMin);
+            const norm = Math.min(1, planckRaw(nm) / maxCurveVal);
+            const py = 102 - norm * 82;
+            if (px === 0) sCtx.moveTo(px, py);
+            else sCtx.lineTo(px, py);
+          }
+          sCtx.stroke();
+
+          // Peak λmax dashed marker
+          const peakNormX = Math.max(
+            8,
+            Math.min(W - 8, ((peakLambda - lambdaMin) / (lambdaMax - lambdaMin)) * W)
+          );
+          sCtx.strokeStyle = '#38bdf8';
+          sCtx.setLineDash([4, 3]);
+          sCtx.beginPath();
+          sCtx.moveTo(peakNormX, 12);
+          sCtx.lineTo(peakNormX, 108);
+          sCtx.stroke();
+          sCtx.setLineDash([]);
+
+          sCtx.fillStyle = '#e2e8f0';
+          sCtx.font = 'bold 12px monospace';
+          sCtx.fillText(`λmax = ${peakLambda.toFixed(0)} nm (${m.spectralClass})`, 12, 18);
+
+          // Bottom half (y: 112..192): Rainbow Spectrum with Fraunhofer Absorption Lines
+          const grad = sCtx.createLinearGradient(0, 0, W, 0);
+          grad.addColorStop(0, '#7c3aed');
+          grad.addColorStop(0.22, '#2563eb');
+          grad.addColorStop(0.42, '#10b981');
+          grad.addColorStop(0.66, '#facc15');
+          grad.addColorStop(0.84, '#f97316');
+          grad.addColorStop(1.0, '#ef4444');
+          sCtx.fillStyle = grad;
+          sCtx.fillRect(0, 112, W, 80);
+
+          sCtx.fillStyle = '#050811';
+          const lineAnchor = ((Math.max(380, Math.min(720, peakLambda)) - 380) / 340) * W;
+          [lineAnchor - 35, lineAnchor, lineAnchor + 45, 310, 415].forEach((lx, idx) => {
+            const clampedX = Math.max(10, Math.min(W - 14, lx));
+            sCtx.fillRect(clampedX, 112, idx === 1 ? 4 : 2, 80);
+          });
+          spectrumTexture.needsUpdate = true;
         }
-
-        sCtx.strokeStyle = m.starColorHex || '#facc15';
-        sCtx.lineWidth = 3;
-        sCtx.beginPath();
-        for (let px = 0; px <= W; px += 4) {
-          const nm = lambdaMin + (px / W) * (lambdaMax - lambdaMin);
-          const norm = Math.min(1, planckRaw(nm) / maxCurveVal);
-          const py = 102 - norm * 82;
-          if (px === 0) sCtx.moveTo(px, py);
-          else sCtx.lineTo(px, py);
-        }
-        sCtx.stroke();
-
-        // Peak λmax dashed marker
-        const peakNormX = Math.max(
-          8,
-          Math.min(W - 8, ((peakLambda - lambdaMin) / (lambdaMax - lambdaMin)) * W)
-        );
-        sCtx.strokeStyle = '#38bdf8';
-        sCtx.setLineDash([4, 3]);
-        sCtx.beginPath();
-        sCtx.moveTo(peakNormX, 12);
-        sCtx.lineTo(peakNormX, 108);
-        sCtx.stroke();
-        sCtx.setLineDash([]);
-
-        sCtx.fillStyle = '#e2e8f0';
-        sCtx.font = 'bold 12px monospace';
-        sCtx.fillText(`λmax = ${peakLambda.toFixed(0)} nm (${m.spectralClass})`, 12, 18);
-
-        // Bottom half (y: 112..192): Rainbow Spectrum with Fraunhofer Absorption Lines
-        const grad = sCtx.createLinearGradient(0, 0, W, 0);
-        grad.addColorStop(0, '#7c3aed');
-        grad.addColorStop(0.22, '#2563eb');
-        grad.addColorStop(0.42, '#10b981');
-        grad.addColorStop(0.66, '#facc15');
-        grad.addColorStop(0.84, '#f97316');
-        grad.addColorStop(1.0, '#ef4444');
-        sCtx.fillStyle = grad;
-        sCtx.fillRect(0, 112, W, 80);
-
-        sCtx.fillStyle = '#050811';
-        const lineAnchor = ((Math.max(380, Math.min(720, peakLambda)) - 380) / 340) * W;
-        [lineAnchor - 35, lineAnchor, lineAnchor + 45, 310, 415].forEach((lx, idx) => {
-          const clampedX = Math.max(10, Math.min(W - 14, lx));
-          sCtx.fillRect(clampedX, 112, idx === 1 ? 4 : 2, 80);
-        });
-        spectrumTexture.needsUpdate = true;
       }
 
-      return {
-        anchors: {
-          c1: {
-            pos: new THREE.Vector3(-4.5, 2.35, 0),
-            text: `Fotosfer T* = ${Math.round(p.starEffectiveTempK ?? 5778)} K`,
-          },
-          c2: {
-            pos: new THREE.Vector3(3.85, 1.45, 0),
-            text: `Puncak Wien λmax = ${(m.wienPeakWavelengthNm ?? 502).toFixed(0)} nm`,
-          },
-        },
-      };
+      anchorsObj.c1!.text = `Fotosfer T* = ${Math.round(p.starEffectiveTempK ?? 5778)} K`;
+      anchorsObj.c2!.text = `Puncak Wien λmax = ${(m.wienPeakWavelengthNm ?? 502).toFixed(0)} nm`;
+      return updateResult;
     },
     dispose: () => {
       spectrumTexture.dispose();
@@ -1214,6 +1291,18 @@ export function buildHubbleExpansionRig(): AstronomyRigHandle {
     if (proxy) interactiveMeshes.push(proxy);
   });
 
+  const arrowOriginVec = new THREE.Vector3();
+  const arrowDirVec = new THREE.Vector3();
+  const anchorMidPos = new THREE.Vector3();
+  const anchorObsPos = new THREE.Vector3(0, 0.9, 0);
+  const anchorGalPos = new THREE.Vector3();
+  const anchorsObj: AstronomyConceptAnchors = {
+    c1: { pos: anchorMidPos, text: '' },
+    c2: { pos: anchorObsPos, text: 'Bumi / Pengamat' },
+    c3: { pos: anchorGalPos, text: '' },
+  };
+  const updateResult = { anchors: anchorsObj };
+
   return {
     group: hubbleGroup,
     interactiveMeshes,
@@ -1236,10 +1325,12 @@ export function buildHubbleExpansionRig(): AstronomyRigHandle {
         dg.diskMat.color.setHex(shiftHex);
         dg.coreMat.emissive.setHex(shiftHex);
 
+        arrowOriginVec.set(gx, dg.yOff, gz);
+        arrowDirVec.set(Math.cos(ang), 0, Math.sin(ang));
         orientAndScaleVectorArrow(
           dg.arrow,
-          new THREE.Vector3(gx, dg.yOff, gz),
-          new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang)),
+          arrowOriginVec,
+          arrowDirVec,
           arrowLen * dg.distMult
         );
       });
@@ -1259,19 +1350,13 @@ export function buildHubbleExpansionRig(): AstronomyRigHandle {
       waveAttr.needsUpdate = true;
       waveMat.color.setHex(waveColorHex);
 
-      return {
-        anchors: {
-          c1: {
-            pos: targetPos.clone().multiplyScalar(0.5).add(new THREE.Vector3(0, 0.55, 0)),
-            text: `Peregangan λ (Redshift z = ${z.toFixed(3)})`,
-          },
-          c2: { pos: new THREE.Vector3(0, 0.9, 0), text: 'Bumi / Pengamat' },
-          c3: {
-            pos: targetPos.clone().add(new THREE.Vector3(0, 0.95, 0)),
-            text: `v_resesi = ${Math.round(recVel)} km/s →`,
-          },
-        },
-      };
+      anchorMidPos.copy(targetPos).multiplyScalar(0.5);
+      anchorMidPos.y += 0.55;
+      anchorGalPos.copy(targetPos);
+      anchorGalPos.y += 0.95;
+      anchorsObj.c1!.text = `Peregangan λ (Redshift z = ${z.toFixed(3)})`;
+      anchorsObj.c3!.text = `v_resesi = ${Math.round(recVel)} km/s →`;
+      return updateResult;
     },
     dispose: () => {
       spiralTex.dispose();

@@ -8,6 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { runMigrations } from './migrator';
 
 const requireModule = createRequire(path.resolve(process.cwd(), 'package.json'));
 
@@ -209,53 +210,7 @@ export class RuangLabDatabase {
       }
     }
 
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS rooms (
-        pin TEXT PRIMARY KEY,
-        host_id TEXT NOT NULL,
-        module_domain TEXT NOT NULL,
-        status TEXT NOT NULL,
-        created_at INTEGER NOT NULL,
-        expires_at INTEGER NOT NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_rooms_expires_at ON rooms(expires_at);
-
-      CREATE TABLE IF NOT EXISTS participants (
-        id TEXT PRIMARY KEY,
-        room_pin TEXT NOT NULL REFERENCES rooms(pin) ON DELETE CASCADE,
-        display_name TEXT NOT NULL,
-        role TEXT NOT NULL CHECK(role IN ('teacher', 'student')),
-        connected INTEGER NOT NULL DEFAULT 1,
-        last_seen INTEGER NOT NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_participants_room_pin ON participants(room_pin);
-
-      CREATE TABLE IF NOT EXISTS simulation_snapshots (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        room_pin TEXT NOT NULL REFERENCES rooms(pin) ON DELETE CASCADE,
-        params_json TEXT NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_snapshots_room_pin_updated
-        ON simulation_snapshots(room_pin, updated_at DESC);
-
-      CREATE TABLE IF NOT EXISTS gradebook_entries (
-        id TEXT PRIMARY KEY,
-        room_pin TEXT NOT NULL REFERENCES rooms(pin) ON DELETE CASCADE,
-        student_id TEXT NOT NULL,
-        student_name TEXT NOT NULL,
-        module_id TEXT NOT NULL,
-        score REAL NOT NULL,
-        rubric_json TEXT NOT NULL,
-        submitted_at INTEGER NOT NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_gradebook_room_pin
-        ON gradebook_entries(room_pin, submitted_at DESC);
-    `);
+    runMigrations(this.db);
 
     // Ensure any incremental columns exist if upgrading an older database
     ensureColumnExists(this.db, 'rooms', 'host_id', "TEXT NOT NULL DEFAULT 'host'");
@@ -780,6 +735,19 @@ export class RuangLabDatabase {
     }));
   }
 
+  public checkpointWalTruncate(): void {
+    if (this.dbPath === ':memory:') return;
+    try {
+      this.db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+    } catch {
+      // Ignore checkpoint error on closing or read-only filesystems
+    }
+  }
+
+  public backupDatabase(destPath: string): string {
+    return backupDatabase(this.db, destPath);
+  }
+
   public close(): void {
     try {
       this.db.close();
@@ -787,6 +755,26 @@ export class RuangLabDatabase {
       // ignore close errors
     }
   }
+}
+
+export function backupDatabase(
+  source: SqliteDatabaseDriver | RuangLabDatabase,
+  destPath: string
+): string {
+  const driver = source instanceof RuangLabDatabase ? source.db : source;
+  const resolvedDest = path.resolve(String(destPath || '').trim());
+  if (!resolvedDest) {
+    throw new Error('Path tujuan backup database SQLite wajib diisi.');
+  }
+  const destDir = path.dirname(resolvedDest);
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true });
+  }
+  if (fs.existsSync(resolvedDest)) {
+    fs.unlinkSync(resolvedDest);
+  }
+  driver.prepare('VACUUM INTO ?').run(resolvedDest);
+  return resolvedDest;
 }
 
 let sharedDatabaseInstance: RuangLabDatabase | null = null;

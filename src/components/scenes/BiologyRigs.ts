@@ -34,7 +34,8 @@ export interface BiologyRigHandle {
     t: number,
     params: Record<string, number>,
     isLite: boolean,
-    showConceptLabels: boolean
+    showConceptLabels: boolean,
+    particleScale?: number
   ) => BiologyConceptAnchors;
   dispose: () => void;
 }
@@ -246,9 +247,14 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
 
   const worldPosA = new THREE.Vector3();
   const worldPosB = new THREE.Vector3();
+  const anchors: BiologyConceptAnchors = {
+    c1: { pos: worldPosB, text: '' },
+    c3: { pos: worldPosA, text: '' },
+  };
+  const emptyAnchors: BiologyConceptAnchors = {};
 
   return {
-    update: (t, curParams, isLite, showConceptLabels) => {
+    update: (t, curParams, isLite, showConceptLabels, particleScale = isLite ? 0.5 : 1) => {
       const wavelength = curParams.wavelengthNm || 660;
       const lux = curParams.lightIntensityLux || 1200;
       const bicarb = curParams.bicarbonateConc ?? 2.5;
@@ -268,7 +274,8 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
       gasPocket.position.y = 2.95 - pocketHeight * 0.5;
 
       const bubbleSpeed = 0.45 + (lux / 1600) * Math.max(0.25, gasLevel);
-      const activeCount = isLite ? Math.floor(BUBBLE_COUNT / 2) : BUBBLE_COUNT;
+      const effectiveScale = isLite ? Math.min(0.5, particleScale) : particleScale;
+      const activeCount = Math.max(8, Math.round(BUBBLE_COUNT * effectiveScale));
       for (let idx = 0; idx < activeCount; idx++) {
         const seed = particleSeeds[idx] ?? idx;
         const span = 2.4;
@@ -281,14 +288,13 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
       instancedPool.commit(activeCount);
 
       photonArrow.visible = showConceptLabels;
-      if (!showConceptLabels) return {};
+      if (!showConceptLabels) return emptyAnchors;
 
       worldPosA.set(-3.2, 3.05, 0).applyMatrix4(apparatusGroup.matrixWorld);
       worldPosB.set(0, 2.95, 0).applyMatrix4(apparatusGroup.matrixWorld);
-      return {
-        c1: { pos: worldPosB.clone(), text: `Akumulasi O₂ (${Math.round(gasLevel * 100)}%)` },
-        c3: { pos: worldPosA.clone(), text: `Foton Cahaya λ = ${Math.round(wavelength)} nm` },
-      };
+      anchors.c1!.text = `Akumulasi O₂ (${Math.round(gasLevel * 100)}%)`;
+      anchors.c3!.text = `Foton Cahaya λ = ${Math.round(wavelength)} nm`;
+      return anchors;
     },
     dispose: () => {
       scene.remove(lightSpot);
@@ -409,9 +415,14 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
 
   const worldPosA = new THREE.Vector3();
   const worldPosB = new THREE.Vector3();
+  const anchors: BiologyConceptAnchors = {
+    c1: { pos: worldPosA, text: '' },
+    c3: { pos: worldPosB, text: '' },
+  };
+  const emptyAnchors: BiologyConceptAnchors = {};
 
   return {
-    update: (t, curParams, isLite, showConceptLabels) => {
+    update: (t, curParams, isLite, showConceptLabels, particleScale = isLite ? 0.5 : 1) => {
       const ph = curParams.solutionPH ?? curParams.solutionPh ?? 7.0;
       const tempC = curParams.temperatureC ?? curParams.tempCelsius ?? 37;
       const sub = curParams.substrateConcMm || 10;
@@ -430,7 +441,8 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
       foamMesh.scale.y = foamTarget;
       foamMesh.position.y = 0.72 + (1.2 * foamTarget) / 2;
 
-      const activeCount = isLite ? Math.floor(FOAM_BUBBLES / 2) : FOAM_BUBBLES;
+      const effectiveScale = isLite ? Math.min(0.5, particleScale) : particleScale;
+      const activeCount = Math.max(12, Math.round(FOAM_BUBBLES * effectiveScale));
       for (let idx = 0; idx < activeCount; idx++) {
         const seed = particleSeeds[idx] ?? idx * 0.7;
         const span = Math.max(0.6, 1.2 * foamTarget + 0.35);
@@ -443,19 +455,14 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
       }
       instancedPool.commit(activeCount);
 
-      if (!showConceptLabels) return {};
+      if (!showConceptLabels) return emptyAnchors;
       foamMesh.getWorldPosition(worldPosA);
+      worldPosA.y += 0.85;
       worldPosB.set(-0.92, 2.52, 0.25).applyMatrix4(apparatusGroup.matrixWorld);
-      return {
-        c1: {
-          pos: worldPosA.clone().add(new THREE.Vector3(0, 0.85, 0)),
-          text: `Busa O₂ · pH ${ph.toFixed(1)}`,
-        },
-        c3: {
-          pos: worldPosB.clone().add(new THREE.Vector3(0, 0.45, 0)),
-          text: tempC > 45 ? `Suhu ${tempC}°C: Denaturasi Enzim!` : `Suhu ${tempC}°C (Aktif)`,
-        },
-      };
+      worldPosB.y += 0.45;
+      anchors.c1!.text = `Busa O₂ · pH ${ph.toFixed(1)}`;
+      anchors.c3!.text = tempC > 45 ? `Suhu ${tempC}°C: Denaturasi Enzim!` : `Suhu ${tempC}°C (Aktif)`;
+      return anchors;
     },
     dispose: () => {
       disposableItems.forEach((d) => d.dispose());
@@ -599,15 +606,25 @@ export function buildPredatorPreyRig(ctx: BiologyRigSharedContext): BiologyRigHa
   const dummy = new THREE.Object3D();
   const worldPosA = new THREE.Vector3();
   const worldPosB = new THREE.Vector3();
+  const worldPosC = new THREE.Vector3();
+  const anchors: BiologyConceptAnchors = {
+    c1: { pos: worldPosA, text: '' },
+    c2: { pos: worldPosC, text: '' },
+    c3: { pos: worldPosB, text: '' },
+  };
+  const emptyAnchors: BiologyConceptAnchors = {};
 
   return {
-    update: (t, curParams, isLite, showConceptLabels) => {
+    update: (t, curParams, isLite, showConceptLabels, particleScale = isLite ? 0.5 : 1) => {
       const preyPop = curParams.preyPopulationX ?? 40;
       const predPop = curParams.predatorPopulationY ?? 9;
       const alpha = curParams.preyGrowthRateAlpha ?? 1.1;
       const beta = curParams.predationRateBeta ?? 0.04;
 
       const vis = computeEcosystemVisualCounts(preyPop, predPop, isLite, MAX_PREY, MAX_PRED);
+      const scaleMult = isLite ? 1 : particleScale;
+      const preyCount = Math.max(4, Math.min(MAX_PREY, Math.round(vis.preyInstances * scaleMult)));
+      const predCount = Math.max(1, Math.min(MAX_PRED, Math.round(vis.predatorInstances * scaleMult)));
 
       statusRingMat.color.setHex(
         vis.status === 'seimbang'
@@ -620,8 +637,8 @@ export function buildPredatorPreyRig(ctx: BiologyRigSharedContext): BiologyRigHa
       // Vegetative richness fades slightly if herbivore load is extreme
       meadowMat.color.setHex(preyPop > 90 ? 0x65a30d : 0x16a34a);
 
-      preyMesh.count = vis.preyInstances;
-      for (let i = 0; i < vis.preyInstances; i++) {
+      preyMesh.count = preyCount;
+      for (let i = 0; i < preyCount; i++) {
         const seed = i * 1.37;
         const speed = 0.55 + alpha * 0.28;
         const radius = 0.75 + ((i * 19) % 100) / 100 * 1.45;
@@ -637,8 +654,8 @@ export function buildPredatorPreyRig(ctx: BiologyRigSharedContext): BiologyRigHa
       }
       preyMesh.instanceMatrix.needsUpdate = true;
 
-      predMesh.count = vis.predatorInstances;
-      for (let i = 0; i < vis.predatorInstances; i++) {
+      predMesh.count = predCount;
+      for (let i = 0; i < predCount; i++) {
         const seed = i * 2.13;
         const stalkSpeed = 0.75 + beta * 8.5;
         const radius = 0.9 + ((i * 29) % 100) / 100 * 1.25;
@@ -653,28 +670,22 @@ export function buildPredatorPreyRig(ctx: BiologyRigSharedContext): BiologyRigHa
       }
       predMesh.instanceMatrix.needsUpdate = true;
 
-      if (!showConceptLabels) return {};
+      if (!showConceptLabels) return emptyAnchors;
       preyBeacon.getWorldPosition(worldPosA);
+      worldPosA.y += 0.65;
       predBeacon.getWorldPosition(worldPosB);
-      return {
-        c1: {
-          pos: worldPosA.clone().add(new THREE.Vector3(0, 0.65, 0)),
-          text: `Mangsa (x) = ${Math.round(preyPop)} individu`,
-        },
-        c2: {
-          pos: new THREE.Vector3(0.2, 1.35, 0.15).applyMatrix4(apparatusGroup.matrixWorld),
-          text:
-            vis.status === 'seimbang'
-              ? 'Ekosistem Seimbang'
-              : vis.status === 'ledakan_mangsa'
-              ? 'Populasi Mangsa Dominan'
-              : 'Tekanan Predasi Tinggi!',
-        },
-        c3: {
-          pos: worldPosB.clone().add(new THREE.Vector3(0, 0.65, 0)),
-          text: `Predator (y) = ${Math.round(predPop)} individu`,
-        },
-      };
+      worldPosB.y += 0.65;
+      worldPosC.set(0.2, 1.35, 0.15).applyMatrix4(apparatusGroup.matrixWorld);
+
+      anchors.c1!.text = `Mangsa (x) = ${Math.round(preyPop)} individu`;
+      anchors.c2!.text =
+        vis.status === 'seimbang'
+          ? 'Ekosistem Seimbang'
+          : vis.status === 'ledakan_mangsa'
+          ? 'Populasi Mangsa Dominan'
+          : 'Tekanan Predasi Tinggi!';
+      anchors.c3!.text = `Predator (y) = ${Math.round(predPop)} individu`;
+      return anchors;
     },
     dispose: () => {
       disposableItems.forEach((d) => d.dispose());
@@ -813,11 +824,17 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
   apparatusGroup.add(osmosisArrowLeft, osmosisArrowRight);
 
   const worldPosA = new THREE.Vector3();
+  const dirNegX = new THREE.Vector3(-1, 0, 0);
+  const dirPosX = new THREE.Vector3(1, 0, 0);
+  const anchors: BiologyConceptAnchors = {
+    c2: { pos: worldPosA, text: '' },
+  };
+  const emptyAnchors: BiologyConceptAnchors = {};
   let cyclosisAngle = 0;
   let lastT = 0;
 
   return {
-    update: (t, curParams, isLite, showConceptLabels) => {
+    update: (t, curParams, isLite, showConceptLabels, particleScale = isLite ? 0.5 : 1) => {
       const dt = Math.max(0, Math.min(0.1, Math.abs(t - lastT)));
       lastT = t;
 
@@ -835,7 +852,8 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
       cyclosisAngle += dt * osmState.cyclosisSpeed * 0.8;
       organellesGroup.rotation.y = cyclosisAngle;
 
-      const activeCount = isLite ? Math.floor(OSMOSIS_DOTS / 2) : OSMOSIS_DOTS;
+      const effectiveScale = isLite ? Math.min(0.5, particleScale) : particleScale;
+      const activeCount = Math.max(12, Math.round(OSMOSIS_DOTS * effectiveScale));
       for (let idx = 0; idx < activeCount; idx++) {
         const seed = particleSeeds[idx] ?? idx * 0.9;
         const px = Math.sin(t * 0.7 + seed) * 1.65;
@@ -852,17 +870,17 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
         osmosisArrowRight.visible = true;
         if (isHyper) {
           osmosisArrowLeft.position.set(-1.1, 1.35, 0.2);
-          osmosisArrowLeft.setDirection(new THREE.Vector3(-1, 0, 0));
+          osmosisArrowLeft.setDirection(dirNegX);
           osmosisArrowLeft.setColor(0xf97316);
           osmosisArrowRight.position.set(1.1, 1.35, 0.2);
-          osmosisArrowRight.setDirection(new THREE.Vector3(1, 0, 0));
+          osmosisArrowRight.setDirection(dirPosX);
           osmosisArrowRight.setColor(0xf97316);
         } else {
           osmosisArrowLeft.position.set(-2.0, 1.35, 0.2);
-          osmosisArrowLeft.setDirection(new THREE.Vector3(1, 0, 0));
+          osmosisArrowLeft.setDirection(dirPosX);
           osmosisArrowLeft.setColor(0x38bdf8);
           osmosisArrowRight.position.set(2.0, 1.35, 0.2);
-          osmosisArrowRight.setDirection(new THREE.Vector3(-1, 0, 0));
+          osmosisArrowRight.setDirection(dirNegX);
           osmosisArrowRight.setColor(0x38bdf8);
         }
       } else {
@@ -870,18 +888,15 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
         osmosisArrowRight.visible = false;
       }
 
-      if (!showConceptLabels) return {};
+      if (!showConceptLabels) return emptyAnchors;
       protoplastMesh.getWorldPosition(worldPosA);
-      return {
-        c2: {
-          pos: worldPosA.clone().add(new THREE.Vector3(0, 1.08, 0)),
-          text: isHyper
-            ? 'Osmosis: H₂O Keluar (Plasmolisis)'
-            : isHypo
-            ? 'Osmosis: H₂O Masuk (Sel Turgid)'
-            : 'Isotonik: Fluks H₂O Seimbang',
-        },
-      };
+      worldPosA.y += 1.08;
+      anchors.c2!.text = isHyper
+        ? 'Osmosis: H₂O Keluar (Plasmolisis)'
+        : isHypo
+        ? 'Osmosis: H₂O Masuk (Sel Turgid)'
+        : 'Isotonik: Fluks H₂O Seimbang';
+      return anchors;
     },
     dispose: () => {
       disposableItems.forEach((d) => d.dispose());

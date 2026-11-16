@@ -3,10 +3,10 @@ import * as THREE from 'three';
 import { Eye, Layers, Sparkles, X } from 'lucide-react';
 import {
   createBiologicalMembraneTexture,
-  smoothCameraTransition,
+  smoothCameraDamp,
   type CameraSyncPose,
 } from '../../utils/threeStudioKit';
-import { initThreeStudioHost } from '../../utils/threeStudioHost';
+import { initThreeStudioHost, startStudioRenderLoop } from '../../utils/threeStudioHost';
 import { ThreeInteractionManager } from '../../utils/threeInteractionHelper';
 import { labSound } from '../../utils/soundEngine';
 import {
@@ -316,8 +316,14 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       },
       controls: {
         target: [0, 0.1, 0],
+        maxPolarAngle: Math.PI * 0.48,
+        minDistance: 2.2,
+        maxDistance: 16,
       },
       onContextRestored: () => setSceneKey((prev) => prev + 1),
+      onUserControlsStart: () => {
+        cameraLerpRef.current.active = false;
+      },
       onCameraSyncChange: (pose) => onCameraSyncChangeRef.current?.(pose),
     });
     if (!host) return;
@@ -345,6 +351,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     keyLight.shadow.mapSize.set(anatomyShadowSize, anatomyShadowSize);
     keyLight.shadow.bias = -0.0002;
     scene.add(keyLight);
+    host.registerShadowLight(keyLight);
     const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.4);
     rimLight.position.set(-6, 4, -5);
     scene.add(rimLight);
@@ -456,7 +463,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
     const dummy = new THREE.Object3D();
     const conceptProjVec = new THREE.Vector3();
-    let updateFrame = (_t: number, _dt: number) => {};
+    let updateFrame = (_t: number, _dt: number, _particleScale: number) => {};
 
     // 3D physiological directional arrows per anatomy mode
     let heartO2Arrow: THREE.ArrowHelper | null = null;
@@ -860,7 +867,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       const co2Mesh = new THREE.InstancedMesh(gasGeo, new THREE.MeshBasicMaterial({ color: 0xfb923c }), gasCount);
       innerGroup.add(o2Mesh, co2Mesh);
 
-      updateFrame = (t) => {
+      updateFrame = (t, _dt, particleScale) => {
         const rr = paramsRef.current.respirationRate ?? 15;
         const effort = paramsRef.current.diaphragmEffort ?? 50;
         const resistance = paramsRef.current.airwayResistance ?? 1.0;
@@ -876,9 +883,12 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         diaphragm.position.y = -1.28 - breath * amp * 1.1;
         alveoliClusters.forEach((cluster) => cluster.scale.setScalar(0.88 + breath * amp * 1.35));
 
-        for (let i = 0; i < gasCount; i++) {
+        const activeGas = Math.max(30, Math.round(gasCount * particleScale));
+        o2Mesh.count = activeGas;
+        co2Mesh.count = activeGas;
+        for (let i = 0; i < activeGas; i++) {
           const side = i % 2 === 0 ? 1 : -1;
-          const u = ((i / gasCount) + t * (rr / 60) * 0.45) % 1;
+          const u = ((i / activeGas) + t * (rr / 60) * 0.45) % 1;
           dummy.position.set(side * (0.35 + u * 0.95), 1.15 - u * 1.35 + Math.sin(t * 2 + i) * 0.08, Math.cos(i * 1.7 + t) * 0.35);
           dummy.updateMatrix();
           o2Mesh.setMatrixAt(i, dummy.matrix);
@@ -1015,7 +1025,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       );
       innerGroup.add(ntMesh);
 
-      updateFrame = (t) => {
+      updateFrame = (t, _dt, particleScale) => {
         const stim = paramsRef.current.stimulusVoltageMv ?? -35;
         const myelin = paramsRef.current.myelinThickness ?? 75;
         const fired = stim >= -55;
@@ -1037,8 +1047,10 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
           pulseRing.visible = false;
         }
 
-        for (let i = 0; i < ntCount; i++) {
-          const prog = fired ? ((t * 1.4 + i / ntCount) % 1) : 0.05;
+        const activeNt = Math.max(16, Math.round(ntCount * particleScale));
+        ntMesh.count = activeNt;
+        for (let i = 0; i < activeNt; i++) {
+          const prog = fired ? ((t * 1.4 + i / activeNt) % 1) : 0.05;
           dummy.position.set(2.45 + prog * 0.58, Math.sin(i * 2.1 + t * 3) * 0.32 * prog, Math.cos(i * 1.7 + t * 2) * 0.32 * prog);
           dummy.scale.setScalar(fired ? 1 : 0.35);
           dummy.updateMatrix();
@@ -1048,182 +1060,166 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       };
     }
 
-    const clock = new THREE.Clock();
-    let animId = 0;
-    let lastRenderStamp = 0;
+    const downDir = new THREE.Vector3(0, -1, 0);
+    const upDir = new THREE.Vector3(0, 1, 0);
+    const cPos1 = new THREE.Vector3();
+    const cPos2 = new THREE.Vector3();
+    const cPos3 = new THREE.Vector3();
+    const cEntries = [
+      { dom: conceptDomRef.current.c1, worldPos: cPos1, text: '', active: false },
+      { dom: conceptDomRef.current.c2, worldPos: cPos2, text: '', active: false },
+      { dom: conceptDomRef.current.c3, worldPos: cPos3, text: '', active: false },
+    ];
+    let simAccumTime = 0;
 
-    const animate = () => {
-      animId = requestAnimationFrame(animate);
-      const isLite = useUIStore.getState().liteDeviceMode;
-      const nowStamp = performance.now();
-      if (isLite && nowStamp - lastRenderStamp < 32) {
-        return;
-      }
-      lastRenderStamp = nowStamp;
-      fpsMonitor.recordFrame(nowStamp);
-      const rawDt = Math.min(clock.getDelta(), 0.05);
-      const dt = rawDt * (playingRef.current ? timeScaleRef.current : 0);
-      const elapsed = clock.getElapsedTime();
-      const extRef = externalSimTimeRef.current;
-      const effectiveT =
-        extRef && typeof extRef.current === 'number'
-          ? extRef.current
-          : typeof simTimePropRef.current === 'number'
-          ? simTimePropRef.current
-          : elapsed;
+    const loopHandle = startStudioRenderLoop({
+      renderer,
+      isSoftwareGl,
+      fpsMonitor,
+      onFrame: ({ nowMs, dt: rawDt, elapsed, particleScale }) => {
+        const dt = rawDt * (playingRef.current ? timeScaleRef.current : 0);
+        simAccumTime += dt;
+        const extRef = externalSimTimeRef.current;
+        const effectiveT =
+          extRef && typeof extRef.current === 'number'
+            ? extRef.current
+            : typeof simTimePropRef.current === 'number'
+            ? simTimePropRef.current
+            : simAccumTime || elapsed;
 
-      const lm = layerModeRef.current;
-      outerMaterials.forEach((mat) => {
-        if (lm === 'xray') {
-          mat.opacity = 0.25; mat.transmission = 0.85; mat.depthWrite = false;
-        } else if (lm === 'cross-section') {
-          mat.opacity = 0.55; mat.transmission = 0.45; mat.depthWrite = true;
+        const lm = layerModeRef.current;
+        outerMaterials.forEach((mat) => {
+          if (lm === 'xray') {
+            mat.opacity = 0.25; mat.transmission = 0.85; mat.depthWrite = false;
+          } else if (lm === 'cross-section') {
+            mat.opacity = 0.55; mat.transmission = 0.45; mat.depthWrite = true;
+          } else {
+            mat.opacity = mode === 'anatomy-respiratory-lungs' ? 0.78 : 1.0;
+            mat.transmission = mode === 'anatomy-respiratory-lungs' ? 0.75 : 0.12;
+            mat.depthWrite = true;
+          }
+        });
+        rootGroup.scale.z = lm === 'cross-section' ? 0.55 : 1.0;
+
+        pinMeshes.forEach(({ halo }, idx) => {
+          halo.lookAt(camera.position);
+          halo.scale.setScalar(1 + 0.18 * Math.sin(effectiveT * 3.5 + idx));
+        });
+
+        if (cameraLerpRef.current.active) {
+          cameraLerpRef.current.active = smoothCameraDamp(
+            camera,
+            controls,
+            cameraLerpRef.current.pos,
+            cameraLerpRef.current.target,
+            rawDt,
+            10
+          );
+        }
+
+        updateFrame(effectiveT, dt, particleScale);
+        teacherCollabBridge.tick(nowMs, rawDt);
+        controls.update();
+
+        const showLabels = showConceptLabelsRef.current;
+        const cw = container.clientWidth || width;
+        const ch = container.clientHeight || height;
+        const cDom = conceptDomRef.current;
+        const pCur = paramsRef.current;
+        cEntries[0].dom = cDom.c1;
+        cEntries[0].active = false;
+        cEntries[1].dom = cDom.c2;
+        cEntries[1].active = false;
+        cEntries[2].dom = cDom.c3;
+        cEntries[2].active = false;
+
+        if (mode === 'anatomy-cardiovascular-heart') {
+          if (heartO2Arrow) heartO2Arrow.visible = showLabels;
+          if (heartCo2Arrow) heartCo2Arrow.visible = showLabels;
+          if (showLabels) {
+            const hm = evalHeart(pCur);
+            cPos1.set(1.15, 1.35, 0.2);
+            cEntries[0].text = 'Aorta · Darah Kaya O₂ ↑';
+            cEntries[0].active = true;
+
+            cPos2.set(-0.85, 1.5, 0);
+            cEntries[1].text = 'Vena & Pulmonal · CO₂ ↓';
+            cEntries[1].active = true;
+
+            cPos3.set(0.42, -0.5, 0.45);
+            cEntries[2].text = `MAP ${hm.meanArterialPressure} mmHg · HR ${Math.round(pCur.heartRateBpm ?? 72)} bpm`;
+            cEntries[2].active = true;
+          }
+        } else if (mode === 'anatomy-respiratory-lungs') {
+          const rr = pCur.respirationRate ?? 15;
+          const inhaling = Math.sin(2 * Math.PI * (rr / 60) * elapsed) >= 0;
+          if (lungAirArrow) {
+            lungAirArrow.visible = showLabels;
+            lungAirArrow.setDirection(inhaling ? downDir : upDir);
+            lungAirArrow.setColor(inhaling ? 0x38bdf8 : 0xfb923c);
+            lungAirArrow.position.set(0.36, inhaling ? 1.95 : 1.15, 0.1);
+          }
+          if (lungDiaphArrow) {
+            lungDiaphArrow.visible = showLabels;
+            lungDiaphArrow.setDirection(inhaling ? downDir : upDir);
+          }
+          if (showLabels) {
+            const lmStats = calculateRespiratoryLungs({
+              respirationRate: rr,
+              diaphragmEffort: pCur.diaphragmEffort ?? 50,
+              airwayResistance: pCur.airwayResistance ?? 1.0,
+              altitudeMeters: pCur.altitudeMeters ?? 0,
+              timeSec: elapsed,
+            });
+            cPos1.set(0, -1.25, 0.35);
+            cEntries[0].text = 'Diafragma (Hukum Boyle)';
+            cEntries[0].active = true;
+
+            cPos2.set(0.15, 1.85, 0.1);
+            cEntries[1].text = inhaling ? 'Inspirasi: O₂ Masuk ↓' : 'Ekspirasi: CO₂ Keluar ↑';
+            cEntries[1].active = true;
+
+            cPos3.set(1.1, 0.35, 0.35);
+            cEntries[2].text = `Alveolus · SpO₂ ${lmStats.spo2Percent}%`;
+            cEntries[2].active = true;
+          }
         } else {
-          mat.opacity = mode === 'anatomy-respiratory-lungs' ? 0.78 : 1.0;
-          mat.transmission = mode === 'anatomy-respiratory-lungs' ? 0.75 : 0.12;
-          mat.depthWrite = true;
-        }
-      });
-      rootGroup.scale.z = lm === 'cross-section' ? 0.55 : 1.0;
+          const stim = pCur.stimulusVoltageMv ?? -35;
+          const fired = stim >= -55;
+          if (neuronImpulseArrow) {
+            neuronImpulseArrow.visible = showLabels && fired;
+          }
+          if (showLabels) {
+            const nm = calculateNeuralSynapse({
+              stimulusVoltageMv: stim,
+              myelinThickness: pCur.myelinThickness ?? 75,
+              extracellularNaMm: pCur.extracellularNaMm ?? 145,
+              extracellularKMm: pCur.extracellularKMm ?? 4.5,
+              timeSec: elapsed,
+            });
+            cPos1.set(-2.1, 0.85, 0);
+            cEntries[0].text = `Soma · Stimulus ${stim} mV`;
+            cEntries[0].active = true;
 
-      pinMeshes.forEach(({ halo }, idx) => {
-        halo.lookAt(camera.position);
-        halo.scale.setScalar(1 + 0.18 * Math.sin(effectiveT * 3.5 + idx));
-      });
-
-      if (cameraLerpRef.current.active) {
-        cameraLerpRef.current.active = smoothCameraTransition(
-          camera,
-          controls,
-          cameraLerpRef.current.pos,
-          cameraLerpRef.current.target,
-          0.1
-        );
-      }
-
-      updateFrame(effectiveT, dt);
-      teacherCollabBridge.tick(nowStamp, rawDt);
-      controls.update();
-
-      const showLabels = showConceptLabelsRef.current;
-      const cw = container.clientWidth || width;
-      const ch = container.clientHeight || height;
-      const cDom = conceptDomRef.current;
-      const pCur = paramsRef.current;
-      const cEntries = [
-        { dom: cDom.c1, worldPos: new THREE.Vector3(), text: '', active: false },
-        { dom: cDom.c2, worldPos: new THREE.Vector3(), text: '', active: false },
-        { dom: cDom.c3, worldPos: new THREE.Vector3(), text: '', active: false },
-      ];
-
-      if (mode === 'anatomy-cardiovascular-heart') {
-        if (heartO2Arrow) heartO2Arrow.visible = showLabels;
-        if (heartCo2Arrow) heartCo2Arrow.visible = showLabels;
-        if (showLabels) {
-          const hm = evalHeart(pCur);
-          cEntries[0] = {
-            dom: cDom.c1,
-            worldPos: new THREE.Vector3(1.15, 1.35, 0.2),
-            text: `Aorta · Darah Kaya O₂ ↑`,
-            active: true,
-          };
-          cEntries[1] = {
-            dom: cDom.c2,
-            worldPos: new THREE.Vector3(-0.85, 1.5, 0),
-            text: `Vena & Pulmonal · CO₂ ↓`,
-            active: true,
-          };
-          cEntries[2] = {
-            dom: cDom.c3,
-            worldPos: new THREE.Vector3(0.42, -0.5, 0.45),
-            text: `MAP ${hm.meanArterialPressure} mmHg · HR ${Math.round(pCur.heartRateBpm ?? 72)} bpm`,
-            active: true,
-          };
-        }
-      } else if (mode === 'anatomy-respiratory-lungs') {
-        const rr = pCur.respirationRate ?? 15;
-        const inhaling = Math.sin(2 * Math.PI * (rr / 60) * elapsed) >= 0;
-        if (lungAirArrow) {
-          lungAirArrow.visible = showLabels;
-          lungAirArrow.setDirection(new THREE.Vector3(0, inhaling ? -1 : 1, 0));
-          lungAirArrow.setColor(inhaling ? 0x38bdf8 : 0xfb923c);
-          lungAirArrow.position.set(0.36, inhaling ? 1.95 : 1.15, 0.1);
-        }
-        if (lungDiaphArrow) {
-          lungDiaphArrow.visible = showLabels;
-          lungDiaphArrow.setDirection(new THREE.Vector3(0, inhaling ? -1 : 1, 0));
-        }
-        if (showLabels) {
-          const lm = calculateRespiratoryLungs({
-            respirationRate: rr,
-            diaphragmEffort: pCur.diaphragmEffort ?? 50,
-            airwayResistance: pCur.airwayResistance ?? 1.0,
-            altitudeMeters: pCur.altitudeMeters ?? 0,
-            timeSec: elapsed,
-          });
-          cEntries[1] = {
-            dom: cDom.c2,
-            worldPos: new THREE.Vector3(0.15, 1.85, 0.1),
-            text: inhaling ? `Inspirasi: O₂ Masuk ↓` : `Ekspirasi: CO₂ Keluar ↑`,
-            active: true,
-          };
-          cEntries[2] = {
-            dom: cDom.c3,
-            worldPos: new THREE.Vector3(1.1, 0.35, 0.35),
-            text: `Alveolus · SpO₂ ${lm.spo2Percent}%`,
-            active: true,
-          };
-          cEntries[0] = {
-            dom: cDom.c1,
-            worldPos: new THREE.Vector3(0, -1.25, 0.35),
-            text: `Diafragma (Hukum Boyle)`,
-            active: true,
-          };
-        }
-      } else {
-        const stim = pCur.stimulusVoltageMv ?? -35;
-        const fired = stim >= -55;
-        if (neuronImpulseArrow) {
-          neuronImpulseArrow.visible = showLabels && fired;
-        }
-        if (showLabels) {
-          const nm = calculateNeuralSynapse({
-            stimulusVoltageMv: stim,
-            myelinThickness: pCur.myelinThickness ?? 75,
-            extracellularNaMm: pCur.extracellularNaMm ?? 145,
-            extracellularKMm: pCur.extracellularKMm ?? 4.5,
-            timeSec: elapsed,
-          });
-          cEntries[0] = {
-            dom: cDom.c1,
-            worldPos: new THREE.Vector3(-2.1, 0.85, 0),
-            text: `Soma · Stimulus ${stim} mV`,
-            active: true,
-          };
-          cEntries[1] = {
-            dom: cDom.c2,
-            worldPos: new THREE.Vector3(0.1, 0.55, 0),
-            text: fired
+            cPos2.set(0.1, 0.55, 0);
+            cEntries[1].text = fired
               ? `Impuls Saltatorik → (${nm.conductionVelocityMs} m/s)`
-              : `Di Bawah Ambang (-55 mV)`,
-            active: true,
-          };
-          cEntries[2] = {
-            dom: cDom.c3,
-            worldPos: new THREE.Vector3(2.25, 0.65, 0),
-            text: `Sinapsis Terminal`,
-            active: true,
-          };
-        }
-      }
-      updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
+              : 'Di Bawah Ambang (-55 mV)';
+            cEntries[1].active = true;
 
-      host.renderFrame(rawDt);
-    };
-    animate();
+            cPos3.set(2.25, 0.65, 0);
+            cEntries[2].text = 'Sinapsis Terminal';
+            cEntries[2].active = true;
+          }
+        }
+        updateProjectedConceptLabels(cEntries, camera, cw, ch, showLabels, conceptProjVec);
+
+        host.renderFrame(rawDt);
+      },
+    });
 
     return () => {
-      cancelAnimationFrame(animId);
+      loopHandle.stop();
       cameraSyncHandleRef.current = null;
       if (dragToastTimer) clearTimeout(dragToastTimer);
       interactionManager.dispose();
@@ -1303,6 +1299,21 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
             </button>
           ))}
           <span className="mx-0.5 h-4 w-px bg-slate-700/80" aria-hidden="true" />
+          <button
+            type="button"
+            data-testid="camera-reset-btn"
+            onClick={() => {
+              labSound.playClick();
+              setSelectedPinId(null);
+              cameraLerpRef.current.target.set(0, 0.1, 0);
+              cameraLerpRef.current.pos.set(0, 1.3, 5.2);
+              cameraLerpRef.current.active = true;
+            }}
+            title="Reset View ke Sudut 3D Awal"
+            className="px-2 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition cursor-pointer"
+          >
+            Reset
+          </button>
           <ConceptLabelToggleButton accentClass="bg-cyan-500 text-slate-950 font-bold" />
         </div>
       </div>

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import {
   createStudioWorkbenchGroup,
-  smoothCameraTransition,
+  smoothCameraDamp,
   type CameraSyncPose,
 } from '../utils/threeStudioKit';
 import {
@@ -237,8 +237,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       shadowBound: 12,
       shadowNear: 1,
       shadowFar: 35,
-      shadowMapSize: isSoftwareGl ? 512 : 2048,
+      shadowMapSize: isSoftwareGl ? 512 : 1024,
     });
+    host.registerShadowLight(lightingRig.keyLight);
 
     const workbench = createStudioWorkbenchGroup(initialThemeColors, {
       width: 14.0,
@@ -333,34 +334,50 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       setMeasureHud((prev) => ({ ...prev, protractor: readout.formatted }));
     };
 
+    const cachedBaseInteractive: THREE.Object3D[] = [];
+    scene.traverse((obj) => {
+      if (
+        obj instanceof THREE.Mesh &&
+        (obj.userData?.draggableParam || obj.userData?.measurementHandle || obj.userData?.interactive)
+      ) {
+        cachedBaseInteractive.push(obj);
+      }
+    });
+
+    const isObjChainVisible = (obj: THREE.Object3D): boolean => {
+      let cur: THREE.Object3D | null = obj;
+      while (cur) {
+        if (!cur.visible) return false;
+        cur = cur.parent;
+      }
+      return true;
+    };
+
+    const activeInteractiveList: THREE.Object3D[] = [];
     const getInteractiveMeshes = (): THREE.Object3D[] => {
-      const list: THREE.Object3D[] = [];
-      scene.traverse((obj) => {
-        if (
-          obj instanceof THREE.Mesh &&
-          obj.visible &&
-          (obj.userData?.draggableParam || obj.userData?.measurementHandle || obj.userData?.interactive)
-        ) {
-          let parentVisible = true;
-          let cur: THREE.Object3D | null = obj.parent;
-          while (cur) {
-            if (!cur.visible) {
-              parentVisible = false;
-              break;
-            }
-            cur = cur.parent;
-          }
-          if (parentVisible) list.push(obj);
+      activeInteractiveList.length = 0;
+      for (let i = 0; i < cachedBaseInteractive.length; i++) {
+        const obj = cachedBaseInteractive[i];
+        if (isObjChainVisible(obj)) {
+          activeInteractiveList.push(obj);
         }
-      });
-      return list;
+      }
+      return activeInteractiveList;
+    };
+
+    let toastTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    const scheduleClearToast = (delayMs: number) => {
+      if (toastTimeoutId) clearTimeout(toastTimeoutId);
+      toastTimeoutId = setTimeout(() => {
+        toastTimeoutId = null;
+        setDragToast(null);
+      }, delayMs);
     };
 
     const interactionManager = new ThreeInteractionManager({
       camera,
       domElement: renderer.domElement,
       controls,
-      sceneForCursor: scene,
       defaultHoverColor: 0x38bdf8,
       dragSpanPx: 300,
       getInteractiveObjects: getInteractiveMeshes,
@@ -401,7 +418,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         }
         isDragging = false;
         activeDragMesh = null;
-        setTimeout(() => setDragToast(null), 1200);
+        scheduleClearToast(1200);
       },
       onCursorMove3D: (pos, normal, hoveredObject) => {
         latestRef.current.onEmitCursor?.(pos, normal, hoveredObject);
@@ -414,7 +431,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       renderer,
       isSoftwareGl,
       fpsMonitor,
-      onFrame: ({ nowMs, dt: frameDt, isLite }) => {
+      onFrame: ({ nowMs, dt: frameDt, isLite, particleScale }) => {
         rulerHandle.group.visible = showMeasureToolsRef.current;
         protractorHandle.group.visible = showMeasureToolsRef.current;
 
@@ -425,7 +442,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           showVectorOverlay: rawShowVec,
         } = latestRef.current;
 
-        const nowSec = performance.now() / 1000;
+        const nowSec = nowMs * 0.001;
         const t = simTimeRef && typeof simTimeRef.current === 'number' ? simTimeRef.current : baseTime;
         const isSimTimeAdvancing = prevSimTime >= 0 && t > prevSimTime + 0.0005;
         prevSimTime = t;
@@ -440,6 +457,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           nowSec,
           showVectors: showVec,
           isLite: isLite || isSoftwareGl,
+          particleScale,
           isSimTimeAdvancing,
           followCamEnabled: followCamRef.current,
           camTransitionActive,
@@ -455,12 +473,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         );
 
         if (camTransitionActive) {
-          camTransitionActive = smoothCameraTransition(
+          camTransitionActive = smoothCameraDamp(
             camera,
             controls,
             desiredCamPos,
             desiredTarget,
-            0.14
+            frameDt,
+            7.2
           );
         }
 
@@ -486,6 +505,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     return () => {
       loopHandle.stop();
+      if (toastTimeoutId) clearTimeout(toastTimeoutId);
       unsubAiAction();
       interactionManager.dispose();
       teacherCollabBridge.dispose();
@@ -613,9 +633,18 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         <span className="mx-0.5 h-3.5 w-px bg-white/15" aria-hidden="true" />
 
         <div className="hidden md:flex items-center gap-0.5">
+          <button
+            type="button"
+            data-testid="camera-reset-btn"
+            onClick={() => handleSelectCameraPreset('isometric')}
+            title="Reset View ke Sudut 3D Awal"
+            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            Reset
+          </button>
           {(
             [
-              { id: 'isometric', label: 'Iso' },
+              { id: 'isometric', label: '3D' },
               { id: 'front', label: 'Depan' },
               { id: 'top', label: 'Atas' },
               { id: 'focus', label: 'Fokus' },

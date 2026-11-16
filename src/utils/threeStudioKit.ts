@@ -615,6 +615,23 @@ export function smoothCameraTransition(
 }
 
 /**
+ * Frame-rate independent exponential camera damping (`THREE.MathUtils.damp` semantics).
+ * Returns true while transition is still active, or false once settled at the target.
+ */
+export function smoothCameraDamp(
+  camera: { position: THREE.Vector3 },
+  controls: { target: THREE.Vector3; update?: () => void },
+  targetPos: THREE.Vector3,
+  targetLookAt: THREE.Vector3,
+  dtSeconds: number,
+  lambda = 6.5
+): boolean {
+  const safeDt = Math.min(0.1, Math.max(0.001, Number.isFinite(dtSeconds) ? dtSeconds : 0.016));
+  const factor = 1 - Math.exp(-lambda * safeDt);
+  return smoothCameraTransition(camera, controls, targetPos, targetLookAt, factor);
+}
+
+/**
  * Generates procedural banded/cloudy/cratered planet surface textures so celestial spheres have organic detail.
  */
 export function createPlanetSurfaceTexture(options: {
@@ -957,6 +974,45 @@ export function createAdaptiveFpsMonitor(
   };
 }
 
+export interface LabRendererConfigOptions {
+  exposure?: number;
+  isSoftwareGl?: boolean;
+  isLite?: boolean;
+  pixelRatioCap?: number;
+  shadowsEnabled?: boolean;
+}
+
+/**
+ * Calibrates WebGLRenderer with ACESFilmicToneMapping, sRGB output color space,
+ * balanced exposure (1.0 - 1.1) to prevent highlights blowout, and PCFSoftShadowMap.
+ */
+export function configureLabRenderer(
+  renderer: THREE.WebGLRenderer,
+  options: LabRendererConfigOptions = {}
+): THREE.WebGLRenderer {
+  if (!renderer) return renderer;
+  const isSoftwareGl = options.isSoftwareGl ?? false;
+  const isLite = options.isLite ?? false;
+  const cap = options.pixelRatioCap ?? 1.5;
+  const devicePr =
+    typeof window !== 'undefined' && Number.isFinite(window.devicePixelRatio)
+      ? Math.max(1, window.devicePixelRatio)
+      : 1;
+
+  if (typeof renderer.setPixelRatio === 'function') {
+    renderer.setPixelRatio(isSoftwareGl || isLite ? 1 : Math.min(devicePr, cap));
+  }
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  const rawExposure = options.exposure ?? 1.05;
+  renderer.toneMappingExposure = Math.max(1.0, Math.min(1.1, rawExposure));
+  if (renderer.shadowMap) {
+    renderer.shadowMap.enabled = options.shadowsEnabled ?? !isLite;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  }
+  return renderer;
+}
+
 /**
  * Applies lightweight rendering properties for low-end hardware in 3T regions.
  * Disables shadows, forces pixel ratio to 1, and limits memory pressure.
@@ -974,7 +1030,7 @@ export function configureRendererForLiteMode(
     renderer.setPixelRatio(
       isSoftwareGl
         ? 1
-        : Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2)
+        : Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 1.5)
     );
     renderer.shadowMap.enabled = true;
   }
@@ -1125,29 +1181,47 @@ const MATERIAL_TEXTURE_SLOTS = [
   'envMap',
   'lightMap',
   'specularMap',
+  'clearcoatMap',
+  'clearcoatRoughnessMap',
+  'clearcoatNormalMap',
+  'transmissionMap',
+  'thicknessMap',
+  'sheenColorMap',
+  'sheenRoughnessMap',
+  'iridescenceMap',
 ] as const;
 
 /**
- * Consistently traverses a Three.js Scene, disposes all geometries, materials,
- * material texture maps, environment map, render lists, and WebGLRenderer context resources.
+ * Consistently traverses a Three.js Scene, disposes all geometries, InstancedMesh buffers,
+ * materials, material texture maps, environment map, extra render targets, render lists,
+ * and WebGLRenderer context resources.
  */
-export function disposeThreeSceneResources(
+export function disposeThreeScene(
   scene: THREE.Scene,
   renderer?: THREE.WebGLRenderer | null,
-  envTexture?: THREE.Texture | null
+  envTexture?: THREE.Texture | null,
+  renderTargets?: Array<THREE.WebGLRenderTarget | null | undefined>
 ): DisposalStats {
   let geometriesDisposed = 0;
   let materialsDisposed = 0;
   let texturesDisposed = 0;
 
+  const disposedGeometries = new Set<unknown>();
+  const disposedMaterials = new Set<unknown>();
+  const disposedTextures = new Set<unknown>();
+
+  const disposeTextureOnce = (tex: any) => {
+    if (!tex || typeof tex.dispose !== 'function' || disposedTextures.has(tex)) return;
+    disposedTextures.add(tex);
+    tex.dispose();
+    texturesDisposed += 1;
+  };
+
   const disposeMaterialInstance = (mat: any) => {
-    if (!mat || typeof mat !== 'object') return;
+    if (!mat || typeof mat !== 'object' || disposedMaterials.has(mat)) return;
+    disposedMaterials.add(mat);
     for (const slot of MATERIAL_TEXTURE_SLOTS) {
-      const tex = mat[slot];
-      if (tex && typeof tex.dispose === 'function') {
-        tex.dispose();
-        texturesDisposed += 1;
-      }
+      disposeTextureOnce(mat[slot]);
     }
     if (typeof mat.dispose === 'function') {
       mat.dispose();
@@ -1156,9 +1230,13 @@ export function disposeThreeSceneResources(
   };
 
   scene.traverse((obj: any) => {
-    if (obj?.geometry && typeof obj.geometry.dispose === 'function') {
+    if (obj?.geometry && typeof obj.geometry.dispose === 'function' && !disposedGeometries.has(obj.geometry)) {
+      disposedGeometries.add(obj.geometry);
       obj.geometry.dispose();
       geometriesDisposed += 1;
+    }
+    if (obj?.isInstancedMesh && typeof obj.dispose === 'function') {
+      obj.dispose();
     }
     if (Array.isArray(obj?.material)) {
       obj.material.forEach((m: any) => disposeMaterialInstance(m));
@@ -1167,9 +1245,16 @@ export function disposeThreeSceneResources(
     }
   });
 
-  if (envTexture && typeof envTexture.dispose === 'function') {
-    envTexture.dispose();
-    texturesDisposed += 1;
+  if (envTexture) {
+    disposeTextureOnce(envTexture);
+  }
+
+  if (renderTargets && renderTargets.length > 0) {
+    for (const target of renderTargets) {
+      if (target && typeof target.dispose === 'function') {
+        target.dispose();
+      }
+    }
   }
 
   scene.clear();
@@ -1185,6 +1270,8 @@ export function disposeThreeSceneResources(
     texturesDisposed,
   };
 }
+
+export const disposeThreeSceneResources = disposeThreeScene;
 
 /**
  * Renders a synchronous frame immediately before extracting a PNG data URL,
@@ -1232,8 +1319,12 @@ export function createVectorArrowGroup(
   return group;
 }
 
+const _arrowDir = new THREE.Vector3();
+const _arrowQuat = new THREE.Quaternion();
+const _arrowUpAxis = new THREE.Vector3(0, 1, 0);
+
 /**
- * Orients and scales a 3D vector arrow created by `createVectorArrowGroup`.
+ * Orients and scales a 3D vector arrow created by `createVectorArrowGroup` with zero per-frame allocations.
  */
 export function orientAndScaleVectorArrow(
   arrow: THREE.Group,
@@ -1247,12 +1338,9 @@ export function orientAndScaleVectorArrow(
   }
   arrow.visible = true;
   arrow.position.copy(origin);
-  const normDir = dir.clone().normalize();
-  const quat = new THREE.Quaternion().setFromUnitVectors(
-    new THREE.Vector3(0, 1, 0),
-    normDir
-  );
-  arrow.quaternion.copy(quat);
+  _arrowDir.copy(dir).normalize();
+  _arrowQuat.setFromUnitVectors(_arrowUpAxis, _arrowDir);
+  arrow.quaternion.copy(_arrowQuat);
 
   const shaftLen = Math.max(0.1, length - 0.34);
   const shaft = arrow.getObjectByName('shaft') as THREE.Mesh | undefined;

@@ -44,10 +44,10 @@ import {
 } from './wsSpatialSync';
 import {
   handleClientIdentify,
-  validateWsMessageEnvelope,
-  type ClientIdentifyPayload,
+  parseClientToServerWsMessage,
 } from './wsAuth';
 import type { CollabSocketContext, ExtWebSocket, WsHandlerServices } from './wsTypes';
+import { logger } from '../utils/logger';
 
 export type { CollabSocketContext, ExtWebSocket } from './wsTypes';
 export { applyCustomMissionToRoom } from './wsMissionHandler';
@@ -95,7 +95,7 @@ export function createCollabSocketServer(
   const wss = new WebSocketServer({ server, path: '/ws-lab', maxPayload: 1024 * 1024 });
   wss.on('error', (err: NodeJS.ErrnoException) => {
     if (err?.code !== 'EADDRINUSE') {
-      console.error('[RuangLABmu WS Error]:', err);
+      logger.error('WebSocket server error', { error: err });
     }
   });
 
@@ -196,135 +196,160 @@ export function createCollabSocketServer(
 
     ws.on('message', (data) => {
       ws.isAlive = true;
+      let parsedRaw: unknown;
       try {
-        const parsed = JSON.parse(data.toString());
-        const envelope = validateWsMessageEnvelope(parsed);
-        if (!envelope) return;
-        const { type: msgType, payload } = envelope;
-        const hasPayload = Boolean(
-          parsed && typeof parsed === 'object' && 'payload' in parsed && parsed.payload
+        parsedRaw = JSON.parse(data.toString());
+      } catch (err) {
+        logger.warn('Malformed WebSocket JSON frame rejected', {
+          participantId: ws.userId,
+          roomId: ws.roomId,
+          error: err instanceof Error ? err.message : 'Invalid JSON',
+        });
+        ws.send(
+          JSON.stringify({
+            type: 'ERROR',
+            payload: {
+              code: 'VALIDATION_ERROR',
+              message: 'Format JSON pesan WebSocket tidak valid.',
+              issues: [{ path: '', message: 'Malformed JSON frame' }],
+            },
+          })
         );
+        return;
+      }
 
-        switch (msgType) {
+      const validation = parseClientToServerWsMessage(parsedRaw);
+      if (!validation.ok) {
+        logger.warn('WebSocket message failed Zod contract validation', {
+          participantId: ws.userId,
+          roomId: ws.roomId,
+          issues: validation.issues,
+        });
+        ws.send(
+          JSON.stringify({
+            type: 'ERROR',
+            payload: {
+              code: 'VALIDATION_ERROR',
+              message: validation.message,
+              issues: validation.issues,
+            },
+          })
+        );
+        return;
+      }
+
+      try {
+        const msg = validation.message;
+        switch (msg.type) {
           case 'client:identify':
-            if (hasPayload) {
-              handleClientIdentify(ws, payload as ClientIdentifyPayload, state);
-            }
+            handleClientIdentify(ws, msg.payload, state);
             break;
           case 'ROOM_CREATE':
-            if (hasPayload) handleRoomCreate(ws, payload, services);
+            handleRoomCreate(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'ROOM_JOIN':
-            if (hasPayload) handleRoomJoin(ws, payload, services);
+            handleRoomJoin(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'ROOM_REJOIN':
-            if (hasPayload) handleRoomRejoin(ws, payload, services);
+            handleRoomRejoin(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'SIMULATION_SNAPSHOT_PUSH':
-            if (hasPayload) handleSimulationSnapshotPush(ws, payload, services);
+            handleSimulationSnapshotPush(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'ROOM_LEAVE':
             handleRoomLeave(ws, services);
             break;
           case 'TEACHER_FREEZE_TOGGLE':
-            if (hasPayload) handleTeacherFreezeToggle(ws, payload, services);
+            handleTeacherFreezeToggle(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'TEACHER_LASER_RAY':
-            if (hasPayload) handleTeacherLaserRay(ws, payload, services);
+            handleTeacherLaserRay(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'TEACHER_CAMERA_SYNC':
-            if (hasPayload) handleTeacherCameraSync(ws, payload, services);
+            handleTeacherCameraSync(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'ROOM_SET_CUSTOM_MISSION':
-            if (hasPayload) handleRoomSetCustomMission(ws, payload, services);
+            handleRoomSetCustomMission(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'STUDENT_TELEMETRY_SYNC':
-            if (hasPayload) handleStudentTelemetrySync(ws, payload, services);
+            handleStudentTelemetrySync(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'CURSOR_3D_MOVE':
-            if (hasPayload) {
-              handleCursor3DMove(ws, payload as unknown as SpatialCursorPayload, services);
-            }
+            handleCursor3DMove(ws, msg.payload as unknown as SpatialCursorPayload, services);
             break;
           case 'CURSOR_3D_LEAVE':
-            if (hasPayload) handleCursor3DLeave(ws, payload, services);
+            handleCursor3DLeave(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'PARAM_LOCK_ACQUIRE':
-            if (hasPayload) {
-              handleParamLockAcquire(
-                ws,
-                payload as unknown as ParameterLockPayload,
-                services
-              );
-            }
+            handleParamLockAcquire(
+              ws,
+              msg.payload as unknown as ParameterLockPayload,
+              services
+            );
             break;
           case 'PARAM_LOCK_RELEASE':
-            if (hasPayload) handleParamLockRelease(ws, payload, services);
+            handleParamLockRelease(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'PARAM_LOCK_RESET_ALL':
-            handleParamLockResetAll(ws, payload || {}, services);
+            handleParamLockResetAll(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'PARAM_VALUE_SYNC':
-            if (hasPayload) handleParamValueSync(ws, payload, services);
+            handleParamValueSync(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'record:create':
-            if (hasPayload) {
-              handleRecordCreate(
-                payload as unknown as ServerExperimentRecord,
-                services
-              );
-            }
+            handleRecordCreate(
+              msg.payload as unknown as ServerExperimentRecord,
+              services
+            );
             break;
           case 'record:delete':
-            if (typeof payload.id === 'string') {
-              handleRecordDelete(payload.id, services);
-            }
+            handleRecordDelete(msg.payload.id, services);
             break;
           case 'task:toggle':
-            if (typeof payload.id === 'string') {
-              handleTaskToggle(payload, services);
-            }
+            handleTaskToggle(msg.payload as Record<string, unknown>, services);
             break;
           case 'task:create':
-            if (typeof payload.title === 'string') {
-              handleTaskCreate(payload, services);
-            }
+            handleTaskCreate(msg.payload as Record<string, unknown>, services);
             break;
           case 'note:create':
-            if (typeof payload.text === 'string') {
-              handleNoteCreate(payload, services);
-            }
+            handleNoteCreate(msg.payload as Record<string, unknown>, services);
             break;
           case 'quiz:submit':
-            if (hasPayload) handleQuizSubmit(payload, services);
+            handleQuizSubmit(msg.payload as Record<string, unknown>, services);
             break;
           case 'notification:push':
-            if (hasPayload) {
-              handleNotificationPush(
-                payload as unknown as ServerNotification,
-                services
-              );
-            }
+            handleNotificationPush(
+              msg.payload as unknown as ServerNotification,
+              services
+            );
             break;
           case 'teacher:feedback':
-            if (hasPayload) handleTeacherFeedback(ws, payload, services);
+            handleTeacherFeedback(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'mystery:broadcast':
-            if (hasPayload) handleMysteryBroadcast(ws, payload, services);
+            handleMysteryBroadcast(ws, msg.payload as Record<string, unknown>, services);
             break;
           case 'mystery:submit':
-            if (hasPayload) handleMysterySubmit(payload, services);
+            handleMysterySubmit(msg.payload as Record<string, unknown>, services);
             break;
           default:
             break;
         }
       } catch (err) {
-        console.error('WebSocket message error:', err);
+        logger.error('WebSocket message dispatch error', {
+          participantId: ws.userId,
+          roomId: ws.roomId,
+          error: err,
+        });
       }
     });
 
     ws.on('error', (err) => {
-      console.error('[RuangLABmu WS Socket Error]:', err);
+      logger.error('WebSocket client socket error', {
+        participantId: ws.userId,
+        roomId: ws.roomId,
+        error: err,
+      });
       cleanupSocketRoomAndLocks(ws, services);
     });
 

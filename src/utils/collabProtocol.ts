@@ -179,30 +179,14 @@ export function validateTeacherCameraSyncPayload(raw: unknown): TeacherCameraSyn
   };
 }
 
-export type CollabWSMessage =
-  | { type: 'CURSOR_3D_MOVE'; payload: SpatialCursorPayload }
-  | { type: 'CURSOR_3D_LEAVE'; payload: { userId: string; groupId: string } }
-  | { type: 'PARAM_LOCK_ACQUIRE'; payload: ParameterLockPayload }
-  | { type: 'PARAM_LOCK_RELEASE'; payload: { groupId: string; domain: string; paramKey: string; userId: string } }
-  | { type: 'PARAM_LOCK_RESET_ALL'; payload: { roomId?: string; groupId?: string; clearedCount?: number } }
-  | { type: 'PARAM_VALUE_SYNC'; payload: { groupId: string; domain: string; paramKey: string; value: number; updatedBy: string } }
-  | { type: 'PARAM_LOCKS_SYNC'; payload: { locks: ParameterLockPayload[] } }
-  | { type: 'ROOM_CREATE'; payload: { roomId?: string; pin: string; domain: 'physics' | 'chemistry' | 'biology' | 'astronomy'; moduleId: string; teacherName: string; teacherUserId: string } }
-  | { type: 'ROOM_CREATED'; payload: { room: LabRoom } }
-  | { type: 'ROOM_JOIN'; payload: { roomId: string; pin: string; name: string; role: 'teacher' | 'student'; userId: string; groupId?: string; isReconnect?: boolean } }
-  | { type: 'ROOM_REJOIN'; payload: { roomPin: string; participantId: string; roomId?: string; name?: string; role?: 'teacher' | 'student'; groupId?: string } }
-  | { type: 'ROOM_JOINED'; payload: { room: LabRoom; client: LabRoomClient; isReconnect?: boolean; latestSimulationSnapshot?: Record<string, unknown> | null } }
-  | { type: 'SIMULATION_SNAPSHOT_PUSH'; payload: { roomPin: string; roomId?: string; params: Record<string, unknown>; updatedAt?: number } }
-  | { type: 'SIMULATION_SNAPSHOT_RESTORE'; payload: { roomPin: string; roomId?: string; params: Record<string, unknown>; updatedAt: number } }
-  | { type: 'ROOM_ERROR'; payload: { message: string; code: string } }
-  | { type: 'ROOM_LEAVE'; payload: { roomId: string; userId: string } }
-  | { type: 'TEACHER_FREEZE_TOGGLE'; payload: { roomId: string; isFrozen: boolean; teacherName: string } }
-  | { type: 'TEACHER_LASER_RAY'; payload: TeacherLaserRayPayload }
-  | { type: 'TEACHER_CAMERA_SYNC'; payload: TeacherCameraSyncPayload }
-  | { type: 'STUDENT_TELEMETRY_SYNC'; payload: { roomId: string; studentName: string; userId: string; telemetry: StudentLiveTelemetry } }
-  | { type: 'ROOM_STATE_SYNC'; payload: { room: LabRoom } }
-  | { type: 'ROOM_SET_CUSTOM_MISSION'; payload: { roomId: string; customMission: CustomAIMissionPayload | null; teacherName?: string; teacherPin?: string } }
-  | { type: 'ROOM_MISSION_UPDATED'; payload: { roomId: string; customMission: CustomAIMissionPayload | null; room?: LabRoom } };
+import type {
+  ClientToServerMessage,
+  ServerToClientMessage,
+} from '../shared/contracts/wsContracts';
+
+export type { ClientToServerMessage, ServerToClientMessage };
+
+export type CollabWSMessage = ClientToServerMessage | ServerToClientMessage;
 
 /**
  * Deterministic color palette for student avatars, laser pointers, and cursor badges

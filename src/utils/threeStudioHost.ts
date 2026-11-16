@@ -3,16 +3,19 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   captureComposerSnapshot,
-  configureRendererForLiteMode,
+  configureLabRenderer,
   createAdaptiveFpsMonitor,
   createStudioComposer,
-  disposeThreeSceneResources,
+  disposeThreeScene,
   type CameraSyncPose,
   type StudioComposerHandle,
 } from './threeStudioKit';
 import {
+  applyQualityTierToRenderer,
   createAdaptiveQualityController,
+  getQualityTierSpec,
   type AdaptiveQualityController,
+  type QualityTier,
 } from '../hooks/useAdaptiveQuality';
 import { useUIStore } from '../stores/useUIStore';
 
@@ -46,6 +49,7 @@ export interface ThreeStudioHostOptions {
   alpha?: boolean;
   lowFpsThreshold?: number;
   lowFpsWindowMs?: number;
+  onContextLost?: () => void;
   onContextRestored?: () => void;
   onUserControlsStart?: () => void;
   onCameraSyncChange?: (pose: Omit<CameraSyncPose, 'seq'>) => void;
@@ -62,6 +66,9 @@ export interface ThreeStudioHost {
   fpsMonitor: ReturnType<typeof createAdaptiveFpsMonitor>;
   qualityController: AdaptiveQualityController;
   isSoftwareGl: boolean;
+  getQualityTier: () => QualityTier;
+  getParticleDensityScale: () => number;
+  registerShadowLight: (light: THREE.Light) => void;
   renderFrame: (dt?: number) => void;
   captureSnapshot: () => string | null;
   applyExternalCameraPose: (pose: CameraSyncPose) => void;
@@ -99,22 +106,22 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   const glRenderer = dbg && gl ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
   const isSoftwareGl = /swiftshader|llvmpipe|softpipe|software/i.test(glRenderer);
 
+  const uiState = useUIStore.getState();
+  const initialLite = uiState.liteDeviceMode || uiState.qualityMode === '3t-saver';
+
   renderer.setSize(width, height);
-  const pixelRatio = isSoftwareGl
-    ? 1
-    : Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2);
-  renderer.setPixelRatio(pixelRatio);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  // Calibrated exposure inside 0.95 - 1.05 range to prevent highlight blowout while keeping crisp lab contrast
-  const rawExposure = options.toneMappingExposure ?? 0.98;
-  renderer.toneMappingExposure = Math.max(0.95, Math.min(1.05, rawExposure));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  configureLabRenderer(renderer, {
+    exposure: options.toneMappingExposure ?? 1.05,
+    isSoftwareGl,
+    isLite: initialLite,
+    pixelRatioCap: 1.5,
+  });
   renderer.domElement.style.touchAction = 'none';
 
   container.innerHTML = '';
   container.appendChild(renderer.domElement);
+
+  const shadowLights: THREE.Light[] = [];
 
   // Non-intrusive HUD badge for Adaptive 3T Quality Tier & WebGL Context Recovery
   const hudStatusBadge =
@@ -122,11 +129,11 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   if (hudStatusBadge) {
     hudStatusBadge.setAttribute('data-testid', 'hud-performance-tier-badge');
     hudStatusBadge.style.cssText =
-      'position:absolute;bottom:10px;left:10px;z-index:12;pointer-events:none;padding:3px 8px;border-radius:8px;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:700;background:rgba(15,23,42,0.92);border:1px solid rgba(56,189,248,0.35);color:#bae6fd;display:none;align-items:center;gap:6px;';
+      'position:absolute;bottom:108px;left:50%;transform:translateX(-50%);z-index:12;pointer-events:none;padding:3px 10px;border-radius:8px;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:700;background:rgba(15,23,42,0.92);border:1px solid rgba(56,189,248,0.35);color:#bae6fd;display:none;align-items:center;gap:6px;white-space:nowrap;';
     container.appendChild(hudStatusBadge);
   }
 
-  const syncHudBadge = (isLite: boolean, contextLost = false, measuredFps?: number) => {
+  const syncHudBadge = (tier: QualityTier, contextLost = false, measuredFps?: number) => {
     if (!hudStatusBadge) return;
     if (contextLost) {
       hudStatusBadge.style.display = 'inline-flex';
@@ -135,7 +142,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
       hudStatusBadge.textContent = '⚡ Memulihkan Konteks WebGL 3D...';
       return;
     }
-    if (isLite) {
+    if (tier === '3t-saver') {
       hudStatusBadge.style.display = 'inline-flex';
       hudStatusBadge.style.borderColor = 'rgba(56,189,248,0.35)';
       hudStatusBadge.style.color = '#bae6fd';
@@ -143,63 +150,88 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
         typeof measuredFps === 'number' && Number.isFinite(measuredFps)
           ? ` (${Math.round(measuredFps)} FPS)`
           : '';
-      hudStatusBadge.textContent = `Mode 3T Adaptif • 1x PixelRatio • Shadow Nonaktif${fpsTag}`;
+      hudStatusBadge.textContent = `Mode 3T-Saver • DPR 1x • Shadow Nonaktif${fpsTag}`;
     } else {
       hudStatusBadge.style.display = 'none';
       hudStatusBadge.textContent = '';
     }
   };
 
-  const initialLite = useUIStore.getState().liteDeviceMode;
-  configureRendererForLiteMode(renderer, initialLite, isSoftwareGl);
-  syncHudBadge(initialLite, false);
+  const qualityController = createAdaptiveQualityController({
+    initialTier: initialLite ? '3t-saver' : isSoftwareGl ? 'balanced' : 'high',
+    initialMode: uiState.qualityMode,
+    isSoftwareGl,
+    shadowLights,
+    onTierChange: (nextTier, avgFps) => {
+      syncHudBadge(nextTier, false, avgFps);
+      useUIStore.getState().setLivePerfStats({
+        fps: Math.max(1, Math.round(avgFps)),
+        qualityTier: nextTier,
+      });
+    },
+  });
 
+  applyQualityTierToRenderer(renderer, qualityController.getTier(), {
+    isSoftwareGl,
+    shadowLights,
+  });
+  syncHudBadge(qualityController.getTier(), false);
+
+  let isContextLost = false;
   const handleWebGLContextLost = (event: Event) => {
     event.preventDefault();
-    syncHudBadge(useUIStore.getState().liteDeviceMode, true);
+    isContextLost = true;
+    syncHudBadge(qualityController.getTier(), true);
+    options.onContextLost?.();
   };
   const handleWebGLContextRestored = () => {
-    configureRendererForLiteMode(
-      renderer,
-      useUIStore.getState().liteDeviceMode,
-      isSoftwareGl
-    );
-    syncHudBadge(useUIStore.getState().liteDeviceMode, false);
+    isContextLost = false;
+    configureLabRenderer(renderer, {
+      exposure: options.toneMappingExposure ?? 1.05,
+      isSoftwareGl,
+      isLite: qualityController.getTier() === '3t-saver',
+      pixelRatioCap: 1.5,
+    });
+    applyQualityTierToRenderer(renderer, qualityController.getTier(), {
+      isSoftwareGl,
+      shadowLights,
+    });
+    syncHudBadge(qualityController.getTier(), false);
     options.onContextRestored?.();
   };
   renderer.domElement.addEventListener('webglcontextlost', handleWebGLContextLost, false);
   renderer.domElement.addEventListener('webglcontextrestored', handleWebGLContextRestored, false);
 
-  const qualityController = createAdaptiveQualityController({
-    initialTier: initialLite ? 'low' : isSoftwareGl ? 'medium' : 'high',
-    onTierChange: (nextTier, avgFps) => {
-      if (nextTier === 'low') {
-        syncHudBadge(true, false, avgFps);
-      }
-    },
-  });
-
   const fpsMonitor = createAdaptiveFpsMonitor(
     (avgFps) => {
-      configureRendererForLiteMode(renderer, true, isSoftwareGl);
-      qualityController.setTier('low', renderer);
-      syncHudBadge(true, false, avgFps);
+      if (useUIStore.getState().qualityMode === 'high') {
+        return;
+      }
+      qualityController.setTier('3t-saver', renderer);
+      syncHudBadge('3t-saver', false, avgFps);
       if (!useUIStore.getState().liteDeviceMode) {
         useUIStore.getState().setLiteDeviceMode(true);
         useUIStore.getState().setLiteModeNotification(
-          `Mode Hemat Daya 3T diaktifkan otomatis (${Math.round(avgFps)} FPS < 30 FPS) agar simulasi tetap lancar di perangkatmu.`
+          `Mode Hemat Daya 3T diaktifkan otomatis (${Math.round(avgFps)} FPS < 25 FPS) agar simulasi tetap lancar di perangkatmu.`
         );
       }
     },
-    options.lowFpsThreshold ?? 30,
+    options.lowFpsThreshold ?? 25,
     options.lowFpsWindowMs ?? 2000
   );
 
-  const unsubLite = useUIStore.subscribe((state, prev) => {
-    if (state.liteDeviceMode !== prev.liteDeviceMode) {
-      configureRendererForLiteMode(renderer, state.liteDeviceMode, isSoftwareGl);
-      qualityController.setTier(state.liteDeviceMode ? 'low' : 'high', renderer);
-      syncHudBadge(state.liteDeviceMode, false);
+  const unsubUI = useUIStore.subscribe((state, prev) => {
+    if (state.qualityMode !== prev.qualityMode) {
+      qualityController.setMode(state.qualityMode, renderer);
+      syncHudBadge(qualityController.getTier(), false);
+      if (state.qualityMode !== '3t-saver') {
+        fpsMonitor.resetMonitor();
+        qualityController.reset();
+      }
+    } else if (state.liteDeviceMode !== prev.liteDeviceMode) {
+      const targetMode = state.liteDeviceMode ? '3t-saver' : 'auto';
+      qualityController.setMode(targetMode, renderer);
+      syncHudBadge(qualityController.getTier(), false);
       if (!state.liteDeviceMode) {
         fpsMonitor.resetMonitor();
         qualityController.reset();
@@ -221,7 +253,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     const h = 8;
     const data = new Uint8Array(w * h * 4);
     for (let y = 0; y < h; y++) {
-      const v = y / (h - 1); // 0 = bottom, 1 = top (DataTexture flipY default false)
+      const v = y / (h - 1);
       for (let x = 0; x < w; x++) {
         const idx = (y * w + x) * 4;
         const sky = Math.pow(v, 1.3);
@@ -269,22 +301,16 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = options.controls?.dampingFactor ?? 0.06;
+  controls.dampingFactor = options.controls?.dampingFactor ?? 0.08;
   if (options.controls?.autoRotateSpeed !== undefined) {
     controls.autoRotateSpeed = options.controls.autoRotateSpeed;
   }
   if (options.controls?.target) {
     controls.target.set(...options.controls.target);
   }
-  if (options.controls?.maxPolarAngle !== undefined) {
-    controls.maxPolarAngle = options.controls.maxPolarAngle;
-  }
-  if (options.controls?.minDistance !== undefined) {
-    controls.minDistance = options.controls.minDistance;
-  }
-  if (options.controls?.maxDistance !== undefined) {
-    controls.maxDistance = options.controls.maxDistance;
-  }
+  controls.maxPolarAngle = Math.min(options.controls?.maxPolarAngle ?? Math.PI * 0.48, Math.PI * 0.48);
+  controls.minDistance = options.controls?.minDistance ?? 2.2;
+  controls.maxDistance = options.controls?.maxDistance ?? 42;
 
   let isApplyingExternalCam = false;
   const handleControlsChange = () => {
@@ -306,11 +332,15 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   let lastPerfSyncAt = 0;
 
   const renderFrame = (dt = 0.016) => {
-    if (disposed) return;
+    if (disposed || isContextLost) return;
     if (!isSoftwareGl && dt > 0) {
       qualityController.recordFrameDelta(dt, renderer);
     }
-    studioComposer.render(useUIStore.getState().liteDeviceMode, dt);
+    const spec = qualityController.getSpec();
+    const bypassComposer =
+      useUIStore.getState().liteDeviceMode || !spec.postProcessingEnabled;
+    studioComposer.render(bypassComposer, dt);
+
     const nowPerf = typeof performance !== 'undefined' ? performance.now() : Date.now();
     if (dt > 0 && nowPerf - lastPerfSyncAt >= 900) {
       lastPerfSyncAt = nowPerf;
@@ -323,7 +353,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   };
 
   const handleResize = () => {
-    if (disposed) return;
+    if (disposed || isContextLost) return;
     const w = container.clientWidth || fallbackW;
     const h = container.clientHeight || fallbackH;
     if (w === lastW && h === lastH) return;
@@ -355,9 +385,24 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     fpsMonitor,
     qualityController,
     isSoftwareGl,
+    getQualityTier: () => qualityController.getTier(),
+    getParticleDensityScale: () => getQualityTierSpec(qualityController.getTier()).particleDensityScale,
+    registerShadowLight: (light: THREE.Light) => {
+      if (!shadowLights.includes(light)) {
+        shadowLights.push(light);
+        applyQualityTierToRenderer(renderer, qualityController.getTier(), {
+          isSoftwareGl,
+          shadowLights,
+        });
+      }
+    },
     renderFrame,
     captureSnapshot: () =>
-      captureComposerSnapshot(renderer, studioComposer, useUIStore.getState().liteDeviceMode),
+      captureComposerSnapshot(
+        renderer,
+        studioComposer,
+        useUIStore.getState().liteDeviceMode || !qualityController.getSpec().postProcessingEnabled
+      ),
     applyExternalCameraPose: (pose: CameraSyncPose) => {
       isApplyingExternalCam = true;
       camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
@@ -368,7 +413,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     dispose: () => {
       if (disposed) return;
       disposed = true;
-      unsubLite();
+      unsubUI();
       resizeObserver?.disconnect();
       if (typeof window !== 'undefined') {
         window.removeEventListener('resize', handleResize);
@@ -379,7 +424,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
       renderer.domElement.removeEventListener('webglcontextlost', handleWebGLContextLost, false);
       renderer.domElement.removeEventListener('webglcontextrestored', handleWebGLContextRestored, false);
       studioComposer.dispose();
-      disposeThreeSceneResources(scene, renderer, envTexture);
+      disposeThreeScene(scene, renderer, envTexture, [studioComposer.renderTarget]);
       if (renderer.domElement.parentElement) {
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }
@@ -423,7 +468,7 @@ export function createStudioThreePointLighting(
   scene.add(hemiLight);
 
   const keyPos = options?.keyPosition ?? [6, 12, 8];
-  const shadowSize = options?.shadowMapSize ?? 2048;
+  const shadowSize = options?.shadowMapSize ?? 1024;
   const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.02);
   keyLight.position.set(keyPos[0], keyPos[1], keyPos[2]);
   keyLight.castShadow = true;
@@ -462,17 +507,27 @@ export function createStudioThreePointLighting(
 
 export interface StudioRenderLoopHandle {
   stop: () => void;
+  pause: () => void;
+  resume: () => void;
+  isPaused: () => boolean;
 }
 
 export function startStudioRenderLoop(options: {
   renderer: THREE.WebGLRenderer;
   isSoftwareGl: boolean;
   fpsMonitor: ReturnType<typeof createAdaptiveFpsMonitor>;
-  onFrame: (ctx: { nowMs: number; dt: number; elapsed: number; isLite: boolean }) => void;
+  onFrame: (ctx: {
+    nowMs: number;
+    dt: number;
+    elapsed: number;
+    isLite: boolean;
+    particleScale: number;
+  }) => void;
 }): StudioRenderLoopHandle {
   const { renderer, isSoftwareGl, fpsMonitor, onFrame } = options;
   const gl = renderer.getContext() as WebGL2RenderingContext;
   let disposed = false;
+  let paused = false;
   let rafId = 0;
   let timeoutId = 0;
   let activeSync: WebGLSync | null = null;
@@ -480,12 +535,26 @@ export function startStudioRenderLoop(options: {
   let lastTimeMs = startTimeMs;
   let lastRenderTimestamp = 0;
 
+  const cancelScheduled = () => {
+    cancelAnimationFrame(rafId);
+    clearTimeout(timeoutId);
+    if (activeSync && typeof gl.deleteSync === 'function') {
+      try {
+        gl.deleteSync(activeSync);
+      } catch {
+        // ignore if context was lost
+      }
+      activeSync = null;
+    }
+  };
+
   const afterDraw = (cb: () => void) => {
+    if (disposed || paused) return;
     const sync = typeof gl.fenceSync === 'function' ? gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0) : null;
     activeSync = sync;
     gl.flush();
     const poll = () => {
-      if (disposed) return;
+      if (disposed || paused) return;
       const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
       if (state === gl.UNSIGNALED) {
         timeoutId = window.setTimeout(poll, 5);
@@ -501,7 +570,7 @@ export function startStudioRenderLoop(options: {
   };
 
   const scheduleNext = () => {
-    if (disposed) return;
+    if (disposed || paused) return;
     if (isSoftwareGl) {
       afterDraw(tick);
     } else {
@@ -510,11 +579,14 @@ export function startStudioRenderLoop(options: {
   };
 
   const tick = (timestamp?: number) => {
-    if (disposed) return;
+    if (disposed || paused) return;
     const nowMs = typeof timestamp === 'number' && timestamp > 0 ? timestamp : performance.now();
     fpsMonitor.recordFrame(nowMs);
 
-    const isLite = useUIStore.getState().liteDeviceMode;
+    const ui = useUIStore.getState();
+    const isLite = ui.liteDeviceMode || ui.qualityMode === '3t-saver';
+    const particleScale = isLite ? 0.5 : ui.livePerfStats.qualityTier === 'balanced' ? 0.85 : 1.0;
+
     if (isLite) {
       const delta = nowMs - lastRenderTimestamp;
       if (delta < 32) {
@@ -528,9 +600,33 @@ export function startStudioRenderLoop(options: {
     lastTimeMs = nowMs;
     const elapsed = (nowMs - startTimeMs) / 1000;
 
-    onFrame({ nowMs, dt, elapsed, isLite });
+    onFrame({ nowMs, dt, elapsed, isLite, particleScale });
     scheduleNext();
   };
+
+  const pause = () => {
+    if (disposed || paused) return;
+    paused = true;
+    cancelScheduled();
+  };
+
+  const resume = () => {
+    if (disposed || !paused) return;
+    paused = false;
+    lastTimeMs = performance.now();
+    rafId = requestAnimationFrame(tick);
+  };
+
+  const onCanvasContextLost = (e: Event) => {
+    e.preventDefault();
+    pause();
+  };
+  const onCanvasContextRestored = () => {
+    resume();
+  };
+
+  renderer.domElement.addEventListener('webglcontextlost', onCanvasContextLost, false);
+  renderer.domElement.addEventListener('webglcontextrestored', onCanvasContextRestored, false);
 
   rafId = requestAnimationFrame(tick);
 
@@ -538,17 +634,15 @@ export function startStudioRenderLoop(options: {
     stop: () => {
       if (disposed) return;
       disposed = true;
-      cancelAnimationFrame(rafId);
-      clearTimeout(timeoutId);
-      if (activeSync && typeof gl.deleteSync === 'function') {
-        try {
-          gl.deleteSync(activeSync);
-        } catch {
-          // ignore if context was lost
-        }
-        activeSync = null;
-      }
+      paused = true;
+      renderer.domElement.removeEventListener('webglcontextlost', onCanvasContextLost, false);
+      renderer.domElement.removeEventListener('webglcontextrestored', onCanvasContextRestored, false);
+      cancelScheduled();
     },
+    pause,
+    resume,
+    isPaused: () => paused,
   };
 }
+
 

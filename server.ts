@@ -6,7 +6,8 @@ import os from 'os';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import QRCode from 'qrcode';
-import { createLabServerState } from './server/state/labServerState';
+import type { WebSocketServer } from 'ws';
+import { createLabServerState, type LabServerState } from './server/state/labServerState';
 import {
   detectLanIps,
   listenWithPortFallback,
@@ -16,6 +17,7 @@ import { createCollabSocketServer } from './server/ws/collabSocketServer';
 import { createLabRouter } from './server/routes/labRoutes';
 import { createSubmissionRouter } from './server/routes/submissionRoutes';
 import { createAiRouter } from './server/routes/aiRoutes';
+import { createHealthRouter } from './server/routes/healthRoutes';
 import {
   buildContentSecurityPolicyDirectives,
   buildFrameAncestorsList,
@@ -25,6 +27,7 @@ import {
   rateLimitKeyGenerator,
   resolveTrustProxySetting,
 } from './server/utils/rateLimitKey';
+import { logger, requestCorrelationMiddleware } from './server/utils/logger';
 
 const isPortableBinary =
   process.env.RUANGLAB_PORTABLE === '1' ||
@@ -106,34 +109,40 @@ async function printStartupDiagnostics(activePort: number) {
   const lanInfo = detectLanIps(os.networkInterfaces(), activePort);
   const localUrl = `http://localhost:${activePort}`;
 
-  console.log(`RuangLABmu server listening on ${localUrl}`);
-  console.log(`[LAN 3T] Siswa di Wi-Fi lokal dapat membuka: ${lanInfo.lanUrl}`);
+  logger.info('RuangLABmu server listening', {
+    localUrl,
+    lanUrl: lanInfo.lanUrl,
+    port: activePort,
+  });
 
   if (isPortableBinary || process.env.RUANGLAB_PRINT_QR === '1') {
-    console.log('\n====================================================================');
-    console.log('  🔬 RUANGLABMU PORTABLE 3T — SERVER LABORATORIUM LOKAL AKTIF');
-    console.log('====================================================================');
-    console.log(`  💻 Laptop Guru (Lokal)   : ${localUrl}`);
-    console.log(`  📱 HP/Tablet Siswa (LAN) : ${lanInfo.lanUrl}`);
+    const lines: string[] = [
+      '\n====================================================================',
+      '  RUANGLABMU PORTABLE 3T — SERVER LABORATORIUM LOKAL AKTIF',
+      '====================================================================',
+      `  Laptop Guru (Lokal)   : ${localUrl}`,
+      `  HP/Tablet Siswa (LAN) : ${lanInfo.lanUrl}`,
+    ];
     if (lanInfo.allLanIps.length > 1) {
-      console.log(
-        `  🌐 Semua IP Hotspot LAN  : ${lanInfo.allLanIps
+      lines.push(
+        `  Semua IP Hotspot LAN  : ${lanInfo.allLanIps
           .map((ip) => `http://${ip}:${activePort}`)
           .join(', ')}`
       );
     }
-    console.log(`  💡 ${lanInfo.tip3T}`);
+    lines.push(`  ${lanInfo.tip3T}`);
     try {
       const qrAscii = await QRCode.toString(lanInfo.lanUrl, {
         type: 'terminal',
         small: true,
       });
-      console.log('\n  [Pindai QR Code di bawah ini menggunakan Kamera HP Siswa]:\n');
-      console.log(qrAscii);
+      lines.push('\n  [Pindai QR Code di bawah ini menggunakan Kamera HP Siswa]:\n');
+      lines.push(qrAscii);
     } catch {
       // Fallback if terminal QR generation fails
     }
-    console.log('====================================================================\n');
+    lines.push('====================================================================\n');
+    process.stdout.write(`${lines.join('\n')}\n`);
   }
 
   if (
@@ -171,16 +180,91 @@ export function resolvePreferredPort(
   return Number(env.PORT) || 3000;
 }
 
+export function createGracefulShutdownHandler(deps: {
+  server: http.Server;
+  wss: WebSocketServer;
+  state: LabServerState;
+  setShuttingDown?: (shuttingDown: boolean) => void;
+  exitFn?: (code: number) => void;
+}): (signal: string) => Promise<void> {
+  const { server, wss, state, setShuttingDown, exitFn = (code) => process.exit(code) } = deps;
+  let inFlightPromise: Promise<void> | null = null;
+
+  return (signal: string) => {
+    if (inFlightPromise) {
+      return inFlightPromise;
+    }
+
+    setShuttingDown?.(true);
+    logger.info('Graceful shutdown initiated', { signal });
+
+    inFlightPromise = new Promise<void>((resolve) => {
+      const forceExitTimer = setTimeout(() => {
+        logger.warn('Forced shutdown timeout reached; flushing SQLite WAL before exit', {
+          signal,
+        });
+        state.database.checkpointWalTruncate();
+        state.sqliteStore.checkpointWalTruncate();
+        state.dispose();
+        exitFn(0);
+        resolve();
+      }, 5000);
+      forceExitTimer.unref?.();
+
+      // 1. Close active WebSocket clients cleanly with close code 1001 (Going Away)
+      let openClientsCount = 0;
+      for (const client of wss.clients) {
+        if (client.readyState === 1 || client.readyState === 0) {
+          openClientsCount += 1;
+          try {
+            client.close(1001, 'Server shutting down');
+          } catch {
+            // Ignore close error on disconnecting socket
+          }
+        }
+      }
+
+      const finalize = () => {
+        clearTimeout(forceExitTimer);
+        state.database.checkpointWalTruncate();
+        state.sqliteStore.checkpointWalTruncate();
+        state.dispose();
+        logger.info('Graceful shutdown completed cleanly', {
+          signal,
+          closedWsClients: openClientsCount,
+        });
+        exitFn(0);
+        resolve();
+      };
+
+      try {
+        wss.close(() => {
+          server.close(() => {
+            finalize();
+          });
+        });
+      } catch {
+        finalize();
+      }
+    });
+
+    return inFlightPromise;
+  };
+}
+
 async function startServer() {
   const app = express();
   app.set('trust proxy', resolveTrustProxySetting());
   const preferredPort = resolvePreferredPort();
   let activePort = preferredPort;
+  let shuttingDown = false;
   const isProduction = process.env.NODE_ENV === 'production';
   const allowedOrigins = parseAllowedOrigins(
     process.env.ALLOWED_ORIGINS,
     process.env.APP_URL
   );
+
+  app.use(requestCorrelationMiddleware);
 
   const strictFrameguard = process.env.STRICT_FRAMEGUARD === 'true';
   const allowEmbeddedPreview = process.env.ALLOW_EMBEDDED_PREVIEW === 'true';
@@ -243,7 +327,7 @@ async function startServer() {
       }
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-Id, X-Session-Token');
       res.setHeader('Access-Control-Allow-Credentials', 'true');
     }
 
@@ -253,6 +337,21 @@ async function startServer() {
     }
     next();
   });
+
+  const state = createLabServerState();
+  await state.hydrateServerState();
+
+  const server = http.createServer(app);
+  const { wss, broadcastAll, broadcastRoom } = createCollabSocketServer(server, state);
+
+  // SRE Probes (/healthz, /readyz, /metrics) registered BEFORE rate limiters & SPA static fallback
+  app.use(
+    createHealthRouter({
+      state,
+      wss,
+      isShuttingDown: () => shuttingDown,
+    })
+  );
 
   // Global /api/* rate limit + stricter /api/ai/* rate limit
   const globalApiLimiter = rateLimit({
@@ -297,15 +396,25 @@ async function startServer() {
   });
   app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMITS.standard }));
 
-  const state = createLabServerState();
-  await state.hydrateServerState();
-
-  const server = http.createServer(app);
-  const { broadcastAll, broadcastRoom } = createCollabSocketServer(server, state);
-
   app.use(createLabRouter({ state, getPort: () => activePort }));
   app.use(await createSubmissionRouter({ rootDir: ROOT_DIR, state, broadcastAll }));
   app.use(createAiRouter({ state, broadcastAll, broadcastRoom }));
+
+  const shutdownHandler = createGracefulShutdownHandler({
+    server,
+    wss,
+    state,
+    setShuttingDown: (val) => {
+      shuttingDown = val;
+    },
+  });
+
+  process.once('SIGINT', () => {
+    void shutdownHandler('SIGINT');
+  });
+  process.once('SIGTERM', () => {
+    void shutdownHandler('SIGTERM');
+  });
 
   const useStaticDist =
     process.env.NODE_ENV === 'production' || isPortableBinary;
@@ -345,10 +454,7 @@ async function startServer() {
       await viteReadyPromise;
       await printStartupDiagnostics(activePort);
     } catch (err) {
-      console.error(
-        `[RuangLABmu ERROR] Gagal menjalankan server:`,
-        err instanceof Error ? err.message : err
-      );
+      logger.error('Failed to start RuangLABmu development server', { error: err });
       process.exit(1);
     }
   } else {
@@ -362,10 +468,7 @@ async function startServer() {
       activePort = await listenWithPortFallback(server, preferredPort, '0.0.0.0');
       await printStartupDiagnostics(activePort);
     } catch (err) {
-      console.error(
-        `[RuangLABmu ERROR] Gagal menjalankan server:`,
-        err instanceof Error ? err.message : err
-      );
+      logger.error('Failed to start RuangLABmu production server', { error: err });
       process.exit(1);
     }
   }
@@ -379,4 +482,3 @@ const isTestRunner =
 if (!isTestRunner) {
   startServer();
 }
-

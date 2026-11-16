@@ -10,6 +10,12 @@ import {
 import { sanitizeRoomForBroadcast } from '../utils/collabReconnectSync';
 import { detectLanIps } from '../utils/lanNetwork';
 import { rateLimitKeyGenerator } from '../utils/rateLimitKey';
+import {
+  formatValidationErrorResponse,
+  validateAutosavePayload,
+  validateRoomRejoinPayload,
+  validateRoomSnapshotPayload,
+} from '../utils/routePayloadValidators';
 
 export interface LabRoutesDeps {
   state: LabServerState;
@@ -81,39 +87,33 @@ export function createLabRouter({
   });
 
   router.post('/api/session/autosave', (req, res) => {
-    const { storageKey, version, session, sessionToken: bodyToken, studentId: bodyStudentId } =
-      req.body || {};
-    if (
-      !storageKey ||
-      typeof storageKey !== 'string' ||
-      storageKey.trim().length === 0 ||
-      storageKey.length > 180 ||
-      typeof version !== 'number' ||
-      !Number.isFinite(version)
-    ) {
-      res.status(400).json({ error: 'Invalid session autosave payload' });
+    const check = validateAutosavePayload(req.body);
+    if (!check.ok) {
+      res.status(400).json(formatValidationErrorResponse(check));
       return;
     }
 
-    const cleanStorageKey = storageKey.trim();
+    const {
+      storageKey: cleanStorageKey,
+      version,
+      session,
+      sessionToken: bodyToken,
+      studentId: bodyStudentId,
+    } = check.data;
     const headerToken = req.headers['x-session-token'];
     const rawToken =
-      typeof bodyToken === 'string' && bodyToken.trim()
-        ? bodyToken.trim()
-        : typeof headerToken === 'string' && headerToken.trim()
-          ? headerToken.trim()
-          : '';
+      bodyToken ||
+      (typeof headerToken === 'string' && headerToken.trim() ? headerToken.trim() : '');
 
     const sessionObj =
       session && typeof session === 'object' && !Array.isArray(session)
         ? (session as Record<string, unknown>)
         : null;
     const claimedStudentId =
-      typeof bodyStudentId === 'string' && bodyStudentId.trim()
-        ? bodyStudentId.trim()
-        : sessionObj && typeof sessionObj.studentId === 'string' && sessionObj.studentId.trim()
-          ? sessionObj.studentId.trim()
-          : '';
+      bodyStudentId ||
+      (sessionObj && typeof sessionObj.studentId === 'string' && sessionObj.studentId.trim()
+        ? sessionObj.studentId.trim()
+        : '');
     const claimedModuleId =
       sessionObj && typeof sessionObj.moduleId === 'string' && sessionObj.moduleId.trim()
         ? sessionObj.moduleId.trim()
@@ -201,19 +201,14 @@ export function createLabRouter({
    * while immediately returning the latest `simulation_snapshots` payload.
    */
   router.post('/api/rooms/rejoin', rejoinRateLimiter, (req, res) => {
-    const { roomPin, participantId, roomId } = req.body || {};
-    const cleanPin = typeof roomPin === 'string' ? roomPin.trim() : '';
-    const cleanParticipantId =
-      typeof participantId === 'string' ? participantId.trim() : '';
-    const cleanRoomId = typeof roomId === 'string' ? roomId.trim() : undefined;
-
-    if (!cleanPin || !cleanParticipantId) {
-      res.status(400).json({
-        error: 'Parameter roomPin dan participantId wajib diisi untuk pemulihan sesi 3T.',
-        code: 'INVALID_REJOIN_PAYLOAD',
-      });
+    const check = validateRoomRejoinPayload(req.body);
+    if (!check.ok) {
+      res.status(400).json(formatValidationErrorResponse(check));
       return;
     }
+
+    const { roomPin: cleanPin, participantId: cleanParticipantId, roomId: cleanRoomId } =
+      check.data;
 
     const restored = state.rejoinParticipantSession(
       cleanPin,
@@ -242,16 +237,13 @@ export function createLabRouter({
    * Save or query room simulation parameters snapshot in `simulation_snapshots` table
    */
   router.post('/api/rooms/snapshot', (req, res) => {
-    const { roomPin, params } = req.body || {};
-    const cleanPin = typeof roomPin === 'string' ? roomPin.trim() : '';
-    if (!cleanPin || !params || typeof params !== 'object') {
-      res.status(400).json({ error: 'Invalid simulation snapshot payload' });
+    const check = validateRoomSnapshotPayload(req.body);
+    if (!check.ok) {
+      res.status(400).json(formatValidationErrorResponse(check));
       return;
     }
-    const saved = state.saveRoomSimulationSnapshot(
-      cleanPin,
-      params as Record<string, unknown>
-    );
+    const { roomPin: cleanPin, params } = check.data;
+    const saved = state.saveRoomSimulationSnapshot(cleanPin, params);
     res.json({
       status: 'ok',
       snapshotId: saved.id,

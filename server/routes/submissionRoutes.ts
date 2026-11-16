@@ -11,10 +11,12 @@ import {
 } from '../../src/shared/grading/rubricEngine';
 import type { LabServerState, ServerNotification } from '../state/labServerState';
 import {
+  formatValidationErrorResponse,
   validateCreateSubmissionPayload,
   validateGradeSubmissionPayload,
 } from '../utils/routePayloadValidators';
 import { rateLimitKeyGenerator } from '../utils/rateLimitKey';
+import { logger } from '../utils/logger';
 
 export interface LabSubmissionRecord {
   id: string;
@@ -238,11 +240,7 @@ export async function createSubmissionRouter({
     try {
       const check = validateCreateSubmissionPayload(req.body);
       if (!check.ok) {
-        res.status(400).json({
-          error: check.error,
-          code: check.code,
-          details: check.details,
-        });
+        res.status(400).json(formatValidationErrorResponse(check));
         return;
       }
 
@@ -329,7 +327,10 @@ export async function createSubmissionRouter({
         autoRubric,
       });
     } catch (err) {
-      console.error('Error saving submission:', err);
+      logger.error('Error saving submission', {
+        requestId: res.locals?.requestId,
+        error: err,
+      });
       res.status(500).json({ error: 'Gagal menyimpan laporan praktikum' });
     }
   });
@@ -349,11 +350,7 @@ export async function createSubmissionRouter({
     try {
       const check = validateGradeSubmissionPayload(req.params.id, req.body);
       if (!check.ok) {
-        res.status(400).json({
-          error: check.error,
-          code: check.code,
-          details: check.details,
-        });
+        res.status(400).json(formatValidationErrorResponse(check));
         return;
       }
 
@@ -391,7 +388,10 @@ export async function createSubmissionRouter({
 
       res.json({ success: true, submission: item });
     } catch (err) {
-      console.error('Error grading submission:', err);
+      logger.error('Error grading submission', {
+        requestId: res.locals?.requestId,
+        error: err,
+      });
       res.status(500).json({ error: 'Gagal memperbarui nilai laporan' });
     }
   });

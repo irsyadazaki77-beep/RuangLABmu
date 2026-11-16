@@ -97,6 +97,7 @@ export interface ChemistryCoreStageUpdateInput {
   elapsed: number;
   dt: number;
   isLite: boolean;
+  particleScale?: number;
   reacting: boolean;
   isSimTimeAdvancing: boolean;
   showConceptLabels: boolean;
@@ -566,18 +567,34 @@ export function buildChemistryCoreStage(
   hazardGroup.add(overpressureHalo);
 
   const CHEM_VAPOR_COUNT = 18;
-  const chemVaporMeshes: THREE.Mesh[] = [];
   const chemVaporGeo = new THREE.SphereGeometry(0.2, 10, 10);
+  const chemVaporMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false,
+  });
+  const chemVaporPool = createInstancedParticlePool(
+    CHEM_VAPOR_COUNT,
+    chemVaporGeo,
+    chemVaporMat,
+    hazardGroup
+  );
   for (let i = 0; i < CHEM_VAPOR_COUNT; i++) {
-    const vMat = new THREE.MeshBasicMaterial({
-      color: i % 2 === 0 ? 0xef4444 : 0xf97316,
-      transparent: true,
-      opacity: 0.42,
-    });
-    const vMesh = new THREE.Mesh(chemVaporGeo, vMat);
-    hazardGroup.add(vMesh);
-    chemVaporMeshes.push(vMesh);
+    chemVaporPool.setColor(i, i % 2 === 0 ? 0xef4444 : 0xf97316);
   }
+  chemVaporPool.commit(CHEM_VAPOR_COUNT);
+
+  const reusableConceptPos = [
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+  ];
+  const reusableConceptEntries: ConceptLabelProjectionEntry[] = [
+    { dom: undefined, worldPos: reusableConceptPos[0], text: '', active: false },
+    { dom: undefined, worldPos: reusableConceptPos[1], text: '', active: false },
+    { dom: undefined, worldPos: reusableConceptPos[2], text: '', active: false },
+  ];
 
   const update = (input: ChemistryCoreStageUpdateInput) => {
     const {
@@ -587,6 +604,7 @@ export function buildChemistryCoreStage(
       elapsed,
       dt,
       isLite,
+      particleScale = isLite ? 0.5 : 1,
       reacting,
       isSimTimeAdvancing,
       showConceptLabels,
@@ -612,16 +630,17 @@ export function buildChemistryCoreStage(
         const opScale = 1 + Math.sin(nowSec * 10) * 0.1;
         overpressureHalo.scale.set(opScale, opScale, 1);
       }
-      chemVaporMeshes.forEach((vMesh, idx) => {
+      const activeVapor = Math.max(5, Math.round(CHEM_VAPOR_COUNT * particleScale));
+      chemVaporMat.opacity = 0.32 + 0.12 * Math.abs(Math.sin(nowSec * 4));
+      for (let idx = 0; idx < activeVapor; idx++) {
         const cycle = (nowSec * 1.25 + idx * 0.19) % 1.0;
-        vMesh.position.set(
-          fx + Math.sin(nowSec * 2.1 + idx) * (0.35 + cycle * 0.9),
-          fy + cycle * 2.6,
-          fz + Math.cos(nowSec * 1.7 + idx) * (0.35 + cycle * 0.8)
-        );
-        vMesh.scale.setScalar(0.55 + cycle * 1.4);
-        (vMesh.material as THREE.MeshBasicMaterial).opacity = (1 - cycle) * 0.45;
-      });
+        const vx = fx + Math.sin(nowSec * 2.1 + idx) * (0.35 + cycle * 0.9);
+        const vy = fy + cycle * 2.6;
+        const vz = fz + Math.cos(nowSec * 1.7 + idx) * (0.35 + cycle * 0.8);
+        const vScale = (0.55 + cycle * 1.4) * (1 - cycle * 0.35);
+        chemVaporPool.setTransform(idx, vx, vy, vz, vScale);
+      }
+      chemVaporPool.commit(activeVapor);
     }
 
     const curVb = p.titrantAddedMl ?? 0;
@@ -699,6 +718,7 @@ export function buildChemistryCoreStage(
       metrics: m,
       simTime: t,
       isLite,
+      particleScale,
       reacting,
       isSimTimeAdvancing,
     });
@@ -713,7 +733,8 @@ export function buildChemistryCoreStage(
     bubblePool.mesh.visible = showBubbles;
     if (showBubbles) {
       const rateMultiplier = reacting ? 1.85 : 0.9;
-      const activeBubbles = isLite ? Math.floor(BUBBLE_COUNT / 2) : BUBBLE_COUNT;
+      const effectiveBubbleScale = isLite ? Math.min(0.5, particleScale) : particleScale;
+      const activeBubbles = Math.max(16, Math.round(BUBBLE_COUNT * effectiveBubbleScale));
       const bubbleColorHex =
         p.mode === 'acid-base-titration' && typeof m.indicatorColorHex === 'string'
           ? parseInt(m.indicatorColorHex.replace('#', ''), 16) || 0xe0f2fe
@@ -764,94 +785,68 @@ export function buildChemistryCoreStage(
     showLabels: boolean,
     cDom: Record<string, ConceptLabelDomRef>
   ): ConceptLabelProjectionEntry[] => {
-    const cEntries: ConceptLabelProjectionEntry[] = [
-      { dom: cDom.c1, worldPos: new THREE.Vector3(), text: '', active: false },
-      { dom: cDom.c2, worldPos: new THREE.Vector3(), text: '', active: false },
-      { dom: cDom.c3, worldPos: new THREE.Vector3(), text: '', active: false },
-    ];
-    if (!showLabels) return cEntries;
+    reusableConceptEntries[0].dom = cDom.c1;
+    reusableConceptEntries[0].active = false;
+    reusableConceptEntries[0].text = '';
+    reusableConceptEntries[1].dom = cDom.c2;
+    reusableConceptEntries[1].active = false;
+    reusableConceptEntries[1].text = '';
+    reusableConceptEntries[2].dom = cDom.c3;
+    reusableConceptEntries[2].active = false;
+    reusableConceptEntries[2].text = '';
+    if (!showLabels) return reusableConceptEntries;
 
     const isRedox = p.mode === 'electrochemistry-cell' || (p.mode as string) === 'redox-electrochemistry';
     if (p.mode === 'acid-base-titration') {
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: new THREE.Vector3(0, 3.3, 0),
-        text: `Buret Titran: Vb = ${(p.titrantAddedMl ?? 0).toFixed(1)} mL ↓`,
-        active: true,
-      };
-      cEntries[1] = {
-        dom: cDom.c2,
-        worldPos: new THREE.Vector3(0, 1.35, 0),
-        text: `Larutan Analit pH ${(m.currentPh ?? 7).toFixed(2)}`,
-        active: true,
-      };
-      cEntries[2] = {
-        dom: cDom.c3,
-        worldPos: new THREE.Vector3(2.05, 3.25, 0),
-        text: `Skala pH (Ekivalen: ${(m.equivalenceVolumeMl ?? 25).toFixed(1)} mL)`,
-        active: true,
-      };
+      reusableConceptPos[0].set(0, 3.3, 0);
+      reusableConceptEntries[0].text = `Buret Titran: Vb = ${(p.titrantAddedMl ?? 0).toFixed(1)} mL ↓`;
+      reusableConceptEntries[0].active = true;
+
+      reusableConceptPos[1].set(0, 1.35, 0);
+      reusableConceptEntries[1].text = `Larutan Analit pH ${(m.currentPh ?? 7).toFixed(2)}`;
+      reusableConceptEntries[1].active = true;
+
+      reusableConceptPos[2].set(2.05, 3.25, 0);
+      reusableConceptEntries[2].text = `Skala pH (Ekivalen: ${(m.equivalenceVolumeMl ?? 25).toFixed(1)} mL)`;
+      reusableConceptEntries[2].active = true;
     } else if (p.mode === 'reaction-kinetics-arrhenius') {
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: new THREE.Vector3(0, 2.85, 0),
-        text: `T = ${p.kineticsTempC ?? 25} °C · Laju v = ${(m.reactionRate ?? 0).toFixed(3)} M/s`,
-        active: true,
-      };
-      cEntries[1] = {
-        dom: cDom.c2,
-        worldPos: new THREE.Vector3(0, 0.9, 1.6),
-        text: 'Pemanas & Pengaduk Magnetik',
-        active: true,
-      };
+      reusableConceptPos[0].set(0, 2.85, 0);
+      reusableConceptEntries[0].text = `T = ${p.kineticsTempC ?? 25} °C · Laju v = ${(m.reactionRate ?? 0).toFixed(3)} M/s`;
+      reusableConceptEntries[0].active = true;
+
+      reusableConceptPos[1].set(0, 0.9, 1.6);
+      reusableConceptEntries[1].text = 'Pemanas & Pengaduk Magnetik';
+      reusableConceptEntries[1].active = true;
     } else if (p.mode === 'thermo-calorimetry') {
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: new THREE.Vector3(0.6, 4.1, 0),
-        text: `Termometer T = ${(m.finalTempC ?? p.initialTempC ?? 25).toFixed(1)} °C`,
-        active: true,
-      };
-      cEntries[2] = {
-        dom: cDom.c3,
-        worldPos: new THREE.Vector3(0, 1.5, 0),
-        text: `Kalor Q = ${(m.heatReleasedJoules ?? 0).toFixed(0)} J`,
-        active: true,
-      };
+      reusableConceptPos[0].set(0.6, 4.1, 0);
+      reusableConceptEntries[0].text = `Termometer T = ${(m.finalTempC ?? p.initialTempC ?? 25).toFixed(1)} °C`;
+      reusableConceptEntries[0].active = true;
+
+      reusableConceptPos[2].set(0, 1.5, 0);
+      reusableConceptEntries[2].text = `Kalor Q = ${(m.heatReleasedJoules ?? 0).toFixed(0)} J`;
+      reusableConceptEntries[2].active = true;
     } else if (isRedox) {
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: new THREE.Vector3(-1.8, 2.55, 0),
-        text: 'Anoda (-) Oksidasi',
-        active: true,
-      };
-      cEntries[2] = {
-        dom: cDom.c3,
-        worldPos: new THREE.Vector3(1.8, 2.55, 0),
-        text: `Katoda (+) Reduksi · E = ${(m.nernstCellPotentialE ?? 1.1).toFixed(2)} V`,
-        active: true,
-      };
+      reusableConceptPos[0].set(-1.8, 2.55, 0);
+      reusableConceptEntries[0].text = 'Anoda (-) Oksidasi';
+      reusableConceptEntries[0].active = true;
+
+      reusableConceptPos[2].set(1.8, 2.55, 0);
+      reusableConceptEntries[2].text = `Katoda (+) Reduksi · E = ${(m.nernstCellPotentialE ?? 1.1).toFixed(2)} V`;
+      reusableConceptEntries[2].active = true;
     } else if (p.mode === 'ideal-gas-boyle') {
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: new THREE.Vector3(0, pistonHead.position.y + 0.55, 0),
-        text: `Piston Gas: V = ${(p.gasVolumeL ?? 10).toFixed(1)} L`,
-        active: true,
-      };
-      cEntries[1] = {
-        dom: cDom.c2,
-        worldPos: new THREE.Vector3(2.2, 3.35, 0),
-        text: `Tekanan P = ${(m.gasPressureAtm ?? 1).toFixed(2)} atm`,
-        active: true,
-      };
+      reusableConceptPos[0].set(0, pistonHead.position.y + 0.55, 0);
+      reusableConceptEntries[0].text = `Piston Gas: V = ${(p.gasVolumeL ?? 10).toFixed(1)} L`;
+      reusableConceptEntries[0].active = true;
+
+      reusableConceptPos[1].set(2.2, 3.35, 0);
+      reusableConceptEntries[1].text = `Tekanan P = ${(m.gasPressureAtm ?? 1).toFixed(2)} atm`;
+      reusableConceptEntries[1].active = true;
     } else if (p.mode === 'spectrophotometry-beer') {
-      cEntries[2] = {
-        dom: cDom.c3,
-        worldPos: new THREE.Vector3(-0.8, 3.9, 0.4),
-        text: `Kuvet Sampel A = ${(m.spectroAbsorbance ?? 0).toFixed(2)}`,
-        active: true,
-      };
+      reusableConceptPos[2].set(-0.8, 3.9, 0.4);
+      reusableConceptEntries[2].text = `Kuvet Sampel A = ${(m.spectroAbsorbance ?? 0).toFixed(2)}`;
+      reusableConceptEntries[2].active = true;
     }
-    return cEntries;
+    return reusableConceptEntries;
   };
 
   return {

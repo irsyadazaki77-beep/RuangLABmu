@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import {
   createBrushedMetalTextures,
   createGraduatedScaleTexture,
+  createInstancedParticlePool,
   createVectorArrowGroup as createArrowGroup,
   orientAndScaleVectorArrow as orientAndScaleArrow,
 } from '../../utils/threeStudioKit';
@@ -114,6 +115,7 @@ export interface PhysicsCoreStageUpdateInput {
   nowSec: number;
   showVectors: boolean;
   isLite: boolean;
+  particleScale?: number;
   isSimTimeAdvancing: boolean;
   followCamEnabled: boolean;
   camTransitionActive: boolean;
@@ -507,28 +509,36 @@ export function buildPhysicsCoreStage(
   hazardGroup.add(hazardPerimeterRing);
 
   const HAZARD_SMOKE_COUNT = 28;
-  const hazardSmokeMeshes: THREE.Mesh[] = [];
-  const smokeGeo = new THREE.SphereGeometry(0.24, 12, 12);
+  const smokeGeo = new THREE.SphereGeometry(0.24, 10, 10);
   const smokeMat = new THREE.MeshBasicMaterial({
     color: 0xef4444,
     transparent: true,
     opacity: 0.45,
   });
-  for (let i = 0; i < HAZARD_SMOKE_COUNT; i++) {
-    const sMesh = new THREE.Mesh(smokeGeo, smokeMat.clone());
-    sMesh.position.set(
-      (Math.random() - 0.5) * 4.5,
-      0.5 + Math.random() * 3.5,
-      (Math.random() - 0.5) * 2.5
-    );
-    hazardSmokeMeshes.push(sMesh);
-    hazardGroup.add(sMesh);
-  }
+  const hazardSmokePool = createInstancedParticlePool(
+    HAZARD_SMOKE_COUNT,
+    smokeGeo,
+    smokeMat,
+    hazardGroup
+  );
+  hazardSmokePool.mesh.frustumCulled = false;
 
   const gizmoWorldPos = new THREE.Vector3();
   const pendBobWorldPos = new THREE.Vector3();
   const conceptBlockWorldPos = new THREE.Vector3();
   const conceptPivotWorldPos = new THREE.Vector3();
+
+  // Pre-allocated scratch helpers for zero per-frame allocations
+  const _arrowOrigin = new THREE.Vector3();
+  const _arrowDir = new THREE.Vector3();
+  const _upUnit = new THREE.Vector3(0, 1, 0);
+  const _downUnit = new THREE.Vector3(0, -1, 0);
+  const _reusableConceptEntries: ConceptLabelProjectionEntry[] = [
+    { dom: undefined, worldPos: new THREE.Vector3(), text: '', active: false },
+    { dom: undefined, worldPos: new THREE.Vector3(), text: '', active: false },
+    { dom: undefined, worldPos: new THREE.Vector3(), text: '', active: false },
+    { dom: undefined, worldPos: new THREE.Vector3(), text: '', active: false },
+  ];
 
   const update = (input: PhysicsCoreStageUpdateInput) => {
     const {
@@ -538,6 +548,7 @@ export function buildPhysicsCoreStage(
       nowSec,
       showVectors: showVec,
       isLite,
+      particleScale = 1.0,
       isSimTimeAdvancing,
       followCamEnabled,
       camTransitionActive,
@@ -576,14 +587,18 @@ export function buildPhysicsCoreStage(
       const pulse = 1 + Math.sin(nowSec * 9) * 0.08;
       hazardPerimeterRing.scale.set(pulse, pulse, 1);
       hazardRingMat.opacity = 0.48 + 0.35 * Math.abs(Math.sin(nowSec * 7));
-      hazardSmokeMeshes.forEach((sMesh, idx) => {
+      const activeSmoke = Math.max(8, Math.round(HAZARD_SMOKE_COUNT * particleScale));
+      for (let idx = 0; idx < activeSmoke; idx++) {
         const cycle = (nowSec * 1.4 + idx * 0.17) % 1.0;
-        sMesh.position.y = 0.4 + cycle * 4.2;
-        sMesh.position.x = Math.sin(nowSec * 2.2 + idx) * (1.2 + cycle * 1.6);
-        sMesh.position.z = Math.cos(nowSec * 1.8 + idx) * (0.8 + cycle * 1.1);
-        sMesh.scale.setScalar(0.6 + cycle * 1.8);
-        (sMesh.material as THREE.MeshBasicMaterial).opacity = (1 - cycle) * 0.55;
-      });
+        hazardSmokePool.setTransform(
+          idx,
+          Math.sin(nowSec * 2.2 + idx) * (1.2 + cycle * 1.6),
+          0.4 + cycle * 4.2,
+          Math.cos(nowSec * 1.8 + idx) * (0.8 + cycle * 1.1),
+          0.6 + cycle * 1.8
+        );
+      }
+      hazardSmokePool.commit(activeSmoke);
     }
 
     if (inclineGroup.visible) {
@@ -601,29 +616,32 @@ export function buildPhysicsCoreStage(
       blockGroup.position.set(rampPos, 0, 0);
 
       if (showVec) {
-        const origin = new THREE.Vector3(0, 0.45, 0);
+        _arrowOrigin.set(0, 0.45, 0);
+        _arrowDir.set(p.appliedForce >= 0 ? 1 : -1, 0, 0);
         orientAndScaleArrow(
           arrowApplied,
-          origin,
-          new THREE.Vector3(p.appliedForce >= 0 ? 1 : -1, 0, 0),
+          _arrowOrigin,
+          _arrowDir,
           Math.min(2.6, Math.abs(p.appliedForce) / 35)
         );
+        _arrowDir.set(m.netForce >= 0 ? -1 : 1, 0, 0);
         orientAndScaleArrow(
           arrowFriction,
-          origin,
-          new THREE.Vector3(m.netForce >= 0 ? -1 : 1, 0, 0),
+          _arrowOrigin,
+          _arrowDir,
           Math.min(2.2, Math.abs(m.frictionForce) / 25)
         );
         orientAndScaleArrow(
           arrowNormal,
-          origin,
-          new THREE.Vector3(0, 1, 0),
+          _arrowOrigin,
+          _upUnit,
           Math.min(2.4, m.normalForce / 45)
         );
+        _arrowDir.set(-Math.sin(thetaRad), -Math.cos(thetaRad), 0);
         orientAndScaleArrow(
           arrowWeight,
-          origin,
-          new THREE.Vector3(-Math.sin(thetaRad), -Math.cos(thetaRad), 0),
+          _arrowOrigin,
+          _arrowDir,
           Math.min(2.5, m.weightForce / 45)
         );
       } else {
@@ -677,10 +695,12 @@ export function buildPhysicsCoreStage(
       });
       if (showVec) {
         const fSpring = -p.springConstantK * liveX;
+        _arrowOrigin.set(massX, 1.85, 0);
+        _arrowDir.set(fSpring >= 0 ? 1 : -1, 0, 0);
         orientAndScaleArrow(
           springForceArrow,
-          new THREE.Vector3(massX, 1.85, 0),
-          new THREE.Vector3(fSpring >= 0 ? 1 : -1, 0, 0),
+          _arrowOrigin,
+          _arrowDir,
           Math.min(2.4, Math.abs(fSpring) / 60)
         );
       } else {
@@ -702,14 +722,15 @@ export function buildPhysicsCoreStage(
         orientAndScaleArrow(
           pendGravityArrow,
           pendBobWorldPos,
-          new THREE.Vector3(0, -1, 0),
+          _downUnit,
           0.95
         );
         const signT = thetaRad >= 0 ? 1 : -1;
+        _arrowDir.set(-Math.cos(thetaRad) * signT, -Math.sin(thetaRad) * signT, 0);
         orientAndScaleArrow(
           pendRestoringArrow,
           pendBobWorldPos,
-          new THREE.Vector3(-Math.cos(thetaRad) * signT, -Math.sin(thetaRad) * signT, 0),
+          _arrowDir,
           Math.min(1.6, Math.abs(Math.sin(thetaRad)) * 2.2)
         );
       } else {
@@ -727,6 +748,7 @@ export function buildPhysicsCoreStage(
         nowSec,
         showVectors: showVec,
         isLite,
+        particleScale,
         isSimTimeAdvancing,
       },
       liveInst.kineticEnergy,
@@ -755,164 +777,118 @@ export function buildPhysicsCoreStage(
     activeLabels: boolean,
     cDom: Record<string, ConceptLabelDomRef>
   ): ConceptLabelProjectionEntry[] => {
-    const cEntries: ConceptLabelProjectionEntry[] = [
-      { dom: cDom.c1, worldPos: new THREE.Vector3(), text: '', active: false },
-      { dom: cDom.c2, worldPos: new THREE.Vector3(), text: '', active: false },
-      { dom: cDom.c3, worldPos: new THREE.Vector3(), text: '', active: false },
-      { dom: cDom.c4, worldPos: new THREE.Vector3(), text: '', active: false },
-    ];
+    _reusableConceptEntries[0].dom = cDom.c1;
+    _reusableConceptEntries[1].dom = cDom.c2;
+    _reusableConceptEntries[2].dom = cDom.c3;
+    _reusableConceptEntries[3].dom = cDom.c4;
+    _reusableConceptEntries[0].active = false;
+    _reusableConceptEntries[1].active = false;
+    _reusableConceptEntries[2].active = false;
+    _reusableConceptEntries[3].active = false;
 
-    if (!activeLabels) return cEntries;
+    if (!activeLabels) return _reusableConceptEntries;
 
     if (inclineGroup.visible) {
       massBox.getWorldPosition(conceptBlockWorldPos);
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: conceptBlockWorldPos.clone().add(new THREE.Vector3(0, 1.35, 0)),
-        text: `Gaya Dorong F = ${curP.appliedForce.toFixed(0)} N`,
-        active: true,
-      };
-      cEntries[1] = {
-        dom: cDom.c2,
-        worldPos: conceptBlockWorldPos.clone().add(new THREE.Vector3(-0.9, 0.35, 0)),
-        text: `Gesek fₖ = ${curM.frictionForce.toFixed(1)} N`,
-        active: true,
-      };
-      cEntries[2] = {
-        dom: cDom.c3,
-        worldPos: conceptBlockWorldPos.clone().add(new THREE.Vector3(0.75, 0.9, 0)),
-        text: `Normal N = ${curM.normalForce.toFixed(1)} N`,
-        active: true,
-      };
-      cEntries[3] = {
-        dom: cDom.c4,
-        worldPos: conceptBlockWorldPos.clone().add(new THREE.Vector3(0.4, -0.75, 0)),
-        text: `Berat W = ${curM.weightForce.toFixed(1)} N`,
-        active: true,
-      };
+      _reusableConceptEntries[0].worldPos.set(conceptBlockWorldPos.x, conceptBlockWorldPos.y + 1.35, conceptBlockWorldPos.z);
+      _reusableConceptEntries[0].text = `Gaya Dorong F = ${curP.appliedForce.toFixed(0)} N`;
+      _reusableConceptEntries[0].active = true;
+
+      _reusableConceptEntries[1].worldPos.set(conceptBlockWorldPos.x - 0.9, conceptBlockWorldPos.y + 0.35, conceptBlockWorldPos.z);
+      _reusableConceptEntries[1].text = `Gesek fₖ = ${curM.frictionForce.toFixed(1)} N`;
+      _reusableConceptEntries[1].active = true;
+
+      _reusableConceptEntries[2].worldPos.set(conceptBlockWorldPos.x + 0.75, conceptBlockWorldPos.y + 0.9, conceptBlockWorldPos.z);
+      _reusableConceptEntries[2].text = `Normal N = ${curM.normalForce.toFixed(1)} N`;
+      _reusableConceptEntries[2].active = true;
+
+      _reusableConceptEntries[3].worldPos.set(conceptBlockWorldPos.x + 0.4, conceptBlockWorldPos.y - 0.75, conceptBlockWorldPos.z);
+      _reusableConceptEntries[3].text = `Berat W = ${curM.weightForce.toFixed(1)} N`;
+      _reusableConceptEntries[3].active = true;
     } else if (curM.mode === 'pendulum-harmonic') {
       pendPivotGroup.getWorldPosition(conceptPivotWorldPos);
       pendBob.getWorldPosition(pendBobWorldPos);
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: conceptPivotWorldPos.clone().add(new THREE.Vector3(-0.45, -0.35, 0)),
-        text: `Panjang Tali L = ${(curP.pendulumLength ?? 1.2).toFixed(2)} m`,
-        active: true,
-      };
-      cEntries[2] = {
-        dom: cDom.c3,
-        worldPos: pendBobWorldPos.clone().add(new THREE.Vector3(0.55, 0.25, 0)),
-        text: `Gaya Pemulih · Periode T = ${curM.pendulumPeriod.toFixed(2)} s`,
-        active: true,
-      };
-      cEntries[3] = {
-        dom: cDom.c4,
-        worldPos: pendBobWorldPos.clone().add(new THREE.Vector3(0, -0.65, 0)),
-        text: `Gravitasi g = ${curP.gravity.toFixed(1)} m/s²`,
-        active: true,
-      };
+      _reusableConceptEntries[0].worldPos.set(conceptPivotWorldPos.x - 0.45, conceptPivotWorldPos.y - 0.35, conceptPivotWorldPos.z);
+      _reusableConceptEntries[0].text = `Panjang Tali L = ${(curP.pendulumLength ?? 1.2).toFixed(2)} m`;
+      _reusableConceptEntries[0].active = true;
+
+      _reusableConceptEntries[2].worldPos.set(pendBobWorldPos.x + 0.55, pendBobWorldPos.y + 0.25, pendBobWorldPos.z);
+      _reusableConceptEntries[2].text = `Gaya Pemulih · Periode T = ${curM.pendulumPeriod.toFixed(2)} s`;
+      _reusableConceptEntries[2].active = true;
+
+      _reusableConceptEntries[3].worldPos.set(pendBobWorldPos.x, pendBobWorldPos.y - 0.65, pendBobWorldPos.z);
+      _reusableConceptEntries[3].text = `Gravitasi g = ${curP.gravity.toFixed(1)} m/s²`;
+      _reusableConceptEntries[3].active = true;
     } else if (curM.mode === 'spring-hooke') {
       const sp = springMassBlock.position;
-      cEntries[2] = {
-        dom: cDom.c3,
-        worldPos: new THREE.Vector3(sp.x, sp.y + 1.35, sp.z),
-        text: `Gaya Pegas Fₚ = -k·Δx · k = ${curP.springConstantK} N/m`,
-        active: true,
-      };
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: new THREE.Vector3(sp.x, sp.y + 0.5, sp.z),
-        text: `Massa m = ${curP.mass.toFixed(1)} kg`,
-        active: true,
-      };
+      _reusableConceptEntries[2].worldPos.set(sp.x, sp.y + 1.35, sp.z);
+      _reusableConceptEntries[2].text = `Gaya Pegas Fₚ = -k·Δx · k = ${curP.springConstantK} N/m`;
+      _reusableConceptEntries[2].active = true;
+
+      _reusableConceptEntries[0].worldPos.set(sp.x, sp.y + 0.5, sp.z);
+      _reusableConceptEntries[0].text = `Massa m = ${curP.mass.toFixed(1)} kg`;
+      _reusableConceptEntries[0].active = true;
     } else if (curM.mode === 'projectile-gravity') {
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: projectileBall.position.clone().add(new THREE.Vector3(0, 0.55, 0)),
-        text: `Proyektil v₀ = ${curP.initialVelocity} m/s · θ = ${curP.launchAngle}°`,
-        active: true,
-      };
-      cEntries[2] = {
-        dom: cDom.c3,
-        worldPos: targetRing.position.clone().add(new THREE.Vector3(0, 0.45, 0)),
-        text: `Jarak Jatuh R = ${curM.projectileRange.toFixed(1)} m`,
-        active: true,
-      };
+      const bp = projectileBall.position;
+      const tp = targetRing.position;
+      _reusableConceptEntries[0].worldPos.set(bp.x, bp.y + 0.55, bp.z);
+      _reusableConceptEntries[0].text = `Proyektil v₀ = ${curP.initialVelocity} m/s · θ = ${curP.launchAngle}°`;
+      _reusableConceptEntries[0].active = true;
+
+      _reusableConceptEntries[2].worldPos.set(tp.x, tp.y + 0.45, tp.z);
+      _reusableConceptEntries[2].text = `Jarak Jatuh R = ${curM.projectileRange.toFixed(1)} m`;
+      _reusableConceptEntries[2].active = true;
     } else if (curM.mode === 'collision-momentum') {
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: cart1Mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)),
-        text: `Momentum p₁ = ${(curP.mass * curM.v1Final).toFixed(1)} kg·m/s`,
-        active: true,
-      };
-      cEntries[1] = {
-        dom: cDom.c2,
-        worldPos: cart2Mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)),
-        text: `Momentum p₂ = ${((curP.collisionMass2 || 2) * curM.v2Final).toFixed(1)} kg·m/s`,
-        active: true,
-      };
+      const p1 = cart1Mesh.position;
+      const p2 = cart2Mesh.position;
+      _reusableConceptEntries[0].worldPos.set(p1.x, p1.y + 1.0, p1.z);
+      _reusableConceptEntries[0].text = `Momentum p₁ = ${(curP.mass * curM.v1Final).toFixed(1)} kg·m/s`;
+      _reusableConceptEntries[0].active = true;
+
+      _reusableConceptEntries[1].worldPos.set(p2.x, p2.y + 1.0, p2.z);
+      _reusableConceptEntries[1].text = `Momentum p₂ = ${((curP.collisionMass2 || 2) * curM.v2Final).toFixed(1)} kg·m/s`;
+      _reusableConceptEntries[1].active = true;
     } else if (curM.mode === 'stokes-viscosity') {
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: stokesSphere.position.clone().add(new THREE.Vector3(0, 0.75, 0)),
-        text: `Gaya Hambat Stokes ↑ · vₜ = ${curM.stokesTerminalVelocity.toFixed(2)} m/s`,
-        active: true,
-      };
-      cEntries[3] = {
-        dom: cDom.c4,
-        worldPos: stokesSphere.position.clone().add(new THREE.Vector3(0, -0.75, 0)),
-        text: 'Gaya Berat Bola ↓',
-        active: true,
-      };
+      const sp = stokesSphere.position;
+      _reusableConceptEntries[0].worldPos.set(sp.x, sp.y + 0.75, sp.z);
+      _reusableConceptEntries[0].text = `Gaya Hambat Stokes ↑ · vₜ = ${curM.stokesTerminalVelocity.toFixed(2)} m/s`;
+      _reusableConceptEntries[0].active = true;
+
+      _reusableConceptEntries[3].worldPos.set(sp.x, sp.y - 0.75, sp.z);
+      _reusableConceptEntries[3].text = 'Gaya Berat Bola ↓';
+      _reusableConceptEntries[3].active = true;
     } else if (curM.mode === 'ohm-wheatstone') {
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: new THREE.Vector3(0, 1.0, 0),
-        text: `Galvanometer I_g = ${curM.galvanometerCurrent.toFixed(2)} mA`,
-        active: true,
-      };
-      cEntries[1] = {
-        dom: cDom.c2,
-        worldPos: new THREE.Vector3(1.4, 0.9, -0.8),
-        text: `Resistor Uji Rx = ${curP.resistorRx ?? 100} Ω`,
-        active: true,
-      };
+      _reusableConceptEntries[0].worldPos.set(0, 1.0, 0);
+      _reusableConceptEntries[0].text = `Galvanometer I_g = ${curM.galvanometerCurrent.toFixed(2)} mA`;
+      _reusableConceptEntries[0].active = true;
+
+      _reusableConceptEntries[1].worldPos.set(1.4, 0.9, -0.8);
+      _reusableConceptEntries[1].text = `Resistor Uji Rx = ${curP.resistorRx ?? 100} Ω`;
+      _reusableConceptEntries[1].active = true;
     } else if (curM.mode === 'optics-young-slit') {
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: new THREE.Vector3(-1.2, 2.3, 0),
-        text: `Celah Ganda d = ${(curP.slitDistance ?? 0.2).toFixed(2)} mm`,
-        active: true,
-      };
-      cEntries[2] = {
-        dom: cDom.c3,
-        worldPos: new THREE.Vector3(3.8, 2.9, 0),
-        text: `Jarak Frinji Δy = ${curM.fringeSpacingMm.toFixed(2)} mm`,
-        active: true,
-      };
+      _reusableConceptEntries[0].worldPos.set(-1.2, 2.3, 0);
+      _reusableConceptEntries[0].text = `Celah Ganda d = ${(curP.slitDistance ?? 0.2).toFixed(2)} mm`;
+      _reusableConceptEntries[0].active = true;
+
+      _reusableConceptEntries[2].worldPos.set(3.8, 2.9, 0);
+      _reusableConceptEntries[2].text = `Jarak Frinji Δy = ${curM.fringeSpacingMm.toFixed(2)} mm`;
+      _reusableConceptEntries[2].active = true;
     } else if (curM.mode === 'photoelectric-planck') {
-      cEntries[0] = {
-        dom: cDom.c1,
-        worldPos: new THREE.Vector3(-1.1, 2.7, 0),
-        text: `Katoda Logam (W₀ = ${(curP.targetMetalWorkFunction ?? 2.3).toFixed(1)} eV)`,
-        active: true,
-      };
-      cEntries[2] = {
-        dom: cDom.c3,
-        worldPos: new THREE.Vector3(0.4, 2.3, 0),
-        text: `Ek Maks = ${curM.photoelectricMaxKe.toFixed(2)} eV`,
-        active: true,
-      };
+      _reusableConceptEntries[0].worldPos.set(-1.1, 2.7, 0);
+      _reusableConceptEntries[0].text = `Katoda Logam (W₀ = ${(curP.targetMetalWorkFunction ?? 2.3).toFixed(1)} eV)`;
+      _reusableConceptEntries[0].active = true;
+
+      _reusableConceptEntries[2].worldPos.set(0.4, 2.3, 0);
+      _reusableConceptEntries[2].text = `Ek Maks = ${curM.photoelectricMaxKe.toFixed(2)} eV`;
+      _reusableConceptEntries[2].active = true;
     } else if (curM.mode === 'orbital-gravity') {
-      cEntries[2] = {
-        dom: cDom.c3,
-        worldPos: satelliteBody.position.clone().add(new THREE.Vector3(0, 0.75, 0)),
-        text: 'Gaya Gravitasi F_G ∝ 1/r²',
-        active: true,
-      };
+      const sat = satelliteBody.position;
+      _reusableConceptEntries[2].worldPos.set(sat.x, sat.y + 0.75, sat.z);
+      _reusableConceptEntries[2].text = 'Gaya Gravitasi F_G ∝ 1/r²';
+      _reusableConceptEntries[2].active = true;
     }
 
-    return cEntries;
+    return _reusableConceptEntries;
   };
 
   return {

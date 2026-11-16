@@ -96,7 +96,7 @@ describe('LMS Pipeline & CSV Export Utilities', () => {
     assert.ok(classroomCsv.includes('"\'=Aisyah Putri"'));
   });
 
-  it('steps down adaptive WebGL quality tier when rolling FPS drops below 30 for 2 seconds', () => {
+  it('steps down adaptive WebGL quality tier cleanly through balanced and 3t-saver when rolling FPS drops', () => {
     const tiers: string[] = [];
     const controller = createAdaptiveQualityController({
       initialTier: 'high',
@@ -106,18 +106,18 @@ describe('LMS Pipeline & CSV Export Utilities', () => {
     });
 
     assert.strictEqual(controller.getTier(), 'high');
-    // Simulate 50ms frame times (0.05s = 20 FPS) for 60 frames (20 warm-up + 40 frames = 2.0s accumulated)
+    // Simulate ~33.3 FPS (0.03s frame delta) for 2.1s -> steps down from high to balanced
+    for (let i = 0; i < 70; i++) {
+      controller.recordFrameDelta(0.03);
+    }
+    assert.strictEqual(controller.getTier(), 'balanced');
+
+    // Simulate 20 FPS (0.05s frame delta) for 3.25s -> rolling window drops below 25 FPS -> steps down to 3t-saver
     for (let i = 0; i < 65; i++) {
       controller.recordFrameDelta(0.05);
     }
-    assert.strictEqual(controller.getTier(), 'medium');
-
-    // Simulate another 2.0+ seconds of 20 FPS frames
-    for (let i = 0; i < 45; i++) {
-      controller.recordFrameDelta(0.05);
-    }
-    assert.strictEqual(controller.getTier(), 'low');
-    assert.deepStrictEqual(tiers, ['medium', 'low']);
+    assert.strictEqual(controller.getTier(), '3t-saver');
+    assert.deepStrictEqual(tiers, ['balanced', '3t-saver']);
   });
 });
 

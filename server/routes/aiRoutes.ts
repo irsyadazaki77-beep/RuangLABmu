@@ -15,6 +15,7 @@ import {
 import type { LabServerState } from '../state/labServerState';
 import { applyCustomMissionToRoom } from '../ws/collabSocketServer';
 import {
+  formatValidationErrorResponse,
   validateConversationalDrLabMuPayload,
   validateDrLabMuAskPayload,
   validateGenerateMissionPayload,
@@ -176,11 +177,7 @@ export function createAiRouter({
       try {
         const check = validateGenerateMissionPayload(req.body);
         if (!check.ok) {
-          res.status(400).json({
-            error: check.error,
-            code: check.code,
-            details: check.details,
-          });
+          res.status(400).json(formatValidationErrorResponse(check));
           return;
         }
 
@@ -221,11 +218,7 @@ export function createAiRouter({
     try {
       const check = validateRoomMissionPayload(req.params.roomId, req.body);
       if (!check.ok) {
-        res.status(400).json({
-          error: check.error,
-          code: check.code,
-          details: check.details,
-        });
+        res.status(400).json(formatValidationErrorResponse(check));
         return;
       }
 
@@ -258,11 +251,7 @@ export function createAiRouter({
     try {
       const check = validateDrLabMuAskPayload(req.body);
       if (!check.ok) {
-        res.status(400).json({
-          error: check.error,
-          code: check.code,
-          details: check.details,
-        });
+        res.status(400).json(formatValidationErrorResponse(check));
         return;
       }
 
@@ -378,11 +367,7 @@ export function createAiRouter({
     try {
       const check = validateConversationalDrLabMuPayload(req.body);
       if (!check.ok) {
-        res.status(400).json({
-          error: check.error,
-          code: check.code,
-          details: check.details,
-        });
+        res.status(400).json(formatValidationErrorResponse(check));
         return;
       }
 
@@ -469,11 +454,7 @@ ${activeQuery.slice(0, 600)}
     try {
       const check = validateVisionDiagnosePayload(req.body);
       if (!check.ok) {
-        res.status(400).json({
-          error: check.error,
-          code: check.code,
-          details: check.details,
-        });
+        res.status(400).json(formatValidationErrorResponse(check));
         return;
       }
 

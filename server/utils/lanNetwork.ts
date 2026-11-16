@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import type http from 'http';
+import { logger } from './logger';
 
 export interface NetworkInterfaceLike {
   family: string | number;
@@ -107,17 +108,19 @@ export async function listenWithPortFallback(
       });
 
       if (offset > 0) {
-        console.warn(
-          `[RuangLABmu] Port ${preferredPort} sedang dipakai aplikasi lain. Server otomatis berpindah ke port ${candidatePort}.`
-        );
+        logger.warn('Preferred port busy, fell back to alternate port', {
+          preferredPort,
+          activePort: candidatePort,
+        });
       }
       return candidatePort;
     } catch (err) {
       const errnoErr = err as NodeJS.ErrnoException;
       if (errnoErr.code === 'EADDRINUSE' && offset < maxAttempts) {
-        console.warn(
-          `[RuangLABmu] Port ${candidatePort} sudah digunakan (EADDRINUSE). Mencoba port ${candidatePort + 1}...`
-        );
+        logger.warn('Port already in use (EADDRINUSE), trying next port', {
+          candidatePort,
+          nextPort: candidatePort + 1,
+        });
         continue;
       }
 

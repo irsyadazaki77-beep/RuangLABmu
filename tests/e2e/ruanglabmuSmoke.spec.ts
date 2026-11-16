@@ -332,4 +332,56 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
 
     expect(pageErrors).toEqual([]);
   });
+
+  test('Skenario 6 (Adaptive Quality, Mode Ringan 2D & Astronomi 3D + Kamera Preset): Toggle kualitas, Mode 2D fallback, dan preset kamera tanpa error', async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/');
+
+    // 1. Masuk ke domain Astronomi -> buka simulasi 3D
+    await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
+    await page.getByRole('button', { name: 'Astronomi', exact: true }).click();
+    await page.getByRole('button', { name: 'Mulai Praktikum →', exact: true }).first().click();
+    await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
+
+    const cockpit3D = page.getByTestId('main-3d-cockpit');
+    await expect(cockpit3D).toBeVisible();
+    await expect(page.getByTestId('lab-webgl-error-fallback')).toHaveCount(0);
+    await expect(page.getByTestId('astronomy-simulation-canvas')).toBeVisible();
+
+    // 2. Uji tombol Reset & preset kamera (Depan / Atas / Fokus)
+    await page.getByTestId('camera-reset-btn').click();
+    await page.getByRole('button', { name: 'Depan', exact: true }).click();
+    await page.getByRole('button', { name: 'Atas', exact: true }).click();
+    await page.getByRole('button', { name: 'Fokus', exact: true }).click();
+    await page.getByTestId('camera-reset-btn').click();
+
+    // 3. Uji selector kualitas grafis 3D (3t-saver -> high -> auto)
+    const qualitySelect = page.getByTestId('hud-quality-mode-select');
+    await expect(qualitySelect).toBeVisible();
+    await qualitySelect.selectOption('3t-saver');
+    await expect(page.getByTestId('hud-lite-mode-toggle-btn')).toContainText(/lite/i);
+    await qualitySelect.selectOption('high');
+    await qualitySelect.selectOption('auto');
+
+    // 4. Uji Mode Ringan 2D (Fallback SVG/RingBuffer) lalu kembali ke 3D
+    const toggle2DBtn = page.getByTestId('hud-2d-fallback-toggle-btn');
+    await expect(toggle2DBtn).toBeVisible();
+    await toggle2DBtn.click();
+
+    await expect(page.getByTestId('lab-2d-fallback-view')).toBeVisible();
+    await expect(page.getByLabel('Skema Simulasi 2D')).toBeVisible();
+    await expect(page.getByLabel('Grafik Kurva Telemetri 2D')).toBeVisible();
+
+    await page.getByTestId('restore-3d-from-2d-btn').click();
+    await expect(page.getByTestId('lab-2d-fallback-view')).toHaveCount(0);
+    await expect(page.getByTestId('astronomy-simulation-canvas')).toBeVisible();
+
+    expect(pageErrors).toEqual([]);
+  });
 });
+

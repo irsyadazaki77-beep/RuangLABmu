@@ -12,6 +12,7 @@ import {
   validateTeacherCameraSyncPayload,
   validateTeacherLaserRayPayload,
 } from '../utils/collabProtocol';
+import { ServerToClientMessageSchema } from '../shared/contracts/wsContracts';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 
 export interface BackendSyncState {
@@ -157,180 +158,16 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
-}
-
 /**
- * Strict runtime payload type-guard for incoming WebSocket messages.
+ * Strict runtime payload type-guard for incoming WebSocket messages backed by shared Zod contracts.
  * Rejects malformed/corrupted payloads before they can crash state handlers.
  */
 export function isValidBackendWsMessage(candidate: unknown): candidate is ValidatedWsMessage {
-  if (!isPlainObject(candidate)) return false;
-  if (!isNonEmptyString(candidate.type)) return false;
-  if (!isPlainObject(candidate.payload)) return false;
-
-  const { type, payload } = candidate;
-
-  switch (type) {
-    case 'init:state': {
-      if (payload.records !== undefined && !Array.isArray(payload.records)) return false;
-      if (payload.tasks !== undefined && !Array.isArray(payload.tasks)) return false;
-      if (payload.notes !== undefined && !Array.isArray(payload.notes)) return false;
-      if (payload.students !== undefined && !Array.isArray(payload.students)) return false;
-      if (payload.notifications !== undefined && !Array.isArray(payload.notifications)) return false;
-      return true;
-    }
-
-    case 'ROOM_CREATED': {
-      if (!isPlainObject(payload.room)) return false;
-      return isNonEmptyString(payload.room.roomId) && typeof payload.room.pin === 'string';
-    }
-
-    case 'ROOM_JOINED':
-    case 'ROOM_STATE_SYNC': {
-      if (!isPlainObject(payload.room)) return false;
-      return (
-        isNonEmptyString(payload.room.roomId) &&
-        (payload.room.pin === undefined || typeof payload.room.pin === 'string')
-      );
-    }
-
-    case 'ROOM_MISSION_UPDATED': {
-      return isNonEmptyString(payload.roomId);
-    }
-
-    case 'ROOM_ERROR': {
-      return isNonEmptyString(payload.message);
-    }
-
-    case 'TEACHER_FREEZE_TOGGLE': {
-      return typeof payload.isFrozen === 'boolean';
-    }
-
-    case 'TEACHER_LASER_RAY': {
-      return validateTeacherLaserRayPayload(payload) !== null;
-    }
-
-    case 'TEACHER_CAMERA_SYNC': {
-      return validateTeacherCameraSyncPayload(payload) !== null;
-    }
-
-    case 'STUDENT_TELEMETRY_SYNC': {
-      if (!isPlainObject(payload.telemetry)) return false;
-      return isNonEmptyString(payload.telemetry.studentName);
-    }
-
-    case 'record:created': {
-      if (!isPlainObject(payload.record)) return false;
-      return (
-        isNonEmptyString(payload.record.id) &&
-        typeof payload.record.experimentTitle === 'string'
-      );
-    }
-
-    case 'record:deleted': {
-      return isNonEmptyString(payload.id);
-    }
-
-    case 'task:updated': {
-      return Array.isArray(payload.tasks);
-    }
-
-    case 'note:created': {
-      if (!isPlainObject(payload.note)) return false;
-      return isNonEmptyString(payload.note.id) && typeof payload.note.text === 'string';
-    }
-
-    case 'notification:pushed': {
-      if (!isPlainObject(payload.notification)) return false;
-      return (
-        isNonEmptyString(payload.notification.id) &&
-        typeof payload.notification.title === 'string'
-      );
-    }
-
-    case 'quiz:submitted': {
-      if (payload.students !== undefined && !Array.isArray(payload.students)) return false;
-      if (payload.notification !== undefined && !isPlainObject(payload.notification)) return false;
-      return true;
-    }
-
-    case 'teacher:broadcasted': {
-      if (payload.notification !== undefined && !isPlainObject(payload.notification)) return false;
-      if (payload.note !== undefined && !isPlainObject(payload.note)) return false;
-      if (payload.students !== undefined && !Array.isArray(payload.students)) return false;
-      return true;
-    }
-
-    case 'mystery:broadcasted': {
-      if (payload.challenge !== undefined && !isPlainObject(payload.challenge)) return false;
-      if (payload.notification !== undefined && !isPlainObject(payload.notification)) return false;
-      return true;
-    }
-
-    case 'mystery:submitted': {
-      if (payload.result !== undefined && !isPlainObject(payload.result)) return false;
-      if (payload.students !== undefined && !Array.isArray(payload.students)) return false;
-      if (payload.notification !== undefined && !isPlainObject(payload.notification)) return false;
-      return true;
-    }
-
-    case 'PARAM_VALUE_SYNC': {
-      return (
-        isNonEmptyString(payload.paramKey) &&
-        isFiniteNumber(payload.value) &&
-        typeof payload.groupId === 'string'
-      );
-    }
-
-    case 'CURSOR_3D_MOVE': {
-      return (
-        isNonEmptyString(payload.userId) &&
-        Array.isArray(payload.position) &&
-        payload.position.length === 3 &&
-        isFiniteNumber(payload.position[0]) &&
-        isFiniteNumber(payload.position[1]) &&
-        isFiniteNumber(payload.position[2])
-      );
-    }
-
-    case 'CURSOR_3D_LEAVE': {
-      return isNonEmptyString(payload.userId);
-    }
-
-    case 'PARAM_LOCK_ACQUIRE': {
-      return (
-        isNonEmptyString(payload.paramKey) &&
-        isNonEmptyString(payload.lockedByUserId) &&
-        isFiniteNumber(payload.expiresAt)
-      );
-    }
-
-    case 'PARAM_LOCK_RELEASE': {
-      return isNonEmptyString(payload.paramKey) && typeof payload.groupId === 'string';
-    }
-
-    case 'PARAM_LOCKS_SYNC': {
-      return Array.isArray(payload.locks);
-    }
-
-    case 'PARAM_LOCK_RESET_ALL': {
-      return true;
-    }
-
-    case 'session:autosaved': {
-      return isNonEmptyString(payload.sessionKey) && isFiniteNumber(payload.version);
-    }
-
-    default:
-      // Unknown message types are rejected by strict guard
-      return false;
+  const zodChecked = ServerToClientMessageSchema.safeParse(candidate);
+  if (zodChecked.success) {
+    return true;
   }
+  return false;
 }
 
 /**

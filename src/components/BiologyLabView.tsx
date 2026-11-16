@@ -352,23 +352,25 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
                 ) : undefined
               }
               renderViewport={(side, syncProps) => (
-                <Suspense
-                  fallback={
-                    <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-emerald-300">
-                      Menyiapkan Realitas {side}...
-                    </div>
-                  }
-                >
-                  <BiologyScene3D
-                    mode={currentModule.id as any}
-                    params={side === 'A' ? paramsState : realityBParamsState}
-                    isPlaying={isPlaying}
-                    simTime={simTime}
-                    simTimeRef={simTimeRef}
-                    cameraSyncPose={syncProps.cameraSyncPose}
-                    onCameraSyncChange={syncProps.onCameraSyncChange}
-                  />
-                </Suspense>
+                <LabErrorBoundary domain="Biologi" sceneName={`BiologyScene3D-${side}`}>
+                  <Suspense
+                    fallback={
+                      <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-emerald-300">
+                        Menyiapkan Realitas {side}...
+                      </div>
+                    }
+                  >
+                    <BiologyScene3D
+                      mode={currentModule.id as any}
+                      params={side === 'A' ? paramsState : realityBParamsState}
+                      isPlaying={isPlaying}
+                      simTime={simTime}
+                      simTimeRef={simTimeRef}
+                      cameraSyncPose={syncProps.cameraSyncPose}
+                      onCameraSyncChange={syncProps.onCameraSyncChange}
+                    />
+                  </Suspense>
+                </LabErrorBoundary>
               )}
             />
           );

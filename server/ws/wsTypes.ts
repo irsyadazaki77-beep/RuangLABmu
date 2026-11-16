@@ -1,5 +1,12 @@
 import type { WebSocket, WebSocketServer } from 'ws';
 import type { LabServerState } from '../state/labServerState';
+export type {
+  ClientIdentifyPayload,
+  ClientToServerMessage,
+  ServerToClientMessage,
+  WsErrorPayload,
+  WsValidationIssue,
+} from '../../src/shared/contracts/wsContracts';
 
 export interface ExtWebSocket extends WebSocket {
   socketId: string;

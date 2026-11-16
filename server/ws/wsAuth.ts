@@ -1,18 +1,34 @@
 import { verifyTeacherAuthorization } from '../../src/utils/submissionPersistence';
+import {
+  ClientToServerMessageSchema,
+  type ClientIdentifyPayload,
+  type ClientToServerMessage,
+  type WsValidationIssue,
+} from '../../src/shared/contracts/wsContracts';
 import type { LabRoom } from '../../src/utils/collabProtocol';
 import type { LabServerState } from '../state/labServerState';
 import type { ExtWebSocket } from './wsTypes';
 
-export interface ClientIdentifyPayload {
-  userId?: string;
-  userName?: string;
-  groupId?: string;
-  domain?: 'fisika' | 'kimia' | 'biologi' | 'astronomi';
-  roomId?: string;
-  role?: string;
-  teacherPin?: string;
-  pin?: string;
-  teacherToken?: string;
+export type { ClientIdentifyPayload, ClientToServerMessage };
+
+export type ParsedWsMessageResult =
+  | { ok: true; message: ClientToServerMessage }
+  | { ok: false; message: string; issues: WsValidationIssue[] };
+
+export function parseClientToServerWsMessage(raw: unknown): ParsedWsMessageResult {
+  const parsed = ClientToServerMessageSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issues: WsValidationIssue[] = parsed.error.issues.map((issue) => ({
+      path: issue.path.join('.'),
+      message: issue.message,
+    }));
+    return {
+      ok: false,
+      message: issues[0]?.message || 'Pesan WebSocket tidak memenuhi kontrak skema.',
+      issues,
+    };
+  }
+  return { ok: true, message: parsed.data };
 }
 
 export function validateWsMessageEnvelope(raw: unknown): {

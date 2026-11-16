@@ -44,6 +44,7 @@ export interface BiologyThemeColorsInput {
 
 export interface BiologyCoreStageHandle {
   apparatusGroup: THREE.Group;
+  keyLight: THREE.DirectionalLight;
   applyTheme: (colors: BiologyThemeColorsInput) => void;
   update: (
     simTime: number,
@@ -53,7 +54,8 @@ export interface BiologyCoreStageHandle {
     showConceptLabels: boolean,
     lensFocus: number,
     baseCamPos: THREE.Vector3,
-    desiredCamPos: THREE.Vector3
+    desiredCamPos: THREE.Vector3,
+    particleScale?: number
   ) => ReturnType<BiologyRigHandle['update']>;
   dispose: () => void;
 }
@@ -73,7 +75,7 @@ export function buildBiologyCoreStage(
   );
   scene.add(hemiLight);
 
-  const bioShadowSize = isSoftwareGl ? 512 : 2048;
+  const bioShadowSize = isSoftwareGl ? 512 : 1024;
   const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
   dirLight.position.set(5, 8, 4);
   dirLight.castShadow = true;
@@ -106,8 +108,8 @@ export function buildBiologyCoreStage(
   stageCondenserLight.position.set(0, -1.2, 0);
   stageCondenserLight.target = condenserTarget;
   stageCondenserLight.castShadow = true;
-  stageCondenserLight.shadow.mapSize.width = bioShadowSize;
-  stageCondenserLight.shadow.mapSize.height = bioShadowSize;
+  stageCondenserLight.shadow.mapSize.width = 512;
+  stageCondenserLight.shadow.mapSize.height = 512;
   stageCondenserLight.shadow.bias = -0.0001;
   scene.add(stageCondenserLight);
 
@@ -318,8 +320,13 @@ export function buildBiologyCoreStage(
 
   return {
     apparatusGroup,
+    keyLight: dirLight,
     applyTheme: (colors) => {
-      scene.background = new THREE.Color(0x0b0f17);
+      if (scene.background instanceof THREE.Color) {
+        scene.background.setHex(0x0b0f17);
+      } else {
+        scene.background = new THREE.Color(0x0b0f17);
+      }
       scene.fog = new THREE.FogExp2(0x0b0f17, 0.02);
       tableMat.color.setHex(colors.tableHex ?? 0x1e293b);
       floorMat.color.setHex(colors.floorHex ?? 0x0f172a);
@@ -335,7 +342,8 @@ export function buildBiologyCoreStage(
       showConceptLabels,
       lensFocus,
       baseCamPos,
-      desiredCamPos
+      desiredCamPos,
+      particleScale
     ) => {
       applyBorosilicateLiteMode(slideGlassMat, effectiveLite);
       applyBorosilicateLiteMode(condenserLensMat, effectiveLite);
@@ -360,7 +368,7 @@ export function buildBiologyCoreStage(
       desiredCamPos.copy(baseCamPos).multiplyScalar(zoomFactor);
 
       apparatusGroup.rotation.y = Math.sin(simTime * 0.15) * 0.25;
-      return activeRig.update(simTime, params, effectiveLite, showConceptLabels);
+      return activeRig.update(simTime, params, effectiveLite, showConceptLabels, particleScale);
     },
     dispose: () => {
       activeRig.dispose();

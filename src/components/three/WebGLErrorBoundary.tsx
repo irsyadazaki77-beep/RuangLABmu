@@ -1,5 +1,8 @@
 import React, { Component, createRef, ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle, RotateCcw, Sparkles } from 'lucide-react';
+import { Activity, AlertTriangle, RotateCcw, Sparkles } from 'lucide-react';
+import { Simulation2DFallbackView } from './Simulation2DFallbackView';
+import { DOMAIN_TO_EN, useLabStore, type AnyLabDomain } from '../../stores/useLabStore';
+import { useUIStore } from '../../stores/useUIStore';
 
 export interface WebGLErrorBoundaryProps {
   children: ReactNode;
@@ -15,33 +18,54 @@ export interface WebGLErrorBoundaryState {
   hasError: boolean;
   errorMessage: string;
   isContextLost: boolean;
+  contextLossCount: number;
+  use2DFallback: boolean;
   retryKey: number;
+  preservedParamSummary: string;
   sceneKey?: number;
+}
+
+function captureActiveParamSummary(): string {
+  try {
+    const snap = useLabStore.getState().liveParamSnapshot;
+    const entries = Object.entries(snap).slice(0, 4);
+    if (entries.length === 0) return '';
+    return entries
+      .map(([k, v]) => `${k}=${v.value}${v.unit ? v.unit : ''}`)
+      .join(' · ');
+  } catch {
+    return '';
+  }
 }
 
 /**
  * WebGL Context-Loss & Runtime ErrorBoundary (`src/components/three/WebGLErrorBoundary.tsx`)
  * Listens for `webglcontextlost` (`event.preventDefault()`) and `webglcontextrestored`
- * on child `<canvas>` elements, and provides a clean recovery overlay with a manual
- * "Pulihkan Canvas 3D" / "Pulihkan Scene 3D" retry trigger.
+ * on child `<canvas>` elements, preserves active simulation parameter snapshots,
+ * provides a calm recovery overlay, and offers an instant Mode Ringan 2D fallback.
  */
 export class WebGLErrorBoundary extends Component<
   WebGLErrorBoundaryProps,
   WebGLErrorBoundaryState
 > {
   private containerRef = createRef<HTMLDivElement>();
+  private unsubPrefer2D: (() => void) | null = null;
 
   public state: WebGLErrorBoundaryState = {
     hasError: false,
     errorMessage: '',
     isContextLost: false,
+    contextLossCount: 0,
+    use2DFallback: useUIStore.getState().prefer2DFallback,
     retryKey: 0,
+    preservedParamSummary: '',
   };
 
   public static getDerivedStateFromError(error: Error): Partial<WebGLErrorBoundaryState> {
     return {
       hasError: true,
       errorMessage: error?.message || 'Kegagalan inisialisasi konteks WebGL 3D.',
+      preservedParamSummary: captureActiveParamSummary(),
     };
   }
 
@@ -55,41 +79,64 @@ export class WebGLErrorBoundary extends Component<
 
   public componentDidMount(): void {
     const container = this.containerRef.current;
-    if (!container) return;
-    container.addEventListener('webglcontextlost', this.handleContextLost, true);
-    container.addEventListener('webglcontextrestored', this.handleContextRestored, true);
+    if (container) {
+      container.addEventListener('webglcontextlost', this.handleContextLost, true);
+      container.addEventListener('webglcontextrestored', this.handleContextRestored, true);
+    }
+    this.unsubPrefer2D = useUIStore.subscribe((state, prev) => {
+      if (state.prefer2DFallback !== prev.prefer2DFallback) {
+        this.setState({ use2DFallback: state.prefer2DFallback });
+      }
+    });
   }
 
   public componentWillUnmount(): void {
     const container = this.containerRef.current;
-    if (!container) return;
-    container.removeEventListener('webglcontextlost', this.handleContextLost, true);
-    container.removeEventListener('webglcontextrestored', this.handleContextRestored, true);
+    if (container) {
+      container.removeEventListener('webglcontextlost', this.handleContextLost, true);
+      container.removeEventListener('webglcontextrestored', this.handleContextRestored, true);
+    }
+    this.unsubPrefer2D?.();
   }
 
   private handleContextLost = (event: Event): void => {
     event.preventDefault();
-    this.setState({
-      isContextLost: true,
-      errorMessage:
-        'Konteks GPU WebGL terputus sementara (penghemat memori perangkat / perpindahan tab).',
+    const summary = captureActiveParamSummary();
+    this.setState((prev) => {
+      const nextCount = prev.contextLossCount + 1;
+      const autoFallback2D = nextCount >= 2;
+      return {
+        isContextLost: true,
+        contextLossCount: nextCount,
+        use2DFallback: prev.use2DFallback || autoFallback2D,
+        preservedParamSummary: summary || prev.preservedParamSummary,
+        errorMessage:
+          'Konteks GPU WebGL dijeda sementara (hemat memori / perpindahan tab). Data simulasi Anda tetap tersimpan.',
+      };
     });
   };
 
   private handleContextRestored = (): void => {
-    this.setState((prev) => ({
-      isContextLost: false,
-      hasError: false,
-      errorMessage: '',
-      retryKey: prev.retryKey + 1,
-    }));
+    this.setState(
+      (prev) => ({
+        isContextLost: false,
+        hasError: false,
+        errorMessage: '',
+        retryKey: prev.retryKey + 1,
+      }),
+      () => {
+        this.props.onRecover?.();
+      }
+    );
   };
 
   private handleManualRecover = (): void => {
+    useUIStore.getState().setPrefer2DFallback(false);
     this.setState(
       (prev) => ({
         hasError: false,
         isContextLost: false,
+        use2DFallback: false,
         errorMessage: '',
         retryKey: prev.retryKey + 1,
       }),
@@ -97,11 +144,47 @@ export class WebGLErrorBoundary extends Component<
         if (this.props.onRetry) {
           this.props.onRetry();
         }
+        if (this.props.onRecover) {
+          this.props.onRecover();
+        }
       }
     );
   };
 
+  private handleSwitchTo2DFallback = (): void => {
+    useUIStore.getState().setPrefer2DFallback(true);
+    this.setState((prev) => ({
+      use2DFallback: true,
+      preservedParamSummary: prev.preservedParamSummary || captureActiveParamSummary(),
+    }));
+  };
+
   public render(): ReactNode {
+    const normalizedDomain =
+      this.props.domain && this.props.domain.toLowerCase() in DOMAIN_TO_EN
+        ? DOMAIN_TO_EN[this.props.domain.toLowerCase() as AnyLabDomain]
+        : undefined;
+
+    if (this.state.use2DFallback) {
+      return (
+        <div
+          ref={this.containerRef}
+          className="relative w-full h-full min-h-[280px]"
+        >
+          <Simulation2DFallbackView
+            sceneTitle={this.props.sceneTitle || this.props.sceneName}
+            domain={normalizedDomain}
+            contextLostReason={
+              this.state.hasError || this.state.isContextLost
+                ? this.state.errorMessage
+                : undefined
+            }
+            onRestore3D={this.handleManualRecover}
+          />
+        </div>
+      );
+    }
+
     const showRecoveryOverlay = this.state.hasError || this.state.isContextLost;
 
     return (
@@ -129,23 +212,39 @@ export class WebGLErrorBoundary extends Component<
             <h3 className="text-sm font-bold text-slate-100 mb-1">
               {this.props.sceneTitle || 'Visualisasi 3D'} Sedang Dipulihkan
             </h3>
-            <p className="text-xs text-slate-400 max-w-md mb-4 leading-relaxed">
+            <p className="text-xs text-slate-400 max-w-md mb-3 leading-relaxed">
               Perangkat mengalami keterbatasan memori grafis WebGL, namun mesin simulasi numerik
-              RK4 dan lembar kerja pengamatan Anda tetap aman.
+              dan lembar kerja pengamatan Anda tetap aman.
             </p>
+            {this.state.preservedParamSummary && (
+              <p className="text-[11px] font-mono text-sky-300 bg-sky-500/10 px-3 py-1 rounded-lg border border-sky-500/25 mb-3 max-w-md truncate">
+                Snapshot Aktif: {this.state.preservedParamSummary}
+              </p>
+            )}
             {this.state.errorMessage && (
               <code className="text-[10px] font-mono text-amber-300/90 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800 mb-4 max-w-sm truncate">
                 {this.state.errorMessage}
               </code>
             )}
-            <button
-              type="button"
-              onClick={this.handleManualRecover}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 border border-teal-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Pulihkan Canvas 3D
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={this.handleManualRecover}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 border border-teal-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Pulihkan Canvas 3D
+              </button>
+              <button
+                type="button"
+                data-testid="switch-to-2d-fallback-btn"
+                onClick={this.handleSwitchTo2DFallback}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
+              >
+                <Activity className="w-3.5 h-3.5" />
+                Gunakan Mode Ringan 2D
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -154,3 +253,4 @@ export class WebGLErrorBoundary extends Component<
 }
 
 export default WebGLErrorBoundary;
+

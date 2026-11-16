@@ -620,6 +620,15 @@ export class LabSqliteStore {
     };
   }
 
+  public checkpointWalTruncate(): void {
+    if (this.isClosed || this.dbPath === ':memory:') return;
+    try {
+      this.driver.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+    } catch {
+      // Ignore checkpoint error on closing or special filesystems
+    }
+  }
+
   public close(): void {
     if (this.isClosed) return;
     this.isClosed = true;

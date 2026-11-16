@@ -516,25 +516,27 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                 </div>
               }
               renderViewport={(side, syncProps) => (
-                <Suspense
-                  fallback={
-                    <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-sky-300">
-                      Menyiapkan Realitas {side}...
-                    </div>
-                  }
-                >
-                  <PhysicsScene3D
-                    params={side === 'A' ? params : realityBParams}
-                    metrics={side === 'A' ? metrics : metricsB}
-                    instant={side === 'A' ? instant : instantB}
-                    simTime={simTime}
-                    simTimeRef={simTimeRef}
-                    showVectorOverlay={showVectorOverlay}
-                    simFrame={side === 'A' ? simWorker.currentFrame : undefined}
-                    cameraSyncPose={syncProps.cameraSyncPose}
-                    onCameraSyncChange={syncProps.onCameraSyncChange}
-                  />
-                </Suspense>
+                <LabErrorBoundary domain="Fisika" sceneName={`PhysicsScene3D-${side}`}>
+                  <Suspense
+                    fallback={
+                      <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-sky-300">
+                        Menyiapkan Realitas {side}...
+                      </div>
+                    }
+                  >
+                    <PhysicsScene3D
+                      params={side === 'A' ? params : realityBParams}
+                      metrics={side === 'A' ? metrics : metricsB}
+                      instant={side === 'A' ? instant : instantB}
+                      simTime={simTime}
+                      simTimeRef={simTimeRef}
+                      showVectorOverlay={showVectorOverlay}
+                      simFrame={side === 'A' ? simWorker.currentFrame : undefined}
+                      cameraSyncPose={syncProps.cameraSyncPose}
+                      onCameraSyncChange={syncProps.onCameraSyncChange}
+                    />
+                  </Suspense>
+                </LabErrorBoundary>
               )}
             />
           );

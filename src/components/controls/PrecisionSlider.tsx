@@ -172,7 +172,9 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
     <div
       onMouseEnter={() => setActiveAdjustedParam({ label, value, unit })}
       onMouseLeave={() => setActiveAdjustedParam(null)}
-      className={`rounded-xl border transition-all select-none ${
+      onPointerDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      className={`rounded-xl border transition-all select-none touch-pan-y ${
         compact ? 'p-1.5' : 'p-2.5'
       } ${
         isHighlighted
@@ -307,15 +309,18 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
               onBlurRelease?.();
               setActiveAdjustedParam(null);
             }}
-            onPointerDown={() => {
+            onPointerDown={(e) => {
+              e.stopPropagation();
               onFocusLock?.();
               setActiveAdjustedParam({ label, value, unit });
             }}
-            onPointerUp={() => {
+            onPointerUp={(e) => {
+              e.stopPropagation();
               onBlurRelease?.();
             }}
+            onTouchStart={(e) => e.stopPropagation()}
             onChange={(e) => applyValue(Number(e.target.value))}
-            className={`relative z-10 w-full h-2 appearance-none bg-transparent cursor-pointer disabled:cursor-not-allowed ${palette.sliderAccent}`}
+            className={`relative z-10 w-full h-2 appearance-none bg-transparent touch-none cursor-pointer disabled:cursor-not-allowed ${palette.sliderAccent}`}
           />
         </div>
 

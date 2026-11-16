@@ -15,7 +15,8 @@ export type MobileTab = 'canvas' | 'variables' | 'worksheet' | 'ai';
 export type LobbyViewMode = 'chapters' | 'all';
 export type LobbyDomainFilter = 'all' | 'fisika' | 'kimia' | 'biologi' | 'astronomi';
 export type TeacherViewMode = 'dashboard' | 'lab3d';
-export type LiveQualityTier = 'high' | 'medium' | 'low';
+export type LiveQualityTier = 'high' | 'balanced' | '3t-saver';
+export type QualityModePreference = 'auto' | '3t-saver' | 'high';
 
 export interface LivePerfStats {
   fps: number;
@@ -61,6 +62,8 @@ export interface UIState {
   sidebarWidthPx: number;
   projectorMode: boolean;
   liteDeviceMode: boolean;
+  qualityMode: QualityModePreference;
+  prefer2DFallback: boolean;
   liteModeNotification: string | null;
   showConceptLabels: boolean;
   lobbySearchQuery: string;
@@ -87,6 +90,8 @@ export interface UIState {
   setSidebarWidthPx: (widthPx: number) => void;
   setLiteDeviceMode: (enabled: boolean) => void;
   toggleLiteDeviceMode: () => void;
+  setQualityMode: (mode: QualityModePreference) => void;
+  setPrefer2DFallback: (enabled: boolean) => void;
   setLiteModeNotification: (msg: string | null) => void;
   setProjectorMode: (enabled: boolean) => void;
   toggleProjectorMode: () => void;
@@ -103,6 +108,9 @@ export interface UIState {
 
 function loadInitialLiteMode(): boolean {
   try {
+    const savedMode = window.localStorage.getItem('simulab-quality-mode');
+    if (savedMode === '3t-saver') return true;
+    if (savedMode === 'high') return false;
     const saved = window.localStorage.getItem('simulab-lite-device-mode');
     if (saved !== null) {
       return saved === 'true';
@@ -111,6 +119,20 @@ function loadInitialLiteMode(): boolean {
     // Ignore storage parse error
   }
   return false;
+}
+
+function loadInitialQualityMode(): QualityModePreference {
+  try {
+    const saved = window.localStorage.getItem('simulab-quality-mode');
+    if (saved === 'auto' || saved === '3t-saver' || saved === 'high') {
+      return saved;
+    }
+    const savedLite = window.localStorage.getItem('simulab-lite-device-mode');
+    if (savedLite === 'true') return '3t-saver';
+  } catch {
+    // Ignore storage parse error
+  }
+  return 'auto';
 }
 
 function loadInitialProjectorMode(): boolean {
@@ -136,6 +158,8 @@ export const useUIStore = create<UIState>((set) => ({
   sidebarWidthPx: 360,
   projectorMode: loadInitialProjectorMode(),
   liteDeviceMode: loadInitialLiteMode(),
+  qualityMode: loadInitialQualityMode(),
+  prefer2DFallback: false,
   liteModeNotification: null,
   showConceptLabels: true,
   lobbySearchQuery: '',
@@ -181,25 +205,63 @@ export const useUIStore = create<UIState>((set) => ({
   setSidebarWidthPx: (sidebarWidthPx: number) => set({ sidebarWidthPx }),
 
   setLiteDeviceMode: (liteDeviceMode: boolean) => {
+    const nextQualityMode: QualityModePreference = liteDeviceMode ? '3t-saver' : 'auto';
     try {
       window.localStorage.setItem('simulab-lite-device-mode', String(liteDeviceMode));
+      window.localStorage.setItem('simulab-quality-mode', nextQualityMode);
     } catch {
       // Ignore storage error
     }
-    set({ liteDeviceMode });
+    set((state) => ({
+      liteDeviceMode,
+      qualityMode: nextQualityMode,
+      livePerfStats: {
+        ...state.livePerfStats,
+        qualityTier: liteDeviceMode ? '3t-saver' : 'high',
+      },
+    }));
   },
 
   toggleLiteDeviceMode: () => {
     set((state) => {
       const next = !state.liteDeviceMode;
+      const nextQualityMode: QualityModePreference = next ? '3t-saver' : 'auto';
       try {
         window.localStorage.setItem('simulab-lite-device-mode', String(next));
+        window.localStorage.setItem('simulab-quality-mode', nextQualityMode);
       } catch {
         // Ignore storage error
       }
-      return { liteDeviceMode: next };
+      return {
+        liteDeviceMode: next,
+        qualityMode: nextQualityMode,
+        livePerfStats: {
+          ...state.livePerfStats,
+          qualityTier: next ? '3t-saver' : 'high',
+        },
+      };
     });
   },
+
+  setQualityMode: (qualityMode: QualityModePreference) => {
+    const nextLite = qualityMode === '3t-saver';
+    try {
+      window.localStorage.setItem('simulab-quality-mode', qualityMode);
+      window.localStorage.setItem('simulab-lite-device-mode', String(nextLite));
+    } catch {
+      // Ignore storage error
+    }
+    set((state) => ({
+      qualityMode,
+      liteDeviceMode: nextLite,
+      livePerfStats: {
+        ...state.livePerfStats,
+        qualityTier: qualityMode === '3t-saver' ? '3t-saver' : qualityMode === 'high' ? 'high' : state.livePerfStats.qualityTier,
+      },
+    }));
+  },
+
+  setPrefer2DFallback: (prefer2DFallback: boolean) => set({ prefer2DFallback }),
 
   setLiteModeNotification: (liteModeNotification: string | null) => set({ liteModeNotification }),
   setShowConceptLabels: (showConceptLabels: boolean) => set({ showConceptLabels }),

@@ -6,6 +6,7 @@ import {
   buildGraduationTicks,
   captureComposerSnapshot,
   computeMsaaSamples,
+  configureLabRenderer,
   createBeakerProfilePoints,
   createBiologicalMembraneTexture,
   createBorosilicateGlassMaterial,
@@ -14,12 +15,18 @@ import {
   createGraduatedScaleTexture,
   createInstancedParticlePool,
   createVectorArrowGroup,
+  disposeThreeScene,
   disposeThreeSceneResources,
   orientAndScaleVectorArrow,
+  smoothCameraDamp,
   smoothCameraTransition,
   wavelengthNmToHex,
   type StudioComposerHandle,
 } from './threeStudioKit';
+import {
+  computeDraggedParameterValue,
+  shouldRunThrottledRaycast,
+} from './threeInteractionHelper';
 import {
   computeProtractorReadout,
   computeRulerReadout,
@@ -293,4 +300,91 @@ test('FASE 4: multi-module rig disposal leaves 0 leaked WebGL geometries and tex
     assert.equal(scene.children.length, 0);
   }
 });
+
+test('configureLabRenderer clamps exposure to 1.0..1.1, enables ACESFilmicToneMapping & sRGB, and caps DPR', () => {
+  let appliedDpr = 0;
+  const mockRenderer = {
+    setPixelRatio: (dpr: number) => {
+      appliedDpr = dpr;
+    },
+    outputColorSpace: THREE.NoColorSpace,
+    toneMapping: THREE.NoToneMapping,
+    toneMappingExposure: 1.5,
+    shadowMap: {
+      enabled: false,
+      type: THREE.BasicShadowMap,
+    },
+  } as unknown as THREE.WebGLRenderer;
+
+  configureLabRenderer(mockRenderer, { exposure: 1.35, isSoftwareGl: false, isLite: false });
+  assert.equal(mockRenderer.outputColorSpace, THREE.SRGBColorSpace);
+  assert.equal(mockRenderer.toneMapping, THREE.ACESFilmicToneMapping);
+  assert.equal(mockRenderer.toneMappingExposure, 1.1);
+  assert.equal(mockRenderer.shadowMap.enabled, true);
+  assert.equal(mockRenderer.shadowMap.type, THREE.PCFSoftShadowMap);
+  assert.ok(appliedDpr >= 1 && appliedDpr <= 1.5);
+
+  configureLabRenderer(mockRenderer, { exposure: 0.7, isSoftwareGl: true, isLite: true });
+  assert.equal(mockRenderer.toneMappingExposure, 1.0);
+  assert.equal(mockRenderer.shadowMap.enabled, false);
+  assert.equal(appliedDpr, 1);
+});
+
+test('smoothCameraDamp performs frame-rate independent exponential damping to target pose', () => {
+  const cam = { position: new THREE.Vector3(0, 0, 10) };
+  const ctrl = { target: new THREE.Vector3(0, 0, 0) };
+  const targetPos = new THREE.Vector3(6, 4, 10);
+  const targetLook = new THREE.Vector3(2, 1, 0);
+
+  const moving = smoothCameraDamp(cam, ctrl, targetPos, targetLook, 0.016, 6.5);
+  assert.equal(moving, true);
+  assert.ok(cam.position.x > 0 && cam.position.x < 6);
+  assert.ok(ctrl.target.x > 0 && ctrl.target.x < 2);
+
+  let active = true;
+  for (let i = 0; i < 120 && active; i += 1) {
+    active = smoothCameraDamp(cam, ctrl, targetPos, targetLook, 0.033, 6.5);
+  }
+  assert.equal(active, false);
+  assert.equal(cam.position.distanceTo(targetPos), 0);
+  assert.equal(ctrl.target.distanceTo(targetLook), 0);
+});
+
+test('disposeThreeScene also disposes InstancedMesh instances and extra renderTargets', () => {
+  const scene = new THREE.Scene();
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  const mat = new THREE.MeshStandardMaterial();
+  const pool = createInstancedParticlePool(5, geo, mat, scene);
+
+  let instancedDisposed = false;
+  const origDispose = pool.mesh.dispose.bind(pool.mesh);
+  pool.mesh.dispose = () => {
+    instancedDisposed = true;
+    origDispose();
+  };
+
+  let rtDisposed = false;
+  const fakeRt = {
+    dispose: () => {
+      rtDisposed = true;
+    },
+  } as unknown as THREE.WebGLRenderTarget;
+
+  const stats = disposeThreeScene(scene, null, null, [fakeRt]);
+  assert.equal(instancedDisposed, true);
+  assert.equal(rtDisposed, true);
+  assert.equal(stats.geometriesDisposed, 1);
+  assert.equal(stats.materialsDisposed, 1);
+});
+
+test('threeInteractionHelper throttles hover raycasting <= 30 Hz and snaps dragged parameter values cleanly', () => {
+  assert.equal(shouldRunThrottledRaycast(100, 80, 34), false);
+  assert.equal(shouldRunThrottledRaycast(134, 100, 34), true);
+  assert.equal(shouldRunThrottledRaycast(Number.NaN, 100, 34), true);
+
+  assert.equal(computeDraggedParameterValue(10, 140, 0, 0, 20, 1, 280), 20);
+  assert.equal(computeDraggedParameterValue(10, 0, 140, 0, 20, 1, 280), 0);
+  assert.equal(computeDraggedParameterValue(5, 500, 0, 0, 10, 0.5, 280), 10);
+});
+
 

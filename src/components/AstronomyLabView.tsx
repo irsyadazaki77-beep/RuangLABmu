@@ -429,22 +429,24 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                 </div>
               }
               renderViewport={(side, syncProps) => (
-                <Suspense
-                  fallback={
-                    <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-sky-300">
-                      Menyiapkan Realitas {side}...
-                    </div>
-                  }
-                >
-                  <AstronomyScene3D
-                    params={side === 'A' ? params : realityBParams}
-                    metrics={side === 'A' ? metrics : metricsB}
-                    simTime={simTime}
-                    simTimeRef={simTimeRef}
-                    cameraSyncPose={syncProps.cameraSyncPose}
-                    onCameraSyncChange={syncProps.onCameraSyncChange}
-                  />
-                </Suspense>
+                <LabErrorBoundary domain="Astronomi" sceneName={`AstronomyScene3D-${side}`}>
+                  <Suspense
+                    fallback={
+                      <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-sky-300">
+                        Menyiapkan Realitas {side}...
+                      </div>
+                    }
+                  >
+                    <AstronomyScene3D
+                      params={side === 'A' ? params : realityBParams}
+                      metrics={side === 'A' ? metrics : metricsB}
+                      simTime={simTime}
+                      simTimeRef={simTimeRef}
+                      cameraSyncPose={syncProps.cameraSyncPose}
+                      onCameraSyncChange={syncProps.onCameraSyncChange}
+                    />
+                  </Suspense>
+                </LabErrorBoundary>
               )}
             />
           );

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import {
   createStudioWorkbenchGroup,
-  smoothCameraTransition,
+  smoothCameraDamp,
   type CameraSyncPose,
 } from '../utils/threeStudioKit';
 import { createDigitalProbe3D } from '../utils/threeMeasurementTools';
@@ -179,9 +179,9 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       },
       controls: {
         target: [0, 1.4, 0],
-        maxPolarAngle: Math.PI * 0.49,
+        maxPolarAngle: Math.PI * 0.48,
         minDistance: 3.5,
-        maxDistance: 30,
+        maxDistance: 24,
         autoRotateSpeed: 1.4,
       },
       onContextRestored: triggerSceneRebuild,
@@ -236,8 +236,9 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       shadowBound: 8,
       shadowNear: 0.5,
       shadowFar: 35,
-      shadowMapSize: isSoftwareGl ? 512 : 2048,
+      shadowMapSize: isSoftwareGl ? 512 : 1024,
     });
+    host.registerShadowLight(lightingRig.keyLight);
 
     const workbench = createStudioWorkbenchGroup(initialColors, {
       width: 11.2,
@@ -273,6 +274,16 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       latestRef.current.params.titrantAddedMl ?? 0
     );
 
+    const cachedStageInteractiveMeshes: THREE.Object3D[] = [];
+    scene.traverse((obj) => {
+      if (
+        obj instanceof THREE.Mesh &&
+        (obj.userData?.draggableParam || obj.userData?.measurementHandle || obj.userData?.interactive)
+      ) {
+        cachedStageInteractiveMeshes.push(obj);
+      }
+    });
+
     const probeHandle = createDigitalProbe3D('ph');
     probeHandle.group.position.set(1.35, 2.25, 0.35);
     probeHandle.group.visible = showProbe3DRef.current;
@@ -287,30 +298,30 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       probeHandle.group.position.z = Math.max(-2.6, Math.min(2.6, probeStartZ + dy * 0.02));
     };
 
-    const getInteractiveMeshes = (): THREE.Object3D[] => {
-      const list: THREE.Object3D[] = [];
-      scene.traverse((obj) => {
-        if (
-          obj instanceof THREE.Mesh &&
-          obj.visible &&
-          (obj.userData?.draggableParam || obj.userData?.measurementHandle || obj.userData?.interactive)
-        ) {
-          let parentVisible = true;
-          let cur: THREE.Object3D | null = obj.parent;
-          while (cur) {
-            if (!cur.visible) {
-              parentVisible = false;
-              break;
-            }
-            cur = cur.parent;
-          }
-          if (parentVisible) list.push(obj);
-        }
-      });
-      if (probeHandle.group.visible) {
-        list.push(...probeHandle.getInteractiveHandles());
+    const cachedProbeHandles = probeHandle.getInteractiveHandles();
+    const interactiveScratch: THREE.Object3D[] = [];
+    const isHierarchyVisible = (obj: THREE.Object3D): boolean => {
+      let cur: THREE.Object3D | null = obj;
+      while (cur) {
+        if (!cur.visible) return false;
+        cur = cur.parent;
       }
-      return list;
+      return true;
+    };
+    const getInteractiveMeshes = (): THREE.Object3D[] => {
+      interactiveScratch.length = 0;
+      for (let i = 0; i < cachedStageInteractiveMeshes.length; i += 1) {
+        const mesh = cachedStageInteractiveMeshes[i];
+        if (isHierarchyVisible(mesh)) {
+          interactiveScratch.push(mesh);
+        }
+      }
+      if (probeHandle.group.visible) {
+        for (let i = 0; i < cachedProbeHandles.length; i += 1) {
+          interactiveScratch.push(cachedProbeHandles[i]);
+        }
+      }
+      return interactiveScratch;
     };
 
     const interactionManager = new ThreeInteractionManager({
@@ -357,12 +368,14 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         setDragToast({ label: label ?? paramKey, value: `${newValue}` });
       },
       onDragEnd: () => {
-        setTimeout(() => setDragToast(null), 1200);
+        if (dragToastTimer) clearTimeout(dragToastTimer);
+        dragToastTimer = setTimeout(() => setDragToast(null), 1200);
       },
       onCursorMove3D: (pos, normal, hoveredObject) => {
         latestRef.current.onEmitCursor?.(pos, normal, hoveredObject);
       },
     });
+    let dragToastTimer: ReturnType<typeof setTimeout> | null = null;
 
     let prevSimTime = -1;
     let wasProbeVisible = false;
@@ -372,7 +385,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       renderer,
       isSoftwareGl,
       fpsMonitor,
-      onFrame: ({ nowMs, dt, elapsed, isLite }) => {
+      onFrame: ({ nowMs, dt, elapsed, isLite, particleScale }) => {
         const {
           params: p,
           metrics: m,
@@ -400,6 +413,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           elapsed,
           dt,
           isLite: isLite || isSoftwareGl,
+          particleScale,
           reacting,
           isSimTimeAdvancing,
           showConceptLabels: showLabels,
@@ -437,12 +451,13 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         );
 
         if (camTransitionActive) {
-          camTransitionActive = smoothCameraTransition(
+          camTransitionActive = smoothCameraDamp(
             camera,
             controls,
             desiredCamPos,
             desiredTarget,
-            0.14
+            dt,
+            10
           );
         }
 
@@ -461,6 +476,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
     return () => {
       loopHandle.stop();
+      if (dragToastTimer) clearTimeout(dragToastTimer);
       unsubAiAction();
       interactionManager.dispose();
       teacherCollabBridge.dispose();
@@ -587,9 +603,18 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         <span className="mx-0.5 h-3.5 w-px bg-white/15" aria-hidden="true" />
 
         <div className="hidden md:flex items-center gap-0.5">
+          <button
+            type="button"
+            data-testid="camera-reset-btn"
+            onClick={() => handleSelectCameraPreset('isometric')}
+            title="Reset View ke Sudut 3D Awal"
+            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            Reset
+          </button>
           {(
             [
-              { id: 'isometric', label: 'Iso' },
+              { id: 'isometric', label: '3D' },
               { id: 'front', label: 'Depan' },
               { id: 'top', label: 'Atas' },
               { id: 'closeup', label: 'Fokus' },

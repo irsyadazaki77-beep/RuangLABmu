@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import {
   applyBorosilicateLiteMode,
   createBorosilicateGlassMaterial,
+  createInstancedParticlePool,
   createVectorArrowGroup,
   orientAndScaleVectorArrow,
   wavelengthNmToHex,
@@ -32,6 +33,7 @@ export interface PhysicsRigUpdateContext {
   nowSec: number;
   showVectors: boolean;
   isLite: boolean;
+  particleScale?: number;
   isSimTimeAdvancing: boolean;
 }
 
@@ -554,14 +556,15 @@ export function buildPhysicsSpecialRigs(
   photoelectricGroup.add(peAnode);
 
   const PE_PARTICLES_COUNT = 30;
-  const peParticles: THREE.Mesh[] = [];
-  const peParticleGeo = new THREE.SphereGeometry(0.06, 12, 12);
+  const peParticleGeo = new THREE.SphereGeometry(0.06, 10, 10);
   const peParticleMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-  for (let i = 0; i < PE_PARTICLES_COUNT; i++) {
-    const pMesh = new THREE.Mesh(peParticleGeo, peParticleMat);
-    peParticles.push(pMesh);
-    photoelectricGroup.add(pMesh);
-  }
+  const peParticlePool = createInstancedParticlePool(
+    PE_PARTICLES_COUNT,
+    peParticleGeo,
+    peParticleMat,
+    photoelectricGroup
+  );
+  peParticlePool.mesh.frustumCulled = false;
 
   // =========================================================
   // 5. 1D COLLISION MOMENTUM 3D GROUP (AIR-TRACK GLIDER CARTS)
@@ -784,9 +787,26 @@ export function buildPhysicsSpecialRigs(
   const etotBarMesh = createEnergyBar(0.48, 0x10b981); // Total Energy (Emerald)
 
   let lastCollisionImpactIndex = -1;
+  let lastFringeKey = '';
+
+  const _rigOrigin1 = new THREE.Vector3();
+  const _rigOrigin2 = new THREE.Vector3();
+  const _rigDir1 = new THREE.Vector3();
+  const _rigDir2 = new THREE.Vector3();
+  const _rigUp = new THREE.Vector3(0, 1, 0);
+  const _rigDown = new THREE.Vector3(0, -1, 0);
 
   const update = (ctx: PhysicsRigUpdateContext, curEk = 0, curEp = 0) => {
-    const { params: p, metrics: m, simTime: t, nowSec, showVectors: showVec, isLite, isSimTimeAdvancing } = ctx;
+    const {
+      params: p,
+      metrics: m,
+      simTime: t,
+      nowSec,
+      showVectors: showVec,
+      isLite,
+      particleScale = 1.0,
+      isSimTimeAdvancing,
+    } = ctx;
 
     applyBorosilicateLiteMode(glassCylMat, isLite);
 
@@ -864,16 +884,20 @@ export function buildPhysicsSpecialRigs(
       cart2Mesh.position.set(x2, 0.56, 0);
 
       if (showVec) {
+        _rigOrigin1.set(x1, 1.38, 0);
+        _rigDir1.set(curV1 >= 0 ? 1 : -1, 0, 0);
         orientAndScaleVectorArrow(
           collVec1,
-          new THREE.Vector3(x1, 1.38, 0),
-          new THREE.Vector3(curV1 >= 0 ? 1 : -1, 0, 0),
+          _rigOrigin1,
+          _rigDir1,
           Math.min(2.2, Math.abs(curV1) * 0.14)
         );
+        _rigOrigin2.set(x2, 1.38, 0);
+        _rigDir2.set(curV2 >= 0 ? 1 : -1, 0, 0);
         orientAndScaleVectorArrow(
           collVec2,
-          new THREE.Vector3(x2, 1.38, 0),
-          new THREE.Vector3(curV2 >= 0 ? 1 : -1, 0, 0),
+          _rigOrigin2,
+          _rigDir2,
           Math.min(2.2, Math.abs(curV2) * 0.14)
         );
       } else {
@@ -889,14 +913,16 @@ export function buildPhysicsSpecialRigs(
       orbitRingMesh.scale.setScalar(orbitRadius / 3.79);
 
       if (showVec) {
-        const dirToSat = new THREE.Vector3(sx, 0, sz).normalize();
-        const dirToCenter = dirToSat.clone().negate();
+        _rigDir1.set(sx, 0, sz).normalize();
+        _rigDir2.copy(_rigDir1).negate();
         const arrowLen = Math.max(
           0.6,
           Math.min(2.0, Math.log10(Math.max(10, m.universalGravityForce * 1e4)) * 0.45)
         );
-        orientAndScaleVectorArrow(gravVec1, new THREE.Vector3(0, 2.2, 0), dirToSat, arrowLen);
-        orientAndScaleVectorArrow(gravVec2, new THREE.Vector3(sx, 2.2, sz), dirToCenter, arrowLen);
+        _rigOrigin1.set(0, 2.2, 0);
+        _rigOrigin2.set(sx, 2.2, sz);
+        orientAndScaleVectorArrow(gravVec1, _rigOrigin1, _rigDir1, arrowLen);
+        orientAndScaleVectorArrow(gravVec2, _rigOrigin2, _rigDir2, arrowLen);
       } else {
         gravVec1.visible = false;
         gravVec2.visible = false;
@@ -911,16 +937,17 @@ export function buildPhysicsSpecialRigs(
       stokesWakeRing.scale.setScalar(0.8 + 0.18 * Math.sin(nowSec * 6));
 
       if (showVec) {
+        _rigOrigin1.set(0, yPos, 0);
         orientAndScaleVectorArrow(
           stokesGravArrow,
-          new THREE.Vector3(0, yPos, 0),
-          new THREE.Vector3(0, -1, 0),
+          _rigOrigin1,
+          _rigDown,
           1.2
         );
         orientAndScaleVectorArrow(
           stokesDragArrow,
-          new THREE.Vector3(0, yPos, 0),
-          new THREE.Vector3(0, 1, 0),
+          _rigOrigin1,
+          _rigUp,
           Math.min(1.8, m.stokesDragForce * 8)
         );
       } else {
@@ -948,20 +975,24 @@ export function buildPhysicsSpecialRigs(
       (laserBeamLine.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
       diffractionConeMat.color.setHex(beamColor);
 
-      const ctx2d = fringeCanvas.getContext('2d');
-      if (ctx2d) {
-        ctx2d.fillStyle = '#050811';
-        ctx2d.fillRect(0, 0, fringeCanvas.width, fringeCanvas.height);
-        const fringeSpacing = Math.max(8, m.fringeSpacingMm * 8);
-        const rgbHex = beamColor.toString(16).padStart(6, '0');
-        for (let x = 0; x < fringeCanvas.width; x++) {
-          const intensity = Math.pow(Math.cos(((x - 256) / fringeSpacing) * Math.PI), 2);
-          ctx2d.fillStyle = `#${rgbHex}`;
-          ctx2d.globalAlpha = intensity;
-          ctx2d.fillRect(x, 0, 1, fringeCanvas.height);
+      const fringeSpacing = Math.max(8, m.fringeSpacingMm * 8);
+      const fringeKey = `${beamColor}:${fringeSpacing.toFixed(2)}`;
+      if (fringeKey !== lastFringeKey) {
+        lastFringeKey = fringeKey;
+        const ctx2d = fringeCanvas.getContext('2d');
+        if (ctx2d) {
+          ctx2d.fillStyle = '#050811';
+          ctx2d.fillRect(0, 0, fringeCanvas.width, fringeCanvas.height);
+          const rgbHex = beamColor.toString(16).padStart(6, '0');
+          for (let x = 0; x < fringeCanvas.width; x++) {
+            const intensity = Math.pow(Math.cos(((x - 256) / fringeSpacing) * Math.PI), 2);
+            ctx2d.fillStyle = `#${rgbHex}`;
+            ctx2d.globalAlpha = intensity;
+            ctx2d.fillRect(x, 0, 1, fringeCanvas.height);
+          }
+          ctx2d.globalAlpha = 1.0;
+          fringeTexture.needsUpdate = true;
         }
-        ctx2d.globalAlpha = 1.0;
-        fringeTexture.needsUpdate = true;
       }
     } else if (m.mode === 'photoelectric-planck') {
       const emitted = m.photoelectricEmitted;
@@ -970,20 +1001,24 @@ export function buildPhysicsSpecialRigs(
       const stopV = p.stoppingPotential ?? 1.5;
       const maxKe = m.photoelectricMaxKe;
 
-      peParticles.forEach((particle, idx) => {
-        if (!emitted) {
-          particle.visible = false;
-          return;
+      if (!emitted) {
+        peParticlePool.mesh.visible = false;
+      } else {
+        peParticlePool.mesh.visible = true;
+        const activePeCount = Math.max(8, Math.round(PE_PARTICLES_COUNT * particleScale));
+        for (let idx = 0; idx < activePeCount; idx++) {
+          const pFrac = (nowSec * 0.85 + idx / activePeCount) % 1.0;
+          const { x } = computePhotoelectricElectronX(pFrac, maxKe, stopV);
+          peParticlePool.setTransform(
+            idx,
+            x,
+            1.6 + Math.sin(idx * 2) * 0.32,
+            Math.cos(idx * 2) * 0.32,
+            1.0
+          );
         }
-        particle.visible = true;
-        const pFrac = (nowSec * 0.85 + idx / PE_PARTICLES_COUNT) % 1.0;
-        const { x } = computePhotoelectricElectronX(pFrac, maxKe, stopV);
-        particle.position.set(
-          x,
-          1.6 + Math.sin(idx * 2) * 0.32,
-          Math.cos(idx * 2) * 0.32
-        );
-      });
+        peParticlePool.commit(activePeCount);
+      }
     }
   };
 

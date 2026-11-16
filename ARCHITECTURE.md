@@ -109,3 +109,29 @@ Hasil evaluasi disimpan sebagai JSON terstruktur (`rubric_json`) di tabel `grade
 3. **Proteksi Endpoint REST (`server/routes/labRoutes.ts`)**:
    - `POST /api/rooms/rejoin` dilindungi oleh `express-rate-limit` (`windowMs: 60_000`, `max: 20`) berbasis `rateLimitKeyGenerator` (`server/utils/rateLimitKey.ts`) untuk mencegah *brute-force* kombinasi `roomPin` dan `participantId`.
    - `POST /api/session/autosave` memvalidasi kepemilikan sesi melalui kecocokan `storageKey` dengan `studentId` serta pengikatan token pemilik (`X-Session-Token` / `sessionToken` yang disimpan sebagai `ownerTokenHash`), menolak penimpaan sesi oleh klien lain dengan `403 Forbidden` (`SESSION_OWNERSHIP_MISMATCH`) dan menolak versi usang dengan `409 Conflict` (`stale_rejected`).
+
+---
+
+## 7. Fondasi Enterprise Production: Shared Zod, Migrasi SQLite, Structured Logging & SRE Probes
+
+1. **Shared Zod Contracts (`src/shared/contracts/wsContracts.ts` & `src/shared/contracts/restContracts.ts`)**:
+   - Seluruh tipe dan skema payload REST (`AutosavePayloadSchema`, `RoomRejoinSchema`, `RoomSnapshotSchema`, `GenerateMissionSchema`, `SubmissionCreateSchema`, `VisionDiagnoseSchema`, dll.) serta WebSocket (`ClientToServerMessageSchema` & `ServerToClientMessageSchema` menggunakan `z.discriminatedUnion('type', [...])`) didefinisikan dari satu sumber kebenaran (*Single Source of Truth*).
+   - Validasi di batas server (`server/utils/routePayloadValidators.ts` & `server/ws/collabSocketServer.ts`) menolak payload tidak valid dengan respons `400 Bad Request` terstruktur (`{ error: 'VALIDATION_ERROR', code: 'INVALID_PAYLOAD', issues, details }`) pada REST atau frame `{ type: 'ERROR', payload: { code: 'VALIDATION_ERROR', message, issues } }` pada WebSocket.
+   - Hook frontend (`src/hooks/useBackendSync.ts`) ikut memvalidasi pesan masuk melalui `ServerToClientMessageSchema.safeParse`.
+
+2. **Migrasi SQLite Terversi, Backup `VACUUM INTO` & Siklus Hidup WAL (`server/db/migrator.ts`, `server/db/migrations/`)**:
+   - Skema SQLite dikelola melalui berkas migrasi SQL bernomor urut (`001_initial_schema.sql`, dst.) yang dilacak di tabel `schema_migrations` (`version INTEGER PRIMARY KEY, name TEXT, applied_at TEXT`).
+   - Setiap skrip migrasi dijalankan secara atomik di dalam transaksi `db.transaction` dengan *idempotency check*.
+   - Fungsi `backupDatabase(source, destPath)` mengeksekusi `VACUUM INTO ?` secara aman tanpa mengunci operasi baca WAL aktif.
+   - *Graceful shutdown* (`SIGINT`/`SIGTERM` melalui `createGracefulShutdownHandler` di `server.ts`) mengirim kode tutup WebSocket `1001`, menutup server HTTP, menjalankan `PRAGMA wal_checkpoint(TRUNCATE);`, dan menutup koneksi database dengan bersih. Volume persisten dikonfigurasi pada `fly.toml` (`[[mounts]]` -> `/app/data`) dan `render.yaml` (`disk:` -> `/app/data`).
+
+3. **Structured JSON Logging & Korelasi Permintaan (`server/utils/logger.ts`)**:
+   - Seluruh log backend dicetak sebagai JSON satu baris terstruktur (`timestamp`, `level`, `service`, `message`, konteks tambahan) yang dikendalikan oleh `LOG_LEVEL` (`debug | info | warn | error`).
+   - `requestCorrelationMiddleware` menyisipkan dan menyebarkan header `X-Request-Id` untuk pelacakan permintaan end-to-end.
+   - Redaksi rekursif (`sanitizeLogValue` / `sanitizeLogContext`) secara otomatis menyensor (`[REDACTED]` / `[REDACTED_API_KEY]`) setiap field sensitif (`pin`, `roomPin`, `teacherPin`, `pinHash`, `sessionToken`, `teacherToken`, `metricsToken`, `authorization`, `apiKey`, pola `AIza...`, serta email/telepon/alamat) sebelum serialisasi JSON.
+
+4. **SRE Probes (`/healthz`, `/readyz`, `/metrics`) (`server/routes/healthRoutes.ts`)**:
+   - `GET /healthz`: *Liveness probe* ringan (`200 OK`, `uptimeSeconds`, `timestamp`).
+   - `GET /readyz`: *Readiness probe* yang memverifikasi `SELECT 1` pada SQLite, kesiapan `WebSocketServer`, dan status *shutting down* (`503` saat draining, `200` saat siap); dijadikan target `healthCheckPath` di `fly.toml`, `render.yaml`, dan `Dockerfile`.
+   - `GET /metrics`: Melaporkan metrik runtime (`activeRooms`, `connectedClients`, `activeParameterLocks`, `memoryRssMb`, `heapUsedMb`, `sqliteWalSizeBytes`). Pada mode `production`, endpoint ini wajib diautentikasi menggunakan Bearer token (`METRICS_TOKEN`).
+
