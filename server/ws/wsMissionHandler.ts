@@ -1,3 +1,4 @@
+import type { WsPayloadOf } from '../../src/shared/contracts/wsContracts';
 import type { CustomAIMissionPayload, LabRoom } from '../../src/utils/collabProtocol';
 import { generateSecureRoomPin, hashRoomPin } from '../state/labServerState';
 import { sanitizeRoomForBroadcast } from '../utils/collabReconnectSync';
@@ -43,7 +44,7 @@ export function applyCustomMissionToRoom(
 
 export function handleRoomSetCustomMission(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'ROOM_SET_CUSTOM_MISSION'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastAll, broadcastRoom } = services;
@@ -67,8 +68,7 @@ export function handleRoomSetCustomMission(
     typeof payload.teacherName === 'string' && payload.teacherName.trim()
       ? payload.teacherName.trim()
       : ws.userName;
-  const customMission =
-    (payload.customMission as CustomAIMissionPayload | null | undefined) ?? null;
+  const customMission = payload.customMission ?? null;
 
   const updatedRoom = applyCustomMissionToRoom(
     state.activeLabRooms,
@@ -95,7 +95,7 @@ export function handleRoomSetCustomMission(
 
 export function handleTeacherFreezeToggle(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'TEACHER_FREEZE_TOGGLE'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastRoom } = services;

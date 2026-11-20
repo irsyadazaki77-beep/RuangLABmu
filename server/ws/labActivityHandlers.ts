@@ -1,7 +1,7 @@
+import type { WsPayloadOf } from '../../src/shared/contracts/wsContracts';
 import type {
   CollabNote,
   GroupTask,
-  ServerExperimentRecord,
   ServerNotification,
   StudentProgress,
 } from '../state/labServerState';
@@ -9,7 +9,7 @@ import { authorizeTeacherAction } from './wsAuth';
 import type { ExtWebSocket, WsHandlerServices } from './wsTypes';
 
 export function handleRecordCreate(
-  rec: ServerExperimentRecord,
+  rec: WsPayloadOf<'record:create'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastAll } = services;
@@ -49,11 +49,11 @@ export function handleRecordDelete(
 }
 
 export function handleTaskToggle(
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'task:toggle'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastAll } = services;
-  const taskId = typeof payload.id === 'string' ? payload.id : '';
+  const taskId = payload.id;
   const task = state.groupTasks.find((t) => t.id === taskId);
   if (task) {
     task.completed = !task.completed;
@@ -66,11 +66,11 @@ export function handleTaskToggle(
 }
 
 export function handleTaskCreate(
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'task:create'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastAll } = services;
-  const title = typeof payload.title === 'string' ? payload.title : '';
+  const title = payload.title;
   if (!title) return;
   const newTask: GroupTask = {
     id: typeof payload.id === 'string' && payload.id ? payload.id : `task-${Date.now()}`,
@@ -93,11 +93,11 @@ export function handleTaskCreate(
 }
 
 export function handleNoteCreate(
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'note:create'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastAll } = services;
-  const text = typeof payload.text === 'string' ? payload.text : '';
+  const text = payload.text;
   if (!text) return;
   const note: CollabNote = {
     id: typeof payload.id === 'string' && payload.id ? payload.id : `note-${Date.now()}`,
@@ -124,7 +124,7 @@ export function handleNoteCreate(
 }
 
 export function handleQuizSubmit(
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'quiz:submit'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastAll } = services;
@@ -161,7 +161,7 @@ export function handleQuizSubmit(
 }
 
 export function handleNotificationPush(
-  notif: ServerNotification,
+  notif: WsPayloadOf<'notification:push'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastAll } = services;
@@ -177,7 +177,7 @@ export function handleNotificationPush(
 
 export function handleTeacherFeedback(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'teacher:feedback'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastAll } = services;
@@ -186,7 +186,7 @@ export function handleTeacherFeedback(
 
   const targetStudentId =
     typeof payload.targetStudentId === 'string' ? payload.targetStudentId : undefined;
-  const message = typeof payload.message === 'string' ? payload.message : '';
+  const message = payload.message;
   const author =
     typeof payload.author === 'string' && payload.author
       ? payload.author
@@ -232,14 +232,14 @@ export function handleTeacherFeedback(
 
 export function handleMysteryBroadcast(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'mystery:broadcast'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastAll } = services;
   const auth = authorizeTeacherAction(ws, payload, state.activeLabRooms);
   if (!auth.authorized) return;
 
-  const challenge = (payload.challenge || {}) as Record<string, unknown>;
+  const challenge = payload.challenge;
   const author =
     typeof payload.author === 'string' && payload.author
       ? payload.author
@@ -270,13 +270,13 @@ export function handleMysteryBroadcast(
 }
 
 export function handleMysterySubmit(
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'mystery:submit'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastAll } = services;
   const studentName = String(payload.studentName || 'Siswa');
   const challengeTitle = String(payload.challengeTitle || 'Ujian Misteri');
-  const result = (payload.result || {}) as Record<string, unknown>;
+  const result = payload.result;
   const score = Number(result.score || 0);
   const passed = Boolean(result.passed);
 

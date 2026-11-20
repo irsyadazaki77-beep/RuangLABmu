@@ -68,6 +68,17 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
     return () => window.clearInterval(timer);
   }, [isPlaying, playbackSpeed, events.length]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !submission || typeof document === 'undefined') return null;
 
   const activeEvent = events[currentIndex] || events[0];

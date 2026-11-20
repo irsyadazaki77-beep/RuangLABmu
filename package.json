@@ -17,7 +17,8 @@
     "clean": "node -e \"const fs=require('fs');['dist','dist-server','release'].forEach(d=>fs.rmSync(d,{recursive:true,force:true}))\"",
     "lint": "tsc --noEmit",
     "test": "tsx --test 'src/**/*.test.ts' 'server/**/*.test.ts'",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:load": "bun run scripts/wsLoadTest.ts"
   },
   "dependencies": {
     "@google/genai": "^2.32.0",

@@ -38,7 +38,7 @@ export interface TeacherControlBarProps {
 }
 
 /**
- * Floating Teacher Control Bar displayed at the top of the workspace when role === 'pengajar'.
+ * Clean Teacher Control Bar displayed at the top of the workspace when role === 'pengajar'.
  */
 export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
   activeRoomId,
@@ -61,22 +61,24 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
   onToggleTeacherFreeze,
 }) => {
   return (
-    <div className="shrink-0 bg-slate-900/95 border-b border-amber-500/30 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 z-30">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/40 text-xs font-mono font-bold text-amber-300">
-          <Users className="w-3.5 h-3.5" />
-          {activeRoomId
-            ? `MEJA AKTIF: ${activeRoomId}${roomPin ? ` (PIN: ${roomPin})` : ''} · ${roomMembersCount} Peserta`
-            : 'MODE GURU: Belum Membuka Room PIN'}
+    <div className="shrink-0 bg-slate-900 border-b border-slate-800 px-4 py-2 flex flex-wrap items-center justify-between gap-3 z-30 text-slate-100">
+      <div className="flex flex-wrap items-center gap-3 text-xs">
+        <span className="inline-flex items-center gap-1.5 font-mono font-semibold text-amber-300 tabular-nums">
+          <Users className="w-3.5 h-3.5 shrink-0" />
+          <span>
+            {activeRoomId
+              ? `MEJA AKTIF: ${activeRoomId}${roomPin ? ` (PIN: ${roomPin})` : ''} · ${roomMembersCount} Peserta`
+              : 'MODE GURU: Belum Membuka Room PIN'}
+          </span>
         </span>
 
         {lanInfo && (
           <span
             data-testid="teacher-bar-lan-badge"
             title="Tips Daerah 3T: Nyalakan Hotspot Wi-Fi di laptop Guru agar siswa dapat membuka IP ini tanpa kuota internet!"
-            className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs font-mono text-amber-300"
+            className="hidden lg:inline-flex items-center gap-1.5 text-xs font-mono text-slate-300 pl-3 border-l border-slate-800"
           >
-            <Wifi className="w-3.5 h-3.5 text-amber-400" />
+            <Wifi className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <span>
               LAN: <strong className="text-white select-all">{lanInfo.localUrl}</strong>
             </span>
@@ -84,21 +86,19 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
         )}
 
         {liveStudentTelemetries.length > 0 && (
-          <div className="hidden xl:flex items-center gap-2 text-xs text-slate-300 font-mono">
-            <span className="text-slate-500">Live Telemetri Siswa:</span>
-            {liveStudentTelemetries.slice(0, 3).map((st) => (
-              <span
-                key={st.studentName}
-                className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-sky-300"
-              >
-                {st.studentName}: {st.moduleTitle} ({st.recordsCount} data)
+          <div className="hidden xl:flex items-center gap-2 text-xs text-slate-300 font-mono pl-3 border-l border-slate-800 tabular-nums">
+            <span className="text-slate-400">Telemetri:</span>
+            {liveStudentTelemetries.slice(0, 2).map((st, i) => (
+              <span key={st.studentName} className="text-sky-300">
+                {i > 0 && <span className="text-slate-600 mr-2">·</span>}
+                {st.studentName}: {st.moduleTitle} ({st.recordsCount})
               </span>
             ))}
           </div>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <button
           type="button"
           data-testid="teacher-view-mode-btn"
@@ -107,9 +107,9 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
             if (isLobbyMode) setIsLobbyMode(false);
             setTeacherViewMode(teacherViewMode === 'dashboard' ? 'lab3d' : 'dashboard');
           }}
-          className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
+          className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 border transition-colors cursor-pointer whitespace-nowrap ${
             teacherViewMode === 'lab3d' && !isLobbyMode
-              ? 'bg-sky-600 text-white border-sky-400 shadow-md'
+              ? 'bg-sky-600 text-white border-sky-500'
               : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
           }`}
           title="Beralih antara Dashboard Monitoring Kelas dan Ruang Lab 3D Demonstrasi Guru"
@@ -139,15 +139,15 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
               setTeacherViewMode('lab3d');
             }
           }}
-          className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
+          className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 border transition-colors cursor-pointer whitespace-nowrap ${
             teacherLaserActive
-              ? 'bg-rose-600 text-white border-rose-400 ring-2 ring-rose-400/50 shadow-md'
+              ? 'bg-rose-600 text-white border-rose-500'
               : 'bg-slate-800 hover:bg-slate-700 text-rose-300 border-slate-700'
           }`}
           title="Arahkan kursor pada objek 3D untuk memancarkan sinar Laser Pointer merah real-time ke seluruh layar murid"
         >
           <Crosshair className="w-3.5 h-3.5" />
-          <span>{teacherLaserActive ? '🔴 Laser Pointer Aktif' : '🔴 Laser Pointer 3D'}</span>
+          <span>{teacherLaserActive ? 'Laser Pointer Aktif' : 'Laser Pointer 3D'}</span>
         </button>
 
         <button
@@ -162,9 +162,9 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
               setTeacherViewMode('lab3d');
             }
           }}
-          className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
+          className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 border transition-colors cursor-pointer whitespace-nowrap ${
             teacherCameraSyncEnabled
-              ? 'bg-indigo-600 text-white border-indigo-400 ring-2 ring-indigo-400/50 shadow-md'
+              ? 'bg-indigo-600 text-white border-indigo-500'
               : 'bg-slate-800 hover:bg-slate-700 text-indigo-300 border-slate-700'
           }`}
           title="Sinkronkan sudut pandang kamera 3D murid mengikuti rotasi kamera Guru secara langsung"
@@ -174,7 +174,7 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
           ) : (
             <VideoOff className="w-3.5 h-3.5" />
           )}
-          <span>{teacherCameraSyncEnabled ? '🎥 Kamera Tersinkron' : '🎥 Sinkronkan Kamera Murid'}</span>
+          <span>{teacherCameraSyncEnabled ? 'Kamera Tersinkron' : 'Sinkronkan Kamera Murid'}</span>
         </button>
 
         <button
@@ -184,17 +184,17 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
             labSound.playClick(620);
             onOpenAiMissionBuilder();
           }}
-          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>✨ Buat Misi Praktikum AI</span>
+          <span>Buat Misi Praktikum AI</span>
         </button>
 
         {!activeRoomId && (
           <button
             type="button"
             onClick={onOpenCreateRoom}
-            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs cursor-pointer transition-colors whitespace-nowrap"
           >
             + Buat Meja Praktikum Ber-PIN
           </button>
@@ -210,9 +210,9 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
               useCollabStore.getState().setTeacherFreeze(!isFrozenByTeacher, currentProfileName);
             }
           }}
-          className={`px-4 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 shadow-lg transition-all cursor-pointer ${
+          className={`px-3.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
             isFrozenByTeacher
-              ? 'bg-rose-600 hover:bg-rose-500 text-white ring-2 ring-rose-400/50'
+              ? 'bg-rose-600 hover:bg-rose-500 text-white'
               : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
           }`}
         >

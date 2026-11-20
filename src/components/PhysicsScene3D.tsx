@@ -162,6 +162,16 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   };
 
   const syncConceptLabelsRef = useRef<(() => void) | null>(null);
+  const snapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (snapToastTimerRef.current) {
+        clearTimeout(snapToastTimerRef.current);
+        snapToastTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     syncConceptLabelsRef.current?.();
@@ -310,23 +320,25 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     let measurePinStartA = rulerHandle.getEndpoints().posA;
     let measurePinStartB = rulerHandle.getEndpoints().posB;
     let measureStartAngleDeg = protractorHandle.getAngleDeg();
+    const scratchDragA = new THREE.Vector3();
+    const scratchDragB = new THREE.Vector3();
 
     rulerHandle.pinA.userData.onDrag = (dx: number, dy: number) => {
-      const nextA = new THREE.Vector3(
+      scratchDragA.set(
         Math.max(-5.5, Math.min(5.5, measurePinStartA.x + dx * 0.02)),
         Math.max(0.25, Math.min(4.8, measurePinStartA.y - dy * 0.02)),
         measurePinStartA.z
       );
-      const readout = rulerHandle.setEndpoints(nextA, rulerHandle.getEndpoints().posB);
+      const readout = rulerHandle.setEndpoints(scratchDragA, rulerHandle.getEndpoints().posB);
       setMeasureHud((prev) => ({ ...prev, ruler: readout.formatted }));
     };
     rulerHandle.pinB.userData.onDrag = (dx: number, dy: number) => {
-      const nextB = new THREE.Vector3(
+      scratchDragB.set(
         Math.max(-5.5, Math.min(5.5, measurePinStartB.x + dx * 0.02)),
         Math.max(0.25, Math.min(4.8, measurePinStartB.y - dy * 0.02)),
         measurePinStartB.z
       );
-      const readout = rulerHandle.setEndpoints(rulerHandle.getEndpoints().posA, nextB);
+      const readout = rulerHandle.setEndpoints(rulerHandle.getEndpoints().posA, scratchDragB);
       setMeasureHud((prev) => ({ ...prev, ruler: readout.formatted }));
     };
     protractorHandle.armHandle.userData.onDrag = (dx: number, dy: number) => {
@@ -427,6 +439,17 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     let prevSimTime = -1;
 
+    const syncConceptLabelsNow = () => {
+      const { params: curP, metrics: curM } = latestRef.current;
+      const activeLabels = showConceptLabelsRef.current;
+      const cDom = conceptDomRef.current;
+      const cw = container.clientWidth || width;
+      const ch = container.clientHeight || height;
+      const cEntries = coreStage.buildConceptEntries(curP, curM, activeLabels, cDom);
+      updateProjectedConceptLabels(cEntries, camera, cw, ch, activeLabels, conceptProjVec);
+    };
+    syncConceptLabelsRef.current = syncConceptLabelsNow;
+
     const loopHandle = startStudioRenderLoop({
       renderer,
       isSoftwareGl,
@@ -486,17 +509,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         teacherCollabBridge.tick(nowMs, frameDt);
         controls.update();
 
-        const syncConceptLabelsNow = () => {
-          const { params: curP, metrics: curM } = latestRef.current;
-          const activeLabels = showConceptLabelsRef.current;
-          const cDom = conceptDomRef.current;
-          const cw = container.clientWidth || width;
-          const ch = container.clientHeight || height;
-          const cEntries = coreStage.buildConceptEntries(curP, curM, activeLabels, cDom);
-          updateProjectedConceptLabels(cEntries, camera, cw, ch, activeLabels, conceptProjVec);
-        };
-
-        syncConceptLabelsRef.current = syncConceptLabelsNow;
         syncConceptLabelsNow();
 
         host.renderFrame(frameDt);
@@ -582,18 +594,19 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         <button
           type="button"
           data-testid="toggle-3d-measure-btn"
+          aria-pressed={showMeasureTools}
           onClick={() => {
             labSound.playClick(700);
             setShowMeasureTools((prev) => !prev);
           }}
           title="Tampilkan / Sembunyikan Mistar Kaliper & Busur Derajat 3D (Seret pin/lengan di layar)"
-          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
             showMeasureTools
               ? 'bg-sky-500 text-slate-950 font-bold'
               : 'text-sky-300 hover:text-white hover:bg-white/10'
           }`}
         >
-          <Ruler className="w-3.5 h-3.5" />
+          <Ruler className="w-3.5 h-3.5" aria-hidden="true" />
           <span className="hidden xl:inline">Ukur 3D</span>
         </button>
 
@@ -607,25 +620,30 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
                 label: `Port Docked (${docked.portType.toUpperCase()})`,
                 value: `I = ${(transfer?.electricCurrentAmp ?? 0).toFixed(2)} A`,
               });
-              setTimeout(() => setDragToast(null), 1800);
+              if (snapToastTimerRef.current) clearTimeout(snapToastTimerRef.current);
+              snapToastTimerRef.current = setTimeout(() => {
+                snapToastTimerRef.current = null;
+                setDragToast(null);
+              }, 1800);
             }
           }}
           title="Snap-to-Port: Sambung & Transfer Aparatus 3D"
-          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-white hover:bg-white/10 flex items-center gap-1 transition-colors cursor-pointer"
+          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-white hover:bg-white/10 flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
         >
-          <Link2 className="w-3.5 h-3.5" />
+          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
           <span className="hidden xl:inline">Snap</span>
         </button>
 
         <button
           type="button"
           data-testid="enter-vr-lab-btn"
+          aria-label="Mode VR Spasial 3D"
           onClick={() => {
             labSound.playClick(700);
             void toggleImmersiveVRSession();
           }}
           title="Mode VR Spasial 3D (WebXR Immersive-VR)"
-          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
         >
           <span aria-hidden="true">🥽</span>
         </button>
@@ -636,9 +654,10 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           <button
             type="button"
             data-testid="camera-reset-btn"
+            aria-label="Reset View Kamera 3D"
             onClick={() => handleSelectCameraPreset('isometric')}
             title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
           >
             Reset
           </button>
@@ -653,8 +672,10 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
             <button
               key={preset.id}
               type="button"
+              title={`Sudut Kamera ${preset.label}`}
+              aria-pressed={activePreset === preset.id}
               onClick={() => handleSelectCameraPreset(preset.id)}
-              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer ${
+              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
                 activePreset === preset.id
                   ? 'bg-sky-500 text-slate-950 font-bold'
                   : 'text-slate-300 hover:text-white hover:bg-white/10'
@@ -667,12 +688,13 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
             <button
               type="button"
               data-testid="projectile-follow-cam-toggle"
+              aria-pressed={followCamEnabled}
               onClick={() => {
                 labSound.playClick(680);
                 setFollowCamEnabled((prev) => !prev);
               }}
               title="Follow Cam: Ikuti lintasan proyektil secara halus"
-              className={`px-2 py-1 text-[10px] font-mono rounded-lg transition-colors cursor-pointer ${
+              className={`px-2 py-1 text-[10px] font-mono rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
                 followCamEnabled
                   ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/40 font-semibold'
                   : 'text-slate-400 hover:text-white hover:bg-white/10'
@@ -695,13 +717,15 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer"
+          aria-label={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
+          aria-pressed={isFullscreen}
+          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
           title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
         >
           {isFullscreen ? (
-            <Minimize2 className="w-3.5 h-3.5 text-sky-400" />
+            <Minimize2 className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
           ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
+            <Maximize2 className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
           )}
         </button>
       </div>

@@ -127,6 +127,16 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   lensFocusRef.current = lensFocus;
 
   const syncConceptLabelsRef = useRef<(() => void) | null>(null);
+  const snapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (snapToastTimerRef.current) {
+        clearTimeout(snapToastTimerRef.current);
+        snapToastTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     syncConceptLabelsRef.current?.();
@@ -247,29 +257,31 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
 
     let dragPinStartA = rulerHandle.getEndpoints().posA;
     let dragPinStartB = rulerHandle.getEndpoints().posB;
+    const scratchPinA = new THREE.Vector3();
+    const scratchPinB = new THREE.Vector3();
     rulerHandle.pinA.userData = {
       ...rulerHandle.pinA.userData,
       onDrag: (dx: number, dy: number) => {
-        const nextA = new THREE.Vector3(
+        scratchPinA.set(
           Math.max(-3.2, Math.min(3.2, dragPinStartA.x + dx * 0.015)),
           dragPinStartA.y,
           Math.max(-2.6, Math.min(2.6, dragPinStartA.z + dy * 0.015))
         );
         const currentB = rulerHandle.getEndpoints().posB;
-        const res = rulerHandle.setEndpoints(nextA, currentB);
+        const res = rulerHandle.setEndpoints(scratchPinA, currentB);
         setRulerReadout(res.formatted);
       },
     };
     rulerHandle.pinB.userData = {
       ...rulerHandle.pinB.userData,
       onDrag: (dx: number, dy: number) => {
-        const nextB = new THREE.Vector3(
+        scratchPinB.set(
           Math.max(-3.2, Math.min(3.2, dragPinStartB.x + dx * 0.015)),
           dragPinStartB.y,
           Math.max(-2.6, Math.min(2.6, dragPinStartB.z + dy * 0.015))
         );
         const currentA = rulerHandle.getEndpoints().posA;
-        const res = rulerHandle.setEndpoints(currentA, nextB);
+        const res = rulerHandle.setEndpoints(currentA, scratchPinB);
         setRulerReadout(res.formatted);
       },
     };
@@ -353,6 +365,40 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       { dom: conceptDomRef.current.c2, worldPos: zeroConceptVec, text: '', active: false },
       { dom: conceptDomRef.current.c3, worldPos: zeroConceptVec, text: '', active: false },
     ];
+    let latestRigAnchors: ReturnType<typeof coreStage.update> | null = null;
+
+    const syncBioLabelsNow = () => {
+      if (!latestRigAnchors) return;
+      const showLabels = showConceptLabelsRef.current;
+      const cw = container.clientWidth || width;
+      const ch = container.clientHeight || height;
+      const cDom = conceptDomRef.current;
+
+      reusableConceptEntries[0].dom = cDom.c1;
+      reusableConceptEntries[0].worldPos = latestRigAnchors.c1?.pos ?? zeroConceptVec;
+      reusableConceptEntries[0].text = latestRigAnchors.c1?.text ?? '';
+      reusableConceptEntries[0].active = Boolean(showLabels && latestRigAnchors.c1);
+
+      reusableConceptEntries[1].dom = cDom.c2;
+      reusableConceptEntries[1].worldPos = latestRigAnchors.c2?.pos ?? zeroConceptVec;
+      reusableConceptEntries[1].text = latestRigAnchors.c2?.text ?? '';
+      reusableConceptEntries[1].active = Boolean(showLabels && latestRigAnchors.c2);
+
+      reusableConceptEntries[2].dom = cDom.c3;
+      reusableConceptEntries[2].worldPos = latestRigAnchors.c3?.pos ?? zeroConceptVec;
+      reusableConceptEntries[2].text = latestRigAnchors.c3?.text ?? '';
+      reusableConceptEntries[2].active = Boolean(showLabels && latestRigAnchors.c3);
+
+      updateProjectedConceptLabels(
+        reusableConceptEntries,
+        camera,
+        cw,
+        ch,
+        showLabels,
+        conceptProjVec
+      );
+    };
+    syncConceptLabelsRef.current = syncBioLabelsNow;
 
     const loopHandle = startStudioRenderLoop({
       renderer,
@@ -371,7 +417,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
             ? simTimePropRef.current
             : elapsed;
 
-        const rigAnchors = coreStage.update(
+        latestRigAnchors = coreStage.update(
           t,
           delta,
           curParams,
@@ -397,38 +443,6 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         teacherCollabBridge.tick(nowMs, delta);
         controls.update();
 
-        const syncBioLabelsNow = () => {
-          const showLabels = showConceptLabelsRef.current;
-          const cw = container.clientWidth || width;
-          const ch = container.clientHeight || height;
-          const cDom = conceptDomRef.current;
-
-          reusableConceptEntries[0].dom = cDom.c1;
-          reusableConceptEntries[0].worldPos = rigAnchors.c1?.pos ?? zeroConceptVec;
-          reusableConceptEntries[0].text = rigAnchors.c1?.text ?? '';
-          reusableConceptEntries[0].active = Boolean(showLabels && rigAnchors.c1);
-
-          reusableConceptEntries[1].dom = cDom.c2;
-          reusableConceptEntries[1].worldPos = rigAnchors.c2?.pos ?? zeroConceptVec;
-          reusableConceptEntries[1].text = rigAnchors.c2?.text ?? '';
-          reusableConceptEntries[1].active = Boolean(showLabels && rigAnchors.c2);
-
-          reusableConceptEntries[2].dom = cDom.c3;
-          reusableConceptEntries[2].worldPos = rigAnchors.c3?.pos ?? zeroConceptVec;
-          reusableConceptEntries[2].text = rigAnchors.c3?.text ?? '';
-          reusableConceptEntries[2].active = Boolean(showLabels && rigAnchors.c3);
-
-          updateProjectedConceptLabels(
-            reusableConceptEntries,
-            camera,
-            cw,
-            ch,
-            showLabels,
-            conceptProjVec
-          );
-        };
-
-        syncConceptLabelsRef.current = syncBioLabelsNow;
         syncBioLabelsNow();
 
         host.renderFrame(delta);
@@ -619,18 +633,19 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         <button
           type="button"
           data-testid="toggle-3d-ruler-btn"
+          aria-pressed={showRuler3D}
           onClick={() => {
             labSound.playClick(700);
             setShowRuler3D((prev) => !prev);
           }}
           title="Tampilkan / Sembunyikan Mistar Kaliper 3D di Meja Spesimen"
-          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
             showRuler3D
               ? 'bg-emerald-500 text-slate-950 font-bold'
               : 'text-emerald-300 hover:text-white hover:bg-white/10'
           }`}
         >
-          <Ruler className="w-3.5 h-3.5" />
+          <Ruler className="w-3.5 h-3.5" aria-hidden="true" />
           <span className="hidden xl:inline">Ukur 3D</span>
         </button>
 
@@ -643,25 +658,30 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
               setSnapToast(
                 `Port Docked (${docked.portType.toUpperCase()}): Φ = ${(transfer?.opticalIntensityMw ?? 0).toFixed(1)} mW`
               );
-              setTimeout(() => setSnapToast(null), 2000);
+              if (snapToastTimerRef.current) clearTimeout(snapToastTimerRef.current);
+              snapToastTimerRef.current = setTimeout(() => {
+                snapToastTimerRef.current = null;
+                setSnapToast(null);
+              }, 2000);
             }
           }}
           title="Snap-to-Port: Sambung & Transfer Spesimen Biologi 3D"
-          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-white hover:bg-white/10 flex items-center gap-1 transition-colors cursor-pointer"
+          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-white hover:bg-white/10 flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
         >
-          <Link2 className="w-3.5 h-3.5" />
+          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
           <span className="hidden xl:inline">Snap</span>
         </button>
 
         <button
           type="button"
           data-testid="enter-vr-lab-btn"
+          aria-label="Mode VR Spasial 3D"
           onClick={() => {
             labSound.playClick(700);
             void toggleImmersiveVRSession();
           }}
           title="Mode VR Spasial 3D (WebXR Immersive-VR)"
-          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
         >
           <span aria-hidden="true">🥽</span>
         </button>
@@ -672,13 +692,14 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           <button
             type="button"
             data-testid="camera-reset-btn"
+            aria-label="Reset View Kamera 3D"
             onClick={() => {
               labSound.playClick();
               setActivePreset('isometric');
               cameraCtrlRef.current?.setPreset('isometric');
             }}
             title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           >
             Reset
           </button>
@@ -693,12 +714,14 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
             <button
               key={preset.id}
               type="button"
+              title={`Sudut Kamera ${preset.label}`}
+              aria-pressed={activePreset === preset.id}
               onClick={() => {
                 labSound.playClick();
                 setActivePreset(preset.id);
                 cameraCtrlRef.current?.setPreset(preset.id);
               }}
-              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer ${
+              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
                 activePreset === preset.id
                   ? 'bg-emerald-500 text-slate-950 font-bold'
                   : 'text-slate-300 hover:text-white hover:bg-white/10'
@@ -715,13 +738,15 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer"
+          aria-label={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
+          aria-pressed={isFullscreen}
+          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
         >
           {isFullscreen ? (
-            <Minimize2 className="w-3.5 h-3.5 text-emerald-400" />
+            <Minimize2 className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
           ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+            <Maximize2 className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
           )}
         </button>
       </div>

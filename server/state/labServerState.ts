@@ -17,7 +17,9 @@ import {
   type DbParticipantRecord,
   type DbRoomRecord,
   type DbSimulationSnapshotRecord,
+  type LabRepository,
 } from '../db/database';
+import { DEFAULT_SCHOOL_ID } from '../db/LabRepository';
 
 export {
   DEFAULT_NOTIFICATION_TTL_MS,
@@ -149,6 +151,7 @@ export interface LabServerState {
   readonly dbPath: string;
   readonly sqliteStore: LabSqliteStore;
   readonly database: RuangLabDatabase;
+  readonly repository: LabRepository;
   experimentRecords: ServerExperimentRecord[];
   groupTasks: GroupTask[];
   collabNotes: CollabNote[];
@@ -162,6 +165,7 @@ export interface LabServerState {
       version: number;
       session: unknown;
       updatedAt: number;
+      schoolId?: string;
       ownerStudentId?: string;
       ownerTokenHash?: string;
     }
@@ -198,6 +202,7 @@ export interface LabServerState {
   } | null;
   saveGradebookEntry: (entry: {
     id: string;
+    schoolId?: string;
     roomPin: string;
     studentId: string;
     studentName: string;
@@ -206,7 +211,7 @@ export interface LabServerState {
     rubricJson: string;
     submittedAt?: number;
   }) => DbGradebookEntryRecord;
-  getGradebookEntries: (roomPin?: string) => DbGradebookEntryRecord[];
+  getGradebookEntries: (roomPin?: string, schoolId?: string) => DbGradebookEntryRecord[];
   pruneExpiredDatabaseRooms: (now?: number) => number;
   pruneExpiredLocks: (now?: number) => void;
   pruneExpiredNotifications: (now?: number) => void;
@@ -254,6 +259,7 @@ export function createLabServerState(options?: {
   const resolvedDbPath = options?.dbPath || resolveDefaultDbPath();
   const sqliteStore = new LabSqliteStore(resolvedDbPath);
   const database = new RuangLabDatabase(resolvedDbPath);
+  const repository: LabRepository = database;
 
   const syncRoomToRelationalTables = (room: LabRoom) => {
     const cleanPin = String(room.pin || room.roomId).trim();
@@ -262,8 +268,9 @@ export function createLabServerState(options?: {
     const createdAt = room.createdAt || now;
     const lastActive = room.lastActivityAt ?? createdAt;
     const expiresAt = lastActive + limits.ROOM_IDLE_TTL_MS;
-    database.upsertRoom({
+    repository.upsertRoom({
       pin: cleanPin,
+      schoolId: room.schoolId || DEFAULT_SCHOOL_ID,
       hostId: room.teacherName || room.roomId || 'host',
       moduleDomain: `${room.domain}:${room.moduleId}`,
       status: room.isFrozenByTeacher ? 'frozen' : 'active',
@@ -485,14 +492,24 @@ export function createLabServerState(options?: {
       version: number;
       session: unknown;
       updatedAt: number;
+      schoolId?: string;
       ownerStudentId?: string;
       ownerTokenHash?: string;
     }
   >({
     onSet: (key, snap) => {
       sqliteStore.upsertSessionSnapshot(key, snap);
+      repository.upsertAutosave({
+        storageKey: key,
+        schoolId: snap.schoolId || DEFAULT_SCHOOL_ID,
+        studentId: snap.ownerStudentId || null,
+        version: snap.version,
+        ownerTokenHash: snap.ownerTokenHash || null,
+        sessionJson: JSON.stringify(snap.session ?? {}),
+        updatedAt: snap.updatedAt,
+      });
       if (snap.session && typeof snap.session === 'object') {
-        database.saveSimulationSnapshot(
+        repository.saveSimulationSnapshot(
           key,
           snap.session as Record<string, unknown>,
           snap.updatedAt
@@ -509,6 +526,24 @@ export function createLabServerState(options?: {
   }
   for (const snap of sqliteStore.loadAllSessionSnapshots()) {
     sessionSnapshots.setSilent(snap.key, snap.value);
+  }
+  for (const row of repository.listAutosaves()) {
+    if (!sessionSnapshots.has(row.storage_key)) {
+      let parsedSession: unknown = {};
+      try {
+        parsedSession = JSON.parse(row.session_json);
+      } catch {
+        parsedSession = {};
+      }
+      sessionSnapshots.setSilent(row.storage_key, {
+        version: row.version,
+        session: parsedSession,
+        updatedAt: row.updated_at,
+        schoolId: row.school_id,
+        ownerStudentId: row.student_id || undefined,
+        ownerTokenHash: row.owner_token_hash || undefined,
+      });
+    }
   }
   for (const lockEntry of sqliteStore.loadActiveParameterLocks()) {
     parameterLocks.setSilent(lockEntry.key, lockEntry.lock);
@@ -605,6 +640,7 @@ export function createLabServerState(options?: {
 
   const saveGradebookEntry = (entry: {
     id: string;
+    schoolId?: string;
     roomPin: string;
     studentId: string;
     studentName: string;
@@ -615,19 +651,22 @@ export function createLabServerState(options?: {
   }) => {
     const matchedRoom = findRoomByPinOrId(entry.roomPin);
     const effectivePin = matchedRoom?.pin || String(entry.roomPin || 'MANDIRI').trim();
-    return database.upsertGradebookEntry({
+    const effectiveSchoolId =
+      entry.schoolId || matchedRoom?.schoolId || DEFAULT_SCHOOL_ID;
+    return repository.upsertGradebookEntry({
       ...entry,
+      schoolId: effectiveSchoolId,
       roomPin: effectivePin,
     });
   };
 
-  const getGradebookEntries = (roomPin?: string) => {
+  const getGradebookEntries = (roomPin?: string, schoolId?: string) => {
     if (!roomPin) {
-      return database.listGradebookEntries();
+      return repository.listGradebookEntries(undefined, schoolId);
     }
     const matchedRoom = findRoomByPinOrId(roomPin);
     const effectivePin = matchedRoom?.pin || roomPin.trim();
-    return database.listGradebookEntries(effectivePin);
+    return repository.listGradebookEntries(effectivePin, schoolId);
   };
 
   const pruneExpiredDatabaseRooms = (now = Date.now()) => {
@@ -868,6 +907,7 @@ export function createLabServerState(options?: {
     dbPath: resolvedDbPath,
     sqliteStore,
     database,
+    repository,
     experimentRecords,
     groupTasks,
     collabNotes,

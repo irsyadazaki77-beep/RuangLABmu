@@ -16,6 +16,8 @@ import { useSimulationSync } from './useSimulationSync';
 import { useGradebookSubmit } from './useGradebookSubmit';
 import { shouldShowConceptLabelsByDefault } from '../utils/pedagogicalHelpers';
 
+const EMPTY_LKS_ANSWERS: Record<string, string> = {};
+
 export function useLabSession() {
   const {
     activeDomain,
@@ -180,7 +182,7 @@ export function useLabSession() {
     activeModuleId,
     activeWorkflowStep: workflowStep,
     recordedTrials: collabBridge.records,
-    lksAnswers: {},
+    lksAnswers: EMPTY_LKS_ANSWERS,
     safetyPledgeAgreed: workflowStep > 1,
     physicsParams: paramsSync.physicsParams,
     chemistryParams: paramsSync.chemistryParams,

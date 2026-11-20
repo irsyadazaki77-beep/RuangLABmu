@@ -7,6 +7,7 @@ import {
   validateConversationalDrLabMuPayload,
   validateVisionDiagnosePayload,
   validateCreateSubmissionPayload,
+  validateGradebookQuery,
   validateGradeSubmissionPayload,
 } from './routePayloadValidators';
 
@@ -200,5 +201,22 @@ describe('Backend Route Payload Validators', () => {
       feedback: 'Analisis data konsisten!',
     });
     assert.equal(validGrade.ok, true);
+  });
+
+  it('validates GET /api/gradebook query params strictly', () => {
+    const emptyOk = validateGradebookQuery({});
+    assert.equal(emptyOk.ok, true);
+    if (emptyOk.ok) assert.equal(emptyOk.data.roomPin, undefined);
+
+    const blankOk = validateGradebookQuery({ roomPin: '   ' });
+    assert.equal(blankOk.ok, true);
+    if (blankOk.ok) assert.equal(blankOk.data.roomPin, undefined);
+
+    const pinOk = validateGradebookQuery({ roomPin: ' 842619 ' });
+    assert.equal(pinOk.ok, true);
+    if (pinOk.ok) assert.equal(pinOk.data.roomPin, '842619');
+
+    assert.equal(validateGradebookQuery({ roomPin: ['a', 'b'] }).ok, false);
+    assert.equal(validateGradebookQuery({ roomPin: 'x'.repeat(65) }).ok, false);
   });
 });

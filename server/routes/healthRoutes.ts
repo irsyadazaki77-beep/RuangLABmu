@@ -5,9 +5,12 @@ import type { WebSocketServer } from 'ws';
 import type { LabServerState } from '../state/labServerState';
 import { logger } from '../utils/logger';
 
+import type { WsBackpressureStats } from '../ws/wsTypes';
+
 export interface HealthRoutesDeps {
   state: LabServerState;
   wss?: WebSocketServer | null;
+  getBackpressureStats?: () => WsBackpressureStats;
   isShuttingDown?: () => boolean;
   isProduction?: () => boolean;
   getMetricsToken?: () => string | undefined;
@@ -45,6 +48,7 @@ function readSqliteWalSizeBytes(dbPath: string): number {
 export function createHealthRouter({
   state,
   wss,
+  getBackpressureStats = () => ({ droppedNonCriticalFrames: 0 }),
   isShuttingDown = () => false,
   isProduction = () => process.env.NODE_ENV === 'production',
   getMetricsToken = () => process.env.METRICS_TOKEN,
@@ -110,10 +114,12 @@ export function createHealthRouter({
     const mem = process.memoryUsage();
     const toMb = (bytes: number) => Number((bytes / (1024 * 1024)).toFixed(2));
 
+    const backpressureStats = getBackpressureStats();
     res.status(200).json({
       activeRooms: state.activeLabRooms.size,
       connectedClients: wss ? wss.clients.size : 0,
       activeParameterLocks: state.parameterLocks.size,
+      wsBackpressureDroppedFrames: backpressureStats.droppedNonCriticalFrames,
       memoryRssMb: toMb(mem.rss),
       heapUsedMb: toMb(mem.heapUsed),
       sqliteWalSizeBytes: readSqliteWalSizeBytes(state.dbPath),

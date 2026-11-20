@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { RotateCcw, Users } from 'lucide-react';
 
 export interface PassAndPlayRotationModalProps {
@@ -32,12 +32,24 @@ export const PassAndPlayRotationModal: React.FC<PassAndPlayRotationModalProps> =
   isRotatingGroup,
   onConfirmRotation,
 }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div
       role="dialog"
       aria-modal="true"
+      aria-label="Gilir Kelompok Pass-and-Play"
       data-testid="pass-and-play-modal"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in"
     >
@@ -59,7 +71,8 @@ export const PassAndPlayRotationModal: React.FC<PassAndPlayRotationModalProps> =
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1 cursor-pointer"
+            aria-label="Tutup dialog gilir kelompok"
+            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1 rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
             title="Tutup dialog"
           >
             ✕

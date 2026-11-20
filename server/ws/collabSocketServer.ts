@@ -1,12 +1,7 @@
 import crypto from 'crypto';
 import type http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import type { ParameterLockPayload, SpatialCursorPayload } from '../../src/utils/collabProtocol';
-import type {
-  LabServerState,
-  ServerExperimentRecord,
-  ServerNotification,
-} from '../state/labServerState';
+import type { LabServerState } from '../state/labServerState';
 import {
   handleRoomSetCustomMission,
   handleTeacherFreezeToggle,
@@ -53,6 +48,71 @@ export type { CollabSocketContext, ExtWebSocket } from './wsTypes';
 export { applyCustomMissionToRoom } from './wsMissionHandler';
 
 export const WS_HEARTBEAT_INTERVAL_MS = 30_000;
+export const WS_BACKPRESSURE_HIGH_WATERMARK_BYTES = 64 * 1024;
+export const WS_NON_CRITICAL_HIGH_FREQ_TYPES: ReadonlySet<string> = new Set([
+  'CURSOR_3D_MOVE',
+  'SPATIAL_CURSOR',
+  'PARAM_VALUE_SYNC',
+  'PARAM_UPDATE',
+  'STUDENT_TELEMETRY_SYNC',
+  'TEACHER_LASER_RAY',
+  'TEACHER_CAMERA_SYNC',
+]);
+
+export function isNonCriticalWsFrame(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') return false;
+  const msgType = (payload as { type?: unknown }).type;
+  return typeof msgType === 'string' && WS_NON_CRITICAL_HIGH_FREQ_TYPES.has(msgType);
+}
+
+export interface SafeWsSendOptions {
+  critical: boolean;
+  highWatermarkBytes?: number;
+  onDropped?: () => void;
+}
+
+/**
+ * Backpressure guard for slow/3T WebSocket clients: skips sending high-frequency
+ * non-critical frames when the client send buffer exceeds the high watermark (64 KB),
+ * preventing server memory spikes while keeping critical state/lock frames delivered.
+ */
+export function safeWsSend(
+  client: Pick<WebSocket, 'readyState' | 'bufferedAmount' | 'send'>,
+  payload: unknown,
+  options: SafeWsSendOptions
+): boolean {
+  if (client.readyState !== WebSocket.OPEN) {
+    return false;
+  }
+  const highWatermarkBytes =
+    options.highWatermarkBytes ?? WS_BACKPRESSURE_HIGH_WATERMARK_BYTES;
+  const buffered = typeof client.bufferedAmount === 'number' ? client.bufferedAmount : 0;
+  if (!options.critical && buffered > highWatermarkBytes) {
+    options.onDropped?.();
+    return false;
+  }
+  const raw = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  try {
+    client.send(raw);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function safeSendWsMessage(
+  client: Pick<WebSocket, 'readyState' | 'bufferedAmount' | 'send'>,
+  raw: string,
+  nonCritical: boolean,
+  highWatermarkBytes: number = WS_BACKPRESSURE_HIGH_WATERMARK_BYTES,
+  onDropped?: () => void
+): boolean {
+  return safeWsSend(client, raw, {
+    critical: !nonCritical,
+    highWatermarkBytes,
+    onDropped,
+  });
+}
 
 /**
  * Executes a single heartbeat sweep across all connected WebSocket clients.
@@ -85,6 +145,8 @@ export function runWsHeartbeatSweep(
       }
     }
   }
+  services.state.pruneExpiredLocks();
+  services.state.pruneIdleRooms();
   return terminatedCount;
 }
 
@@ -99,12 +161,16 @@ export function createCollabSocketServer(
     }
   });
 
+  let droppedNonCriticalFrames = 0;
+  const onBackpressureDropped = () => {
+    droppedNonCriticalFrames += 1;
+  };
+
   const broadcastAll = (payload: unknown) => {
     const raw = JSON.stringify(payload);
+    const critical = !isNonCriticalWsFrame(payload);
     wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(raw);
-      }
+      safeWsSend(client, raw, { critical, onDropped: onBackpressureDropped });
     });
   };
 
@@ -114,14 +180,11 @@ export function createCollabSocketServer(
     excludeWs?: WebSocket
   ) => {
     const raw = JSON.stringify(payload);
+    const critical = !isNonCriticalWsFrame(payload);
     wss.clients.forEach((c) => {
       const client = c as ExtWebSocket;
-      if (
-        client.readyState === WebSocket.OPEN &&
-        client.roomId === roomId &&
-        client !== excludeWs
-      ) {
-        client.send(raw);
+      if (client.roomId === roomId && client !== excludeWs) {
+        safeWsSend(client, raw, { critical, onDropped: onBackpressureDropped });
       }
     });
   };
@@ -137,16 +200,17 @@ export function createCollabSocketServer(
       return;
     }
     const raw = JSON.stringify(payload);
+    const critical = !isNonCriticalWsFrame(payload);
     wss.clients.forEach((c) => {
       const client = c as ExtWebSocket;
-      if (client.readyState === WebSocket.OPEN && client !== excludeWs) {
+      if (client !== excludeWs) {
         if (
           !targetGroupId ||
           client.groupId === targetGroupId ||
           client.role === 'Pengajar' ||
           !client.groupId
         ) {
-          client.send(raw);
+          safeWsSend(client, raw, { critical, onDropped: onBackpressureDropped });
         }
       }
     });
@@ -245,92 +309,82 @@ export function createCollabSocketServer(
             handleClientIdentify(ws, msg.payload, state);
             break;
           case 'ROOM_CREATE':
-            handleRoomCreate(ws, msg.payload as Record<string, unknown>, services);
+            handleRoomCreate(ws, msg.payload, services);
             break;
           case 'ROOM_JOIN':
-            handleRoomJoin(ws, msg.payload as Record<string, unknown>, services);
+            handleRoomJoin(ws, msg.payload, services);
             break;
           case 'ROOM_REJOIN':
-            handleRoomRejoin(ws, msg.payload as Record<string, unknown>, services);
+            handleRoomRejoin(ws, msg.payload, services);
             break;
           case 'SIMULATION_SNAPSHOT_PUSH':
-            handleSimulationSnapshotPush(ws, msg.payload as Record<string, unknown>, services);
+            handleSimulationSnapshotPush(ws, msg.payload, services);
             break;
           case 'ROOM_LEAVE':
             handleRoomLeave(ws, services);
             break;
           case 'TEACHER_FREEZE_TOGGLE':
-            handleTeacherFreezeToggle(ws, msg.payload as Record<string, unknown>, services);
+            handleTeacherFreezeToggle(ws, msg.payload, services);
             break;
           case 'TEACHER_LASER_RAY':
-            handleTeacherLaserRay(ws, msg.payload as Record<string, unknown>, services);
+            handleTeacherLaserRay(ws, msg.payload, services);
             break;
           case 'TEACHER_CAMERA_SYNC':
-            handleTeacherCameraSync(ws, msg.payload as Record<string, unknown>, services);
+            handleTeacherCameraSync(ws, msg.payload, services);
             break;
           case 'ROOM_SET_CUSTOM_MISSION':
-            handleRoomSetCustomMission(ws, msg.payload as Record<string, unknown>, services);
+            handleRoomSetCustomMission(ws, msg.payload, services);
             break;
           case 'STUDENT_TELEMETRY_SYNC':
-            handleStudentTelemetrySync(ws, msg.payload as Record<string, unknown>, services);
+            handleStudentTelemetrySync(ws, msg.payload, services);
             break;
           case 'CURSOR_3D_MOVE':
-            handleCursor3DMove(ws, msg.payload as unknown as SpatialCursorPayload, services);
+            handleCursor3DMove(ws, msg.payload, services);
             break;
           case 'CURSOR_3D_LEAVE':
-            handleCursor3DLeave(ws, msg.payload as Record<string, unknown>, services);
+            handleCursor3DLeave(ws, msg.payload, services);
             break;
           case 'PARAM_LOCK_ACQUIRE':
-            handleParamLockAcquire(
-              ws,
-              msg.payload as unknown as ParameterLockPayload,
-              services
-            );
+            handleParamLockAcquire(ws, msg.payload, services);
             break;
           case 'PARAM_LOCK_RELEASE':
-            handleParamLockRelease(ws, msg.payload as Record<string, unknown>, services);
+            handleParamLockRelease(ws, msg.payload, services);
             break;
           case 'PARAM_LOCK_RESET_ALL':
-            handleParamLockResetAll(ws, msg.payload as Record<string, unknown>, services);
+            handleParamLockResetAll(ws, msg.payload, services);
             break;
           case 'PARAM_VALUE_SYNC':
-            handleParamValueSync(ws, msg.payload as Record<string, unknown>, services);
+            handleParamValueSync(ws, msg.payload, services);
             break;
           case 'record:create':
-            handleRecordCreate(
-              msg.payload as unknown as ServerExperimentRecord,
-              services
-            );
+            handleRecordCreate(msg.payload, services);
             break;
           case 'record:delete':
             handleRecordDelete(msg.payload.id, services);
             break;
           case 'task:toggle':
-            handleTaskToggle(msg.payload as Record<string, unknown>, services);
+            handleTaskToggle(msg.payload, services);
             break;
           case 'task:create':
-            handleTaskCreate(msg.payload as Record<string, unknown>, services);
+            handleTaskCreate(msg.payload, services);
             break;
           case 'note:create':
-            handleNoteCreate(msg.payload as Record<string, unknown>, services);
+            handleNoteCreate(msg.payload, services);
             break;
           case 'quiz:submit':
-            handleQuizSubmit(msg.payload as Record<string, unknown>, services);
+            handleQuizSubmit(msg.payload, services);
             break;
           case 'notification:push':
-            handleNotificationPush(
-              msg.payload as unknown as ServerNotification,
-              services
-            );
+            handleNotificationPush(msg.payload, services);
             break;
           case 'teacher:feedback':
-            handleTeacherFeedback(ws, msg.payload as Record<string, unknown>, services);
+            handleTeacherFeedback(ws, msg.payload, services);
             break;
           case 'mystery:broadcast':
-            handleMysteryBroadcast(ws, msg.payload as Record<string, unknown>, services);
+            handleMysteryBroadcast(ws, msg.payload, services);
             break;
           case 'mystery:submit':
-            handleMysterySubmit(msg.payload as Record<string, unknown>, services);
+            handleMysterySubmit(msg.payload, services);
             break;
           default:
             break;
@@ -358,5 +412,11 @@ export function createCollabSocketServer(
     });
   });
 
-  return { wss, broadcastAll, broadcastRoom, broadcastGroup };
+  return {
+    wss,
+    broadcastAll,
+    broadcastRoom,
+    broadcastGroup,
+    getBackpressureStats: () => ({ droppedNonCriticalFrames }),
+  };
 }

@@ -342,13 +342,15 @@ async function startServer() {
   await state.hydrateServerState();
 
   const server = http.createServer(app);
-  const { wss, broadcastAll, broadcastRoom } = createCollabSocketServer(server, state);
+  const { wss, broadcastAll, broadcastRoom, getBackpressureStats } =
+    createCollabSocketServer(server, state);
 
   // SRE Probes (/healthz, /readyz, /metrics) registered BEFORE rate limiters & SPA static fallback
   app.use(
     createHealthRouter({
       state,
       wss,
+      getBackpressureStats,
       isShuttingDown: () => shuttingDown,
     })
   );

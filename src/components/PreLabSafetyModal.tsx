@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   ShieldCheck,
@@ -33,6 +33,17 @@ export const PreLabSafetyModal: React.FC<PreLabSafetyModalProps> = ({
   const [activeTab, setActiveTab] = useState<'objectives' | 'safety' | 'quiz'>('objectives');
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
   const [submittedQuiz, setSubmittedQuiz] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -79,6 +90,7 @@ export const PreLabSafetyModal: React.FC<PreLabSafetyModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
+      aria-label={`K3 dan Pra-Praktikum ${experiment.title}`}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
     >
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -105,9 +117,10 @@ export const PreLabSafetyModal: React.FC<PreLabSafetyModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            aria-label="Tutup modal pra-praktikum"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 

@@ -30,21 +30,23 @@ afterEach(() => {
 });
 
 describe('SQLite Versioned Migrations & VACUUM INTO Backup', () => {
-  it('applies 001_initial_schema.sql and records version in schema_migrations idempotently', () => {
+  it('applies 001_initial_schema.sql and 002_multitenant_and_idempotency.sql idempotently', () => {
     const tmpDir = createTempDir('ruanglabmu-migrator-init-');
     const dbFile = path.join(tmpDir, 'test.db');
 
     const dbInstance = new RuangLabDatabase(dbFile);
     try {
       const applied = listAppliedMigrations(dbInstance.db);
-      assert.equal(applied.length, 1);
+      assert.equal(applied.length, 2);
       assert.equal(applied[0].version, 1);
       assert.equal(applied[0].name, '001_initial_schema.sql');
+      assert.equal(applied[1].version, 2);
+      assert.equal(applied[1].name, '002_multitenant_and_idempotency.sql');
 
       // Re-running migrations is idempotent and applies 0 new migrations
       const secondRun = runMigrations(dbInstance.db);
       assert.equal(secondRun.length, 0);
-      assert.equal(listAppliedMigrations(dbInstance.db).length, 1);
+      assert.equal(listAppliedMigrations(dbInstance.db).length, 2);
     } finally {
       dbInstance.close();
     }
@@ -56,12 +58,12 @@ describe('SQLite Versioned Migrations & VACUUM INTO Backup', () => {
     fs.mkdirSync(migrationsDir, { recursive: true });
 
     fs.writeFileSync(
-      path.join(migrationsDir, '002_create_items.sql'),
+      path.join(migrationsDir, '003_create_items.sql'),
       'CREATE TABLE items (id INTEGER PRIMARY KEY, label TEXT NOT NULL);',
       'utf-8'
     );
     fs.writeFileSync(
-      path.join(migrationsDir, '003_seed_items.sql'),
+      path.join(migrationsDir, '004_seed_items.sql'),
       "INSERT INTO items (id, label) VALUES (1, 'Neraca Ohauss');",
       'utf-8'
     );
@@ -72,12 +74,12 @@ describe('SQLite Versioned Migrations & VACUUM INTO Backup', () => {
       assert.equal(applied1.length, 2);
       assert.deepEqual(
         applied1.map((m) => m.version),
-        [2, 3]
+        [3, 4]
       );
 
-      // Add a broken 004 migration that partially executes then fails
+      // Add a broken 005 migration that partially executes then fails
       fs.writeFileSync(
-        path.join(migrationsDir, '004_broken.sql'),
+        path.join(migrationsDir, '005_broken.sql'),
         "INSERT INTO items (id, label) VALUES (2, 'ShouldRollback'); INVALID SQL SYNTAX HERE;",
         'utf-8'
       );
@@ -86,7 +88,7 @@ describe('SQLite Versioned Migrations & VACUUM INTO Backup', () => {
         runMigrations(dbInstance.db, migrationsDir);
       });
 
-      // Row from 004 must have rolled back atomically and 004 must not be in schema_migrations
+      // Row from 005 must have rolled back atomically and 005 must not be in schema_migrations
       const countRow = dbInstance.db
         .prepare('SELECT COUNT(*) AS cnt FROM items WHERE id = 2')
         .get();
@@ -94,7 +96,7 @@ describe('SQLite Versioned Migrations & VACUUM INTO Backup', () => {
 
       const appliedAfterFail = listAppliedMigrations(dbInstance.db);
       assert.equal(
-        appliedAfterFail.some((m) => m.version === 4),
+        appliedAfterFail.some((m) => m.version === 5),
         false
       );
     } finally {

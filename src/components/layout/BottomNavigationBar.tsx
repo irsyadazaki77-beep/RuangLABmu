@@ -28,7 +28,7 @@ export const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
     id: MobileTab;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
-    badge?: string | number;
+    badge?: number;
     alert?: boolean;
   }> = [
     {
@@ -58,7 +58,7 @@ export const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
   return (
     <nav
       aria-label="Navigasi Bawah Ruang Laboratorium"
-      className="lg:hidden shrink-0 h-16 bg-slate-950 border-t border-slate-800 px-2 flex items-center justify-around z-30 select-none"
+      className="lg:hidden shrink-0 h-14 bg-slate-950 border-t border-slate-800 px-2 flex items-center justify-around z-30 select-none"
     >
       {navItems.map((item) => {
         const isActive = mobileTab === item.id;
@@ -80,26 +80,29 @@ export const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
                 setDrawerOpen(true);
               }
             }}
-            aria-selected={isActive}
+            aria-current={isActive ? 'page' : undefined}
             aria-label={`Tampilkan ${item.label}`}
-            className={`min-h-[48px] min-w-[64px] flex-1 flex flex-col items-center justify-center gap-1 rounded-xl transition-all cursor-pointer relative ${
+            className={`h-11 min-w-[64px] flex-1 flex flex-col items-center justify-center gap-0.5 rounded-lg transition-colors cursor-pointer relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
               isActive
-                ? 'text-sky-400 font-bold bg-sky-950/40 border border-sky-800/40 shadow-xs'
+                ? 'text-sky-400 font-bold bg-sky-950/50 border border-sky-800/50'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className="relative">
-              <IconComponent className={`w-5 h-5 ${isActive ? 'text-sky-400' : 'text-slate-400'}`} />
+            <div className="relative flex items-center">
+              <IconComponent
+                className={`w-4 h-4 ${isActive ? 'text-sky-400' : 'text-slate-400'}`}
+                aria-hidden="true"
+              />
               {item.badge !== undefined && (
-                <span className="absolute -top-1.5 -right-3 text-[9px] font-mono px-1 rounded-full bg-sky-600 text-white font-bold tabular-nums">
+                <span className="ml-1 text-[9px] font-mono text-sky-300 font-bold tabular-nums">
                   {item.badge}
                 </span>
               )}
               {item.alert && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400" />
+                <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-400" />
               )}
             </div>
-            <span className="text-[10px] tracking-tight">{item.label}</span>
+            <span className="text-[10px] tracking-tight whitespace-nowrap">{item.label}</span>
           </button>
         );
       })}

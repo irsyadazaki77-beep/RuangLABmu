@@ -14,6 +14,7 @@ import {
 } from '../utils/collabProtocol';
 import { ServerToClientMessageSchema } from '../shared/contracts/wsContracts';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
+import { DEFAULT_SCHOOL_ID, flushOfflineOutbox } from '../utils/offlineOutbox';
 
 export interface BackendSyncState {
   records: ExperimentRecord[];
@@ -57,6 +58,18 @@ export const WS_BASE_RECONNECT_MS = 1000;
 export const WS_MAX_RECONNECT_MS = 15000;
 export const WS_MAX_JITTER_MS = 400;
 export const MAX_OUTBOX_QUEUE_SIZE = 250;
+
+export function isBrowserOnline(): boolean {
+  if (typeof navigator === 'undefined') return true;
+  return navigator.onLine !== false;
+}
+
+export function shouldScheduleWsReconnect(params: {
+  unmounted: boolean;
+  isOnline: boolean;
+}): boolean {
+  return !params.unmounted && params.isOnline;
+}
 
 /**
  * Computes exponential backoff reconnect delay:
@@ -324,7 +337,14 @@ export function useBackendSync(
     let attemptCount = 0;
 
     const connectWs = () => {
-      if (unmounted) return;
+      if (unmounted || !isBrowserOnline()) return;
+      if (
+        wsRef.current &&
+        (wsRef.current.readyState === WebSocket.CONNECTING ||
+          wsRef.current.readyState === WebSocket.OPEN)
+      ) {
+        return;
+      }
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}/ws-lab`;
       const socket = new WebSocket(wsUrl);
@@ -383,6 +403,7 @@ export function useBackendSync(
             socket.send(serializedMsg);
           }
         });
+        void flushOfflineOutbox({ force: true });
       };
 
       socket.onmessage = (event: MessageEvent) => {
@@ -611,6 +632,10 @@ export function useBackendSync(
         useCollabStore.getState().setWsConnected(false);
         wsRef.current = null;
 
+        if (!shouldScheduleWsReconnect({ unmounted, isOnline: isBrowserOnline() })) {
+          return;
+        }
+
         // Auto-reconnect with exponential backoff: min(1000 * 2^attempt, 15000) ms + random jitter
         const reconnectDelay = calculateReconnectDelay(attemptCount);
         attemptCount += 1;
@@ -618,14 +643,56 @@ export function useBackendSync(
       };
 
       socket.onerror = () => {
-        socket.close();
+        if (
+          socket.readyState === WebSocket.CONNECTING ||
+          socket.readyState === WebSocket.OPEN
+        ) {
+          socket.close();
+        }
       };
     };
 
-    connectWs();
+    const handleOffline = () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      setWsConnected(false);
+      useCollabStore.getState().setWsConnected(false);
+      const activeWs = wsRef.current;
+      if (
+        activeWs &&
+        (activeWs.readyState === WebSocket.CONNECTING ||
+          activeWs.readyState === WebSocket.OPEN)
+      ) {
+        activeWs.close();
+      }
+    };
+
+    const handleOnline = () => {
+      if (unmounted) return;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      attemptCount = 0;
+      if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+        connectWs();
+      }
+      void flushOfflineOutbox({ force: true });
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
+    if (isBrowserOnline()) {
+      connectWs();
+    }
 
     return () => {
       unmounted = true;
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
@@ -834,6 +901,7 @@ export function useBackendSync(
       }
       sendWs('ROOM_CREATE', {
         roomId: customRoomId,
+        schoolId: DEFAULT_SCHOOL_ID,
         pin,
         domain: roomDomain,
         moduleId,

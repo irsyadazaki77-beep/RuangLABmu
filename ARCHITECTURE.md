@@ -133,5 +133,27 @@ Hasil evaluasi disimpan sebagai JSON terstruktur (`rubric_json`) di tabel `grade
 4. **SRE Probes (`/healthz`, `/readyz`, `/metrics`) (`server/routes/healthRoutes.ts`)**:
    - `GET /healthz`: *Liveness probe* ringan (`200 OK`, `uptimeSeconds`, `timestamp`).
    - `GET /readyz`: *Readiness probe* yang memverifikasi `SELECT 1` pada SQLite, kesiapan `WebSocketServer`, dan status *shutting down* (`503` saat draining, `200` saat siap); dijadikan target `healthCheckPath` di `fly.toml`, `render.yaml`, dan `Dockerfile`.
-   - `GET /metrics`: Melaporkan metrik runtime (`activeRooms`, `connectedClients`, `activeParameterLocks`, `memoryRssMb`, `heapUsedMb`, `sqliteWalSizeBytes`). Pada mode `production`, endpoint ini wajib diautentikasi menggunakan Bearer token (`METRICS_TOKEN`).
+   - `GET /metrics`: Melaporkan metrik runtime (`activeRooms`, `connectedClients`, `activeParameterLocks`, `wsBackpressureDroppedFrames`, `memoryRssMb`, `heapUsedMb`, `sqliteWalSizeBytes`). Pada mode `production`, endpoint ini wajib diautentikasi menggunakan Bearer token (`METRICS_TOKEN`).
+
+---
+
+## 8. Multi-Tenant Repository, Local-First Outbox 3T, Backpressure & Stress Verification
+
+1. **Abstraksi `LabRepository` & Isolasi Multi-Tenant `school_id` (`server/db/LabRepository.ts`, `002_multitenant_and_idempotency.sql`)**:
+   - Seluruh akses basis data untuk `schools`, `rooms`, `participants`, `simulation_snapshots`, `gradebook_entries`, `submissions`, `autosaves`, dan `idempotency_keys` diabstraksikan melalui interface `LabRepository` (`SqliteLabRepository` sebagai implementasi default mode lokal 3T menggunakan `bun:sqlite` / `node:sqlite`).
+   - Migrasi `002_multitenant_and_idempotency.sql` mengaktifkan baris default `'default-school'` sehingga sekolah tunggal maupun deployment lokal `mulai-lab-sekolah.*` berjalan tanpa konfigurasi tambahan, sembari mengisolasi query REST dan WebSocket berdasarkan `school_id`.
+   - Endpoint mutasi (`POST /api/session/autosave`, `POST /api/submissions`) mendukung replay idempoten melalui header `X-Idempotency-Key` atau field `clientMutationId` yang direkam di `idempotency_keys`.
+
+2. **Local-First IndexedDB Outbox Sync (`src/utils/offlineOutbox.ts`)**:
+   - Mutasi autosave (`useLabSessionAutoSave.ts`) dan pengumpulan laporan LKS (`StudentWorksheetForm.tsx`) yang terjadi saat luring atau gagal `5xx` disimpan persisten ke IndexedDB (`ruanglab-offline-outbox-db`, dengan fallback `localStorage`) disertai `clientMutationId` (UUID v4) dan *coalescing* kunci agar pembaruan beruntun tidak membanjiri antrean.
+   - Saat koneksi kembali (`online` event atau `ws.onopen`), antrean di-*flush* berurutan (FIFO) dengan *exponential backoff* (1s → 60s), resolusi konflik `409` secara deterministik tanpa *infinite retry loop*, serta indikator status reaktif di HUD & header (`Offline (N antre)` / `Menyinkronkan...` / `Tersinkronisasi`).
+
+3. **WebSocket Backpressure Guard & Stress Test 100 Siswa (`server/ws/collabSocketServer.ts`, `scripts/wsLoadTest.ts`)**:
+   - Helper `safeWsSend(ws, payload, { critical })` memeriksa `ws.bufferedAmount` sebelum mengirim frame frekuensi tinggi non-kritis (`SPATIAL_CURSOR`, `PARAM_UPDATE`). Klien 3T yang tersendat (`> 64 KB`) tidak menyebabkan lonjakan memori server, dan jumlah frame terlewati dicatat di `wsBackpressureDroppedFrames` (`/metrics`).
+   - Skrip `bun run test:load` (`scripts/wsLoadTest.ts`) memverifikasi 100 klien WebSocket siswa secara serentak pada frekuensi ~20 Hz, memeriksa latensi p50/p95, memastikan zero `ERROR` frames, serta memvalidasi pembersihan `connectedClients === 0`, `activeParameterLocks === 0`, dan `/readyz` `200 OK` setelah seluruh koneksi ditutup.
+
+4. **Tiered PWA Caching & Pembaruan Non-Destruktif (`vite.config.ts`, `PwaUpdateToast.tsx`)**:
+   - Workbox mem-precache shell aplikasi & simulation Web Worker (`**/*.{js,css,html,svg,woff2}`), menerapkan `StaleWhileRevalidate` untuk font/CSS, dan `CacheFirst` + `ExpirationPlugin` untuk aset media berat serta `vendor-pdf`.
+   - `PwaUpdateToast.tsx` menampilkan toast pembaruan non-blokir tanpa auto-reload agar praktikum yang sedang berjalan tidak terputus.
+
 

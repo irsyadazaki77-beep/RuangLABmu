@@ -3,12 +3,39 @@
  * Uses `bun:sqlite` natively on Bun runtime with automatic fallback to `node:sqlite`
  * when executed under Node.js / tsx test runners.
  * Enforces WAL mode (`PRAGMA journal_mode = WAL;`) and relational integrity (`PRAGMA foreign_keys = ON;`).
+ * Implements the `LabRepository` interface via `SqliteLabRepository` (`RuangLabDatabase` alias).
  */
 
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { runMigrations } from './migrator';
+import {
+  DEFAULT_SCHOOL_ID,
+  type DbAutosaveRecord,
+  type DbGradebookEntryRecord,
+  type DbIdempotencyKeyRecord,
+  type DbParticipantRecord,
+  type DbRoomRecord,
+  type DbSchoolRecord,
+  type DbSimulationSnapshotRecord,
+  type DbSubmissionRecord,
+  type LabRepository,
+  type SimulationSnapshotView,
+} from './LabRepository';
+
+export type {
+  DbAutosaveRecord,
+  DbGradebookEntryRecord,
+  DbIdempotencyKeyRecord,
+  DbParticipantRecord,
+  DbRoomRecord,
+  DbSchoolRecord,
+  DbSimulationSnapshotRecord,
+  DbSubmissionRecord,
+  LabRepository,
+  SimulationSnapshotView,
+};
 
 const requireModule = createRequire(path.resolve(process.cwd(), 'package.json'));
 
@@ -27,44 +54,13 @@ export interface SqliteDatabaseDriver {
   close(): void;
 }
 
-export interface DbRoomRecord {
-  pin: string;
-  host_id: string;
-  module_domain: string;
-  status: string;
-  created_at: number;
-  expires_at: number;
-}
-
-export interface DbParticipantRecord {
-  id: string;
-  room_pin: string;
-  display_name: string;
-  role: 'teacher' | 'student';
-  connected: number;
-  last_seen: number;
-}
-
-export interface DbSimulationSnapshotRecord {
-  id: number;
-  room_pin: string;
-  params_json: string;
-  updated_at: number;
-}
-
-export interface DbGradebookEntryRecord {
-  id: string;
-  room_pin: string;
-  student_id: string;
-  student_name: string;
-  module_id: string;
-  score: number;
-  rubric_json: string;
-  submitted_at: number;
-}
-
 const DEFAULT_DB_FILE = path.join(process.cwd(), 'data', 'ruanglabmu.db');
 const DEFAULT_ROOM_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+function normalizeSchoolId(schoolId?: string | null): string {
+  const clean = typeof schoolId === 'string' ? schoolId.trim() : '';
+  return clean || DEFAULT_SCHOOL_ID;
+}
 
 function createSqliteDriver(dbFilePath: string): SqliteDatabaseDriver {
   const isMemory = dbFilePath === ':memory:';
@@ -162,13 +158,19 @@ function ensureColumnExists(
   }
 }
 
-export class RuangLabDatabase {
+export class SqliteLabRepository implements LabRepository {
   public readonly db: SqliteDatabaseDriver;
   public readonly dbPath: string;
 
+  private stmtEnsureSchool!: SqlitePreparedStatement;
+  private stmtGetSchoolById!: SqlitePreparedStatement;
+  private stmtListSchools!: SqlitePreparedStatement;
+
   private stmtUpsertRoom!: SqlitePreparedStatement;
   private stmtGetRoomByPin!: SqlitePreparedStatement;
+  private stmtGetRoomByPinScoped!: SqlitePreparedStatement;
   private stmtListActiveRooms!: SqlitePreparedStatement;
+  private stmtListActiveRoomsBySchool!: SqlitePreparedStatement;
   private stmtDeleteRoomByPin!: SqlitePreparedStatement;
   private stmtPruneExpiredRooms!: SqlitePreparedStatement;
 
@@ -185,7 +187,24 @@ export class RuangLabDatabase {
   private stmtUpsertGradebookEntry!: SqlitePreparedStatement;
   private stmtGetGradebookEntryById!: SqlitePreparedStatement;
   private stmtListAllGradebookEntries!: SqlitePreparedStatement;
+  private stmtListGradebookEntriesBySchool!: SqlitePreparedStatement;
   private stmtListRoomGradebookEntries!: SqlitePreparedStatement;
+  private stmtListRoomGradebookEntriesBySchool!: SqlitePreparedStatement;
+
+  private stmtUpsertSubmission!: SqlitePreparedStatement;
+  private stmtGetSubmissionById!: SqlitePreparedStatement;
+  private stmtGetSubmissionByIdScoped!: SqlitePreparedStatement;
+  private stmtListSubmissions!: SqlitePreparedStatement;
+  private stmtListSubmissionsBySchool!: SqlitePreparedStatement;
+
+  private stmtUpsertAutosave!: SqlitePreparedStatement;
+  private stmtGetAutosaveByKey!: SqlitePreparedStatement;
+  private stmtGetAutosaveByKeyScoped!: SqlitePreparedStatement;
+  private stmtListAutosaves!: SqlitePreparedStatement;
+  private stmtListAutosavesBySchool!: SqlitePreparedStatement;
+
+  private stmtGetIdempotencyKey!: SqlitePreparedStatement;
+  private stmtSaveIdempotencyKey!: SqlitePreparedStatement;
 
   constructor(customDbPath?: string) {
     this.dbPath = customDbPath || process.env.RUANGLAB_DB_PATH || DEFAULT_DB_FILE;
@@ -195,14 +214,11 @@ export class RuangLabDatabase {
   }
 
   private migrateSchema(): void {
-    // 1. Check if legacy `rooms` table exists with `room_id` primary key instead of `pin` primary key.
-    // We ensure the canonical `rooms` schema:
-    // pin TEXT PRIMARY KEY, host_id TEXT NOT NULL, module_domain TEXT NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL
+    // Check if legacy `rooms` table exists with `room_id` primary key instead of `pin` primary key.
     const existingRoomsCols = this.db.prepare('PRAGMA table_info(rooms)').all();
     if (existingRoomsCols.length > 0) {
       const hasHostId = existingRoomsCols.some((c) => String(c.name) === 'host_id');
       if (!hasHostId) {
-        // Migrate legacy rooms table safely
         this.db.exec('PRAGMA foreign_keys = OFF;');
         this.db.exec('DROP TABLE IF EXISTS rooms_legacy_backup;');
         this.db.exec('ALTER TABLE rooms RENAME TO rooms_legacy_backup;');
@@ -212,19 +228,49 @@ export class RuangLabDatabase {
 
     runMigrations(this.db);
 
-    // Ensure any incremental columns exist if upgrading an older database
+    // Incremental safety-net columns if upgrading an older hand-rolled database
     ensureColumnExists(this.db, 'rooms', 'host_id', "TEXT NOT NULL DEFAULT 'host'");
     ensureColumnExists(this.db, 'rooms', 'module_domain', "TEXT NOT NULL DEFAULT 'physics'");
     ensureColumnExists(this.db, 'rooms', 'status', "TEXT NOT NULL DEFAULT 'active'");
     ensureColumnExists(this.db, 'rooms', 'created_at', 'INTEGER NOT NULL DEFAULT 0');
     ensureColumnExists(this.db, 'rooms', 'expires_at', 'INTEGER NOT NULL DEFAULT 0');
+    ensureColumnExists(
+      this.db,
+      'rooms',
+      'school_id',
+      `TEXT NOT NULL DEFAULT '${DEFAULT_SCHOOL_ID}'`
+    );
+    ensureColumnExists(
+      this.db,
+      'gradebook_entries',
+      'school_id',
+      `TEXT NOT NULL DEFAULT '${DEFAULT_SCHOOL_ID}'`
+    );
   }
 
   private prepareStatements(): void {
+    this.stmtEnsureSchool = this.db.prepare(`
+      INSERT OR IGNORE INTO schools (id, name, slug, created_at)
+      VALUES (?, ?, ?, ?)
+    `);
+
+    this.stmtGetSchoolById = this.db.prepare(`
+      SELECT id, name, slug, created_at
+      FROM schools
+      WHERE id = ?
+    `);
+
+    this.stmtListSchools = this.db.prepare(`
+      SELECT id, name, slug, created_at
+      FROM schools
+      ORDER BY created_at ASC
+    `);
+
     this.stmtUpsertRoom = this.db.prepare(`
-      INSERT INTO rooms (pin, host_id, module_domain, status, created_at, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO rooms (pin, school_id, host_id, module_domain, status, created_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(pin) DO UPDATE SET
+        school_id = excluded.school_id,
         host_id = excluded.host_id,
         module_domain = excluded.module_domain,
         status = excluded.status,
@@ -232,15 +278,28 @@ export class RuangLabDatabase {
     `);
 
     this.stmtGetRoomByPin = this.db.prepare(`
-      SELECT pin, host_id, module_domain, status, created_at, expires_at
+      SELECT pin, school_id, host_id, module_domain, status, created_at, expires_at
       FROM rooms
       WHERE pin = ?
     `);
 
+    this.stmtGetRoomByPinScoped = this.db.prepare(`
+      SELECT pin, school_id, host_id, module_domain, status, created_at, expires_at
+      FROM rooms
+      WHERE pin = ? AND school_id = ?
+    `);
+
     this.stmtListActiveRooms = this.db.prepare(`
-      SELECT pin, host_id, module_domain, status, created_at, expires_at
+      SELECT pin, school_id, host_id, module_domain, status, created_at, expires_at
       FROM rooms
       WHERE expires_at >= ?
+      ORDER BY created_at DESC
+    `);
+
+    this.stmtListActiveRoomsBySchool = this.db.prepare(`
+      SELECT pin, school_id, host_id, module_domain, status, created_at, expires_at
+      FROM rooms
+      WHERE expires_at >= ? AND school_id = ?
       ORDER BY created_at DESC
     `);
 
@@ -312,10 +371,11 @@ export class RuangLabDatabase {
 
     this.stmtUpsertGradebookEntry = this.db.prepare(`
       INSERT INTO gradebook_entries (
-        id, room_pin, student_id, student_name, module_id, score, rubric_json, submitted_at
+        id, school_id, room_pin, student_id, student_name, module_id, score, rubric_json, submitted_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
+        school_id = excluded.school_id,
         room_pin = excluded.room_pin,
         student_id = excluded.student_id,
         student_name = excluded.student_name,
@@ -326,22 +386,128 @@ export class RuangLabDatabase {
     `);
 
     this.stmtGetGradebookEntryById = this.db.prepare(`
-      SELECT id, room_pin, student_id, student_name, module_id, score, rubric_json, submitted_at
+      SELECT id, school_id, room_pin, student_id, student_name, module_id, score, rubric_json, submitted_at
       FROM gradebook_entries
       WHERE id = ?
     `);
 
     this.stmtListAllGradebookEntries = this.db.prepare(`
-      SELECT id, room_pin, student_id, student_name, module_id, score, rubric_json, submitted_at
+      SELECT id, school_id, room_pin, student_id, student_name, module_id, score, rubric_json, submitted_at
       FROM gradebook_entries
       ORDER BY submitted_at DESC
     `);
 
+    this.stmtListGradebookEntriesBySchool = this.db.prepare(`
+      SELECT id, school_id, room_pin, student_id, student_name, module_id, score, rubric_json, submitted_at
+      FROM gradebook_entries
+      WHERE school_id = ?
+      ORDER BY submitted_at DESC
+    `);
+
     this.stmtListRoomGradebookEntries = this.db.prepare(`
-      SELECT id, room_pin, student_id, student_name, module_id, score, rubric_json, submitted_at
+      SELECT id, school_id, room_pin, student_id, student_name, module_id, score, rubric_json, submitted_at
       FROM gradebook_entries
       WHERE room_pin = ?
       ORDER BY submitted_at DESC
+    `);
+
+    this.stmtListRoomGradebookEntriesBySchool = this.db.prepare(`
+      SELECT id, school_id, room_pin, student_id, student_name, module_id, score, rubric_json, submitted_at
+      FROM gradebook_entries
+      WHERE room_pin = ? AND school_id = ?
+      ORDER BY submitted_at DESC
+    `);
+
+    this.stmtUpsertSubmission = this.db.prepare(`
+      INSERT INTO submissions (
+        id, school_id, room_id, student_id, student_name, domain, module_id, score, payload_json, submitted_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        school_id = excluded.school_id,
+        room_id = excluded.room_id,
+        student_id = excluded.student_id,
+        student_name = excluded.student_name,
+        domain = excluded.domain,
+        module_id = excluded.module_id,
+        score = excluded.score,
+        payload_json = excluded.payload_json,
+        submitted_at = excluded.submitted_at
+    `);
+
+    this.stmtGetSubmissionById = this.db.prepare(`
+      SELECT id, school_id, room_id, student_id, student_name, domain, module_id, score, payload_json, submitted_at
+      FROM submissions
+      WHERE id = ?
+    `);
+
+    this.stmtGetSubmissionByIdScoped = this.db.prepare(`
+      SELECT id, school_id, room_id, student_id, student_name, domain, module_id, score, payload_json, submitted_at
+      FROM submissions
+      WHERE id = ? AND school_id = ?
+    `);
+
+    this.stmtListSubmissions = this.db.prepare(`
+      SELECT id, school_id, room_id, student_id, student_name, domain, module_id, score, payload_json, submitted_at
+      FROM submissions
+      ORDER BY submitted_at DESC
+    `);
+
+    this.stmtListSubmissionsBySchool = this.db.prepare(`
+      SELECT id, school_id, room_id, student_id, student_name, domain, module_id, score, payload_json, submitted_at
+      FROM submissions
+      WHERE school_id = ?
+      ORDER BY submitted_at DESC
+    `);
+
+    this.stmtUpsertAutosave = this.db.prepare(`
+      INSERT INTO autosaves (
+        storage_key, school_id, student_id, version, owner_token_hash, session_json, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(storage_key) DO UPDATE SET
+        school_id = excluded.school_id,
+        student_id = excluded.student_id,
+        version = excluded.version,
+        owner_token_hash = excluded.owner_token_hash,
+        session_json = excluded.session_json,
+        updated_at = excluded.updated_at
+    `);
+
+    this.stmtGetAutosaveByKey = this.db.prepare(`
+      SELECT storage_key, school_id, student_id, version, owner_token_hash, session_json, updated_at
+      FROM autosaves
+      WHERE storage_key = ?
+    `);
+
+    this.stmtGetAutosaveByKeyScoped = this.db.prepare(`
+      SELECT storage_key, school_id, student_id, version, owner_token_hash, session_json, updated_at
+      FROM autosaves
+      WHERE storage_key = ? AND school_id = ?
+    `);
+
+    this.stmtListAutosaves = this.db.prepare(`
+      SELECT storage_key, school_id, student_id, version, owner_token_hash, session_json, updated_at
+      FROM autosaves
+      ORDER BY updated_at DESC
+    `);
+
+    this.stmtListAutosavesBySchool = this.db.prepare(`
+      SELECT storage_key, school_id, student_id, version, owner_token_hash, session_json, updated_at
+      FROM autosaves
+      WHERE school_id = ?
+      ORDER BY updated_at DESC
+    `);
+
+    this.stmtGetIdempotencyKey = this.db.prepare(`
+      SELECT key, school_id, endpoint, response_json, created_at
+      FROM idempotency_keys
+      WHERE key = ? AND school_id = ? AND endpoint = ?
+    `);
+
+    this.stmtSaveIdempotencyKey = this.db.prepare(`
+      INSERT OR IGNORE INTO idempotency_keys (key, school_id, endpoint, response_json, created_at)
+      VALUES (?, ?, ?, ?, ?)
     `);
   }
 
@@ -349,8 +515,44 @@ export class RuangLabDatabase {
     return Boolean(this.db);
   }
 
+  public ensureSchool(input: {
+    id: string;
+    name?: string;
+    slug?: string;
+    createdAt?: string;
+  }): DbSchoolRecord {
+    const id = normalizeSchoolId(input.id);
+    const slug = (input.slug || id).trim().toLowerCase();
+    const name = (input.name || `Sekolah ${id}`).trim();
+    const createdAt = input.createdAt || new Date().toISOString();
+    this.stmtEnsureSchool.run(id, name, slug, createdAt);
+    return this.getSchoolById(id) ?? { id, name, slug, created_at: createdAt };
+  }
+
+  public getSchoolById(id: string): DbSchoolRecord | null {
+    const row = this.stmtGetSchoolById.get(normalizeSchoolId(id));
+    if (!row) return null;
+    return {
+      id: String(row.id),
+      name: String(row.name),
+      slug: String(row.slug),
+      created_at: String(row.created_at),
+    };
+  }
+
+  public listSchools(): DbSchoolRecord[] {
+    return this.stmtListSchools.all().map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      slug: String(row.slug),
+      created_at: String(row.created_at),
+    }));
+  }
+
   public upsertRoom(input: {
     pin: string;
+    schoolId?: string;
+    school_id?: string;
     hostId?: string;
     host_id?: string;
     moduleDomain?: string;
@@ -366,6 +568,7 @@ export class RuangLabDatabase {
     const expiresAt = input.expiresAt ?? input.expires_at ?? createdAt + DEFAULT_ROOM_TTL_MS;
     const record: DbRoomRecord = {
       pin: String(input.pin).trim(),
+      school_id: normalizeSchoolId(input.schoolId ?? input.school_id),
       host_id: String(input.hostId || input.host_id || 'host').trim(),
       module_domain: String(input.moduleDomain || input.module_domain || 'physics').trim(),
       status: String(input.status || 'active').trim(),
@@ -376,6 +579,7 @@ export class RuangLabDatabase {
     const tx = this.db.transaction((r: DbRoomRecord) => {
       this.stmtUpsertRoom.run(
         r.pin,
+        r.school_id,
         r.host_id,
         r.module_domain,
         r.status,
@@ -390,7 +594,8 @@ export class RuangLabDatabase {
   public ensureRoomPinExists(
     pin: string,
     fallbackDomain: string = 'physics',
-    fallbackHost: string = 'host'
+    fallbackHost: string = 'host',
+    schoolId: string = DEFAULT_SCHOOL_ID
   ): DbRoomRecord {
     const cleanPin = String(pin || 'DEFAULT').trim() || 'DEFAULT';
     const existing = this.getRoomByPin(cleanPin);
@@ -399,17 +604,21 @@ export class RuangLabDatabase {
     }
     return this.upsertRoom({
       pin: cleanPin,
+      schoolId: normalizeSchoolId(schoolId),
       hostId: fallbackHost,
       moduleDomain: fallbackDomain,
       status: 'active',
     });
   }
 
-  public getRoomByPin(pin: string): DbRoomRecord | null {
-    const row = this.stmtGetRoomByPin.get(String(pin).trim());
+  public getRoomByPin(pin: string, schoolId?: string): DbRoomRecord | null {
+    const row = schoolId
+      ? this.stmtGetRoomByPinScoped.get(String(pin).trim(), normalizeSchoolId(schoolId))
+      : this.stmtGetRoomByPin.get(String(pin).trim());
     if (!row) return null;
     return {
       pin: String(row.pin),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
       host_id: String(row.host_id),
       module_domain: String(row.module_domain),
       status: String(row.status),
@@ -418,14 +627,17 @@ export class RuangLabDatabase {
     };
   }
 
-  public getRoom(pin: string): DbRoomRecord | null {
-    return this.getRoomByPin(pin);
+  public getRoom(pin: string, schoolId?: string): DbRoomRecord | null {
+    return this.getRoomByPin(pin, schoolId);
   }
 
-  public listActiveRooms(now: number = Date.now()): DbRoomRecord[] {
-    const rows = this.stmtListActiveRooms.all(now);
+  public listActiveRooms(now: number = Date.now(), schoolId?: string): DbRoomRecord[] {
+    const rows = schoolId
+      ? this.stmtListActiveRoomsBySchool.all(now, normalizeSchoolId(schoolId))
+      : this.stmtListActiveRooms.all(now);
     return rows.map((row) => ({
       pin: String(row.pin),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
       host_id: String(row.host_id),
       module_domain: String(row.module_domain),
       status: String(row.status),
@@ -572,13 +784,7 @@ export class RuangLabDatabase {
     };
   }
 
-  public getLatestSimulationSnapshot(roomPin: string): {
-    id: number;
-    roomPin: string;
-    params: Record<string, unknown>;
-    paramsJson: string;
-    updatedAt: number;
-  } | null {
+  public getLatestSimulationSnapshot(roomPin: string): SimulationSnapshotView | null {
     const row = this.stmtGetLatestSimulationSnapshot.get(String(roomPin).trim());
     if (!row) return null;
     const paramsJson = String(row.params_json || '{}');
@@ -609,13 +815,7 @@ export class RuangLabDatabase {
   ): {
     room: DbRoomRecord;
     participant: DbParticipantRecord;
-    latestSnapshot: {
-      id: number;
-      roomPin: string;
-      params: Record<string, unknown>;
-      paramsJson: string;
-      updatedAt: number;
-    } | null;
+    latestSnapshot: SimulationSnapshotView | null;
   } | null {
     const cleanPin = String(roomPin).trim();
     const cleanParticipantId = String(participantId).trim();
@@ -658,6 +858,8 @@ export class RuangLabDatabase {
 
   public upsertGradebookEntry(input: {
     id: string;
+    schoolId?: string;
+    school_id?: string;
     roomPin?: string;
     room_pin?: string;
     studentId?: string;
@@ -673,9 +875,11 @@ export class RuangLabDatabase {
     submitted_at?: number;
   }): DbGradebookEntryRecord {
     const cleanPin = String(input.roomPin || input.room_pin || 'MANDIRI').trim() || 'MANDIRI';
+    const schoolId = normalizeSchoolId(input.schoolId ?? input.school_id);
     const submittedAt = input.submittedAt ?? input.submitted_at ?? Date.now();
     const record: DbGradebookEntryRecord = {
       id: String(input.id).trim(),
+      school_id: schoolId,
       room_pin: cleanPin,
       student_id: String(input.studentId || input.student_id || 'student-anon').trim(),
       student_name: String(input.studentName || input.student_name || 'Praktikan').trim(),
@@ -686,9 +890,10 @@ export class RuangLabDatabase {
     };
 
     const tx = this.db.transaction(() => {
-      this.ensureRoomPinExists(cleanPin);
+      this.ensureRoomPinExists(cleanPin, 'physics', 'host', schoolId);
       this.stmtUpsertGradebookEntry.run(
         record.id,
+        record.school_id,
         record.room_pin,
         record.student_id,
         record.student_name,
@@ -708,6 +913,7 @@ export class RuangLabDatabase {
     if (!row) return null;
     return {
       id: String(row.id),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
       room_pin: String(row.room_pin),
       student_id: String(row.student_id),
       student_name: String(row.student_name),
@@ -718,13 +924,21 @@ export class RuangLabDatabase {
     };
   }
 
-  public listGradebookEntries(roomPin?: string): DbGradebookEntryRecord[] {
-    const rows =
-      roomPin && roomPin.trim().length > 0
-        ? this.stmtListRoomGradebookEntries.all(roomPin.trim())
-        : this.stmtListAllGradebookEntries.all();
+  public listGradebookEntries(roomPin?: string, schoolId?: string): DbGradebookEntryRecord[] {
+    const cleanPin = roomPin && roomPin.trim().length > 0 ? roomPin.trim() : undefined;
+    const cleanSchool = schoolId && schoolId.trim().length > 0 ? schoolId.trim() : undefined;
+
+    const rows = cleanPin && cleanSchool
+      ? this.stmtListRoomGradebookEntriesBySchool.all(cleanPin, cleanSchool)
+      : cleanPin
+        ? this.stmtListRoomGradebookEntries.all(cleanPin)
+        : cleanSchool
+          ? this.stmtListGradebookEntriesBySchool.all(cleanSchool)
+          : this.stmtListAllGradebookEntries.all();
+
     return rows.map((row) => ({
       id: String(row.id),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
       room_pin: String(row.room_pin),
       student_id: String(row.student_id),
       student_name: String(row.student_name),
@@ -733,6 +947,199 @@ export class RuangLabDatabase {
       rubric_json: String(row.rubric_json),
       submitted_at: Number(row.submitted_at),
     }));
+  }
+
+  public upsertSubmission(input: {
+    id: string;
+    schoolId?: string;
+    roomId: string;
+    studentId?: string | null;
+    studentName: string;
+    domain: string;
+    moduleId: string;
+    score?: number | null;
+    payloadJson: string;
+    submittedAt: string;
+  }): DbSubmissionRecord {
+    const record: DbSubmissionRecord = {
+      id: String(input.id).trim(),
+      school_id: normalizeSchoolId(input.schoolId),
+      room_id: String(input.roomId || 'LAB-ALPHA').trim(),
+      student_id: input.studentId ? String(input.studentId).trim() : null,
+      student_name: String(input.studentName).trim(),
+      domain: String(input.domain || 'Fisika').trim(),
+      module_id: String(input.moduleId).trim(),
+      score: typeof input.score === 'number' && Number.isFinite(input.score) ? input.score : null,
+      payload_json: String(input.payloadJson),
+      submitted_at: String(input.submittedAt),
+    };
+
+    const tx = this.db.transaction(() => {
+      this.stmtUpsertSubmission.run(
+        record.id,
+        record.school_id,
+        record.room_id,
+        record.student_id,
+        record.student_name,
+        record.domain,
+        record.module_id,
+        record.score,
+        record.payload_json,
+        record.submitted_at
+      );
+    });
+    tx();
+    return record;
+  }
+
+  public getSubmissionById(id: string, schoolId?: string): DbSubmissionRecord | null {
+    const row = schoolId
+      ? this.stmtGetSubmissionByIdScoped.get(String(id).trim(), normalizeSchoolId(schoolId))
+      : this.stmtGetSubmissionById.get(String(id).trim());
+    if (!row) return null;
+    return {
+      id: String(row.id),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
+      room_id: String(row.room_id),
+      student_id: row.student_id != null ? String(row.student_id) : null,
+      student_name: String(row.student_name),
+      domain: String(row.domain),
+      module_id: String(row.module_id),
+      score: row.score != null ? Number(row.score) : null,
+      payload_json: String(row.payload_json),
+      submitted_at: String(row.submitted_at),
+    };
+  }
+
+  public listSubmissions(schoolId?: string): DbSubmissionRecord[] {
+    const rows =
+      schoolId && schoolId.trim().length > 0
+        ? this.stmtListSubmissionsBySchool.all(schoolId.trim())
+        : this.stmtListSubmissions.all();
+    return rows.map((row) => ({
+      id: String(row.id),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
+      room_id: String(row.room_id),
+      student_id: row.student_id != null ? String(row.student_id) : null,
+      student_name: String(row.student_name),
+      domain: String(row.domain),
+      module_id: String(row.module_id),
+      score: row.score != null ? Number(row.score) : null,
+      payload_json: String(row.payload_json),
+      submitted_at: String(row.submitted_at),
+    }));
+  }
+
+  public upsertAutosave(input: {
+    storageKey: string;
+    schoolId?: string;
+    studentId?: string | null;
+    version: number;
+    ownerTokenHash?: string | null;
+    sessionJson: string;
+    updatedAt?: number;
+  }): DbAutosaveRecord {
+    const record: DbAutosaveRecord = {
+      storage_key: String(input.storageKey).trim(),
+      school_id: normalizeSchoolId(input.schoolId),
+      student_id: input.studentId ? String(input.studentId).trim() : null,
+      version: Number(input.version),
+      owner_token_hash: input.ownerTokenHash ? String(input.ownerTokenHash) : null,
+      session_json: String(input.sessionJson),
+      updated_at: input.updatedAt ?? Date.now(),
+    };
+
+    const tx = this.db.transaction(() => {
+      this.stmtUpsertAutosave.run(
+        record.storage_key,
+        record.school_id,
+        record.student_id,
+        record.version,
+        record.owner_token_hash,
+        record.session_json,
+        record.updated_at
+      );
+    });
+    tx();
+    return record;
+  }
+
+  public getAutosaveByKey(storageKey: string, schoolId?: string): DbAutosaveRecord | null {
+    const row = schoolId
+      ? this.stmtGetAutosaveByKeyScoped.get(String(storageKey).trim(), normalizeSchoolId(schoolId))
+      : this.stmtGetAutosaveByKey.get(String(storageKey).trim());
+    if (!row) return null;
+    return {
+      storage_key: String(row.storage_key),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
+      student_id: row.student_id != null ? String(row.student_id) : null,
+      version: Number(row.version),
+      owner_token_hash: row.owner_token_hash != null ? String(row.owner_token_hash) : null,
+      session_json: String(row.session_json),
+      updated_at: Number(row.updated_at),
+    };
+  }
+
+  public listAutosaves(schoolId?: string): DbAutosaveRecord[] {
+    const rows =
+      schoolId && schoolId.trim().length > 0
+        ? this.stmtListAutosavesBySchool.all(schoolId.trim())
+        : this.stmtListAutosaves.all();
+    return rows.map((row) => ({
+      storage_key: String(row.storage_key),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
+      student_id: row.student_id != null ? String(row.student_id) : null,
+      version: Number(row.version),
+      owner_token_hash: row.owner_token_hash != null ? String(row.owner_token_hash) : null,
+      session_json: String(row.session_json),
+      updated_at: Number(row.updated_at),
+    }));
+  }
+
+  public getIdempotencyKey(
+    key: string,
+    schoolId: string,
+    endpoint: string
+  ): DbIdempotencyKeyRecord | null {
+    const cleanKey = String(key || '').trim();
+    if (!cleanKey) return null;
+    const row = this.stmtGetIdempotencyKey.get(
+      cleanKey,
+      normalizeSchoolId(schoolId),
+      String(endpoint).trim()
+    );
+    if (!row) return null;
+    return {
+      key: String(row.key),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
+      endpoint: String(row.endpoint),
+      response_json: String(row.response_json),
+      created_at: String(row.created_at),
+    };
+  }
+
+  public saveIdempotencyKey(input: {
+    key: string;
+    schoolId: string;
+    endpoint: string;
+    responseJson: string;
+    createdAt?: string;
+  }): DbIdempotencyKeyRecord {
+    const record: DbIdempotencyKeyRecord = {
+      key: String(input.key).trim(),
+      school_id: normalizeSchoolId(input.schoolId),
+      endpoint: String(input.endpoint).trim(),
+      response_json: String(input.responseJson),
+      created_at: input.createdAt || new Date().toISOString(),
+    };
+    this.stmtSaveIdempotencyKey.run(
+      record.key,
+      record.school_id,
+      record.endpoint,
+      record.response_json,
+      record.created_at
+    );
+    return record;
   }
 
   public checkpointWalTruncate(): void {
@@ -757,11 +1164,13 @@ export class RuangLabDatabase {
   }
 }
 
+export class RuangLabDatabase extends SqliteLabRepository {}
+
 export function backupDatabase(
-  source: SqliteDatabaseDriver | RuangLabDatabase,
+  source: SqliteDatabaseDriver | SqliteLabRepository,
   destPath: string
 ): string {
-  const driver = source instanceof RuangLabDatabase ? source.db : source;
+  const driver = source instanceof SqliteLabRepository ? source.db : source;
   const resolvedDest = path.resolve(String(destPath || '').trim());
   if (!resolvedDest) {
     throw new Error('Path tujuan backup database SQLite wajib diisi.');

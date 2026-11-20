@@ -73,9 +73,16 @@ export function handleClientIdentify(
   ws.role = authCheck.authorized ? 'Pengajar' : 'Siswa';
 }
 
+export interface TeacherAuthPayloadFields {
+  roomId?: string;
+  teacherPin?: string;
+  pin?: string;
+  teacherToken?: string;
+}
+
 export function authorizeTeacherAction(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: TeacherAuthPayloadFields,
   activeLabRooms: Map<string, LabRoom>,
   roomIdRaw?: string,
   emitUnauthorizedError = false

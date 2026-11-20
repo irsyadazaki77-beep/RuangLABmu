@@ -224,6 +224,7 @@ export function createMeasurementRuler3D(options?: {
 
   const upAxis = new THREE.Vector3(1, 0, 0);
   const diffVec = new THREE.Vector3();
+  const normVec = new THREE.Vector3();
   const midVec = new THREE.Vector3();
   const quat = new THREE.Quaternion();
 
@@ -240,7 +241,8 @@ export function createMeasurementRuler3D(options?: {
     beamMesh.position.copy(midVec);
     beamMesh.scale.set(len, 1, 1);
     if (diffVec.lengthSq() > 1e-6) {
-      quat.setFromUnitVectors(upAxis, diffVec.clone().normalize());
+      normVec.copy(diffVec).normalize();
+      quat.setFromUnitVectors(upAxis, normVec);
       beamMesh.quaternion.copy(quat);
     }
 

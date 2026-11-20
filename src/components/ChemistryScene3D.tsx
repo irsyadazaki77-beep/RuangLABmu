@@ -127,6 +127,16 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   const showProbe3DRef = useRef<boolean>(false);
   showProbe3DRef.current = showProbe3D;
   const [probeHudText, setProbeHudText] = useState<{ text: string; color: string } | null>(null);
+  const snapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (snapToastTimerRef.current) {
+        clearTimeout(snapToastTimerRef.current);
+        snapToastTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const latestRef = useRef({
     params,
@@ -552,18 +562,19 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         <button
           type="button"
           data-testid="toggle-3d-probe-btn"
+          aria-pressed={showProbe3D}
           onClick={() => {
             labSound.playClick(700);
             setShowProbe3D((prev) => !prev);
           }}
           title="Tampilkan / Sembunyikan Probe Sensor pH & Termokopel Digital 3D (Seret probe di meja)"
-          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
             showProbe3D
               ? 'bg-sky-500 text-slate-950 font-bold'
               : 'text-sky-300 hover:text-white hover:bg-white/10'
           }`}
         >
-          <Thermometer className="w-3.5 h-3.5" />
+          <Thermometer className="w-3.5 h-3.5" aria-hidden="true" />
           <span className="hidden xl:inline">Probe</span>
         </button>
 
@@ -577,25 +588,30 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
                 label: `Port Docked (${docked.portType.toUpperCase()})`,
                 value: `ΔV = +${(transfer?.fluidTransferredMl ?? 0).toFixed(1)} mL`,
               });
-              setTimeout(() => setDragToast(null), 1800);
+              if (snapToastTimerRef.current) clearTimeout(snapToastTimerRef.current);
+              snapToastTimerRef.current = setTimeout(() => {
+                snapToastTimerRef.current = null;
+                setDragToast(null);
+              }, 1800);
             }
           }}
           title="Snap-to-Port: Sambung & Transfer Reagen Kimia 3D"
-          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-white hover:bg-white/10 flex items-center gap-1 transition-colors cursor-pointer"
+          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-white hover:bg-white/10 flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
         >
-          <Link2 className="w-3.5 h-3.5" />
+          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
           <span className="hidden xl:inline">Snap</span>
         </button>
 
         <button
           type="button"
           data-testid="enter-vr-lab-btn"
+          aria-label="Mode VR Spasial 3D"
           onClick={() => {
             labSound.playClick(700);
             void toggleImmersiveVRSession();
           }}
           title="Mode VR Spasial 3D (WebXR Immersive-VR)"
-          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
         >
           <span aria-hidden="true">🥽</span>
         </button>
@@ -606,9 +622,10 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           <button
             type="button"
             data-testid="camera-reset-btn"
+            aria-label="Reset View Kamera 3D"
             onClick={() => handleSelectCameraPreset('isometric')}
             title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
           >
             Reset
           </button>
@@ -623,8 +640,10 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
             <button
               key={p.id}
               type="button"
+              title={`Sudut Kamera ${p.label}`}
+              aria-pressed={activePreset === p.id}
               onClick={() => handleSelectCameraPreset(p.id)}
-              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer ${
+              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
                 activePreset === p.id
                   ? 'bg-sky-500 text-slate-950 font-bold'
                   : 'text-slate-300 hover:text-white hover:bg-white/10'
@@ -641,13 +660,15 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer"
+          aria-label={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
+          aria-pressed={isFullscreen}
+          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
           title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
         >
           {isFullscreen ? (
-            <Minimize2 className="w-3.5 h-3.5 text-sky-400" />
+            <Minimize2 className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
           ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
+            <Maximize2 className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
           )}
         </button>
       </div>

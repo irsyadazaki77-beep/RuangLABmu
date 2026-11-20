@@ -226,7 +226,7 @@ export function createAiRouter({
       const updatedRoom = applyCustomMissionToRoom(
         state.activeLabRooms,
         roomId,
-        (mission as CustomAIMissionPayload | null) ?? null,
+        mission,
         teacherName
       );
       emitRoomMission(updatedRoom.roomId, {

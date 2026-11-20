@@ -10,6 +10,7 @@ import {
 import { sanitizeRoomForBroadcast } from '../utils/collabReconnectSync';
 import { detectLanIps } from '../utils/lanNetwork';
 import { rateLimitKeyGenerator } from '../utils/rateLimitKey';
+import { DEFAULT_SCHOOL_ID } from '../db/LabRepository';
 import {
   formatValidationErrorResponse,
   validateAutosavePayload,
@@ -60,17 +61,27 @@ export function createLabRouter({
     res.json(detectLanIps(os.networkInterfaces(), getPort()));
   });
 
-  router.get('/api/rooms', (_req, res) => {
-    const rooms = Array.from(state.activeLabRooms.values()).map((room) => ({
-      roomId: room.roomId,
-      domain: room.domain,
-      moduleId: room.moduleId,
-      teacherName: room.teacherName,
-      isFrozenByTeacher: room.isFrozenByTeacher,
-      createdAt: room.createdAt,
-      clientCount: Object.keys(room.clients || {}).length,
-      customMission: room.customMission || null,
-    }));
+  router.get('/api/rooms', (req, res) => {
+    const requestedSchoolId =
+      typeof req.query?.schoolId === 'string' && req.query.schoolId.trim()
+        ? req.query.schoolId.trim()
+        : undefined;
+    const rooms = Array.from(state.activeLabRooms.values())
+      .filter((room) => {
+        if (!requestedSchoolId) return true;
+        return (room.schoolId || DEFAULT_SCHOOL_ID) === requestedSchoolId;
+      })
+      .map((room) => ({
+        roomId: room.roomId,
+        schoolId: room.schoolId || DEFAULT_SCHOOL_ID,
+        domain: room.domain,
+        moduleId: room.moduleId,
+        teacherName: room.teacherName,
+        isFrozenByTeacher: room.isFrozenByTeacher,
+        createdAt: room.createdAt,
+        clientCount: Object.keys(room.clients || {}).length,
+        customMission: room.customMission || null,
+      }));
     res.json({ rooms });
   });
 
@@ -87,7 +98,17 @@ export function createLabRouter({
   });
 
   router.post('/api/session/autosave', (req, res) => {
-    const check = validateAutosavePayload(req.body);
+    const headerIdemKey = req.headers['x-idempotency-key'];
+    const rawBodyObj =
+      req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+        ? (req.body as Record<string, unknown>)
+        : null;
+    const bodyWithHeaderIdem =
+      rawBodyObj && !rawBodyObj.clientMutationId && typeof headerIdemKey === 'string' && headerIdemKey.trim()
+        ? { ...rawBodyObj, clientMutationId: headerIdemKey.trim() }
+        : req.body;
+
+    const check = validateAutosavePayload(bodyWithHeaderIdem);
     if (!check.ok) {
       res.status(400).json(formatValidationErrorResponse(check));
       return;
@@ -99,7 +120,27 @@ export function createLabRouter({
       session,
       sessionToken: bodyToken,
       studentId: bodyStudentId,
+      schoolId,
+      clientMutationId,
     } = check.data;
+
+    if (clientMutationId) {
+      const existingIdem = state.repository.getIdempotencyKey(
+        clientMutationId,
+        schoolId,
+        'POST /api/session/autosave'
+      );
+      if (existingIdem) {
+        try {
+          const cached = JSON.parse(existingIdem.response_json) as Record<string, unknown>;
+          res.status(200).json({ ...cached, idempotentReplay: true });
+          return;
+        } catch {
+          // Fall through if cached payload unreadable
+        }
+      }
+    }
+
     const headerToken = req.headers['x-session-token'];
     const rawToken =
       bodyToken ||
@@ -143,6 +184,15 @@ export function createLabRouter({
 
     const existing = state.sessionSnapshots.get(cleanStorageKey);
     if (existing) {
+      const existingSchoolId = existing.schoolId || DEFAULT_SCHOOL_ID;
+      if (existingSchoolId !== schoolId) {
+        res.status(403).json({
+          error: 'Akses ditolak: Kunci sesi dimiliki oleh sekolah lain.',
+          code: 'SCHOOL_TENANT_MISMATCH',
+        });
+        return;
+      }
+
       if (
         existing.ownerStudentId &&
         claimedStudentId &&
@@ -184,15 +234,28 @@ export function createLabRouter({
       version,
       session,
       updatedAt: now,
+      schoolId,
       ownerStudentId,
       ownerTokenHash,
     });
     state.pruneSessionSnapshots(now);
-    res.json({
-      status: 'ok',
+
+    const responseBody = {
+      status: 'ok' as const,
       version,
+      schoolId,
       savedAt: now,
-    });
+    };
+    if (clientMutationId) {
+      state.repository.saveIdempotencyKey({
+        key: clientMutationId,
+        schoolId,
+        endpoint: 'POST /api/session/autosave',
+        responseJson: JSON.stringify(responseBody),
+      });
+    }
+
+    res.json(responseBody);
   });
 
   /**

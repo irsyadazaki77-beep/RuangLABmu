@@ -44,9 +44,10 @@ export default defineConfig(() => {
       react(),
       tailwindcss(),
       VitePWA({
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
         includeAssets: ['pwa-192x192.svg', 'pwa-512x512.svg'],
         manifest: {
+          id: '/',
           name: 'RuangLABmu - Laboratorium Sains Virtual 3D',
           short_name: 'RuangLABmu',
           description:
@@ -73,7 +74,54 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff,woff2}'],
+          skipWaiting: false,
+          clientsClaim: false,
+          cleanupOutdatedCaches: true,
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+          globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+          globIgnores: ['**/vendor-pdf*.js', '**/assets/images/**', '**/assets/aistudio/**'],
+          runtimeCaching: [
+            {
+              urlPattern: /\.(?:woff2|css)$/i,
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'ruanglabmu-fonts-styles',
+                expiration: {
+                  maxEntries: 30,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            {
+              urlPattern: /\/assets\/vendor-pdf.*\.js$/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'ruanglabmu-pdf-runtime',
+                expiration: {
+                  maxEntries: 4,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            {
+              urlPattern: /\/assets\/.*\.(?:png|jpg|jpeg|webp)$/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'ruanglabmu-media-runtime',
+                expiration: {
+                  maxEntries: 40,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            {
+              urlPattern: /^\/(?:api|ws-lab)\b/,
+              handler: 'NetworkOnly',
+            },
+          ],
         },
         devOptions: {
           enabled: false,

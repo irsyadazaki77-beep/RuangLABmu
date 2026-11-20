@@ -699,4 +699,92 @@ describe('Backend Security Hardening & SQLite Persistence', () => {
       state.dispose();
     }
   });
+
+  it('drops non-critical high-frequency WS frames under >64KB backpressure while delivering critical frames', async () => {
+    const {
+      WS_BACKPRESSURE_HIGH_WATERMARK_BYTES,
+      isNonCriticalWsFrame,
+      safeSendWsMessage,
+      safeWsSend,
+    } = await import('../ws/collabSocketServer');
+    const { parseClientToServerWsMessage } = await import('../ws/wsAuth');
+
+    const sentFrames: string[] = [];
+    const congestedClient = {
+      readyState: 1 as const, // WebSocket.OPEN
+      bufferedAmount: WS_BACKPRESSURE_HIGH_WATERMARK_BYTES + 128,
+      send: (raw: string) => {
+        sentFrames.push(raw);
+      },
+    };
+
+    const cursorFrame = { type: 'CURSOR_3D_MOVE', payload: { userId: 'u1' } };
+    const paramSyncFrame = { type: 'PARAM_VALUE_SYNC', payload: { paramKey: 'mass' } };
+    const lockFrame = { type: 'PARAM_LOCK_ACQUIRE', payload: { paramKey: 'mass' } };
+    const roomSyncFrame = { type: 'ROOM_STATE_SYNC', payload: { room: {} } };
+
+    assert.equal(isNonCriticalWsFrame(cursorFrame), true);
+    assert.equal(isNonCriticalWsFrame(paramSyncFrame), true);
+    assert.equal(isNonCriticalWsFrame(lockFrame), false);
+    assert.equal(isNonCriticalWsFrame(roomSyncFrame), false);
+
+    let droppedCount = 0;
+    assert.equal(
+      safeWsSend(congestedClient, cursorFrame, {
+        critical: false,
+        onDropped: () => {
+          droppedCount += 1;
+        },
+      }),
+      false
+    );
+    assert.equal(
+      safeSendWsMessage(
+        congestedClient,
+        JSON.stringify(paramSyncFrame),
+        true,
+        WS_BACKPRESSURE_HIGH_WATERMARK_BYTES,
+        () => {
+          droppedCount += 1;
+        }
+      ),
+      false
+    );
+    assert.equal(droppedCount, 2);
+    assert.equal(sentFrames.length, 0);
+
+    // Critical state/lock frames MUST still send under high bufferedAmount
+    assert.equal(
+      safeWsSend(congestedClient, lockFrame, { critical: true }),
+      true
+    );
+    assert.equal(
+      safeSendWsMessage(congestedClient, JSON.stringify(roomSyncFrame), false),
+      true
+    );
+    assert.equal(sentFrames.length, 2);
+
+    // Tightened WS Zod schemas reject empty teacher feedback & missing mystery score
+    assert.equal(
+      parseClientToServerWsMessage({
+        type: 'teacher:feedback',
+        payload: { message: '   ' },
+      }).ok,
+      false
+    );
+    assert.equal(
+      parseClientToServerWsMessage({
+        type: 'mystery:submit',
+        payload: { result: { passed: true } },
+      }).ok,
+      false
+    );
+    assert.equal(
+      parseClientToServerWsMessage({
+        type: 'mystery:submit',
+        payload: { result: { score: 92, passed: true, unit: 'm/s²' } },
+      }).ok,
+      true
+    );
+  });
 });

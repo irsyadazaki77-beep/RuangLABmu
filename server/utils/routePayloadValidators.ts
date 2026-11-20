@@ -4,14 +4,20 @@ import {
   AutosavePayloadSchema,
   DrLabMuTelemetrySchema,
   GenerateMissionSchema,
+  GradebookQuerySchema,
   RoomMissionUpdateSchema,
   RoomRejoinSchema,
   RoomSnapshotSchema,
   SubmissionCreateSchema,
   SubmissionGradeSchema,
+  SubmissionsQuerySchema,
   VisionDiagnoseSchema,
   type ValidationIssue,
 } from '../../src/shared/contracts/restContracts';
+import {
+  normalizeCustomMissionPayload,
+  type CustomAIMissionPayload,
+} from '../../src/utils/collabProtocol';
 
 export type { ValidationIssue };
 
@@ -37,6 +43,8 @@ export interface ValidatedAutosavePayload {
   session: unknown;
   sessionToken?: string;
   studentId?: string;
+  schoolId: string;
+  clientMutationId?: string;
 }
 
 export interface ValidatedRoomRejoinPayload {
@@ -61,7 +69,16 @@ export interface ValidatedGenerateMissionPayload {
 export interface ValidatedRoomMissionPayload {
   roomId: string;
   teacherName?: string;
-  mission: Record<string, unknown> | null;
+  mission: CustomAIMissionPayload | null;
+}
+
+export interface ValidatedGradebookQueryPayload {
+  roomPin?: string;
+  schoolId?: string;
+}
+
+export interface ValidatedSubmissionsQueryPayload {
+  schoolId?: string;
 }
 
 export interface ValidatedDrLabMuAskPayload {
@@ -84,6 +101,8 @@ export interface ValidatedVisionDiagnosePayload {
 
 export interface ValidatedSubmissionCreatePayload {
   id?: string;
+  schoolId: string;
+  clientMutationId?: string;
   studentName: string;
   studentId?: string;
   roomId: string;
@@ -116,6 +135,7 @@ export interface ValidatedSubmissionGradePayload {
   id: string;
   score: number;
   feedback: string;
+  schoolId: string;
 }
 
 function fail(
@@ -180,6 +200,8 @@ export function validateAutosavePayload(
       session: parsed.data.session,
       sessionToken: parsed.data.sessionToken || undefined,
       studentId: parsed.data.studentId || undefined,
+      schoolId: parsed.data.schoolId || 'default-school',
+      clientMutationId: parsed.data.clientMutationId || undefined,
     },
   };
 }
@@ -272,12 +294,82 @@ export function validateRoomMissionPayload(
     return failFromZod(parsed.error, 'Payload misi room tidak valid.');
   }
 
+  const normalizedRoomId = parsed.data.roomId.toUpperCase();
+  const rawMission = parsed.data.mission;
+  let normalizedMission: CustomAIMissionPayload | null = null;
+  if (rawMission) {
+    const base = normalizeCustomMissionPayload(
+      rawMission,
+      {
+        moduleId: rawMission.moduleId || 'newton-incline',
+        caseStudyPrompt: rawMission.caseStudyPrompt || rawMission.narrative || rawMission.title,
+        teacherName: rawMission.createdByTeacher || parsed.data.teacherName,
+        roomId: rawMission.roomId || normalizedRoomId,
+      },
+      rawMission.source ?? 'deterministic-engine'
+    );
+    normalizedMission = {
+      ...base,
+      id: rawMission.id || base.id,
+      moduleTitle: rawMission.moduleTitle || base.moduleTitle,
+      domain: rawMission.domain || base.domain,
+      createdAt: rawMission.createdAt ?? base.createdAt,
+    };
+  }
+
   return {
     ok: true,
     data: {
-      roomId: parsed.data.roomId.toUpperCase(),
+      roomId: normalizedRoomId,
       teacherName: parsed.data.teacherName || undefined,
-      mission: (parsed.data.mission as Record<string, unknown> | null | undefined) ?? null,
+      mission: normalizedMission,
+    },
+  };
+}
+
+export function validateGradebookQuery(
+  query: unknown
+): ValidationResult<ValidatedGradebookQueryPayload> {
+  if (query !== undefined && !isPlainObject(query)) {
+    return fail('Parameter query gradebook tidak valid.');
+  }
+  const rawQuery = isPlainObject(query) ? query : {};
+  const parsed = GradebookQuerySchema.safeParse({
+    roomPin: rawQuery.roomPin,
+    schoolId: rawQuery.schoolId,
+  });
+  if (!parsed.success) {
+    return failFromZod(parsed.error, 'Parameter query gradebook tidak valid.');
+  }
+  const cleanRoomPin = parsed.data.roomPin?.trim();
+  const cleanSchoolId = parsed.data.schoolId?.trim();
+  return {
+    ok: true,
+    data: {
+      roomPin: cleanRoomPin && cleanRoomPin.length > 0 ? cleanRoomPin : undefined,
+      schoolId: cleanSchoolId && cleanSchoolId.length > 0 ? cleanSchoolId : undefined,
+    },
+  };
+}
+
+export function validateSubmissionsQuery(
+  query: unknown
+): ValidationResult<ValidatedSubmissionsQueryPayload> {
+  if (query !== undefined && !isPlainObject(query)) {
+    return fail('Parameter query submissions tidak valid.');
+  }
+  const rawQuery = isPlainObject(query) ? query : {};
+  const parsed = SubmissionsQuerySchema.safeParse({
+    schoolId: rawQuery.schoolId,
+  });
+  if (!parsed.success) {
+    return failFromZod(parsed.error, 'Parameter query submissions tidak valid.');
+  }
+  const cleanSchoolId = parsed.data.schoolId?.trim();
+  return {
+    ok: true,
+    data: {
+      schoolId: cleanSchoolId && cleanSchoolId.length > 0 ? cleanSchoolId : undefined,
     },
   };
 }
@@ -411,6 +503,8 @@ export function validateCreateSubmissionPayload(
     ok: true,
     data: {
       id: d.id,
+      schoolId: d.schoolId || 'default-school',
+      clientMutationId: d.clientMutationId,
       studentName: d.studentName,
       studentId: d.studentId,
       roomId: d.roomId || 'LAB-ALPHA',
@@ -441,6 +535,7 @@ export function validateGradeSubmissionPayload(
     id: idParam,
     score: body.score,
     feedback: body.feedback,
+    schoolId: body.schoolId,
   });
   if (!parsed.success) {
     return failFromZod(parsed.error, 'Payload penilaian tidak valid.');
@@ -452,6 +547,7 @@ export function validateGradeSubmissionPayload(
       id: parsed.data.id,
       score: parsed.data.score,
       feedback: parsed.data.feedback || '',
+      schoolId: parsed.data.schoolId || 'default-school',
     },
   };
 }

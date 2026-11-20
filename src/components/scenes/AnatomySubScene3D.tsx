@@ -1268,12 +1268,13 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
             <button
               key={id}
               type="button"
+              aria-pressed={layerMode === id}
               onClick={() => setLayerMode(id)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
                 layerMode === id ? `${activeBg} text-white shadow-sm` : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className="w-3.5 h-3.5" aria-hidden="true" />
               {label}
             </button>
           ))}
@@ -1288,8 +1289,9 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
             <button
               key={pin.id}
               type="button"
+              aria-pressed={selectedPinId === pin.id}
               onClick={() => handleSelectPin(pin)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
                 selectedPinId === pin.id
                   ? 'bg-cyan-500 text-slate-950 shadow-sm'
                   : 'bg-slate-800/90 text-cyan-200 hover:bg-slate-700'
@@ -1302,6 +1304,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
           <button
             type="button"
             data-testid="camera-reset-btn"
+            aria-label="Reset View Kamera 3D"
             onClick={() => {
               labSound.playClick();
               setSelectedPinId(null);
@@ -1310,7 +1313,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
               cameraLerpRef.current.active = true;
             }}
             title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition cursor-pointer"
+            className="px-2 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
           >
             Reset
           </button>
@@ -1336,10 +1339,10 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
             <button
               type="button"
               onClick={() => setSelectedPinId(null)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
               aria-label="Tutup kartu pin"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
           <p className="text-xs text-slate-300 leading-relaxed mb-2.5">{selectedPin.description}</p>

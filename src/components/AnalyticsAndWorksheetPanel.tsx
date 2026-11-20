@@ -142,6 +142,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
       setSelectedDatasetKey('custom-records');
     }
   }, [records.length, hasManualDatasetChoice]);
+
   const [curveModel, setCurveModel] = useState<CurveModelType>('linear');
   const [showCompareDock, setShowCompareDock] = useState<boolean>(false);
   const [showHypothesisDock, setShowHypothesisDock] = useState<boolean>(false);
@@ -164,7 +165,6 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
     };
   }, [hypothesisNote]);
 
-  // Custom data points from actual recorded trials
   const customRecordPoints: DataPointMultiAxis[] = records
     .filter((r) => r.numericX !== undefined && r.numericY1 !== undefined)
     .map((r, i) => ({
@@ -305,17 +305,17 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
   return (
     <div className="space-y-6 select-text">
       {/* Top Navigation & Subheader */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs">
-        <div>
-          <div className="text-xs font-mono text-sky-600 dark:text-sky-400 font-bold uppercase tracking-wider">
-            Tahap 3 · Analisis Data Kuantitatif, Regresi &amp; LKS
+      <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="text-xs font-mono text-[var(--comfort-accent)] font-bold uppercase tracking-wider">
+            03 · Analisis Data Kuantitatif, Regresi &amp; LKS
           </div>
-          <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
+          <h1 className="text-lg sm:text-xl font-bold text-[var(--comfort-text)] tracking-tight">
             Grafik Regresi Ilmiah, Tabel Data &amp; Lembar Kerja Praktikan
           </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {onBackToLab && (
             <button
               type="button"
@@ -323,10 +323,10 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
                 labSound.playClick();
                 onBackToLab();
               }}
-              className="px-3.5 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 cursor-pointer flex items-center gap-1.5"
+              className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] hover:opacity-85 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>← Kokpit 3D</span>
+              <ArrowLeft className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span>Kokpit 3D</span>
             </button>
           )}
 
@@ -336,10 +336,10 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
               labSound.playClick();
               setShowHypothesisDock(!showHypothesisDock);
             }}
-            className={`px-3 py-2 text-xs font-bold rounded-xl border transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               showHypothesisDock
-                ? 'bg-amber-500 text-slate-950 border-amber-400'
-                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
+                : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)]'
             }`}
           >
             <span>Hipotesis Awal</span>
@@ -352,13 +352,13 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
                 labSound.playClick();
                 setShowCompareDock(!showCompareDock);
               }}
-              className={`px-3 py-2 text-xs font-bold rounded-xl border transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 showCompareDock
-                  ? 'bg-sky-600 text-white border-sky-500'
-                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  ? 'bg-sky-600 text-white border-sky-500 font-bold'
+                  : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)]'
               }`}
             >
-              <GitCompareArrows className="w-3.5 h-3.5" />
+              <GitCompareArrows className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span>Bandingkan Uji Coba</span>
             </button>
           )}
@@ -370,31 +370,37 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
                 labSound.playClick();
                 onProceedToReport();
               }}
-              className="px-4 py-2 text-xs font-extrabold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-md cursor-pointer flex items-center gap-1.5"
+              className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
-              <span>Laporan &amp; Tugas Kelompok →</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <span>Laporan &amp; Tugas Kelompok</span>
+              <ArrowRight className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
             </button>
           )}
         </div>
       </div>
 
       {/* Dataset Picker Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-100/80 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-xs">
         <div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto">
-          <span className="font-bold text-slate-700 dark:text-slate-300 shrink-0">Pilih Sumber Dataset:</span>
+          <label
+            htmlFor="analytics-dataset-select"
+            className="font-semibold text-[var(--comfort-text)] shrink-0"
+          >
+            Sumber Dataset:
+          </label>
           <select
+            id="analytics-dataset-select"
             value={selectedDatasetKey}
             onChange={(e) => {
               labSound.playClick();
               setHasManualDatasetChoice(true);
               setSelectedDatasetKey(e.target.value);
             }}
-            className="min-w-0 max-w-full w-full sm:w-auto px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-200 cursor-pointer"
+            className="min-w-0 max-w-full w-full sm:w-auto px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] font-semibold text-[var(--comfort-text)] cursor-pointer"
           >
             {customRecordPoints.length >= 2 && (
               <option value="custom-records">
-                ★ Data Langsung Hasil Eksperimen Siswa ({customRecordPoints.length} titik)
+                Data Langsung Hasil Eksperimen Siswa ({customRecordPoints.length} titik)
               </option>
             )}
             <option value="newton-force-acc">Preset: Hukum II Newton (Gaya vs Percepatan)</option>
@@ -403,8 +409,11 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
             <option value="kepler-third-law">Preset: Astronomi Hukum III Kepler (a³ vs T²)</option>
           </select>
         </div>
-        <div className="text-[11px] text-slate-500 dark:text-slate-400">
-          Titik Data Aktif: <strong className="font-mono text-slate-900 dark:text-white">{activeDataset.points.length}</strong>
+        <div className="text-[11px] text-[var(--comfort-text-muted)] tabular-nums">
+          Titik Data Aktif:{' '}
+          <strong className="font-mono text-[var(--comfort-text)]">
+            {activeDataset.points.length}
+          </strong>
         </div>
       </div>
 
@@ -420,7 +429,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
         <ExperimentTrialComparePanel records={records} />
       )}
 
-      {/* 1. Interactive SVG Regression Curve with Outlier Toggle, POE Prediction & Tooltip */}
+      {/* 1. Interactive SVG Regression Curve */}
       <RegressionChartSection
         datasetTitle={activeDataset.title}
         xAxisLabel={activeDataset.xAxisLabel}
@@ -440,7 +449,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
         }
       />
 
-      {/* 1B. Quantitative Measurement Uncertainty & Error Analysis (Type A + Type B) */}
+      {/* 1B. Quantitative Measurement Uncertainty */}
       <UncertaintyAnalysisCard
         metricLabel={activeDataset.y1AxisLabel}
         values={activeDataset.points.map((p) => p.y1)}
@@ -457,14 +466,14 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
         onExportCSV={onExportCSV || (() => onExportChartNotification('PDF'))}
       />
 
-      {/* 3. Post-Lab Contextual Mastery Quiz (3 Questions) */}
+      {/* 3. Post-Lab Mastery Quiz */}
       <PostLabMasteryQuiz
         records={records}
         activeStudentName={activeStudentName}
         onQuizCompleted={onSubmitQuizScore}
       />
 
-      {/* 4. Student Worksheet Form & PDF Exporter */}
+      {/* 4. Student Worksheet Form */}
       <StudentWorksheetForm
         activeStudentName={activeStudentName}
         activeGroupId={activeGroupId}
@@ -478,7 +487,6 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
         domain={domain}
       />
 
-      {/* Printable Report Modal */}
       {reportModalData && (
         <AcademicReportPreviewModal
           isOpen={true}

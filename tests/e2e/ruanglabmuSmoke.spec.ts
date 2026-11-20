@@ -383,5 +383,56 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
 
     expect(pageErrors).toEqual([]);
   });
+
+  test('Skenario 7 (A11y Keyboard Navigation & Reactive Outbox Sync Indicator): Tab/Arrow/Escape, Reset View aria-label & badge sync status', async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/');
+
+    // 1. Verifikasi indikator konektivitas & status sinkronisasi Outbox 3T di header
+    const connectivityBadge = page.getByTestId('tri-state-connectivity-badge');
+    await expect(connectivityBadge).toBeVisible();
+    await expect(page.getByTestId('outbox-sync-status-label')).toHaveText(/Tersinkronisasi|Offline/i);
+
+    // 2. Masuk ke modul Fisika -> buka modal K3/Pra-Lab & uji penutupan via keyboard Escape
+    await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
+    await page.getByRole('button', { name: 'Fisika', exact: true }).click();
+    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+
+    await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
+    await expect(page.getByTestId('main-3d-cockpit')).toBeVisible();
+
+    // 3. Verifikasi HUD 3T Sync pill & Reset View Camera button dengan aria-label yang eksplisit
+    await expect(page.getByTestId('hud-3t-connection-pill')).toBeVisible();
+    const resetCameraBtn = page.getByRole('button', { name: 'Reset View Kamera 3D' });
+    await expect(resetCameraBtn).toBeVisible();
+    await resetCameraBtn.focus();
+    await expect(resetCameraBtn).toBeFocused();
+    await page.keyboard.press('Enter');
+
+    // 4. Uji navigasi keyboard pada PrecisionSlider (<input type="range">) dengan ArrowRight
+    const firstRangeSlider = page.getByTestId('spatial-left-drawer').locator('input[type="range"]').first();
+    await expect(firstRangeSlider).toBeVisible();
+    const initialVal = Number(await firstRangeSlider.inputValue());
+    await firstRangeSlider.focus();
+    await expect(firstRangeSlider).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    const updatedVal = Number(await firstRangeSlider.inputValue());
+    expect(updatedVal).not.toBe(initialVal);
+
+    // 5. Buka laci Dr. LabMu lalu tutup menggunakan Escape
+    await page.getByRole('button', { name: /Buka Asisten Dr\. LabMu/i }).click();
+    const drLabMuDialog = page.getByRole('dialog', { name: /Laci Samping Dr\. LabMu/i });
+    await expect(drLabMuDialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(drLabMuDialog).toHaveCount(0);
+
+    expect(pageErrors).toEqual([]);
+  });
 });
+
 

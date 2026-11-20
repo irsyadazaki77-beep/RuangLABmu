@@ -3,7 +3,6 @@ import { MotionConfig } from 'motion/react';
 import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { SPRING_TACTILE } from './styles/motionPresets';
-import { labSound } from './utils/soundEngine';
 import { useLabStore } from './stores/useLabStore';
 import { useUIStore } from './stores/useUIStore';
 import { useCollabStore } from './stores/useCollabStore';
@@ -11,7 +10,9 @@ import { STUDENT_PROFILES } from './stores/initialLabParams';
 import { TopNavigationHeader } from './components/layout/TopNavigationHeader';
 import { MainLabWorkspace } from './components/layout/MainLabWorkspace';
 import { PWAInstallBanner } from './components/ui/PWAInstallBanner';
+import { PwaUpdateToast } from './components/common/PwaUpdateToast';
 import { ExamSessionController } from './components/exam/ExamSessionController';
+import { LabSessionProvider } from './contexts/LabSessionContext';
 import { useLabSession } from './hooks/useLabSession';
 import { useUrlRouterSync } from './hooks/useUrlRouterSync';
 import { recordK3Compliance } from './services/gamificationEngine';
@@ -22,10 +23,7 @@ import {
   submitExamPayload,
 } from './utils/examSubmissionQueue';
 import { buildSubmissionTelemetryTimeline } from './utils/telemetryRecorder';
-import {
-  computeRecordsRegressionSummary,
-  parseReplayParameters,
-} from './utils/labTelemetryHelpers';
+import { computeRecordsRegressionSummary } from './utils/labTelemetryHelpers';
 
 const GlobalModalPortal = React.lazy(() =>
   import('./components/layout/GlobalModalPortal').then((m) => ({ default: m.GlobalModalPortal }))
@@ -55,12 +53,14 @@ export const TeacherDashboardView = React.lazy(() =>
 function AppLabThemeSkeleton() {
   return (
     <div className="flex-1 min-h-0 flex flex-col items-center justify-center bg-[var(--comfort-bg)] text-[var(--comfort-text)] p-8">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-6 text-center space-y-3 shadow-lg">
-        <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 mx-auto animate-spin">
-          <RefreshCw className="w-5 h-5" />
+      <div className="w-full max-w-md rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-6 text-center space-y-3 shadow-lg">
+        <div className="w-10 h-10 rounded-xl bg-sky-500/15 border border-sky-400/40 flex items-center justify-center text-sky-400 mx-auto animate-spin">
+          <RefreshCw className="w-5 h-5" aria-hidden="true" />
         </div>
         <div className="text-sm font-bold">Memuat Modul Laboratorium 3D...</div>
-        <div className="text-xs opacity-75">Menyiapkan mesin simulasi & kanvas WebGL sesuai tema</div>
+        <div className="text-xs text-[var(--comfort-text-muted)]">
+          Menyiapkan mesin simulasi &amp; kanvas WebGL sesuai tema
+        </div>
       </div>
     </div>
   );
@@ -73,22 +73,19 @@ interface ExamSubmissionBannerState {
 }
 
 /**
- * RuangLABmu - Virtual Science Laboratory Workspace (v2.0)
- * React 19 + TypeScript + Tailwind CSS v4 + Three.js
- * Clean Container Layout using Zustand & useLabSession hook.
+ * RuangLABmu - Virtual Science Laboratory Workspace
+ * Clean Studio Container Layout using LabSessionProvider, Zustand & useLabSession.
  */
 export default function App() {
   useUrlRouterSync();
 
-  const { setActiveDomain, setWorkflowStep, isSubmissionLocked, setSubmissionLocked } =
-    useLabStore(
-      useShallow((s) => ({
-        setActiveDomain: s.setActiveDomain,
-        setWorkflowStep: s.setWorkflowStep,
-        isSubmissionLocked: s.isSubmissionLocked,
-        setSubmissionLocked: s.setSubmissionLocked,
-      }))
-    );
+  const { setWorkflowStep, isSubmissionLocked, setSubmissionLocked } = useLabStore(
+    useShallow((s) => ({
+      setWorkflowStep: s.setWorkflowStep,
+      isSubmissionLocked: s.isSubmissionLocked,
+      setSubmissionLocked: s.setSubmissionLocked,
+    }))
+  );
 
   const { onboardingTourOpen, setOnboardingTourOpen } = useUIStore(
     useShallow((s) => ({
@@ -108,56 +105,15 @@ export default function App() {
     selectedProfileIdx,
     setSelectedProfileIdx,
     records,
-    tasks,
-    notes,
-    students,
     notifications,
     lksGraded,
     setLksGraded,
     latestLksScore,
     capturedSnapshots,
-    setCapturedSnapshots,
-    completedChallengeIds,
-    setCompletedChallengeIds,
     currentModuleHypothesis,
-    physicsParams,
-    setPhysicsParams,
-    chemistryParams,
-    setChemistryParams,
-    biologyContext,
-    setBiologyContext,
-    astronomyParams,
-    setAstronomyParams,
-    selectedBioModuleId,
-    setSelectedBioModuleId,
-    activeMysteryChallenge,
-    mysterySubmissions,
-    remoteCursors,
-    paramLocks,
-    emitCursor3D,
-    acquireParamLock,
-    releaseParamLock,
-    externalDrLabMuPrompt,
-    setExternalDrLabMuPrompt,
     reportData,
-    deleteRecord,
-    exportRecordsToCSV,
-    submitQuizScore,
-    handleRecordExperiment,
     pushNotification,
-    broadcastTeacherFeedback,
-    broadcastMysteryChallenge,
-    activateMysteryChallenge,
-    createNote,
-    createTask,
-    toggleTask,
-    handleCapture3DSnapshot,
-    submitMysteryExam,
-    dismissMysteryChallenge,
-    handleUpdateCurrentHypothesis,
     handleSelectCatalogModule,
-    createRoom,
-    joinRoom,
     leaveRoom,
     toggleTeacherFreeze,
     ws,
@@ -323,225 +279,118 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user" transition={SPRING_TACTILE}>
-      <div className="h-screen w-screen overflow-hidden flex flex-col bg-[var(--comfort-bg)] text-[var(--comfort-text)] transition-colors duration-200">
-        {/* 1. Header Komposisi Terpadu */}
-      <TopNavigationHeader
-        experimentModule={currentExperimentModule}
-        recordsCount={records.length}
-        lksGraded={lksGraded}
-        notificationsCount={notifications.length}
-        hasLowR2Alert={recordsRegression.isLowR2Alert}
-        studentProfiles={STUDENT_PROFILES}
-        selectedProfileIdx={selectedProfileIdx}
-        onSelectProfileIdx={setSelectedProfileIdx}
-        records={records}
-        capturedSnapshots={capturedSnapshots}
-        bestRSquared={recordsRegression.rSquared}
-        latestLksScore={latestLksScore}
-        onLeaveRoom={leaveRoom}
-        onToggleTeacherFreeze={toggleTeacherFreeze}
-      />
-
-      {/* Exam Submission Recovery & Retry Banner */}
-      {examBanner.status !== 'idle' && (
-        <div
-          role="status"
-          data-testid="exam-submission-status-banner"
-          className={`shrink-0 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold border-b z-40 ${
-            examBanner.status === 'synced'
-              ? 'bg-emerald-600 text-white border-emerald-500'
-              : 'bg-amber-500 text-slate-950 border-amber-600'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {examBanner.status === 'synced' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-            ) : (
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-            )}
-            <span>{examBanner.message}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {examBanner.status !== 'synced' && (
-              <button
-                type="button"
-                onClick={() => void retryPendingExamSubmissions()}
-                disabled={examBanner.status === 'retrying'}
-                className="px-3 py-1 rounded-lg bg-slate-950 text-white hover:bg-slate-800 disabled:opacity-60 font-bold inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${examBanner.status === 'retrying' ? 'animate-spin' : ''}`}
-                />
-                <span>
-                  {examBanner.status === 'retrying' ? 'Mengirim...' : 'Coba Kirim Ulang'}
-                </span>
-              </button>
-            )}
-            {examBanner.status === 'synced' && (
-              <button
-                type="button"
-                onClick={() => setExamBanner({ status: 'idle', message: '', pendingCount: 0 })}
-                className="px-2.5 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white cursor-pointer"
-              >
-                Tutup
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 2. Exam Controller Wrapper + Workspace Laboratorium Utama */}
-      <ExamSessionController
-        studentName={currentProfile.name}
-        studentGroup={currentProfile.group}
-        moduleId={currentExperimentModule.id}
-        domain={activeScienceDomain}
-        ws={ws}
-        isSubmissionLocked={isSubmissionLocked}
-        onLockSubmission={() => setSubmissionLocked(true)}
-        onAutoSubmitExam={handleAutoSubmitExam}
-      >
-        <Suspense fallback={<AppLabThemeSkeleton />}>
-          <MainLabWorkspace
-          experimentModule={currentExperimentModule}
-          activeScienceDomain={activeScienceDomain}
-          currentProfile={currentProfile}
-          records={records}
-          tasks={tasks}
-          notes={notes}
-          students={students}
-          notifications={notifications}
-          capturedSnapshots={capturedSnapshots}
-          completedChallengeIds={completedChallengeIds}
-          currentModuleHypothesis={currentModuleHypothesis}
-          physicsParams={physicsParams}
-          chemistryParams={chemistryParams}
-          biologyContext={biologyContext}
-          astronomyParams={astronomyParams}
-          selectedBioModuleId={selectedBioModuleId}
-          activeMysteryChallenge={activeMysteryChallenge}
-          mysterySubmissions={mysterySubmissions}
-          remoteCursors={remoteCursors}
-          paramLocks={paramLocks}
-          emitCursor3D={emitCursor3D}
-          acquireParamLock={acquireParamLock}
-          releaseParamLock={releaseParamLock}
-          onDeleteRecord={deleteRecord}
-          onExportCSV={() => exportRecordsToCSV(records)}
-          onRotateGroup={session.handleRotateGroup}
-          onSubmitQuizScore={(score, count) => {
-            submitQuizScore(currentProfile.name, score, count);
-            setLksGraded(true);
-          }}
-          onRecordExperiment={handleRecordExperiment}
-          onPushNotification={pushNotification}
-          onSyncWithGroup={(_domain, summary) => {
-            createNote(`Sinkronisasi grup: ${summary}`, currentProfile.name, 'Siswa', currentProfile.group);
-          }}
-          onCapture3DSnapshot={handleCapture3DSnapshot}
-          onCompleteChallenge={(id) => setCompletedChallengeIds((prev) => [...prev, id])}
-          onSubmitMysteryExam={submitMysteryExam}
-          onUpdateCurrentHypothesis={handleUpdateCurrentHypothesis}
-          onChangePhysicsParams={setPhysicsParams}
-          onChangeChemistryParams={setChemistryParams}
-          onChangeBiologyContext={setBiologyContext}
-          onChangeAstronomyParams={setAstronomyParams}
-          onSelectBioModuleId={setSelectedBioModuleId}
-          onToggleTask={toggleTask}
-          onCreateTask={(title, domain) => createTask(title, currentProfile.group, domain)}
-          onCreateNote={(text) => createNote(text, currentProfile.name, 'Siswa', currentProfile.group)}
-          onDeleteSnapshot={(id) => setCapturedSnapshots((prev) => prev.filter((s) => s.id !== id))}
-          onBroadcastTeacherFeedback={broadcastTeacherFeedback}
-          onBroadcastMysteryChallenge={broadcastMysteryChallenge}
-          onActivateMysteryChallenge={activateMysteryChallenge}
-          onDismissMysteryChallenge={dismissMysteryChallenge}
-          onReplayRecord={(rec) => {
-            labSound.playClick();
-            const restored = parseReplayParameters(rec);
-            const domainKeyMap = {
-              Fisika: 'physics',
-              Kimia: 'chemistry',
-              Biologi: 'biology',
-              Astronomi: 'astronomy',
-            } as const;
-            setActiveDomain(domainKeyMap[restored.domain]);
-
-            if (restored.physicsPatch) {
-              setPhysicsParams((prev) => ({ ...prev, ...restored.physicsPatch }));
-            }
-            if (restored.chemistryPatch) {
-              setChemistryParams((prev) => ({ ...prev, ...restored.chemistryPatch }));
-            }
-            if (restored.astronomyPatch) {
-              setAstronomyParams((prev) => ({ ...prev, ...restored.astronomyPatch }));
-            }
-            if (restored.biologyPatch) {
-              const numericPatch: Record<string, number> = {};
-              for (const [k, v] of Object.entries(restored.biologyPatch)) {
-                if (typeof v === 'number') numericPatch[k] = v;
-              }
-              if (restored.biologyPatch.mode) {
-                setSelectedBioModuleId(restored.biologyPatch.mode);
-              }
-              setBiologyContext((prev) => ({
-                ...prev,
-                moduleId: restored.biologyPatch?.mode || prev.moduleId,
-                params: { ...prev.params, ...numericPatch },
-              }));
-            }
-
-            setWorkflowStep(2);
-            pushNotification({
-              id: `notif-replay-${Date.now()}`,
-              timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-              severity: 'nominal',
-              domain: rec.domain,
-              title: `Memuat Ulang Parameter ${rec.id}`,
-              message: `Parameter ${rec.parametersSummary} (${restored.matchedKeysCount} variabel) telah dimuat kembali ke kokpit 3D.`,
-            });
-          }}
-          onSelectCatalogModule={handleSelectCatalogModule}
-          onInjectOutlierDemo={() => {
-            setExternalDrLabMuPrompt({
-              id: Date.now(),
-              prompt: 'Mengapa pada percobaan ke-4 terdapat deviasi data dan nilai R² turun? Faktor apa yang mempengaruhi?',
-            });
-          }}
-          externalDrLabMuPrompt={externalDrLabMuPrompt}
-          hasLowR2Alert={recordsRegression.isLowR2Alert}
-          onCreateRoom={createRoom}
-          onJoinRoom={joinRoom}
-          onLeaveRoom={leaveRoom}
-          onToggleTeacherFreeze={toggleTeacherFreeze}
-        />
-        </Suspense>
-      </ExamSessionController>
-
-      {/* 3. Global Modal Portal Terpusat, Onboarding Tour & Command Palette */}
-      <Suspense fallback={null}>
-        <GlobalModalPortal
-          experiment={currentExperimentModule}
-          activeTier={activeTierLabel}
-          reportData={reportData}
-          onProceedToLab={() => {
-            recordK3Compliance(currentExperimentModule.id);
-            setWorkflowStep(2);
-          }}
-        />
-
-        {onboardingTourOpen && (
-          <LabOnboardingTour
-            isOpen={onboardingTourOpen}
-            onClose={() => setOnboardingTourOpen(false)}
+      <LabSessionProvider session={session}>
+        <div className="h-screen w-screen overflow-hidden flex flex-col bg-[var(--comfort-bg)] text-[var(--comfort-text)] transition-colors duration-200">
+          {/* 1. Unified 3-Zone Studio Header */}
+          <TopNavigationHeader
+            experimentModule={currentExperimentModule}
+            recordsCount={records.length}
+            lksGraded={lksGraded}
+            notificationsCount={notifications.length}
+            hasLowR2Alert={recordsRegression.isLowR2Alert}
+            studentProfiles={STUDENT_PROFILES}
+            selectedProfileIdx={selectedProfileIdx}
+            onSelectProfileIdx={setSelectedProfileIdx}
+            records={records}
+            capturedSnapshots={capturedSnapshots}
+            bestRSquared={recordsRegression.rSquared}
+            latestLksScore={latestLksScore}
+            onLeaveRoom={leaveRoom}
+            onToggleTeacherFreeze={toggleTeacherFreeze}
           />
-        )}
 
-        <CommandPaletteModal onSelectModule={handleSelectCatalogModule} />
-      </Suspense>
+          {/* Exam Submission Recovery & Retry Banner */}
+          {examBanner.status !== 'idle' && (
+            <div
+              role="status"
+              data-testid="exam-submission-status-banner"
+              className={`shrink-0 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold border-b z-40 ${
+                examBanner.status === 'synced'
+                  ? 'bg-emerald-600 text-white border-emerald-500'
+                  : 'bg-amber-500 text-slate-950 border-amber-600'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {examBanner.status === 'synced' ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                )}
+                <span>{examBanner.message}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {examBanner.status !== 'synced' && (
+                  <button
+                    type="button"
+                    onClick={() => void retryPendingExamSubmissions()}
+                    disabled={examBanner.status === 'retrying'}
+                    className="px-3 py-1 rounded-lg bg-slate-950 text-white hover:bg-slate-800 disabled:opacity-60 font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw
+                      className={`w-3.5 h-3.5 ${examBanner.status === 'retrying' ? 'animate-spin' : ''}`}
+                      aria-hidden="true"
+                    />
+                    <span>
+                      {examBanner.status === 'retrying' ? 'Mengirim...' : 'Coba Kirim Ulang'}
+                    </span>
+                  </button>
+                )}
+                {examBanner.status === 'synced' && (
+                  <button
+                    type="button"
+                    onClick={() => setExamBanner({ status: 'idle', message: '', pendingCount: 0 })}
+                    className="px-2.5 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
-      {/* 4. In-App PWA Offline Install Banner */}
-      <PWAInstallBanner />
-      </div>
+          {/* 2. Exam Controller & Main Lab Workspace */}
+          <ExamSessionController
+            studentName={currentProfile.name}
+            studentGroup={currentProfile.group}
+            moduleId={currentExperimentModule.id}
+            domain={activeScienceDomain}
+            ws={ws}
+            isSubmissionLocked={isSubmissionLocked}
+            onLockSubmission={() => setSubmissionLocked(true)}
+            onAutoSubmitExam={handleAutoSubmitExam}
+          >
+            <Suspense fallback={<AppLabThemeSkeleton />}>
+              <MainLabWorkspace />
+            </Suspense>
+          </ExamSessionController>
+
+          {/* 3. Global Modal Portal, Onboarding Tour & Command Palette */}
+          <Suspense fallback={null}>
+            <GlobalModalPortal
+              experiment={currentExperimentModule}
+              activeTier={activeTierLabel}
+              reportData={reportData}
+              onProceedToLab={() => {
+                recordK3Compliance(currentExperimentModule.id);
+                setWorkflowStep(2);
+              }}
+            />
+
+            {onboardingTourOpen && (
+              <LabOnboardingTour
+                isOpen={onboardingTourOpen}
+                onClose={() => setOnboardingTourOpen(false)}
+              />
+            )}
+
+            <CommandPaletteModal onSelectModule={handleSelectCatalogModule} />
+          </Suspense>
+
+          {/* 4. In-App PWA Prompts */}
+          <PWAInstallBanner />
+          <PwaUpdateToast />
+        </div>
+      </LabSessionProvider>
     </MotionConfig>
   );
 }

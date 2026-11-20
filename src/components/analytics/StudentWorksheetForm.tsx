@@ -24,6 +24,11 @@ import { HypothesisNote } from '../ui/HypothesisAndCompareDock';
 import { useShallow } from 'zustand/react/shallow';
 import { useLabStore } from '../../stores/useLabStore';
 import { useCollabStore } from '../../stores/useCollabStore';
+import {
+  DEFAULT_SCHOOL_ID,
+  enqueueOutboxMutation,
+  generateMutationUuid,
+} from '../../utils/offlineOutbox';
 import { computeRecordsRegressionSummary } from '../../utils/labTelemetryHelpers';
 import {
   evaluateDataPrecisionXP,
@@ -185,15 +190,39 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
       // ignore storage error
     }
 
-    // 2. Also attempt server persistence if backend is reachable
+    // 2. Also attempt server persistence if backend is reachable, or queue to offlineOutbox
+    const pnpMutationId = generateMutationUuid();
+    const pnpPayload = {
+      ...submissionRecord,
+      schoolId: DEFAULT_SCHOOL_ID,
+      clientMutationId: pnpMutationId,
+    };
     try {
-      await fetch('/api/submissions', {
+      const res = await fetch('/api/submissions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(submissionRecord),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': pnpMutationId,
+        },
+        body: JSON.stringify(pnpPayload),
       });
+      if (!res.ok && res.status >= 500) {
+        await enqueueOutboxMutation({
+          endpoint: '/api/submissions',
+          method: 'POST',
+          schoolId: DEFAULT_SCHOOL_ID,
+          clientMutationId: pnpMutationId,
+          payload: pnpPayload,
+        });
+      }
     } catch {
-      // ignore network errors in 3T mode
+      await enqueueOutboxMutation({
+        endpoint: '/api/submissions',
+        method: 'POST',
+        schoolId: DEFAULT_SCHOOL_ID,
+        clientMutationId: pnpMutationId,
+        payload: pnpPayload,
+      }).catch(() => undefined);
     }
 
     // 3. Clear LKS form inputs for the next group
@@ -297,33 +326,58 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
       }));
 
       const telemetryLog = buildSubmissionTelemetryTimeline(domain || 'Fisika', obsPayload);
+      const clientMutationId = generateMutationUuid();
+      const submissionBody = {
+        studentName: activeStudentName,
+        studentId: activeGroupId,
+        roomId: activeRoomId,
+        schoolId: DEFAULT_SCHOOL_ID,
+        clientMutationId,
+        domain: domain || 'Fisika',
+        moduleId: moduleId || 'lab-experiment',
+        submittedAt: new Date().toISOString(),
+        hypothesisText: hypothesisNote?.hypothesisText || '',
+        observationData: obsPayload,
+        regressionMetrics: {
+          rSquared: regSummary.rSquared,
+          slope: regSummary.slope,
+          equation: regSummary.equation,
+        },
+        quizAnswers: Object.entries(answers).map(([qId, val]) => ({
+          questionId: qId,
+          selectedAnswer: val,
+          isCorrect: finalGrade.results?.[qId]?.isCorrect ?? true,
+        })),
+        quizScore: finalGrade.totalScore,
+        conclusionText,
+        telemetryLog,
+      };
+
+      const enqueueSubmissionOffline = async () => {
+        await enqueueOutboxMutation({
+          endpoint: '/api/submissions',
+          method: 'POST',
+          schoolId: DEFAULT_SCHOOL_ID,
+          clientMutationId,
+          payload: submissionBody,
+        }).catch(() => undefined);
+        labSound.playSuccessChime();
+        setSubmissionSuccessTicket(`3T-${clientMutationId.slice(0, 6).toUpperCase()}`);
+        setSubmissionLocked(true);
+      };
+
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        await enqueueSubmissionOffline();
+        return;
+      }
 
       const res = await fetch('/api/submissions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentName: activeStudentName,
-          studentId: activeGroupId,
-          roomId: activeRoomId,
-          domain: domain || 'Fisika',
-          moduleId: moduleId || 'lab-experiment',
-          submittedAt: new Date().toISOString(),
-          hypothesisText: hypothesisNote?.hypothesisText || '',
-          observationData: obsPayload,
-          regressionMetrics: {
-            rSquared: regSummary.rSquared,
-            slope: regSummary.slope,
-            equation: regSummary.equation,
-          },
-          quizAnswers: Object.entries(answers).map(([qId, val]) => ({
-            questionId: qId,
-            selectedAnswer: val,
-            isCorrect: finalGrade.results?.[qId]?.isCorrect ?? true,
-          })),
-          quizScore: finalGrade.totalScore,
-          conclusionText,
-          telemetryLog,
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': clientMutationId,
+        },
+        body: JSON.stringify(submissionBody),
       });
 
       if (res.status === 429) {
@@ -335,6 +389,11 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         setRateLimitMessage(
           'Dr. LabMu sedang menganalisis banyak data, silakan tunggu beberapa detik sebelum mengirim pertanyaan atau laporan berikutnya.'
         );
+        return;
+      }
+
+      if (res.status >= 500) {
+        await enqueueSubmissionOffline();
         return;
       }
 
@@ -353,7 +412,46 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         }
       }
     } catch {
-      // ignore connection error
+      // Queue deterministically in IndexedDB outbox when offline/unreachable
+      const fallbackMutationId = generateMutationUuid();
+      const obsFallback = (observationRecords || []).map((r, i) => ({
+        No: i + 1,
+        Waktu: r.timestamp,
+        X: r.numericX ?? 0,
+        Y1: r.numericY1 ?? 0,
+        Parameter: r.parametersSummary,
+      }));
+      await enqueueOutboxMutation({
+        endpoint: '/api/submissions',
+        method: 'POST',
+        schoolId: DEFAULT_SCHOOL_ID,
+        clientMutationId: fallbackMutationId,
+        payload: {
+          studentName: activeStudentName,
+          studentId: activeGroupId,
+          roomId: activeRoomId,
+          schoolId: DEFAULT_SCHOOL_ID,
+          clientMutationId: fallbackMutationId,
+          domain: domain || 'Fisika',
+          moduleId: moduleId || 'lab-experiment',
+          submittedAt: new Date().toISOString(),
+          hypothesisText: hypothesisNote?.hypothesisText || '',
+          observationData: obsFallback,
+          regressionMetrics: {
+            rSquared: regSummary.rSquared,
+            slope: regSummary.slope,
+            equation: regSummary.equation,
+          },
+          quizAnswers: Object.entries(answers).map(([qId, val]) => ({
+            questionId: qId,
+            selectedAnswer: val,
+            isCorrect: finalGrade.results?.[qId]?.isCorrect ?? true,
+          })),
+          quizScore: finalGrade.totalScore,
+          conclusionText,
+          telemetryLog: buildSubmissionTelemetryTimeline(domain || 'Fisika', obsFallback),
+        },
+      }).catch(() => undefined);
     } finally {
       setIsSubmittingReport(false);
     }

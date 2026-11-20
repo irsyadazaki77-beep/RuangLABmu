@@ -249,6 +249,17 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || replaySubmission) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, replaySubmission, onClose]);
+
   const handleSelectSubmission = (sub: LabSubmission) => {
     labSound.playClick();
     const rubric = resolveSubmissionRubric(sub);
@@ -375,7 +386,12 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
   const selectedRubric = selectedSubmission ? resolveSubmissionRubric(selectedSubmission) : null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-sm">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Buku Nilai dan Penilaian Guru"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-sm"
+    >
       <div
         onDragOver={(e) => {
           e.preventDefault();

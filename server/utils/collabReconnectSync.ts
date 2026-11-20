@@ -43,20 +43,16 @@ export type SanitizedLabRoom = Omit<LabRoom, 'pin'> & {
  */
 export function sanitizeRoomForBroadcast(
   room: LabRoom & { pinHash?: string }
-): LabRoom {
-  const {
-    pin: _pin,
-    pinHash: _pinHash,
-    ...safeRoom
-  } = room as LabRoom & { pin?: string; pinHash?: string };
-  return safeRoom as unknown as LabRoom;
+): SanitizedLabRoom {
+  const { pin: _pin, pinHash: _pinHash, ...safeRoom } = room;
+  return safeRoom;
 }
 
 export interface RoomReconnectSnapshot {
   roomJoinedMessage: {
     type: 'ROOM_JOINED';
     payload: {
-      room: LabRoom;
+      room: SanitizedLabRoom;
       client: LabRoomClient;
       isReconnect: boolean;
       paramLocks: ParameterLockPayload[];
@@ -72,7 +68,7 @@ export interface RoomReconnectSnapshot {
   roomStateSyncMessage: {
     type: 'ROOM_STATE_SYNC';
     payload: {
-      room: LabRoom;
+      room: SanitizedLabRoom;
     };
   };
 }

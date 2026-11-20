@@ -86,6 +86,7 @@ export interface CustomAIMissionPayload {
 export interface LabRoom {
   roomId: string;
   pin: string;
+  schoolId?: string;
   domain: 'physics' | 'chemistry' | 'biology' | 'astronomy';
   moduleId: string;
   teacherSocketId?: string;

@@ -20,6 +20,10 @@ export interface ExtWebSocket extends WebSocket {
   remoteIp?: string;
 }
 
+export interface WsBackpressureStats {
+  droppedNonCriticalFrames: number;
+}
+
 export interface CollabSocketContext {
   wss: WebSocketServer;
   broadcastAll: (payload: unknown) => void;
@@ -30,6 +34,7 @@ export interface CollabSocketContext {
     excludeWs?: WebSocket,
     roomIdScope?: string
   ) => void;
+  getBackpressureStats: () => WsBackpressureStats;
 }
 
 export interface WsHandlerServices {

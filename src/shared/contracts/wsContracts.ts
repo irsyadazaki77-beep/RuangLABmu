@@ -10,6 +10,9 @@ export const Vec3Schema = z.tuple([
   z.number().finite(),
 ]);
 
+export const WsSchoolIdSchema = z.string().trim().min(1).max(64).optional().default('default-school');
+export const WsClientMutationIdSchema = z.string().trim().uuid().optional();
+
 export const SpatialCursorPayloadSchema = z.object({
   userId: z.string().min(1).max(120),
   userName: z.string().min(1).max(120),
@@ -21,6 +24,7 @@ export const SpatialCursorPayloadSchema = z.object({
   normal: Vec3Schema.optional(),
   hoveredObject: z.string().max(120).optional(),
   updatedAt: z.number().finite(),
+  schoolId: WsSchoolIdSchema,
 });
 
 export const ParameterLockPayloadSchema = z.object({
@@ -97,6 +101,7 @@ export const CustomAIMissionPayloadSchema = z.object({
 export const LabRoomSchema = z.object({
   roomId: z.string().min(1).max(32),
   pin: z.string().optional(),
+  schoolId: z.string().max(64).optional(),
   domain: RoomDomainSchema,
   moduleId: z.string().min(1),
   teacherSocketId: z.string().optional(),
@@ -134,13 +139,23 @@ export const TeacherCameraSyncPayloadSchema = z.object({
   updatedAt: z.number().finite().optional(),
 });
 
+export const ScienceDomainDisplaySchema = z.enum(['Fisika', 'Kimia', 'Biologi', 'Astronomi']);
+export const NotificationDomainSchema = z.enum([
+  'Fisika',
+  'Kimia',
+  'Biologi',
+  'Astronomi',
+  'Kolaborasi',
+  'Pengajar',
+]);
+
 export const ServerExperimentRecordSchema = z
   .object({
     id: z.string().min(1).max(120),
     timestamp: z.string().max(60),
     studentName: z.string().min(1).max(120),
     groupId: z.string().max(120),
-    domain: z.string().min(1).max(60),
+    domain: ScienceDomainDisplaySchema,
     experimentTitle: z.string().min(1).max(200),
     parametersSummary: z.string().max(1000).optional().default(''),
     keyMetrics: z.record(z.string(), z.union([z.number().finite(), z.string()])).optional().default({}),
@@ -156,7 +171,7 @@ export const ServerNotificationSchema = z
     id: z.string().min(1).max(120),
     timestamp: z.string().max(60),
     severity: z.enum(['nominal', 'elevated', 'critical']),
-    domain: z.string().min(1).max(60),
+    domain: NotificationDomainSchema,
     title: z.string().min(1).max(200),
     message: z.string().max(2000),
     formulaHint: z.string().max(500).optional(),
@@ -190,6 +205,8 @@ export const ClientToServerMessageSchema = z.discriminatedUnion('type', [
       moduleId: z.string().max(120).optional(),
       teacherName: z.string().max(120).optional(),
       teacherUserId: z.string().max(120).optional(),
+      schoolId: WsSchoolIdSchema,
+      clientMutationId: WsClientMutationIdSchema,
     }),
   }),
   z.object({
@@ -205,6 +222,7 @@ export const ClientToServerMessageSchema = z.discriminatedUnion('type', [
       groupId: z.string().max(120).optional(),
       isReconnect: z.boolean().optional(),
       isVerifiedTeacherReconnect: z.boolean().optional(),
+      schoolId: WsSchoolIdSchema,
     }),
   }),
   z.object({
@@ -324,6 +342,8 @@ export const ClientToServerMessageSchema = z.discriminatedUnion('type', [
       paramKey: z.string().min(1).max(120),
       value: z.number().finite(),
       updatedBy: z.string().max(120).optional(),
+      schoolId: WsSchoolIdSchema,
+      clientMutationId: WsClientMutationIdSchema,
     }),
   }),
   z.object({
@@ -380,7 +400,11 @@ export const ClientToServerMessageSchema = z.discriminatedUnion('type', [
     type: z.literal('teacher:feedback'),
     payload: z.object({
       targetStudentId: z.string().max(120).optional(),
-      message: z.string().max(2000),
+      message: z
+        .string()
+        .trim()
+        .min(1, 'Pesan feedback pengajar wajib diisi.')
+        .max(2000),
       author: z.string().max(120).optional(),
       roomId: z.string().max(32).optional(),
       teacherPin: z.string().max(64).optional(),
@@ -391,7 +415,15 @@ export const ClientToServerMessageSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('mystery:broadcast'),
     payload: z.object({
-      challenge: z.record(z.string(), z.unknown()),
+      challenge: z
+        .object({
+          id: z.string().trim().max(120).optional(),
+          codename: z.string().trim().max(120).optional(),
+          codeName: z.string().trim().max(120).optional(),
+          title: z.string().trim().min(1).max(200).optional(),
+          domain: z.string().trim().max(60).optional(),
+        })
+        .passthrough(),
       author: z.string().max(120).optional(),
       roomId: z.string().max(32).optional(),
       teacherPin: z.string().max(64).optional(),
@@ -404,7 +436,17 @@ export const ClientToServerMessageSchema = z.discriminatedUnion('type', [
     payload: z.object({
       studentName: z.string().max(120).optional(),
       challengeTitle: z.string().max(200).optional(),
-      result: z.record(z.string(), z.unknown()),
+      result: z
+        .object({
+          score: z.number().finite().min(0).max(100),
+          passed: z.boolean().optional(),
+          studentGuess: z.union([z.number().finite(), z.string().max(120)]).optional(),
+          submittedValue: z.union([z.number().finite(), z.string().max(120)]).optional(),
+          unit: z.string().max(40).optional(),
+          errorPercentage: z.number().finite().optional(),
+          errorPercent: z.number().finite().optional(),
+        })
+        .passthrough(),
     }),
   }),
 ]);
@@ -668,3 +710,8 @@ export type LabRoomClientContract = z.infer<typeof LabRoomClientSchema>;
 export type StudentLiveTelemetryContract = z.infer<typeof StudentLiveTelemetrySchema>;
 export type TeacherLaserRayContract = z.infer<typeof TeacherLaserRayPayloadSchema>;
 export type TeacherCameraSyncContract = z.infer<typeof TeacherCameraSyncPayloadSchema>;
+export type WsMessageOf<T extends ClientToServerMessage['type']> = Extract<
+  ClientToServerMessage,
+  { type: T }
+>;
+export type WsPayloadOf<T extends ClientToServerMessage['type']> = WsMessageOf<T>['payload'];

@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   validate-and-build:
-    name: Typecheck, Unit Test & Build (Node.js 22)
+    name: Typecheck, Unit Test & Build (Bun)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -43,6 +43,10 @@ jobs:
 
       - name: Install Dependencies
         run: bun install --frozen-lockfile
+
+      - name: Dependency Security Audit (Bun)
+        continue-on-error: true
+        run: bun audit --audit-level=high
 
       - name: TypeScript Lint (tsc --noEmit)
         run: bun run lint

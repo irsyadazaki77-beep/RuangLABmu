@@ -140,11 +140,22 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
     };
   }, [isOpen, currentStepIdx, updateTargetRect]);
 
-  const handleCompleteAndClose = () => {
+  const handleCompleteAndClose = useCallback(() => {
     labSound.playClick(680);
     markOnboardingTourCompleted();
     onClose();
-  };
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleCompleteAndClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, handleCompleteAndClose]);
 
   const handleNext = () => {
     labSound.playClick(620);

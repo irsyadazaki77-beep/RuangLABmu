@@ -10,6 +10,15 @@ import {
   verifyAndParseRlabPacket,
   convertPacketToSubmission,
 } from './offlinePacketProtocol';
+import {
+  calculateReconnectDelay,
+  OfflineOutboxQueue,
+  shouldScheduleWsReconnect,
+} from '../hooks/useBackendSync';
+import {
+  AutoSaveVersionCoordinator,
+  resolveAutosaveConflictNextVersion,
+} from '../hooks/useLabSessionAutoSave';
 import os from 'os';
 
 describe('3T-Ready Architecture: Pillar 1 - Adaptive FPS Monitor & Lite Mode', () => {
@@ -458,5 +467,56 @@ describe('3T-Ready Architecture: Pillar 5 - LAN Hotspot Network Interface Detect
     assert.equal(uniqueIps.includes('172.17.0.1'), false, 'docker0 must be ignored');
     assert.equal(uniqueIps.includes('192.168.56.1'), false, 'vboxnet0 must be ignored');
     assert.equal(uniqueIps.includes('172.28.16.1'), false, 'vEthernet (WSL) must be ignored');
+  });
+});
+
+describe('3T-Ready Architecture: Pillar 6 - Offline Backoff & Autosave Conflict Recovery', () => {
+  it('suppresses WebSocket reconnect timers when browser is offline or unmounted', () => {
+    assert.equal(shouldScheduleWsReconnect({ unmounted: false, isOnline: true }), true);
+    assert.equal(shouldScheduleWsReconnect({ unmounted: false, isOnline: false }), false);
+    assert.equal(shouldScheduleWsReconnect({ unmounted: true, isOnline: true }), false);
+    assert.equal(shouldScheduleWsReconnect({ unmounted: true, isOnline: false }), false);
+  });
+
+  it('caps exponential reconnect backoff at 15000ms plus bounded jitter', () => {
+    assert.equal(calculateReconnectDelay(0, () => 0), 1000);
+    assert.equal(calculateReconnectDelay(2, () => 0.5), 4200);
+    assert.equal(calculateReconnectDelay(10, () => 1), 15400);
+  });
+
+  it('coalesces consecutive PARAM_VALUE_SYNC frames in OfflineOutboxQueue and flushes FIFO', () => {
+    const queue = new OfflineOutboxQueue(10);
+    queue.enqueue('PARAM_VALUE_SYNC', { groupId: 'G1', paramKey: 'mass', value: 1.5 }, 100);
+    queue.enqueue('note:create', { id: 'n1', text: 'Catatan awal' }, 105);
+    queue.enqueue('PARAM_VALUE_SYNC', { groupId: 'G1', paramKey: 'mass', value: 2.5 }, 110);
+
+    assert.equal(queue.size(), 2);
+    const sent: string[] = [];
+    const flushed = queue.flush((msg) => sent.push(msg));
+    assert.equal(flushed, 2);
+    assert.equal(queue.size(), 0);
+    assert.deepEqual(JSON.parse(sent[0]), {
+      type: 'note:create',
+      payload: { id: 'n1', text: 'Catatan awal' },
+    });
+    assert.deepEqual(JSON.parse(sent[1]), {
+      type: 'PARAM_VALUE_SYNC',
+      payload: { groupId: 'G1', paramKey: 'mass', value: 2.5 },
+    });
+  });
+
+  it('deterministically advances autosave version past server 409 latestVersion and aborts stale tickets', () => {
+    assert.equal(resolveAutosaveConflictNextVersion(3, 5), 6);
+    assert.equal(resolveAutosaveConflictNextVersion(8, 5), 9);
+    assert.equal(resolveAutosaveConflictNextVersion(2, undefined), 3);
+
+    const coord = new AutoSaveVersionCoordinator();
+    const ticket1 = coord.nextVersion();
+    const ticket2 = coord.nextVersion();
+    assert.equal(ticket1.signal.aborted, true);
+    assert.equal(coord.canCommit(ticket1.version, ticket1.signal), false);
+    assert.equal(coord.canCommit(ticket2.version, ticket2.signal), true);
+    assert.equal(coord.markCommitted(ticket2.version, ticket2.signal), true);
+    assert.equal(coord.getCommittedVersion(), 2);
   });
 });

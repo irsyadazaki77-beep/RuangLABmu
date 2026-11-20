@@ -29,7 +29,7 @@ export const ConceptLabelToggleButton: React.FC<ConceptLabelToggleButtonProps> =
           ? 'Sembunyikan Label & Panah Konsep 3D'
           : 'Tampilkan Label & Panah Konsep 3D'
       }
-      className={`px-2 py-1 text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+      className={`px-2 py-1 text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
         showConceptLabels
           ? accentClass
           : 'text-slate-300 hover:text-white hover:bg-white/10 font-medium'

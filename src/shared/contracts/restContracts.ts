@@ -16,6 +16,17 @@ export const ApiValidationErrorResponseSchema = z.object({
   details: z.array(z.string()),
 });
 
+export const SchoolIdSchema = z
+  .string({ error: 'Field "schoolId" wajib berupa string.' })
+  .trim()
+  .min(1, 'Field "schoolId" tidak boleh kosong.')
+  .max(64, 'Field "schoolId" melebihi batas 64 karakter.');
+
+export const ClientMutationIdSchema = z
+  .string()
+  .trim()
+  .uuid('Field "clientMutationId" harus berupa UUID v4 yang valid.');
+
 export const AutosavePayloadSchema = z.object({
   storageKey: z
     .string({ error: 'Field "storageKey" wajib berupa string.' })
@@ -28,6 +39,8 @@ export const AutosavePayloadSchema = z.object({
   session: z.unknown(),
   sessionToken: z.string().trim().max(256).optional(),
   studentId: z.string().trim().max(120).optional(),
+  schoolId: SchoolIdSchema.optional().default('default-school'),
+  clientMutationId: ClientMutationIdSchema.optional(),
 });
 
 export const RoomRejoinSchema = z.object({
@@ -82,8 +95,18 @@ export const GenerateMissionSchema = z
     }
   });
 
+export const RoomMissionQuestionInputSchema = z
+  .object({
+    id: z.string().trim().max(120).optional(),
+    questionText: z.string().trim().min(1).max(1000),
+    expectedConceptOrValue: z.string().max(1500).optional(),
+    hint: z.string().max(1000).optional(),
+  })
+  .passthrough();
+
 export const RoomMissionObjectSchema = z
   .object({
+    id: z.string().trim().max(120).optional(),
     title: z
       .string({ error: 'Field "mission.title" wajib berupa string.' })
       .trim()
@@ -96,7 +119,13 @@ export const RoomMissionObjectSchema = z
       .min(1, 'Field "mission.moduleId" harus berupa string tidak kosong.')
       .max(100, 'Field "mission.moduleId" melebihi batas 100 karakter.')
       .optional(),
+    moduleTitle: z.string().trim().max(200).optional(),
     domain: z.enum(['physics', 'chemistry', 'biology', 'astronomy']).optional(),
+    caseStudyPrompt: z.string().max(2000).optional(),
+    createdByTeacher: z.string().trim().max(120).optional(),
+    roomId: z.string().trim().max(32).optional(),
+    createdAt: z.number().finite().optional(),
+    source: z.enum(['gemini-api', 'deterministic-engine']).optional(),
     targetVariable: z
       .object({
         variableKey: z.string().optional(),
@@ -108,7 +137,7 @@ export const RoomMissionObjectSchema = z
       })
       .passthrough()
       .optional(),
-    contextualQuestions: z.array(z.unknown()).max(20).optional(),
+    contextualQuestions: z.array(RoomMissionQuestionInputSchema).max(20).optional(),
   })
   .passthrough();
 
@@ -120,6 +149,19 @@ export const RoomMissionUpdateSchema = z.object({
     .max(32, 'Parameter "roomId" melebihi batas 32 karakter.'),
   teacherName: z.string().trim().max(120).optional(),
   mission: RoomMissionObjectSchema.nullable().optional(),
+});
+
+export const GradebookQuerySchema = z.object({
+  roomPin: z
+    .string({ error: 'Parameter query "roomPin" harus berupa string.' })
+    .trim()
+    .max(64, 'Parameter query "roomPin" melebihi batas 64 karakter.')
+    .optional(),
+  schoolId: SchoolIdSchema.optional(),
+});
+
+export const SubmissionsQuerySchema = z.object({
+  schoolId: SchoolIdSchema.optional(),
 });
 
 export const TelemetryAnalyticsSchema = z
@@ -208,6 +250,8 @@ export const VisionDiagnoseSchema = z.object({
 
 export const SubmissionCreateSchema = z.object({
   id: z.string().trim().min(1).max(80).optional(),
+  schoolId: SchoolIdSchema.optional().default('default-school'),
+  clientMutationId: ClientMutationIdSchema.optional(),
   studentName: z
     .string({ error: 'Field "studentName" wajib diisi.' })
     .trim()
@@ -281,6 +325,7 @@ export const SubmissionGradeSchema = z.object({
     .min(0, 'Nilai (score) minimal 0.')
     .max(100, 'Nilai (score) maksimal 100.'),
   feedback: z.string().trim().max(2000).optional(),
+  schoolId: SchoolIdSchema.optional().default('default-school'),
 });
 
 export type AutosavePayload = z.infer<typeof AutosavePayloadSchema>;
@@ -293,4 +338,6 @@ export type AiConversationalPayload = z.infer<typeof AiConversationalSchema>;
 export type VisionDiagnosePayload = z.infer<typeof VisionDiagnoseSchema>;
 export type SubmissionCreatePayload = z.infer<typeof SubmissionCreateSchema>;
 export type SubmissionGradePayload = z.infer<typeof SubmissionGradeSchema>;
+export type GradebookQueryPayload = z.infer<typeof GradebookQuerySchema>;
+export type SubmissionsQueryPayload = z.infer<typeof SubmissionsQuerySchema>;
 export type ValidationIssue = z.infer<typeof ValidationIssueSchema>;

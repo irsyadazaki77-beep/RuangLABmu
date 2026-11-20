@@ -70,6 +70,7 @@ describe('SRE Health Probes, Metrics Security & Structured Logger Redaction', ()
       createHealthRouter({
         state,
         wss,
+        getBackpressureStats: () => ({ droppedNonCriticalFrames: 7 }),
         isShuttingDown: () => shuttingDown,
         isProduction: () => prodMode,
         getMetricsToken: () => 'super-secret-metrics-token',
@@ -115,6 +116,7 @@ describe('SRE Health Probes, Metrics Security & Structured Logger Redaction', ()
         activeRooms: number;
         connectedClients: number;
         activeParameterLocks: number;
+        wsBackpressureDroppedFrames: number;
         memoryRssMb: number;
         heapUsedMb: number;
         sqliteWalSizeBytes: number;
@@ -122,6 +124,7 @@ describe('SRE Health Probes, Metrics Security & Structured Logger Redaction', ()
       assert.ok(metricsJson.activeRooms >= 1);
       assert.equal(typeof metricsJson.connectedClients, 'number');
       assert.equal(typeof metricsJson.activeParameterLocks, 'number');
+      assert.equal(metricsJson.wsBackpressureDroppedFrames, 7);
       assert.ok(metricsJson.memoryRssMb > 0);
       assert.ok(metricsJson.heapUsedMb > 0);
       assert.equal(typeof metricsJson.sqliteWalSizeBytes, 'number');

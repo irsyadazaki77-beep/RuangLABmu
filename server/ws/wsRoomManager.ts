@@ -1,3 +1,4 @@
+import type { WsPayloadOf } from '../../src/shared/contracts/wsContracts';
 import {
   LabRoom,
   LabRoomClient,
@@ -73,7 +74,7 @@ function clearJoinPinAttempts(key: string): void {
 
 export function handleRoomCreate(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: Omit<WsPayloadOf<'ROOM_CREATE'>, 'schoolId'> & { schoolId?: string },
   services: WsHandlerServices
 ): void {
   const { state, broadcastRoom } = services;
@@ -104,12 +105,17 @@ export function handleRoomCreate(
       ? payload.roomId
       : generateRandomRoomId();
 
+  const schoolId =
+    typeof payload.schoolId === 'string' && payload.schoolId.trim()
+      ? payload.schoolId.trim()
+      : 'default-school';
   const roomId = customId.toUpperCase().trim();
   const now = Date.now();
   const newRoom: LabRoom & { pinHash?: string } = {
     roomId,
     pin: resolvedPin,
     pinHash: hashRoomPin(resolvedPin),
+    schoolId,
     domain,
     moduleId,
     teacherSocketId: ws.socketId,
@@ -145,7 +151,7 @@ export function handleRoomCreate(
 
 export function handleRoomJoin(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: Omit<WsPayloadOf<'ROOM_JOIN'>, 'schoolId'> & { schoolId?: string },
   services: WsHandlerServices
 ): void {
   const { state, broadcastRoom } = services;
@@ -353,7 +359,7 @@ export function handleRoomJoin(
 
 export function handleRoomRejoin(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'ROOM_REJOIN'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastRoom } = services;
@@ -406,6 +412,7 @@ export function handleRoomRejoin(
       {
         roomId: restored.room.roomId,
         pin: restored.room.pin,
+        schoolId: restored.room.schoolId || 'default-school',
         name:
           (typeof payload.name === 'string' && payload.name.trim()) ||
           restored.participant.display_name,
@@ -449,7 +456,7 @@ export function handleRoomRejoin(
 
 export function handleSimulationSnapshotPush(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'SIMULATION_SNAPSHOT_PUSH'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastRoom } = services;
@@ -512,7 +519,7 @@ export function handleRoomLeave(
 
 export function handleStudentTelemetrySync(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'STUDENT_TELEMETRY_SYNC'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastRoom } = services;

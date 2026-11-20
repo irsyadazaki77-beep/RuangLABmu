@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles,
@@ -132,6 +132,18 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
 
   const hasLowR2Alert =
     liveTelemetry.analytics.rSquared < 0.85 && liveTelemetry.recordedData.length >= 3;
+
+  useEffect(() => {
+    if (isEmbedded || !isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (onOpenChange) onOpenChange(false);
+        else setInternalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isEmbedded, isOpen, onOpenChange]);
 
   const panelInner = (
     <>
@@ -573,6 +585,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             exit={{ x: '100%' }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             role="dialog"
+            aria-modal="true"
             aria-label="Laci Samping Dr. LabMu & Log Sesi"
             className={`fixed ${isFullBleedActiveLab ? 'top-0' : 'top-14'} right-0 bottom-0 w-full max-w-[440px] z-50 flex flex-col bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl select-text`}
           >

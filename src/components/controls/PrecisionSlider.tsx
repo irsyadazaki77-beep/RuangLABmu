@@ -207,7 +207,7 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
         {/* Inline Editable Numeric Badge + Unit + Reset */}
         <div className="flex items-center gap-1 shrink-0">
           <div
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-mono text-xs font-bold tabular-nums ${palette.badge}`}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-mono text-xs font-bold tabular-nums focus-within:ring-2 focus-within:ring-sky-400 ${palette.badge}`}
           >
             <input
               type="text"
@@ -257,9 +257,9 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
             }}
             aria-label={`Reset ${label} ke nilai bawaan`}
             title={`Reset ke bawaan (${resolvedDefault.toFixed(decimals)}${unit ? ` ${unit}` : ''})`}
-            className="w-6 h-6 rounded-md border border-[var(--comfort-border)] bg-[var(--comfort-bg)] flex items-center justify-center text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            className="w-6 h-6 rounded-md border border-[var(--comfort-border)] bg-[var(--comfort-bg)] flex items-center justify-center text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
           >
-            <RotateCcw className="w-3 h-3" />
+            <RotateCcw className="w-3 h-3" aria-hidden="true" />
           </motion.button>
         </div>
       </div>
@@ -277,9 +277,9 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
           }}
           aria-label={`Kurangi ${label}`}
           title={`Kurangi ${step}${unit ? ` ${unit}` : ''}`}
-          className="w-7 h-7 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-bg)] flex items-center justify-center text-[var(--comfort-text)] hover:bg-slate-200/60 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+          className="w-7 h-7 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-bg)] flex items-center justify-center text-[var(--comfort-text)] hover:bg-slate-200/60 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
         >
-          <Minus className="w-3.5 h-3.5" />
+          <Minus className="w-3.5 h-3.5" aria-hidden="true" />
         </motion.button>
 
         <div className="relative flex-1 flex items-center h-6">
@@ -296,6 +296,10 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
             type="range"
             data-testid={testId}
             aria-label={label}
+            aria-valuemin={min}
+            aria-valuemax={max}
+            aria-valuenow={value}
+            aria-valuetext={`${value.toFixed(decimals)}${unit ? ` ${unit}` : ''}`}
             min={min}
             max={max}
             step={step}
@@ -320,7 +324,7 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
             }}
             onTouchStart={(e) => e.stopPropagation()}
             onChange={(e) => applyValue(Number(e.target.value))}
-            className={`relative z-10 w-full h-2 appearance-none bg-transparent touch-none cursor-pointer disabled:cursor-not-allowed ${palette.sliderAccent}`}
+            className={`relative z-10 w-full h-2 appearance-none bg-transparent touch-none cursor-pointer disabled:cursor-not-allowed rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 ${palette.sliderAccent}`}
           />
         </div>
 
@@ -335,9 +339,9 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
           }}
           aria-label={`Tambah ${label}`}
           title={`Tambah ${step}${unit ? ` ${unit}` : ''}`}
-          className="w-7 h-7 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-bg)] flex items-center justify-center text-[var(--comfort-text)] hover:bg-slate-200/60 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+          className="w-7 h-7 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-bg)] flex items-center justify-center text-[var(--comfort-text)] hover:bg-slate-200/60 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
         >
-          <Plus className="w-3.5 h-3.5" />
+          <Plus className="w-3.5 h-3.5" aria-hidden="true" />
         </motion.button>
       </div>
     </div>

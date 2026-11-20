@@ -1,6 +1,6 @@
+import type { WsPayloadOf } from '../../src/shared/contracts/wsContracts';
 import {
   ParameterLockPayload,
-  SpatialCursorPayload,
   validateTeacherCameraSyncPayload,
   validateTeacherLaserRayPayload,
 } from '../../src/utils/collabProtocol';
@@ -9,7 +9,7 @@ import type { ExtWebSocket, WsHandlerServices } from './wsTypes';
 
 export function handleTeacherLaserRay(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'TEACHER_LASER_RAY'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastRoom, broadcastGroup } = services;
@@ -45,7 +45,7 @@ export function handleTeacherLaserRay(
 
 export function handleTeacherCameraSync(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'TEACHER_CAMERA_SYNC'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastRoom, broadcastGroup } = services;
@@ -81,7 +81,7 @@ export function handleTeacherCameraSync(
 
 export function handleCursor3DMove(
   ws: ExtWebSocket,
-  payload: SpatialCursorPayload,
+  payload: WsPayloadOf<'CURSOR_3D_MOVE'>,
   services: WsHandlerServices
 ): void {
   ws.userId = payload.userId;
@@ -100,11 +100,11 @@ export function handleCursor3DMove(
 
 export function handleCursor3DLeave(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'CURSOR_3D_LEAVE'>,
   services: WsHandlerServices
 ): void {
   services.broadcastGroup(
-    typeof payload.groupId === 'string' ? payload.groupId : undefined,
+    payload.groupId,
     { type: 'CURSOR_3D_LEAVE', payload },
     ws,
     ws.roomId
@@ -113,7 +113,7 @@ export function handleCursor3DLeave(
 
 export function handleParamLockAcquire(
   ws: ExtWebSocket,
-  reqLock: ParameterLockPayload,
+  reqLock: WsPayloadOf<'PARAM_LOCK_ACQUIRE'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastGroup } = services;
@@ -151,13 +151,11 @@ export function handleParamLockAcquire(
 
 export function handleParamLockRelease(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'PARAM_LOCK_RELEASE'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastGroup } = services;
-  const groupId = typeof payload.groupId === 'string' ? payload.groupId : '';
-  const paramKey = typeof payload.paramKey === 'string' ? payload.paramKey : '';
-  const userId = typeof payload.userId === 'string' ? payload.userId : '';
+  const { groupId, paramKey, userId } = payload;
 
   const lockKey = `${ws.roomId || groupId}:${paramKey}`;
   const existing = state.parameterLocks.get(lockKey);
@@ -174,11 +172,11 @@ export function handleParamLockRelease(
 
 export function handleParamValueSync(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'PARAM_VALUE_SYNC'>,
   services: WsHandlerServices
 ): void {
   services.broadcastGroup(
-    typeof payload.groupId === 'string' ? payload.groupId : undefined,
+    payload.groupId,
     { type: 'PARAM_VALUE_SYNC', payload },
     ws,
     ws.roomId
@@ -187,7 +185,7 @@ export function handleParamValueSync(
 
 export function handleParamLockResetAll(
   ws: ExtWebSocket,
-  payload: Record<string, unknown>,
+  payload: WsPayloadOf<'PARAM_LOCK_RESET_ALL'>,
   services: WsHandlerServices
 ): void {
   const { state, broadcastRoom, broadcastAll } = services;
