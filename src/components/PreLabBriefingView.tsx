@@ -50,45 +50,11 @@ import {
 import { LabSafetyLicenseModal } from './ui/LabSafetyLicenseModal';
 import { InteractiveFormulaPrimer } from './ui/InteractiveFormulaPrimer';
 import { DIYLocalWisdomCard } from './ui/DIYLocalWisdomCard';
+import { SciFormula } from './ui/ScientificNotation';
+import { formatCleanEquation } from '../utils/spatialHudHelpers';
 
 function cleanLatexEquation(eq: string): string {
-  if (!eq) return '';
-  return eq
-    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1) / ($2)')
-    .replace(/\\text\{([^}]+)\}/g, '$1')
-    .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
-    .replace(/\\left\(/g, '(')
-    .replace(/\\right\)/g, ')')
-    .replace(/\\Sigma/g, 'Σ')
-    .replace(/\\Delta/g, 'Δ')
-    .replace(/\\Psi/g, 'Ψ')
-    .replace(/\\lambda/g, 'λ')
-    .replace(/\\theta/g, 'θ')
-    .replace(/\\mu/g, 'μ')
-    .replace(/\\pi/g, 'π')
-    .replace(/\\eta/g, 'η')
-    .replace(/\\rho/g, 'ρ')
-    .replace(/\\nu/g, 'ν')
-    .replace(/\\phi/g, 'φ')
-    .replace(/\\varepsilon/g, 'ε')
-    .replace(/\\alpha/g, 'α')
-    .replace(/\\beta/g, 'β')
-    .replace(/\\gamma/g, 'γ')
-    .replace(/\\implies/g, '⟹')
-    .replace(/\\cdot/g, '·')
-    .replace(/\\times/g, '×')
-    .replace(/\\approx/g, '≈')
-    .replace(/\\propto/g, '∝')
-    .replace(/\\quad/g, ' ')
-    .replace(/\\max/g, 'max')
-    .replace(/\\sin/g, 'sin')
-    .replace(/\\cos/g, 'cos')
-    .replace(/\\tan/g, 'tan')
-    .replace(/\^2/g, '²')
-    .replace(/\^3/g, '³')
-    .replace(/\_\{([^}]+)\}/g, '_$1')
-    .replace(/\\/g, '')
-    .trim();
+  return formatCleanEquation(eq);
 }
 
 interface PreLabBriefingViewProps {
@@ -307,7 +273,7 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
                       key={idx}
                       className="p-3 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] font-mono text-xs text-[var(--comfort-accent)] font-semibold leading-relaxed"
                     >
-                      {cleanLatexEquation(eq)}
+                      <SciFormula text={cleanLatexEquation(eq)} wrap />
                     </div>
                   ))}
                 </div>
@@ -374,18 +340,6 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
                 })}
               </div>
             </section>
-          )}
-
-          {/* Hypothesis Scratchpad */}
-          {hypothesisNote && onChangeHypothesisNote && (
-            <HypothesisScratchpadCard
-              moduleTitle={experiment.title}
-              defaultIndependentVar={firstParamLabel}
-              defaultDependentVar={firstOutputLabel}
-              note={hypothesisNote}
-              onChangeNote={onChangeHypothesisNote}
-              records={records}
-            />
           )}
 
           {/* K3 Safety Rules & Apparatus Checklist */}
@@ -619,7 +573,9 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
                               <span className="text-[var(--comfort-text-muted)] font-mono text-[10px] shrink-0 tabular-nums">
                                 [{idx + 1}]
                               </span>
-                              <span className="font-semibold">{cleanLatexEquation(step)}</span>
+                              <span className="font-semibold">
+                                <SciFormula text={cleanLatexEquation(step)} wrap />
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -638,8 +594,19 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
           )}
         </div>
 
-        {/* RIGHT COLUMN (5 Cols): Interactive Pre-Lab Readiness Quiz */}
+        {/* RIGHT COLUMN (5 Cols): Readiness Quiz + Hypothesis Scratchpad (Balanced Layout) */}
         <div className="lg:col-span-5 space-y-5">
+          {hypothesisNote && onChangeHypothesisNote && (
+            <HypothesisScratchpadCard
+              moduleTitle={experiment.title}
+              defaultIndependentVar={firstParamLabel}
+              defaultDependentVar={firstOutputLabel}
+              note={hypothesisNote}
+              onChangeNote={onChangeHypothesisNote}
+              records={records}
+            />
+          )}
+
           <section className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-5 sm:p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[var(--comfort-border)]">
               <div>

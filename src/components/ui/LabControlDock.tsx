@@ -81,10 +81,11 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     }))
   );
 
-  const { zenMode, toggleZenMode } = useUIStore(
+  const { zenMode, toggleZenMode, mobileTab } = useUIStore(
     useShallow((s) => ({
       zenMode: s.zenMode,
       toggleZenMode: s.toggleZenMode,
+      mobileTab: s.mobileTab,
     }))
   );
 
@@ -191,12 +192,15 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
   const safeTimelineMaxIdx = Math.max(0, timelineCount - 1);
   const safeTimelineVal = Math.max(0, Math.min(safeTimelineMaxIdx, timelineCursor));
   const guideStepCount = recordsCount >= 3 ? (workflowStep >= 3 ? '3/3' : '2/3') : '1/3';
+  const isMobileSheetOpen = mobileTab === 'variables' || mobileTab === 'telemetry';
 
   return (
     <div
       role="toolbar"
       aria-label="Dock Kontrol Cepat RuangLABmu"
-      className="fixed bottom-[114px] lg:bottom-3 left-1/2 -translate-x-1/2 z-20 lg:z-40 max-w-[calc(100vw-16px)] lg:max-w-none flex flex-col items-stretch gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-950/92 text-slate-100 shadow-2xl border border-slate-700/80 transition-all duration-200 select-none"
+      className={`${
+        isMobileSheetOpen ? 'hidden lg:flex' : 'flex'
+      } fixed bottom-[62px] lg:bottom-3 left-1/2 -translate-x-1/2 z-20 lg:z-40 w-[calc(100vw-16px)] sm:w-auto lg:max-w-[calc(100vw-688px)] 2xl:max-w-none flex-col items-stretch gap-1 px-2 py-1.5 rounded-xl studio-hud-surface shadow-2xl border transition-all duration-200 select-none`}
     >
       {/* Slim Time-Travel Scrubber Slider */}
       {timelineCount > 1 && (
@@ -204,12 +208,12 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           data-testid="time-travel-scrubber-bar"
           className={`flex items-center gap-2 px-2 py-1 rounded-lg border text-[10px] font-mono transition-colors ${
             isTimeTraveling
-              ? 'bg-amber-500/15 border-amber-500/40 text-amber-200'
-              : 'bg-slate-900/75 border-slate-700/70 text-slate-300'
+              ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-200'
+              : 'studio-hud-subcard text-[var(--comfort-hud-muted)]'
           }`}
         >
           <span className="flex items-center gap-1 font-bold shrink-0">
-            <History className={`w-3 h-3 ${isTimeTraveling ? 'text-amber-400' : 'text-sky-400'}`} aria-hidden="true" />
+            <History className={`w-3 h-3 ${isTimeTraveling ? 'text-amber-500' : 'text-sky-500'}`} aria-hidden="true" />
             <span>{isTimeTraveling ? 'Time-Travel' : 'Linimasa'}</span>
           </span>
           <input
@@ -223,11 +227,11 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
             onChange={(e) => {
               seekTimelineCursor(Number(e.target.value));
             }}
-            className="flex-1 min-w-[110px] sm:min-w-[170px] h-1.5 accent-amber-500 cursor-ew-resize"
+            className="flex-1 min-w-[90px] sm:min-w-[150px] h-1.5 accent-amber-500 cursor-ew-resize"
           />
-          <span className="tabular-nums font-bold shrink-0">
+          <span className="tabular-nums font-bold shrink-0 text-[var(--comfort-hud-text)]">
             t={timelineCurrentTime.toFixed(2)}s
-            <span className="opacity-65 hidden sm:inline">
+            <span className="opacity-65 hidden xl:inline">
               {' '}
               ({timelineMinTime.toFixed(1)}–{timelineMaxTime.toFixed(1)}s)
             </span>
@@ -235,17 +239,17 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         </div>
       )}
 
-      <div className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto">
+      <div className="flex flex-wrap lg:flex-nowrap items-center justify-center gap-1">
         {/* 1. Play/Pause */}
         <button
           type="button"
           onClick={handleToggleSimulation}
           title="[Space] Play/Jeda Simulasi"
           aria-label="Play atau Jeda Simulasi 3D (Shortcut Space)"
-          className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+          className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
             isSimulating
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/35 hover:bg-emerald-500/30'
-              : 'bg-amber-500/20 text-amber-300 border border-amber-500/35 hover:bg-amber-500/30'
+              ? 'bg-emerald-500/18 text-emerald-700 dark:text-emerald-300 border border-emerald-500/35 hover:bg-emerald-500/28'
+              : 'bg-amber-500/18 text-amber-700 dark:text-amber-300 border border-amber-500/35 hover:bg-amber-500/28'
           }`}
         >
           {isSimulating ? <Pause className="w-3.5 h-3.5" aria-hidden="true" /> : <Play className="w-3.5 h-3.5" aria-hidden="true" />}
@@ -258,21 +262,21 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           onClick={handleResetTrial}
           title="[R] Reset Percobaan Simulasi"
           aria-label="Reset Percobaan Simulasi (Shortcut R)"
-          className="px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 text-slate-200 hover:bg-slate-800/80 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+          className="px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)] transition-colors cursor-pointer whitespace-nowrap shrink-0"
         >
-          <RotateCcw className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
-          <span className="hidden sm:inline">{t('controls.reset')}</span>
+          <RotateCcw className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" aria-hidden="true" />
+          <span className="hidden 2xl:inline">{t('controls.reset')}</span>
         </button>
 
-        <div className="w-px h-4 bg-slate-700/80 mx-0.5 shrink-0" aria-hidden="true" />
+        <div className="hidden sm:block w-px h-4 bg-[var(--comfort-border)] mx-0.5 shrink-0" aria-hidden="true" />
 
         {/* 3. Speed Selector */}
         <div
-          className="flex items-center gap-0.5 bg-slate-900/80 p-0.5 rounded-lg border border-slate-700/70 shrink-0"
+          className="flex items-center gap-0.5 studio-hud-subcard p-0.5 rounded-lg border shrink-0"
           role="group"
           aria-label={t('controls.speed')}
         >
-          <Gauge className="w-3.5 h-3.5 text-slate-400 ml-1 mr-0.5 hidden md:inline" aria-hidden="true" />
+          <Gauge className="w-3.5 h-3.5 text-[var(--comfort-hud-muted)] ml-1 mr-0.5 hidden 2xl:inline" aria-hidden="true" />
           {SPEED_OPTIONS.map((spd) => {
             const isActive = Math.abs(playbackSpeed - spd) < 0.05;
             return (
@@ -286,7 +290,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
                 className={`px-1.5 py-0.5 rounded-md text-[11px] font-mono font-bold transition-colors cursor-pointer tabular-nums ${
                   isActive
                     ? 'bg-sky-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-800'
+                    : 'text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)]'
                 }`}
                 title={`${t('controls.speed')} ${spd}x`}
               >
@@ -296,7 +300,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           })}
         </div>
 
-        <div className="w-px h-4 bg-slate-700/80 mx-0.5 shrink-0" aria-hidden="true" />
+        <div className="hidden sm:block w-px h-4 bg-[var(--comfort-border)] mx-0.5 shrink-0" aria-hidden="true" />
 
         {/* 4. Sound Toggle */}
         <button
@@ -307,10 +311,10 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           }}
           title={`[M] ${soundEnabled ? t('controls.mute') : t('controls.unmute')}`}
           aria-label={soundEnabled ? 'Bisukan suara laboratorium (Shortcut M)' : 'Nyalakan suara laboratorium (Shortcut M)'}
-          className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
+          className={`px-1.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
             soundEnabled
-              ? 'text-sky-400 hover:bg-slate-800/80'
-              : 'text-slate-500 hover:bg-slate-800/80'
+              ? 'text-sky-600 dark:text-sky-400 hover:bg-[var(--comfort-surface-subtle)]'
+              : 'text-[var(--comfort-hud-muted)] hover:bg-[var(--comfort-surface-subtle)]'
           }`}
         >
           {soundEnabled ? <Volume2 className="w-4 h-4" aria-hidden="true" /> : <VolumeX className="w-4 h-4" aria-hidden="true" />}
@@ -327,15 +331,15 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
             aria-expanded={isGuideOpen}
             aria-label="Panduan Praktikum 3D"
             title="Panduan Praktikum 3D & Checklist Langkah"
-            className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+            className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap ${
               isGuideOpen
                 ? 'bg-sky-600 text-white'
-                : 'text-slate-200 hover:bg-slate-800/80'
+                : 'text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)]'
             }`}
           >
-            <Compass className={`w-4 h-4 ${isGuideOpen ? 'text-white' : 'text-sky-400'}`} aria-hidden="true" />
+            <Compass className={`w-4 h-4 ${isGuideOpen ? 'text-white' : 'text-sky-500'}`} aria-hidden="true" />
             <span className="hidden sm:inline">Panduan</span>
-            <span className={`font-mono text-[10px] font-bold tabular-nums ${isGuideOpen ? 'text-sky-100' : 'text-sky-300'}`}>
+            <span className={`font-mono text-[10px] font-bold tabular-nums ${isGuideOpen ? 'text-sky-100' : 'text-sky-600 dark:text-sky-300'}`}>
               {guideStepCount}
             </span>
           </button>
@@ -427,7 +431,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           )}
         </div>
 
-        <div className="w-px h-4 bg-slate-700/80 mx-0.5 shrink-0" aria-hidden="true" />
+        <div className="hidden sm:block w-px h-4 bg-[var(--comfort-border)] mx-0.5 shrink-0" aria-hidden="true" />
 
         {/* 5. Snapshot */}
         <button
@@ -435,16 +439,16 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           onClick={handleCapture3DSnapshot}
           title="[S] Tangkap Snapshot Kanvas 3D"
           aria-label="Tangkap Snapshot Kanvas 3D (Shortcut S)"
-          className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+          className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
             snapshotPulse
               ? 'bg-sky-500 text-slate-950'
-              : 'text-slate-200 hover:bg-slate-800/80'
+              : 'text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)]'
           }`}
         >
-          <Camera className={`w-4 h-4 ${snapshotPulse ? 'text-slate-950' : 'text-sky-400'}`} aria-hidden="true" />
-          <span className="hidden lg:inline">{t('controls.snapshot')}</span>
+          <Camera className={`w-4 h-4 ${snapshotPulse ? 'text-slate-950' : 'text-sky-500'}`} aria-hidden="true" />
+          <span className="hidden xl:inline">{t('controls.snapshot')}</span>
           {snapshotCount > 0 && (
-            <span className="font-mono text-[10px] font-bold text-sky-300 tabular-nums">
+            <span className="font-mono text-[10px] font-bold text-sky-600 dark:text-sky-300 tabular-nums">
               · {snapshotCount}
             </span>
           )}
@@ -461,15 +465,15 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           aria-label={zenMode ? 'Keluar dari Mode Fokus (Shortcut Z)' : 'Aktifkan Mode Fokus (Shortcut Z)'}
           className={`hidden lg:flex px-2 py-1 rounded-lg text-xs font-semibold items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
             zenMode
-              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
-              : 'text-slate-200 hover:bg-slate-800/80'
+              ? 'bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-500/40'
+              : 'text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)]'
           }`}
         >
           {zenMode ? <Minimize2 className="w-4 h-4" aria-hidden="true" /> : <Maximize2 className="w-4 h-4" aria-hidden="true" />}
-          <span className="hidden lg:inline">{zenMode ? t('controls.normal') : t('controls.zen')}</span>
+          <span className="hidden 2xl:inline">{zenMode ? t('controls.normal') : t('controls.zen')}</span>
         </button>
 
-        <div className="w-px h-4 bg-slate-700/80 mx-0.5 shrink-0" aria-hidden="true" />
+        <div className="hidden sm:block w-px h-4 bg-[var(--comfort-border)] mx-0.5 shrink-0" aria-hidden="true" />
 
         {/* 7. Voice Assistant Button */}
         <button
@@ -489,10 +493,10 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
               ? 'Suara Dr. LabMu Aktif (Klik untuk matikan)'
               : 'Tanya Dr. LabMu via Suara Interaktif'
           }
-          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer relative shrink-0 ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer relative shrink-0 ${
             voiceState.fullDuplexEnabled
               ? 'bg-rose-500 text-white shadow-sm ring-2 ring-rose-400/50'
-              : 'text-slate-300 hover:bg-slate-800/80 hover:text-rose-400'
+              : 'text-[var(--comfort-hud-muted)] hover:bg-[var(--comfort-surface-subtle)] hover:text-rose-500'
           }`}
         >
           {voiceState.fullDuplexEnabled ? (

@@ -321,10 +321,12 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
       {!isFullBleedActiveLab && (
         <header
           style={{ backgroundColor: 'var(--comfort-header-bg)' }}
-          className="sticky top-0 h-14 shrink-0 flex items-center justify-between gap-4 sm:gap-8 px-4 sm:px-6 backdrop-blur-md border-b border-[var(--comfort-border)] text-[var(--comfort-text)] z-40 select-none transition-colors duration-200"
+          className={`sticky top-0 shrink-0 flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2.5 gap-y-2 lg:gap-3 px-3 sm:px-5 backdrop-blur-md border-b border-[var(--comfort-border)] text-[var(--comfort-text)] z-40 select-none transition-colors duration-200 ${
+            isLobbyMode ? 'py-2 sm:py-0 sm:h-14' : 'h-14'
+          }`}
         >
           {/* Zone 1: Brand Wordmark + Concise Module Breadcrumb */}
-          <div className="flex items-center gap-3 shrink-0 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 min-w-0">
             <button
               type="button"
               onClick={() => {
@@ -334,16 +336,16 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
               aria-label="Kembali ke RuangLABmu Lobby"
               className="flex items-center gap-2 shrink-0 cursor-pointer hover:opacity-85 transition-opacity rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 whitespace-nowrap"
             >
-              <span className="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center shrink-0">
+              <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-sky-500 to-sky-700 shadow-xs flex items-center justify-center shrink-0">
                 <Atom className="w-4 h-4 text-white" aria-hidden="true" />
               </span>
-              <span className="font-bold text-base tracking-tight whitespace-nowrap">
+              <span className="font-bold text-sm sm:text-base tracking-tight whitespace-nowrap">
                 RuangLABmu
               </span>
             </button>
 
             {!isLobbyMode && userRole === 'siswa' && (
-              <div className="flex items-center gap-2.5 min-w-0 pl-2.5 border-l border-[var(--comfort-border)] text-xs">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 pl-2 border-l border-[var(--comfort-border)] text-xs">
                 <button
                   type="button"
                   onClick={() => {
@@ -358,18 +360,27 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                 <span className="hidden lg:inline text-[var(--comfort-text-muted)]" aria-hidden="true">
                   ·
                 </span>
-                <span className="hidden lg:inline font-semibold truncate max-w-[200px]">
+                <span
+                  title={experimentModule.title}
+                  className="hidden lg:inline font-semibold truncate max-w-[125px] xl:max-w-[145px] 2xl:max-w-[210px]"
+                >
                   {experimentModule.title}
                 </span>
-                <span className="hidden lg:inline text-[var(--comfort-text-muted)] font-mono text-[11px] shrink-0">
+                <span className="hidden 2xl:inline text-[var(--comfort-text-muted)] font-mono text-[11px] shrink-0">
                   {tierShortLabel}
                 </span>
               </div>
             )}
           </div>
 
-          {/* Zone 2: Search Bar (Lobby) or Workflow Stepper (Stages 1/3/4) */}
-          <div className="flex-1 flex items-center justify-center min-w-0 max-w-md">
+          {/* Zone 2: Search Bar (Lobby — wraps cleanly to row 2 on <640px) or Workflow Stepper (Stages 1/3/4) */}
+          <div
+            className={
+              isLobbyMode
+                ? 'order-last sm:order-none w-full sm:w-auto sm:flex-1 flex items-center justify-center min-w-0 sm:max-w-md'
+                : 'hidden md:flex flex-1 items-center justify-center min-w-0'
+            }
+          >
             {isLobbyMode ? (
               <div className="relative w-full">
                 <Search className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -394,20 +405,18 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
               </div>
             ) : (
               userRole === 'siswa' && (
-                <div className="hidden md:flex items-center justify-center">
-                  <StudentWorkflowStepper
-                    workflowStep={workflowStep}
-                    setWorkflowStep={setWorkflowStep}
-                    recordsCount={recordsCount}
-                    lksGraded={lksGraded}
-                  />
-                </div>
+                <StudentWorkflowStepper
+                  workflowStep={workflowStep}
+                  setWorkflowStep={setWorkflowStep}
+                  recordsCount={recordsCount}
+                  lksGraded={lksGraded}
+                />
               )
             )}
           </div>
 
           {/* Zone 3: Connectivity · Meja Bersama · Profile & Settings */}
-          <div className="flex items-center gap-2 shrink-0 relative">
+          <div className="flex items-center gap-1.5 shrink-0 relative">
             <ConnectivityPopover
               isOpen={isConnectivityTooltipOpen}
               onToggle={() => setIsConnectivityTooltipOpen((prev) => !prev)}

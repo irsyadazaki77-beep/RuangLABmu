@@ -440,6 +440,7 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
   const highlightedParamKey = useLabStore((s) => s.highlightedParamKey);
   const setActiveAdjustedParam = useLabStore((s) => s.setActiveAdjustedParam);
   const updateLiveParamSnapshot = useLabStore((s) => s.updateLiveParamSnapshot);
+  const removeLiveParamSnapshot = useLabStore((s) => s.removeLiveParamSnapshot);
   const isHighlighted = Boolean(paramKey && highlightedParamKey === paramKey);
 
   useEffect(() => {
@@ -457,7 +458,10 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
 
   useEffect(() => {
     updateLiveParamSnapshot(displayVarKey, safeVal, unit);
-  }, [displayVarKey, safeVal, unit, updateLiveParamSnapshot]);
+    return () => {
+      removeLiveParamSnapshot(displayVarKey);
+    };
+  }, [displayVarKey, safeVal, unit, updateLiveParamSnapshot, removeLiveParamSnapshot]);
 
   const feedbackText = dynamicFeedback ? dynamicFeedback(safeVal, effectiveLevel) : '';
   const fillPct = Math.min(
@@ -475,7 +479,9 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
   const decimals =
     precision !== undefined
       ? precision
-      : step < 0.05
+      : step < 0.01
+      ? 3
+      : step < 0.1
       ? 2
       : step < 1
       ? 1

@@ -297,12 +297,12 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
         </div>
       )}
 
-      {/* Row 1: Clean Quick-Start Bar & Tabular KPI Strip */}
+      {/* Row 1: Studio Quick-Start Bar & Tabular KPI Strip */}
       <div
         data-testid="quick-start-hero-bar"
-        className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-4 py-3 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-xs"
+        className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] shadow-xs text-xs relative overflow-hidden"
       >
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0 w-full lg:w-auto">
           <motion.button
             type="button"
             whileTap={{ scale: 0.98 }}
@@ -312,10 +312,10 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               labSound.playClick();
               handleSelectAndTrackExperiment(continueTargetModule);
             }}
-            className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
+            className="max-w-full min-w-0 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-white font-semibold text-xs flex items-center gap-2 cursor-pointer transition-all shadow-xs"
           >
             <Play className="w-3.5 h-3.5 fill-current shrink-0" />
-            <span>
+            <span className="truncate">
               {lastOpenedModule
                 ? `Lanjutkan Praktikum: ${lastOpenedModule.title}`
                 : `Mulai Praktikum: ${continueTargetModule.title}`}
@@ -326,7 +326,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
             type="button"
             data-testid="daily-lab-challenge-btn"
             onClick={handleStartDailyLabChallenge}
-            className="px-3 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] hover:border-amber-500/60 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
+            className="px-3 py-2 rounded-xl bg-[var(--comfort-surface-subtle)] hover:border-amber-500/60 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
           >
             <span>Tantangan Sains</span>
             <span className="font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400 tabular-nums">
@@ -344,7 +344,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               }
               openModal('ai-mission-builder');
             }}
-            className="px-3 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] hover:border-indigo-500/60 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
+            className="px-3 py-2 rounded-xl bg-[var(--comfort-surface-subtle)] hover:border-indigo-500/60 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
             <span>Misi AI Guru</span>
@@ -357,7 +357,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                 labSound.playClick();
                 onOpenMysteryExam();
               }}
-              className="px-3 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] hover:border-sky-500/60 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              className="px-3 py-2 rounded-xl bg-[var(--comfort-surface-subtle)] hover:border-sky-500/60 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <span>Ujian Sampel →</span>
             </button>
@@ -365,22 +365,22 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
         </div>
 
         {/* Clean Tabular KPI Readout */}
-        <div className="flex items-center gap-4 shrink-0 self-start lg:self-center text-xs text-[var(--comfort-text-muted)] tabular-nums">
+        <div className="flex flex-wrap items-center gap-3 shrink-0 self-start lg:self-center text-xs text-[var(--comfort-text-muted)] tabular-nums">
           {dailyChallengeToast && (
             <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
               {dailyChallengeToast}
             </span>
           )}
-          <div className="flex items-center gap-3 font-mono">
+          <div className="flex items-center gap-2.5 font-mono px-3 py-1.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
             <span>
               <strong className="text-[var(--comfort-text)]">{completedModuleIds.length}</strong>{' '}
               Selesai
             </span>
-            <span aria-hidden="true">·</span>
+            <span aria-hidden="true" className="opacity-40">·</span>
             <span>
               <strong className="text-sky-600 dark:text-sky-400">{recordsCount}</strong> Data
             </span>
-            <span aria-hidden="true">·</span>
+            <span aria-hidden="true" className="opacity-40">·</span>
             <span>
               <strong className="text-emerald-600 dark:text-emerald-400">
                 {lobbyViewMode === 'chapters' ? filteredChapters.length : filteredModules.length}
@@ -394,10 +394,10 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
       {/* Row 2: Compact Filter Bar */}
       <div
         data-testid="lobby-compact-filter-bar"
-        className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 p-2 bg-[var(--comfort-surface)] rounded-xl border border-[var(--comfort-border)]"
+        className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 p-2 bg-[var(--comfort-surface)] rounded-2xl border border-[var(--comfort-border)] shadow-xs"
       >
         {/* View Mode Segmented Control */}
-        <div className="flex items-center gap-1 p-1 bg-[var(--comfort-surface-subtle)] rounded-lg border border-[var(--comfort-border)] shrink-0">
+        <div className="flex items-center gap-1 p-1 bg-[var(--comfort-surface-subtle)] rounded-xl border border-[var(--comfort-border)] shrink-0 overflow-x-auto no-scrollbar">
           {(
             [
               { id: 'chapters', label: 'Bab Kurikulum', Icon: BookOpen },
@@ -413,7 +413,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                   labSound.playClick();
                   setLobbyViewMode(id);
                 }}
-                className={`relative px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                className={`relative px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap flex-1 sm:flex-initial justify-center ${
                   active
                     ? 'text-white'
                     : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -423,7 +423,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                   <motion.span
                     layoutId="lobby-view-mode-pill"
                     transition={SPRING_LAYOUT_PILL}
-                    className="absolute inset-0 rounded-md bg-sky-600"
+                    className="absolute inset-0 rounded-lg bg-sky-600 shadow-xs"
                   />
                 )}
                 <Icon className="w-3.5 h-3.5 relative z-10" />
@@ -434,7 +434,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
         </div>
 
         {/* Domain Filter Tabs */}
-        <div className="flex items-center gap-1 p-1 bg-[var(--comfort-surface-subtle)] rounded-lg border border-[var(--comfort-border)] overflow-x-auto">
+        <div className="flex items-center gap-1 p-1 bg-[var(--comfort-surface-subtle)] rounded-xl border border-[var(--comfort-border)] overflow-x-auto no-scrollbar">
           {[
             { id: 'all', label: 'Semua' },
             { id: 'fisika', label: 'Fisika' },
@@ -451,7 +451,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                   labSound.playClick();
                   setLobbySelectedDomain(tab.id as ScienceDomain | 'all');
                 }}
-                className={`relative px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                className={`relative px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   isSelected
                     ? 'text-white'
                     : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -461,7 +461,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                   <motion.span
                     layoutId="lobby-domain-active-pill"
                     transition={SPRING_LAYOUT_PILL}
-                    className="absolute inset-0 rounded-md bg-sky-600"
+                    className="absolute inset-0 rounded-lg bg-sky-600 shadow-xs"
                   />
                 )}
                 <span className="relative z-10">{tab.label}</span>
@@ -470,11 +470,11 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
           })}
         </div>
 
-        {/* Jenjang Selector */}
+        {/* Jenjang Selector (Unified Active Pill Styling) */}
         <div
           role="group"
           aria-label="Filter Jenjang Pendidikan"
-          className="flex items-center gap-1 p-1 bg-[var(--comfort-surface-subtle)] rounded-lg border border-[var(--comfort-border)] shrink-0"
+          className="flex items-center gap-1 p-1 bg-[var(--comfort-surface-subtle)] rounded-xl border border-[var(--comfort-border)] shrink-0 overflow-x-auto no-scrollbar"
         >
           {(['Semua', 'SMP', 'SMA', 'Mahasiswa'] as const).map((tierLabel) => {
             const targetValue: 'all' | EducationTier =
@@ -491,13 +491,20 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                     onTierChange(targetValue);
                   }
                 }}
-                className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                className={`relative px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   active
-                    ? 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xs'
+                    ? 'text-white'
                     : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                 }`}
               >
-                {tierLabel}
+                {active && (
+                  <motion.span
+                    layoutId="lobby-tier-active-pill"
+                    transition={SPRING_LAYOUT_PILL}
+                    className="absolute inset-0 rounded-lg bg-sky-600 shadow-xs"
+                  />
+                )}
+                <span className="relative z-10">{tierLabel}</span>
               </button>
             );
           })}

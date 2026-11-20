@@ -182,16 +182,67 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   }, [safetyHazard.isHazardous]);
   const metricsB = calculatePhysicsMetrics(realityBParams);
   const instantB = evaluateKinematicsAtTime(realityBParams, simTime);
+  const domainRecords = records.filter((r) => r.domain === 'Fisika');
 
-  useTimelineRecorder<PhysicsParams, { speed: number; acceleration: number }>({
+  // Mode-adaptive Telemetry Metrics Array
+  const telemetryMetrics =
+    metrics.mode === 'projectile-gravity'
+      ? [
+          { id: 'range', label: 'Jangkauan (R)', value: metrics.projectileRange, min: 0, max: 150, unit: 'm', color: '#0ea5e9' },
+          { id: 'hmax', label: 'Tinggi Maks (H)', value: metrics.maxProjectileHeight, min: 0, max: 80, unit: 'm', color: '#10b981' },
+          { id: 'tof', label: 'Waktu Terbang', value: metrics.timeOfFlight, min: 0, max: 12, unit: 's', color: '#f59e0b' },
+        ]
+      : metrics.mode === 'spring-hooke'
+      ? [
+          { id: 'frest', label: 'Gaya Pegas (Fp)', value: metrics.springRestoringForce, min: -400, max: 400, unit: 'N', color: '#0ea5e9' },
+          { id: 'ep', label: 'Energi Ep Pegas', value: metrics.springPotentialEnergy, min: 0, max: 300, unit: 'J', color: '#10b981' },
+          { id: 'period', label: 'Periode (T)', value: metrics.oscillationPeriod, min: 0, max: 6, unit: 's', color: '#f59e0b' },
+        ]
+      : metrics.mode === 'pendulum-harmonic'
+      ? [
+          { id: 'tpend', label: 'Periode Ayun (T)', value: metrics.pendulumPeriod, min: 0, max: 5, unit: 's', color: '#0ea5e9' },
+          { id: 'fpend', label: 'Frekuensi (f)', value: metrics.pendulumFrequency, min: 0, max: 3, unit: 'Hz', color: '#10b981' },
+          { id: 'angle', label: 'Simpangan θ₀', value: params.pendulumAngle ?? 25, min: 0, max: 90, unit: '°', color: '#f59e0b' },
+        ]
+      : metrics.mode === 'stokes-viscosity'
+      ? [
+          { id: 'vt', label: 'Kecepatan Terminal', value: metrics.stokesTerminalVelocity, min: 0, max: 5, unit: 'm/s', color: '#0ea5e9' },
+          { id: 'fdrag', label: 'Gaya Gesek Stokes', value: metrics.stokesDragForce, min: 0, max: 2, unit: 'N', color: '#10b981' },
+          { id: 'visc', label: 'Viskositas (η)', value: params.fluidViscosity ?? 0.8, min: 0, max: 2, unit: 'Pa·s', color: '#f59e0b' },
+        ]
+      : metrics.mode === 'ohm-wheatstone'
+      ? [
+          { id: 'ig', label: 'Arus Galvanometer', value: metrics.galvanometerCurrent, min: -50, max: 50, unit: 'mA', color: '#0ea5e9' },
+          { id: 'itot', label: 'Arus Rangkaian', value: metrics.circuitCurrent, min: 0, max: 5, unit: 'A', color: '#10b981' },
+          { id: 'rx', label: 'Hambatan Rx', value: params.resistorRx ?? 100, min: 10, max: 1000, unit: 'Ω', color: '#f59e0b' },
+        ]
+      : metrics.mode === 'optics-young-slit'
+      ? [
+          { id: 'dy', label: 'Jarak Pita (Δy)', value: metrics.fringeSpacingMm, min: 0, max: 15, unit: 'mm', color: '#0ea5e9' },
+          { id: 'wl', label: 'Panjang Gelombang', value: params.lightWavelength ?? 532, min: 380, max: 700, unit: 'nm', color: '#10b981' },
+          { id: 'slit', label: 'Celah (d)', value: params.slitDistance ?? 0.25, min: 0.05, max: 1.0, unit: 'mm', color: '#f59e0b' },
+        ]
+      : metrics.mode === 'photoelectric-planck'
+      ? [
+          { id: 'ke', label: 'Ek Maks Fotoelektron', value: metrics.photoelectricMaxKe, min: 0, max: 5, unit: 'eV', color: '#0ea5e9' },
+          { id: 'v0', label: 'Potensial Henti V₀', value: metrics.photoelectricStoppingVoltage, min: 0, max: 5, unit: 'V', color: '#10b981' },
+          { id: 'wf', label: 'Fungsi Kerja (W)', value: params.targetMetalWorkFunction ?? 2.3, min: 2, max: 5.5, unit: 'eV', color: '#f59e0b' },
+        ]
+      : [
+          { id: 'accel', label: 'Percepatan (a)', value: metrics.acceleration, min: -20, max: 35, unit: 'm/s²', color: '#0ea5e9' },
+          { id: 'netf', label: 'Resultan ΣF', value: metrics.netForce, min: -150, max: 250, unit: 'N', color: '#10b981' },
+          { id: 'speed', label: 'Kecepatan v(t)', value: instant.speed, min: 0, max: 50, unit: 'm/s', color: '#f59e0b' },
+        ];
+
+  useTimelineRecorder<PhysicsParams, { primary: number; secondary: number }>({
     domain: 'physics',
     simTime,
     simTimeRef,
     isPlaying,
     params,
     stateSnapshot: {
-      speed: instant.speed,
-      acceleration: metrics.acceleration,
+      primary: telemetryMetrics[0]?.value ?? metrics.acceleration,
+      secondary: telemetryMetrics[1]?.value ?? metrics.netForce,
     },
     onRestoreFrame: (frame) => {
       setIsPlaying(false);
@@ -343,62 +394,12 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     );
   };
 
-  // Mode-adaptive Telemetry Metrics Array
-  const telemetryMetrics =
-    metrics.mode === 'projectile-gravity'
-      ? [
-          { id: 'range', label: 'Jangkauan (R)', value: metrics.projectileRange, min: 0, max: 150, unit: 'm', color: '#0ea5e9' },
-          { id: 'hmax', label: 'Tinggi Maks (H)', value: metrics.maxProjectileHeight, min: 0, max: 80, unit: 'm', color: '#10b981' },
-          { id: 'tof', label: 'Waktu Terbang', value: metrics.timeOfFlight, min: 0, max: 12, unit: 's', color: '#f59e0b' },
-        ]
-      : metrics.mode === 'spring-hooke'
-      ? [
-          { id: 'frest', label: 'Gaya Pegas (Fp)', value: metrics.springRestoringForce, min: -400, max: 400, unit: 'N', color: '#0ea5e9' },
-          { id: 'ep', label: 'Energi Ep Pegas', value: metrics.springPotentialEnergy, min: 0, max: 300, unit: 'J', color: '#10b981' },
-          { id: 'period', label: 'Periode (T)', value: metrics.oscillationPeriod, min: 0, max: 6, unit: 's', color: '#f59e0b' },
-        ]
-      : metrics.mode === 'pendulum-harmonic'
-      ? [
-          { id: 'tpend', label: 'Periode Ayun (T)', value: metrics.pendulumPeriod, min: 0, max: 5, unit: 's', color: '#0ea5e9' },
-          { id: 'fpend', label: 'Frekuensi (f)', value: metrics.pendulumFrequency, min: 0, max: 3, unit: 'Hz', color: '#10b981' },
-          { id: 'angle', label: 'Simpangan θ₀', value: params.pendulumAngle ?? 25, min: 0, max: 90, unit: '°', color: '#f59e0b' },
-        ]
-      : metrics.mode === 'stokes-viscosity'
-      ? [
-          { id: 'vt', label: 'Kecepatan Terminal', value: metrics.stokesTerminalVelocity, min: 0, max: 5, unit: 'm/s', color: '#0ea5e9' },
-          { id: 'fdrag', label: 'Gaya Gesek Stokes', value: metrics.stokesDragForce, min: 0, max: 2, unit: 'N', color: '#10b981' },
-          { id: 'visc', label: 'Viskositas (η)', value: params.fluidViscosity ?? 0.8, min: 0, max: 2, unit: 'Pa·s', color: '#f59e0b' },
-        ]
-      : metrics.mode === 'ohm-wheatstone'
-      ? [
-          { id: 'ig', label: 'Arus Galvanometer', value: metrics.galvanometerCurrent, min: -50, max: 50, unit: 'mA', color: '#0ea5e9' },
-          { id: 'itot', label: 'Arus Rangkaian', value: metrics.circuitCurrent, min: 0, max: 5, unit: 'A', color: '#10b981' },
-          { id: 'rx', label: 'Hambatan Rx', value: params.resistorRx ?? 100, min: 10, max: 1000, unit: 'Ω', color: '#f59e0b' },
-        ]
-      : metrics.mode === 'optics-young-slit'
-      ? [
-          { id: 'dy', label: 'Jarak Pita (Δy)', value: metrics.fringeSpacingMm, min: 0, max: 15, unit: 'mm', color: '#0ea5e9' },
-          { id: 'wl', label: 'Panjang Gelombang', value: params.lightWavelength ?? 532, min: 380, max: 700, unit: 'nm', color: '#10b981' },
-          { id: 'slit', label: 'Celah (d)', value: params.slitDistance ?? 0.25, min: 0.05, max: 1.0, unit: 'mm', color: '#f59e0b' },
-        ]
-      : metrics.mode === 'photoelectric-planck'
-      ? [
-          { id: 'ke', label: 'Ek Maks Fotoelektron', value: metrics.photoelectricMaxKe, min: 0, max: 5, unit: 'eV', color: '#0ea5e9' },
-          { id: 'v0', label: 'Potensial Henti V₀', value: metrics.photoelectricStoppingVoltage, min: 0, max: 5, unit: 'V', color: '#10b981' },
-          { id: 'wf', label: 'Fungsi Kerja (W)', value: params.targetMetalWorkFunction ?? 2.3, min: 2, max: 5.5, unit: 'eV', color: '#f59e0b' },
-        ]
-      : [
-          { id: 'accel', label: 'Percepatan (a)', value: metrics.acceleration, min: -20, max: 35, unit: 'm/s²', color: '#0ea5e9' },
-          { id: 'netf', label: 'Resultan ΣF', value: metrics.netForce, min: -150, max: 250, unit: 'N', color: '#10b981' },
-          { id: 'speed', label: 'Kecepatan v(t)', value: instant.speed, min: 0, max: 50, unit: 'm/s', color: '#f59e0b' },
-        ];
-
   return (
     <StandardLabViewShell
       domain="Fisika"
-      recordsCount={records.length}
+      recordsCount={domainRecords.length}
       hypothesisText={hypothesisNote?.hypothesisText}
-      recentRecords={records}
+      recentRecords={domainRecords}
       onProceedToAnalysis={onProceedToAnalysis}
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
@@ -501,6 +502,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                 <div className="w-full min-w-[240px]">
                   <PrecisionSlider
                     compact
+                    syncToLiveFormula={false}
                     accentColor="amber"
                     label={primaryVar.label}
                     unit={primaryVar.unit}
@@ -650,10 +652,13 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
             <button
               type="button"
               onClick={handleRecordTrial}
-              className="flex-1 px-3.5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 px-3.5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
             >
-              <Camera className="w-4 h-4" />
-              <span>+ Catat Data ({records.length}/3)</span>
+              <Camera className="w-4 h-4 shrink-0" />
+              <span>
+                + Catat Data (
+                {domainRecords.length >= 3 ? `${domainRecords.length} Siap` : `${domainRecords.length}/3`})
+              </span>
             </button>
 
             {onProceedToAnalysis && (
@@ -663,10 +668,10 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                   labSound.playClick();
                   onProceedToAnalysis();
                 }}
-                className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer ${
-                  records.length >= 3
+                className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap ${
+                  domainRecords.length >= 3
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200'
+                    : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)]'
                 }`}
               >
                 Grafik &amp; LKS →
@@ -1140,26 +1145,27 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
           </CollapsibleLabSection>
 
           {/* Gravity Preset Pill Switcher */}
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
-            <span className="font-bold text-[11px] text-slate-500 uppercase tracking-wider">
+          <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-2 text-xs">
+            <span className="font-bold text-[11px] text-[var(--comfort-text-muted)] uppercase tracking-wider block">
               Gravitasi Lingkungan (g):
             </span>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-1.5">
               {GRAVITY_PRESETS.slice(0, 3).map((gp) => (
                 <button
                   key={gp.name}
                   type="button"
+                  title={gp.name}
                   onClick={() => {
                     labSound.playClick();
                     handleParamUpdate({ gravity: gp.g });
                   }}
-                  className={`py-1 px-2 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
+                  className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer whitespace-nowrap truncate ${
                     Math.abs(params.gravity - gp.g) < 0.1
-                      ? 'bg-sky-600 text-white border-sky-600'
-                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
+                      : 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] border-[var(--comfort-border)] hover:border-sky-500/50'
                   }`}
                 >
-                  {gp.name}
+                  {gp.name.split(' ')[0]}
                 </button>
               ))}
             </div>

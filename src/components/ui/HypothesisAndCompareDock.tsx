@@ -411,9 +411,12 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <div>
-            <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
+          <div className="min-w-0">
+            <label
+              title="Tren Kurva Prediksi"
+              className="block text-[10px] font-semibold text-[var(--comfort-text-muted)] mb-1 truncate"
+            >
               Tren Kurva Prediksi
             </label>
             <select
@@ -424,7 +427,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
                   predictedTrend: e.target.value as HypothesisNote['predictedTrend'],
                 })
               }
-              className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-amber-300/80 dark:border-amber-800/70 text-slate-900 dark:text-white text-xs focus:outline-none cursor-pointer"
+              className="w-full h-9 px-2.5 rounded-lg bg-[var(--comfort-surface)] border border-amber-400/50 text-[var(--comfort-text)] text-xs focus:outline-none focus:border-amber-500 cursor-pointer"
             >
               <option value="naik-linier">↗ Naik Linier (Proporsional)</option>
               <option value="naik-kurva">⤴ Naik Melengkung (Non-Linier)</option>
@@ -432,8 +435,11 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
               <option value="konstan">→ Konstan / Stasioner</option>
             </select>
           </div>
-          <div>
-            <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+          <div className="min-w-0">
+            <label
+              title={`Titik Uji X (${note.independentVar || defaultIndependentVar})`}
+              className="block text-[10px] font-semibold text-[var(--comfort-text-muted)] mb-1 truncate"
+            >
               Titik Uji X ({note.independentVar || defaultIndependentVar})
             </label>
             <input
@@ -447,11 +453,14 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
                 })
               }
               placeholder="Misal: 30"
-              className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-amber-300/80 dark:border-amber-800/70 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+              className="w-full h-9 px-2.5 rounded-lg bg-[var(--comfort-surface)] border border-amber-400/50 text-[var(--comfort-text)] text-xs font-mono focus:outline-none focus:border-amber-500"
             />
           </div>
-          <div>
-            <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+          <div className="min-w-0">
+            <label
+              title={`Prediksi Output Y (${note.dependentVar || defaultDependentVar})`}
+              className="block text-[10px] font-semibold text-[var(--comfort-text-muted)] mb-1 truncate"
+            >
               Prediksi Output Y ({note.dependentVar || defaultDependentVar})
             </label>
             <input
@@ -465,7 +474,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
                 })
               }
               placeholder="Misal: 7.5"
-              className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-amber-300/80 dark:border-amber-800/70 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+              className="w-full h-9 px-2.5 rounded-lg bg-[var(--comfort-surface)] border border-amber-400/50 text-[var(--comfort-text)] text-xs font-mono focus:outline-none focus:border-amber-500"
             />
           </div>
         </div>

@@ -165,9 +165,9 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
         </span>
       </div>
 
-      <div className="rounded-lg bg-slate-950 border border-slate-800 overflow-hidden">
+      <div className="rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] overflow-hidden">
         {liveTelemetrySeries.length < 2 ? (
-          <div className="h-[96px] flex items-center justify-center text-[11px] font-mono text-slate-500 px-3 text-center">
+          <div className="h-[96px] flex items-center justify-center text-[11px] font-mono text-[var(--comfort-text-muted)] px-3 text-center">
             Menunggu aliran sampel simulasi 3D...
           </div>
         ) : (
@@ -189,7 +189,8 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
                     y1={gy}
                     x2={SVG_W - PAD_R}
                     y2={gy}
-                    stroke="#1e293b"
+                    stroke="currentColor"
+                    className="text-slate-300 dark:text-slate-800"
                     strokeWidth="1"
                     strokeDasharray="3 3"
                   />

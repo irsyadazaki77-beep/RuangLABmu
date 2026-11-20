@@ -143,16 +143,48 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
 
   const metrics = calculateAstronomyMetrics(params);
   const metricsB = calculateAstronomyMetrics(realityBParams);
+  const domainRecords = records.filter((r) => r.domain === 'Astronomi');
 
-  useTimelineRecorder<AstronomyParams, { orbitalPeriodYears: number; meanOrbitalVelocityKms: number }>({
+  const telemetryMetrics =
+    params.mode === 'milkyway-galaxy'
+      ? [
+          { id: 'vobs', label: 'Kecepatan Rotasi', value: metrics.observedDarkMatterVelocityKms, min: 0, max: 350, unit: 'km/s', color: '#38bdf8' },
+          { id: 'vkep', label: 'Prediksi Kepler', value: metrics.keplerianVelocityKms, min: 0, max: 350, unit: 'km/s', color: '#10b981' },
+          { id: 'rkpc', label: 'Radius Galaksi (R)', value: params.galactocentricRadiusKpc, min: 0.5, max: 25, unit: 'kpc', color: '#f59e0b' },
+        ]
+      : params.mode === 'stellar-exoplanet'
+      ? [
+          { id: 'depth', label: 'Kedalaman Transit', value: metrics.transitDepthPct, min: 0, max: 5, unit: '%', color: '#38bdf8' },
+          { id: 'ppm', label: 'Redupan Fluks', value: metrics.transitDepthPpm, min: 0, max: 50000, unit: 'ppm', color: '#10b981' },
+          { id: 'rp', label: 'Radius Eksoplanet', value: params.exoplanetRadiusEarth, min: 0.5, max: 15, unit: 'R⊕', color: '#f59e0b' },
+        ]
+      : params.mode === 'stellar-wien-spectrum'
+      ? [
+          { id: 'wien', label: 'Puncak Wien (λmax)', value: metrics.wienPeakWavelengthNm ?? metrics.peakWavelengthNm ?? 502, min: 80, max: 1100, unit: 'nm', color: '#38bdf8' },
+          { id: 'teff', label: 'Suhu Fotosfer (T)', value: params.starEffectiveTempK, min: 2500, max: 30000, unit: 'K', color: '#10b981' },
+          { id: 'lum', label: 'Luminositas (L)', value: metrics.stellarLuminositySolar, min: 0, max: 100, unit: 'L☉', color: '#f59e0b' },
+        ]
+      : params.mode === 'hubble-expansion'
+      ? [
+          { id: 'vrec', label: 'Kecepatan Resesi (v)', value: metrics.hubbleRecessionVelocityKmS ?? metrics.recessionVelocityKms ?? 8400, min: 0, max: 45000, unit: 'km/s', color: '#38bdf8' },
+          { id: 'zred', label: 'Redshift Kosmik (z)', value: metrics.hubbleRedshiftZ ?? metrics.redshiftZ ?? 0.028, min: 0, max: 0.2, unit: 'z', color: '#10b981' },
+          { id: 'dmpc', label: 'Jarak Galaksi (d)', value: params.galaxyDistanceMpc ?? 120, min: 20, max: 600, unit: 'Mpc', color: '#f59e0b' },
+        ]
+      : [
+          { id: 'period', label: 'Periode Orbit (T)', value: metrics.orbitalPeriodYears, min: 0, max: 165, unit: 'Tahun', color: '#38bdf8' },
+          { id: 'speed', label: 'Kecepatan Orbit', value: metrics.meanOrbitalVelocityKms, min: 0, max: 60, unit: 'km/s', color: '#10b981' },
+          { id: 'ratio', label: 'Rasio a³/T²', value: metrics.keplerRatioT2OverA3, min: 0, max: 2, unit: '', color: '#f59e0b' },
+        ];
+
+  useTimelineRecorder<AstronomyParams, { primary: number; secondary: number }>({
     domain: 'astronomy',
     simTime,
     simTimeRef,
     isPlaying,
     params,
     stateSnapshot: {
-      orbitalPeriodYears: metrics.orbitalPeriodYears,
-      meanOrbitalVelocityKms: metrics.meanOrbitalVelocityKms,
+      primary: telemetryMetrics[0]?.value ?? metrics.orbitalPeriodYears,
+      secondary: telemetryMetrics[1]?.value ?? metrics.meanOrbitalVelocityKms,
     },
     onRestoreFrame: (frame) => {
       setIsPlaying(false);
@@ -261,43 +293,12 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
     );
   };
 
-  const telemetryMetrics =
-    params.mode === 'milkyway-galaxy'
-      ? [
-          { id: 'vobs', label: 'Kecepatan Rotasi', value: metrics.observedDarkMatterVelocityKms, min: 0, max: 350, unit: 'km/s', color: '#38bdf8' },
-          { id: 'vkep', label: 'Prediksi Kepler', value: metrics.keplerianVelocityKms, min: 0, max: 350, unit: 'km/s', color: '#10b981' },
-          { id: 'rkpc', label: 'Radius Galaksi (R)', value: params.galactocentricRadiusKpc, min: 0.5, max: 25, unit: 'kpc', color: '#f59e0b' },
-        ]
-      : params.mode === 'stellar-exoplanet'
-      ? [
-          { id: 'depth', label: 'Kedalaman Transit', value: metrics.transitDepthPct, min: 0, max: 5, unit: '%', color: '#38bdf8' },
-          { id: 'ppm', label: 'Redupan Fluks', value: metrics.transitDepthPpm, min: 0, max: 50000, unit: 'ppm', color: '#10b981' },
-          { id: 'rp', label: 'Radius Eksoplanet', value: params.exoplanetRadiusEarth, min: 0.5, max: 15, unit: 'R⊕', color: '#f59e0b' },
-        ]
-      : params.mode === 'stellar-wien-spectrum'
-      ? [
-          { id: 'wien', label: 'Puncak Wien (λmax)', value: metrics.wienPeakWavelengthNm ?? metrics.peakWavelengthNm ?? 502, min: 80, max: 1100, unit: 'nm', color: '#38bdf8' },
-          { id: 'teff', label: 'Suhu Fotosfer (T)', value: params.starEffectiveTempK, min: 2500, max: 30000, unit: 'K', color: '#10b981' },
-          { id: 'lum', label: 'Luminositas (L)', value: metrics.stellarLuminositySolar, min: 0, max: 100, unit: 'L☉', color: '#f59e0b' },
-        ]
-      : params.mode === 'hubble-expansion'
-      ? [
-          { id: 'vrec', label: 'Kecepatan Resesi (v)', value: metrics.hubbleRecessionVelocityKmS ?? metrics.recessionVelocityKms ?? 8400, min: 0, max: 45000, unit: 'km/s', color: '#38bdf8' },
-          { id: 'zred', label: 'Redshift Kosmik (z)', value: metrics.hubbleRedshiftZ ?? metrics.redshiftZ ?? 0.028, min: 0, max: 0.2, unit: 'z', color: '#10b981' },
-          { id: 'dmpc', label: 'Jarak Galaksi (d)', value: params.galaxyDistanceMpc ?? 120, min: 20, max: 600, unit: 'Mpc', color: '#f59e0b' },
-        ]
-      : [
-          { id: 'period', label: 'Periode Orbit (T)', value: metrics.orbitalPeriodYears, min: 0, max: 165, unit: 'Tahun', color: '#38bdf8' },
-          { id: 'speed', label: 'Kecepatan Orbit', value: metrics.meanOrbitalVelocityKms, min: 0, max: 60, unit: 'km/s', color: '#10b981' },
-          { id: 'ratio', label: 'Rasio a³/T²', value: metrics.keplerRatioT2OverA3, min: 0, max: 2, unit: '', color: '#f59e0b' },
-        ];
-
   return (
     <StandardLabViewShell
       domain="Astronomi"
-      recordsCount={records.length}
+      recordsCount={domainRecords.length}
       hypothesisText={hypothesisNote?.hypothesisText}
-      recentRecords={records}
+      recentRecords={domainRecords}
       onProceedToAnalysis={onProceedToAnalysis}
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
@@ -404,6 +405,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                 <div className="w-full min-w-[240px]">
                   <PrecisionSlider
                     compact
+                    syncToLiveFormula={false}
                     accentColor="amber"
                     label={astroVar.label}
                     unit={astroVar.unit}
@@ -506,10 +508,13 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
             <button
               type="button"
               onClick={handleRecordTrial}
-              className="flex-1 px-3.5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 px-3.5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
             >
-              <Camera className="w-4 h-4" />
-              <span>+ Catat Data ({records.length}/3)</span>
+              <Camera className="w-4 h-4 shrink-0" />
+              <span>
+                + Catat Data (
+                {domainRecords.length >= 3 ? `${domainRecords.length} Siap` : `${domainRecords.length}/3`})
+              </span>
             </button>
 
             {onProceedToAnalysis && (
@@ -519,10 +524,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                   labSound.playClick();
                   onProceedToAnalysis();
                 }}
-                className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer ${
-                  records.length >= 3
+                className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap ${
+                  domainRecords.length >= 3
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200'
+                    : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)]'
                 }`}
               >
                 Grafik &amp; LKS →

@@ -55,7 +55,7 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
           animate="open"
           exit="closed"
           aria-label="Panel Telemetri, Rumus Hidup & Grafik"
-          className="hidden lg:flex flex-col absolute top-16 bottom-16 right-3 w-[348px] z-20 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
+          className="hidden lg:flex flex-col absolute top-16 bottom-16 right-3 w-[328px] xl:w-[340px] z-20 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
         >
           <div className="px-3.5 py-2.5 border-b border-[var(--comfort-border)] flex items-center justify-between shrink-0">
             <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 text-[var(--comfort-text)]">
@@ -74,11 +74,11 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
 
           <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5">
             {oscilloscope && (
-              <div className="rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-200 space-y-0.5">
-                <div className="font-mono text-[11px] font-bold text-sky-300 truncate">
+              <div className="rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-3 py-2 text-xs text-[var(--comfort-text)] space-y-0.5">
+                <div className="font-mono text-[11px] font-bold text-sky-700 dark:text-sky-300 truncate">
                   {oscilloscope.microscopicStateLabel}
                 </div>
-                <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">
+                <p className="text-[10px] text-[var(--comfort-text-muted)] line-clamp-2 leading-relaxed">
                   {oscilloscope.microscopicDetail}
                 </p>
               </div>

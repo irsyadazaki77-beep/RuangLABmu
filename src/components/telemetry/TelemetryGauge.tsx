@@ -41,19 +41,19 @@ const SEVERITY_STYLES: Record<
   nominal: {
     stroke: '#10b981', // emerald-500
     badgeBg: 'bg-emerald-500/15 border-emerald-500/40',
-    badgeText: 'text-emerald-400',
+    badgeText: 'text-emerald-700 dark:text-emerald-400',
     statusText: 'NOMINAL',
   },
   warning: {
     stroke: '#f59e0b', // amber-500
     badgeBg: 'bg-amber-500/15 border-amber-500/40',
-    badgeText: 'text-amber-400',
+    badgeText: 'text-amber-700 dark:text-amber-400',
     statusText: 'PERINGATAN',
   },
   critical: {
     stroke: '#f43f5e', // rose-500
     badgeBg: 'bg-rose-500/15 border-rose-500/40',
-    badgeText: 'text-rose-400',
+    badgeText: 'text-rose-700 dark:text-rose-400',
     statusText: 'KRITIS',
   },
 };
@@ -87,12 +87,15 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({
       data-testid="telemetry-svg-gauge"
       className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-3 flex flex-col justify-between gap-2 shadow-xs"
     >
-      <div className="flex items-center justify-between gap-1.5">
-        <span className="text-[10px] font-bold uppercase tracking-normal text-[var(--comfort-text-muted)] truncate">
+      <div className="flex items-start justify-between gap-1.5">
+        <span
+          title={label}
+          className="text-[10px] font-bold uppercase tracking-normal text-[var(--comfort-text-muted)] leading-tight line-clamp-2"
+        >
           {label}
         </span>
         <span
-          className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${style.badgeBg} ${style.badgeText}`}
+          className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border shrink-0 ${style.badgeBg} ${style.badgeText}`}
         >
           {style.statusText}
         </span>

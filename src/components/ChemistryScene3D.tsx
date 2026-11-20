@@ -529,7 +529,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           className={`pointer-events-none absolute flex items-center gap-2 rounded-xl bg-slate-950/92 border border-white/15 px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
             isFullscreen
               ? 'bottom-4 left-4'
-              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
           }`}
         >
           <Thermometer className="w-3.5 h-3.5 text-sky-400" />
@@ -556,7 +556,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         className={`pointer-events-auto absolute flex items-center gap-1 rounded-xl bg-slate-900/92 border border-white/15 px-2 py-1 shadow-lg z-20 opacity-90 hover:opacity-100 transition-all ${
           isFullscreen
             ? 'top-3 right-3'
-            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'}`
+            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[352px] xl:right-[364px]' : 'right-3'}`
         }`}
       >
         <button

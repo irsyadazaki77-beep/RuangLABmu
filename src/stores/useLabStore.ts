@@ -106,6 +106,8 @@ export interface LabState {
   highlightParamSlider: (paramKey: string, durationMs?: number) => void;
   setActiveAdjustedParam: (param: { label: string; value: number; unit: string } | null) => void;
   updateLiveParamSnapshot: (label: string, value: number, unit: string) => void;
+  removeLiveParamSnapshot: (label: string) => void;
+  clearLiveParamSnapshot: () => void;
   getIndonesianDomain: () => IndonesianDomain;
 }
 
@@ -330,6 +332,19 @@ export const useLabStore = create<LabState>((set, get) => ({
         },
       };
     });
+  },
+
+  removeLiveParamSnapshot: (label: string) => {
+    set((state) => {
+      if (!(label in state.liveParamSnapshot)) return state;
+      const next = { ...state.liveParamSnapshot };
+      delete next[label];
+      return { liveParamSnapshot: next };
+    });
+  },
+
+  clearLiveParamSnapshot: () => {
+    set({ liveParamSnapshot: {}, activeAdjustedParam: null });
   },
 
   getIndonesianDomain: () => {

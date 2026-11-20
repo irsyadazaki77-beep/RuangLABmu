@@ -96,16 +96,24 @@
   :root {
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-    --comfort-bg: #F8FAFC;
+    --comfort-bg: #F4F7FB;
     --comfort-surface: #FFFFFF;
-    --comfort-surface-subtle: #F1F5F9;
-    --comfort-header-bg: rgba(255, 255, 255, 0.94);
-    --comfort-border: #E2E8F0;
+    --comfort-surface-subtle: #EEF2F7;
+    --comfort-elevated: #FFFFFF;
+    --comfort-header-bg: rgba(255, 255, 255, 0.90);
+    --comfort-hud-bg: rgba(255, 255, 255, 0.92);
+    --comfort-hud-surface: #F8FAFC;
+    --comfort-hud-border: rgba(203, 213, 225, 0.95);
+    --comfort-hud-text: #0F172A;
+    --comfort-hud-muted: #475569;
+    --comfort-border: #DCE4EE;
     --comfort-text: #0F172A;
     --comfort-muted: #475569;
     --comfort-text-muted: #475569;
     --comfort-accent: #0284C7;
-    --comfort-accent-soft: rgba(2, 132, 199, 0.1);
+    --comfort-accent-soft: rgba(2, 132, 199, 0.10);
+    --comfort-scrollbar-thumb: rgba(148, 163, 184, 0.55);
+    --comfort-scrollbar-thumb-hover: rgba(100, 116, 139, 0.8);
     --comfort-line-height: 1.6;
   }
 
@@ -149,16 +157,24 @@
 
   /* Theme 1: Terang Hangat (Clean Lab Slate Default Light) */
   html[data-comfort-theme="light"] {
-    --comfort-bg: #F8FAFC;
+    --comfort-bg: #F4F7FB;
     --comfort-surface: #FFFFFF;
-    --comfort-surface-subtle: #F1F5F9;
-    --comfort-header-bg: rgba(255, 255, 255, 0.94);
-    --comfort-border: #E2E8F0;
+    --comfort-surface-subtle: #EEF2F7;
+    --comfort-elevated: #FFFFFF;
+    --comfort-header-bg: rgba(255, 255, 255, 0.90);
+    --comfort-hud-bg: rgba(255, 255, 255, 0.92);
+    --comfort-hud-surface: #F8FAFC;
+    --comfort-hud-border: rgba(203, 213, 225, 0.95);
+    --comfort-hud-text: #0F172A;
+    --comfort-hud-muted: #475569;
+    --comfort-border: #DCE4EE;
     --comfort-text: #0F172A;
     --comfort-muted: #475569;
     --comfort-text-muted: #475569;
     --comfort-accent: #0284C7;
-    --comfort-accent-soft: rgba(2, 132, 199, 0.1);
+    --comfort-accent-soft: rgba(2, 132, 199, 0.10);
+    --comfort-scrollbar-thumb: rgba(148, 163, 184, 0.55);
+    --comfort-scrollbar-thumb-hover: rgba(100, 116, 139, 0.8);
   }
 
   html[data-comfort-theme="light"] body {
@@ -171,13 +187,21 @@
     --comfort-bg: #F3EFE6;
     --comfort-surface: #FAF6EE;
     --comfort-surface-subtle: #EAE3D5;
-    --comfort-header-bg: rgba(250, 246, 238, 0.95);
+    --comfort-elevated: #FFFDF8;
+    --comfort-header-bg: rgba(250, 246, 238, 0.94);
+    --comfort-hud-bg: rgba(250, 246, 238, 0.94);
+    --comfort-hud-surface: #F2ECE0;
+    --comfort-hud-border: rgba(210, 200, 182, 0.95);
+    --comfort-hud-text: #2A241E;
+    --comfort-hud-muted: #5C5346;
     --comfort-border: #DFD8C8;
     --comfort-text: #2A241E;
     --comfort-muted: #5C5346;
     --comfort-text-muted: #5C5346;
     --comfort-accent: #0369A1;
-    --comfort-accent-soft: rgba(3, 105, 161, 0.1);
+    --comfort-accent-soft: rgba(3, 105, 161, 0.10);
+    --comfort-scrollbar-thumb: rgba(145, 132, 112, 0.5);
+    --comfort-scrollbar-thumb-hover: rgba(112, 100, 82, 0.78);
   }
 
   html[data-comfort-theme="sepia"] body {
@@ -210,16 +234,25 @@
   /* Theme 3: Gelap Redup (Low-Glare Observatory Dark) */
   html.dark,
   html[data-comfort-theme="dark"] {
-    --comfort-bg: #0B0F17;
+    --comfort-bg: #080C14;
     --comfort-surface: #111827;
-    --comfort-surface-subtle: #1A2234;
-    --comfort-header-bg: rgba(11, 15, 23, 0.94);
-    --comfort-border: #1E293B;
+    --comfort-surface-subtle: #1A2336;
+    --comfort-elevated: #151E30;
+    --comfort-header-bg: rgba(11, 16, 27, 0.92);
+    --comfort-hud-bg: rgba(11, 16, 27, 0.92);
+    --comfort-hud-surface: #131C2E;
+    --comfort-hud-border: rgba(51, 65, 85, 0.82);
+    --comfort-hud-text: #F1F5F9;
+    --comfort-hud-muted: #A3B3C9;
+    --comfort-border: #233046;
     --comfort-text: #F1F5F9;
-    --comfort-muted: #94A3B8;
-    --comfort-text-muted: #94A3B8;
+    --comfort-muted: #A3B3C9;
+    --comfort-text-muted: #A3B3C9;
     --comfort-accent: #38BDF8;
     --comfort-accent-soft: rgba(56, 189, 248, 0.14);
+    --comfort-scrollbar-thumb: rgba(71, 85, 105, 0.72);
+    --comfort-scrollbar-thumb-hover: rgba(100, 116, 139, 0.92);
+    color-scheme: dark;
   }
 
   html.dark body,
@@ -274,6 +307,55 @@
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Unified theme-aware thin scrollbars (eliminates stark white scrollbar tracks in dark mode) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--comfort-scrollbar-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--comfort-scrollbar-thumb);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--comfort-scrollbar-thumb-hover);
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.studio-hud-surface {
+  background-color: var(--comfort-hud-bg);
+  color: var(--comfort-hud-text);
+  border-color: var(--comfort-hud-border);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.studio-hud-subcard {
+  background-color: var(--comfort-hud-surface);
+  color: var(--comfort-hud-text);
+  border-color: var(--comfort-hud-border);
 }
 
 .studio-surface {

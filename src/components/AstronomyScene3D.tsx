@@ -588,7 +588,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         className={`pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-lg bg-slate-950/92 border border-slate-700/60 px-2.5 py-1 text-[10px] font-mono text-slate-300 shadow-md ${
           isFullscreen
             ? 'bottom-3 left-3'
-            : `bottom-28 lg:bottom-[104px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+            : `bottom-28 lg:bottom-[104px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
         }`}
       >
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
@@ -602,7 +602,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         className={`pointer-events-auto absolute flex items-center gap-1 rounded-xl bg-slate-900/92 border border-white/15 px-2 py-1 shadow-lg z-20 opacity-90 hover:opacity-100 transition-all ${
           isFullscreen
             ? 'top-3 right-3'
-            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'}`
+            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[352px] xl:right-[364px]' : 'right-3'}`
         }`}
       >
         <button

@@ -24,7 +24,7 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
       ],
     },
     theorySummary:
-      'Hukum II Newton menyatakan bahwa percepatan sebuah benda berbanding lurus dengan resultan gaya yang bekerja dan berbanding terbalik dengan massanya (a = ΣF / m). Pada bidang miring bersudut θ, komponen gaya berat searah bidang adalah w_paralel = m·g·sin(θ), gaya normal N = m·g·cos(θ), dan gaya gesek kinetik fk = μk·N.',
+      'Hukum II Newton menyatakan bahwa percepatan sebuah benda berbanding lurus dengan resultan gaya yang bekerja dan berbanding terbalik dengan massanya (a = ΣF / m). Pada bidang miring bersudut θ, komponen gaya berat searah bidang adalah w∥ = m·g·sin(θ), gaya normal N = m·g·cos(θ), dan gaya gesek kinetik fk = μk·N.',
     keyEquations: [
       '\\Sigma F = m \\cdot a',
       'N = m \\cdot g \\cdot \\cos(\\theta)',

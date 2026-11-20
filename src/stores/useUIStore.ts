@@ -11,7 +11,7 @@ export type ActiveModal =
   | 'portfolio'
   | 'gradebook'
   | 'ai-mission-builder';
-export type MobileTab = 'canvas' | 'variables' | 'worksheet' | 'ai';
+export type MobileTab = 'canvas' | 'variables' | 'telemetry' | 'worksheet' | 'ai';
 export type LobbyViewMode = 'chapters' | 'all';
 export type LobbyDomainFilter = 'all' | 'fisika' | 'kimia' | 'biologi' | 'astronomi';
 export type TeacherViewMode = 'dashboard' | 'lab3d';

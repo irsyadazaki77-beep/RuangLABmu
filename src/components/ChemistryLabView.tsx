@@ -156,16 +156,48 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     prevHazardRef.current = safetyHazard.isHazardous;
   }, [safetyHazard.isHazardous]);
   const metricsB = calculateChemistryMetrics(realityBParams);
+  const domainRecords = records.filter((r) => r.domain === 'Kimia');
 
-  useTimelineRecorder<ChemistryParams, { currentPh: number; finalTempC: number }>({
+  const telemetryMetrics =
+    params.mode === 'acid-base-titration'
+      ? [
+          { id: 'ph', label: 'pH Larutan', value: metrics.currentPh, min: 0, max: 14, unit: 'pH', color: '#14b8a6' },
+          { id: 'vol', label: 'Vol Titran Vb', value: params.titrantAddedMl, min: 0, max: 50, unit: 'mL', color: '#0ea5e9' },
+          { id: 'veq', label: 'Titik Ekuivalen', value: metrics.equivalenceVolumeMl, min: 0, max: 50, unit: 'mL', color: '#10b981' },
+        ]
+      : params.mode === 'electrochemistry-cell'
+      ? [
+          { id: 'enernst', label: 'Potensial E_sel', value: metrics.nernstCellPotentialE, min: 0, max: 2.5, unit: 'V', color: '#14b8a6' },
+          { id: 'e0', label: 'Potensial E°_sel', value: metrics.standardCellPotentialE0, min: 0, max: 2.5, unit: 'V', color: '#0ea5e9' },
+          { id: 'dg', label: 'Energi Bebas ΔG', value: metrics.electroFreeEnergyDeltaG, min: -500, max: 100, unit: 'kJ/mol', color: '#10b981' },
+        ]
+      : params.mode === 'ideal-gas-boyle'
+      ? [
+          { id: 'patm', label: 'Tekanan Gas (P)', value: metrics.gasPressureAtm ?? 2.4, min: 0, max: 15, unit: 'atm', color: '#14b8a6' },
+          { id: 'vgas', label: 'Volume Bejana (V)', value: params.gasVolumeL ?? 10, min: 2, max: 25, unit: 'L', color: '#0ea5e9' },
+          { id: 'tgas', label: 'Suhu Mutlak (T)', value: params.gasTemperatureK ?? 300, min: 200, max: 700, unit: 'K', color: '#10b981' },
+        ]
+      : params.mode === 'spectrophotometry-beer'
+      ? [
+          { id: 'abs', label: 'Absorbansi (A)', value: metrics.spectroAbsorbance ?? metrics.absorbanceA ?? 0.45, min: 0, max: 2.5, unit: 'A', color: '#14b8a6' },
+          { id: 'trans', label: 'Transmitansi (%T)', value: metrics.spectroTransmittancePct ?? metrics.transmittancePct ?? 35, min: 0, max: 100, unit: '%', color: '#0ea5e9' },
+          { id: 'wl', label: 'Panjang Gelombang', value: params.spectroWavelengthNm ?? 520, min: 400, max: 700, unit: 'nm', color: '#10b981' },
+        ]
+      : [
+          { id: 'tf', label: 'Suhu Akhir (Tf)', value: metrics.finalTempC, min: 0, max: 100, unit: '°C', color: '#14b8a6' },
+          { id: 'dt', label: 'Perubahan ΔT', value: metrics.deltaTempC, min: -30, max: 60, unit: '°C', color: '#0ea5e9' },
+          { id: 'rate', label: 'Laju Reaksi (v)', value: metrics.reactionRate, min: 0, max: 5, unit: 'M/s', color: '#10b981' },
+        ];
+
+  useTimelineRecorder<ChemistryParams, { primary: number; secondary: number }>({
     domain: 'chemistry',
     simTime,
     simTimeRef,
     isPlaying,
     params,
     stateSnapshot: {
-      currentPh: metrics.currentPh,
-      finalTempC: metrics.finalTempC,
+      primary: telemetryMetrics[0]?.value ?? metrics.currentPh,
+      secondary: telemetryMetrics[1]?.value ?? metrics.finalTempC,
     },
     onRestoreFrame: (frame) => {
       setIsPlaying(false);
@@ -297,43 +329,12 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     );
   };
 
-  const telemetryMetrics =
-    params.mode === 'acid-base-titration'
-      ? [
-          { id: 'ph', label: 'pH Larutan', value: metrics.currentPh, min: 0, max: 14, unit: 'pH', color: '#14b8a6' },
-          { id: 'vol', label: 'Vol Titran Vb', value: params.titrantAddedMl, min: 0, max: 50, unit: 'mL', color: '#0ea5e9' },
-          { id: 'veq', label: 'Titik Ekuivalen', value: metrics.equivalenceVolumeMl, min: 0, max: 50, unit: 'mL', color: '#10b981' },
-        ]
-      : params.mode === 'electrochemistry-cell'
-      ? [
-          { id: 'enernst', label: 'Potensial E_sel', value: metrics.nernstCellPotentialE, min: 0, max: 2.5, unit: 'V', color: '#14b8a6' },
-          { id: 'e0', label: 'Potensial E°_sel', value: metrics.standardCellPotentialE0, min: 0, max: 2.5, unit: 'V', color: '#0ea5e9' },
-          { id: 'dg', label: 'Energi Bebas ΔG', value: metrics.electroFreeEnergyDeltaG, min: -500, max: 100, unit: 'kJ/mol', color: '#10b981' },
-        ]
-      : params.mode === 'ideal-gas-boyle'
-      ? [
-          { id: 'patm', label: 'Tekanan Gas (P)', value: metrics.gasPressureAtm ?? 2.4, min: 0, max: 15, unit: 'atm', color: '#14b8a6' },
-          { id: 'vgas', label: 'Volume Bejana (V)', value: params.gasVolumeL ?? 10, min: 2, max: 25, unit: 'L', color: '#0ea5e9' },
-          { id: 'tgas', label: 'Suhu Mutlak (T)', value: params.gasTemperatureK ?? 300, min: 200, max: 700, unit: 'K', color: '#10b981' },
-        ]
-      : params.mode === 'spectrophotometry-beer'
-      ? [
-          { id: 'abs', label: 'Absorbansi (A)', value: metrics.spectroAbsorbance ?? metrics.absorbanceA ?? 0.45, min: 0, max: 2.5, unit: 'A', color: '#14b8a6' },
-          { id: 'trans', label: 'Transmitansi (%T)', value: metrics.spectroTransmittancePct ?? metrics.transmittancePct ?? 35, min: 0, max: 100, unit: '%', color: '#0ea5e9' },
-          { id: 'wl', label: 'Panjang Gelombang', value: params.spectroWavelengthNm ?? 520, min: 400, max: 700, unit: 'nm', color: '#10b981' },
-        ]
-      : [
-          { id: 'tf', label: 'Suhu Akhir (Tf)', value: metrics.finalTempC, min: 0, max: 100, unit: '°C', color: '#14b8a6' },
-          { id: 'dt', label: 'Perubahan ΔT', value: metrics.deltaTempC, min: -30, max: 60, unit: '°C', color: '#0ea5e9' },
-          { id: 'rate', label: 'Laju Reaksi (v)', value: metrics.reactionRate, min: 0, max: 5, unit: 'M/s', color: '#10b981' },
-        ];
-
   return (
     <StandardLabViewShell
       domain="Kimia"
-      recordsCount={records.length}
+      recordsCount={domainRecords.length}
       hypothesisText={hypothesisNote?.hypothesisText}
-      recentRecords={records}
+      recentRecords={domainRecords}
       onProceedToAnalysis={onProceedToAnalysis}
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
@@ -428,6 +429,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                 <div className="w-full min-w-[240px]">
                   <PrecisionSlider
                     compact
+                    syncToLiveFormula={false}
                     accentColor="amber"
                     label={chemVar.label}
                     unit={chemVar.unit}
@@ -589,10 +591,13 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
             <button
               type="button"
               onClick={handleRecordTrial}
-              className="flex-1 px-3.5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 px-3.5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
             >
-              <Camera className="w-4 h-4" />
-              <span>+ Catat Data ({records.length}/3)</span>
+              <Camera className="w-4 h-4 shrink-0" />
+              <span>
+                + Catat Data (
+                {domainRecords.length >= 3 ? `${domainRecords.length} Siap` : `${domainRecords.length}/3`})
+              </span>
             </button>
 
             {onProceedToAnalysis && (
@@ -602,10 +607,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                   labSound.playClick();
                   onProceedToAnalysis();
                 }}
-                className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer ${
-                  records.length >= 3
+                className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap ${
+                  domainRecords.length >= 3
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200'
+                    : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)]'
                 }`}
               >
                 Grafik &amp; LKS →

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PanelLeftClose, Sliders } from 'lucide-react';
 import { DRAWER_LEFT_VARIANTS } from '../../../styles/motionPresets';
@@ -16,6 +16,8 @@ export const SpatialParameterDrawer: React.FC<SpatialParameterDrawerProps> = ({
   hypothesisText,
   sidebar,
 }) => {
+  const [hypothesisExpanded, setHypothesisExpanded] = useState(false);
+
   return (
     <AnimatePresence initial={false}>
       {isOpen && (
@@ -27,7 +29,7 @@ export const SpatialParameterDrawer: React.FC<SpatialParameterDrawerProps> = ({
           animate="open"
           exit="closed"
           aria-label="Panel Parameter & Kontrol Eksperimen"
-          className="hidden lg:flex flex-col absolute top-16 bottom-16 left-3 w-[332px] z-20 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
+          className="hidden lg:flex flex-col absolute top-16 bottom-16 left-3 w-[312px] xl:w-[324px] z-20 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
         >
           <div className="px-3.5 py-2.5 border-b border-[var(--comfort-border)] flex items-center justify-between shrink-0">
             <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 text-[var(--comfort-text)]">
@@ -47,10 +49,25 @@ export const SpatialParameterDrawer: React.FC<SpatialParameterDrawerProps> = ({
           <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
             {hypothesisText && (
               <div className="p-2.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs space-y-1">
-                <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
-                  Hipotesis Awal
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                    Hipotesis Awal
+                  </span>
+                  {hypothesisText.length > 90 && (
+                    <button
+                      type="button"
+                      onClick={() => setHypothesisExpanded((prev) => !prev)}
+                      className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                    >
+                      {hypothesisExpanded ? 'Ringkas' : 'Selengkapnya'}
+                    </button>
+                  )}
                 </div>
-                <p className="text-[11px] italic text-[var(--comfort-text-muted)] line-clamp-2 leading-relaxed">
+                <p
+                  className={`text-[11px] italic text-[var(--comfort-text-muted)] leading-relaxed ${
+                    hypothesisExpanded ? '' : 'line-clamp-2'
+                  }`}
+                >
                   &ldquo;{hypothesisText}&rdquo;
                 </p>
               </div>

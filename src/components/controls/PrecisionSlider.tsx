@@ -28,6 +28,7 @@ export interface PrecisionSliderProps {
   precisionDecimals?: number;
   isHighlighted?: boolean;
   compact?: boolean;
+  syncToLiveFormula?: boolean;
   testId?: string;
 }
 
@@ -116,6 +117,7 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
   precisionDecimals,
   isHighlighted = false,
   compact = false,
+  syncToLiveFormula = true,
   testId,
 }) => {
   const decimals =
@@ -128,6 +130,7 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
 
   const setActiveAdjustedParam = useLabStore((s) => s.setActiveAdjustedParam);
   const updateLiveParamSnapshot = useLabStore((s) => s.updateLiveParamSnapshot);
+  const removeLiveParamSnapshot = useLabStore((s) => s.removeLiveParamSnapshot);
 
   useEffect(() => {
     if (!isEditingText) {
@@ -136,8 +139,12 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
   }, [value, decimals, isEditingText]);
 
   useEffect(() => {
+    if (!syncToLiveFormula) return;
     updateLiveParamSnapshot(label, value, unit);
-  }, [label, value, unit, updateLiveParamSnapshot]);
+    return () => {
+      removeLiveParamSnapshot(label);
+    };
+  }, [syncToLiveFormula, label, value, unit, updateLiveParamSnapshot, removeLiveParamSnapshot]);
 
   const isLockedByCollaborator = Boolean(lockedBy);
   const isControlDisabled = disabled || isLockedByCollaborator;

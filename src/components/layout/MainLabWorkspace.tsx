@@ -186,7 +186,9 @@ export const MainLabWorkspace: React.FC = () => {
     id: number;
     prompt: string;
   } | null>(externalDrLabMuPrompt);
-  const [pip3DMode, setPip3DMode] = useState<'pip' | 'split' | 'minimized'>('pip');
+  const [pip3DMode, setPip3DMode] = useState<'pip' | 'split' | 'minimized'>(() =>
+    typeof window !== 'undefined' && window.innerWidth < 640 ? 'minimized' : 'pip'
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

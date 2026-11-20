@@ -278,9 +278,16 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   scene.environment = envTexture;
   scene.environmentIntensity = options.environmentIntensity ?? 0.35;
 
+  const baseFov = options.camera.fov ?? 45;
+  const computePortraitSafeFov = (aspect: number) => {
+    if (!Number.isFinite(aspect) || aspect >= 0.85) return baseFov;
+    return Math.min(72, baseFov / Math.pow(Math.max(0.45, aspect), 0.55));
+  };
+
+  const initialAspect = width / Math.max(1, height);
   const camera = new THREE.PerspectiveCamera(
-    options.camera.fov ?? 45,
-    width / height,
+    computePortraitSafeFov(initialAspect),
+    initialAspect,
     options.camera.near ?? 0.1,
     options.camera.far ?? 250
   );
@@ -360,7 +367,9 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     lastW = w;
     lastH = h;
     const pr = renderer.getPixelRatio();
-    camera.aspect = w / h;
+    const nextAspect = w / Math.max(1, h);
+    camera.fov = computePortraitSafeFov(nextAspect);
+    camera.aspect = nextAspect;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
     studioComposer.resize(w, h, pr);

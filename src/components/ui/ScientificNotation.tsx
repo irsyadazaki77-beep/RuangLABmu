@@ -4,6 +4,7 @@ export interface SciFormulaProps {
   text: string;
   className?: string;
   serifVars?: boolean;
+  wrap?: boolean;
 }
 
 export interface ChemFormulaProps {
@@ -70,6 +71,7 @@ export const SciFormula: React.FC<SciFormulaProps> = ({
   text,
   className = '',
   serifVars = false,
+  wrap = false,
 }) => {
   if (!text) return null;
 
@@ -90,11 +92,15 @@ export const SciFormula: React.FC<SciFormulaProps> = ({
     .replace(/\b(R)\^(2)\b/g, 'R^2');
 
   // Tokenize by explicit superscripts (^{...} or ^token) and subscripts (_{...} or _token)
-  const tokenRegex = /(\^\{[^}]+\}|\^[+-]?\d+|\^[a-zA-Z]+|_\{[^}]+\}|_[a-zA-Z0-9*+-]+)/g;
+  const tokenRegex = /(\^\{[^}]+\}|\^[+-]?\d+|\^[a-zA-Z]+|_\{[^}]+\}|_[a-zA-Z0-9,*+-]+)/g;
   const parts = processed.split(tokenRegex).filter((p) => p.length > 0);
 
   return (
-    <span className={`inline-flex items-baseline whitespace-nowrap ${className}`}>
+    <span
+      className={`inline-flex items-baseline ${
+        wrap ? 'flex-wrap whitespace-normal' : 'whitespace-nowrap'
+      } ${className}`}
+    >
       {parts.map((part, idx) => {
         if (part.startsWith('^')) {
           const content = part.startsWith('^{') ? part.slice(2, -1) : part.slice(1);

@@ -534,6 +534,7 @@ export const InteractiveFormulaPrimer: React.FC<InteractiveFormulaPrimerProps> =
             {activeVar && (
               <PrecisionSlider
                 compact
+                syncToLiveFormula={false}
                 accentColor="sky"
                 testId="primer-variable-slider"
                 label={`${activeVar.label} (${activeVar.symbol})`}

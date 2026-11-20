@@ -91,5 +91,15 @@ describe('spatialHudHelpers', () => {
     assert.equal(formatCleanEquation('\\Sigma F = m \\cdot a'), 'Σ F = m · a');
     assert.equal(formatCleanEquation('q = m \\cdot c \\cdot \\Delta T'), 'q = m · c · Δ T');
     assert.equal(formatCleanEquation('T = 2\\pi \\sqrt{\\frac{L}{g}}'), 'T = 2π √(L / g)');
+    assert.equal(
+      formatCleanEquation('\\dot{V}_E = RR \\times TV / 1000'),
+      'V\u0307_E = RR × TV / 1000'
+    );
+    assert.equal(
+      formatCleanEquation(
+        'E_{\\text{ion}} = \\frac{RT}{zF} \\ln\\left(\\frac{[Ion]_{\\text{luar}}}{[Ion]_{\\text{dalam}}}\\right) \\approx \\pm 61.5 \\log_{10}(x)'
+      ),
+      'E_ion = RT / zF ln([Ion]_luar / [Ion]_dalam) ≈ ± 61.5 log_10(x)'
+    );
   });
 });

@@ -164,13 +164,29 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     return currentModule.computeStep(realityBParamsState, Math.max(0.1, simTime));
   }, [currentModule, realityBParamsState, simTime]);
 
-  useTimelineRecorder<Record<string, number>, Record<string, number>>({
+  const domainRecords = records.filter((r) => r.domain === 'Biologi');
+
+  const telemetryMetrics = currentModule.outputs.map((out, idx) => ({
+    id: out.key,
+    label: out.label,
+    value: currentOutputs[out.key] ?? 0,
+    unit: out.unit,
+    min: 0,
+    max: Math.max(10, (currentOutputs[out.key] ?? 10) * 1.8),
+    precision: out.precision,
+    color: idx === 0 ? '#10b981' : idx === 1 ? '#38bdf8' : '#f59e0b',
+  }));
+
+  useTimelineRecorder<Record<string, number>, { primary: number; secondary?: number }>({
     domain: 'biology',
     simTime,
     simTimeRef,
     isPlaying,
     params: paramsState,
-    stateSnapshot: currentOutputs,
+    stateSnapshot: {
+      primary: telemetryMetrics[0]?.value ?? 0,
+      secondary: telemetryMetrics[1]?.value,
+    },
     onRestoreFrame: (frame) => {
       setIsPlaying(false);
       simTimeRef.current = frame.simTime;
@@ -263,23 +279,12 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     );
   };
 
-  const telemetryMetrics = currentModule.outputs.map((out, idx) => ({
-    id: out.key,
-    label: out.label,
-    value: currentOutputs[out.key] ?? 0,
-    unit: out.unit,
-    min: 0,
-    max: Math.max(10, (currentOutputs[out.key] ?? 10) * 1.8),
-    precision: out.precision,
-    color: idx === 0 ? '#10b981' : idx === 1 ? '#38bdf8' : '#f59e0b',
-  }));
-
   return (
     <StandardLabViewShell
       domain="Biologi"
-      recordsCount={records.length}
+      recordsCount={domainRecords.length}
       hypothesisText={hypothesisNote?.hypothesisText}
-      recentRecords={records}
+      recentRecords={domainRecords}
       onProceedToAnalysis={onProceedToAnalysis}
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
@@ -336,6 +341,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
                   <div className="w-full max-w-md">
                     <PrecisionSlider
                       compact
+                      syncToLiveFormula={false}
                       accentColor="amber"
                       label={`${p0.label} (B)`}
                       min={p0.min}
@@ -419,10 +425,13 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
             <button
               type="button"
               onClick={handleRecordTrial}
-              className="flex-1 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
             >
-              <Camera className="w-4 h-4" />
-              <span>+ Catat Data ({records.length}/3)</span>
+              <Camera className="w-4 h-4 shrink-0" />
+              <span>
+                + Catat Data (
+                {domainRecords.length >= 3 ? `${domainRecords.length} Siap` : `${domainRecords.length}/3`})
+              </span>
             </button>
 
             {onProceedToAnalysis && (
@@ -432,10 +441,10 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
                   labSound.playClick();
                   onProceedToAnalysis();
                 }}
-                className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer ${
-                  records.length >= 3
+                className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap ${
+                  domainRecords.length >= 3
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200'
+                    : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)]'
                 }`}
               >
                 Grafik &amp; LKS →

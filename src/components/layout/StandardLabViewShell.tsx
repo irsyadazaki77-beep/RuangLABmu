@@ -216,7 +216,10 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
     if (mobileTab === 'variables') {
       setMobileSheetTab('params');
       setMobileSheetExpanded(true);
-    } else if (mobileTab === 'canvas') {
+    } else if (mobileTab === 'telemetry') {
+      setMobileSheetTab('telemetry');
+      setMobileSheetExpanded(true);
+    } else {
       setMobileSheetExpanded(false);
     }
   }, [mobileTab]);
@@ -369,7 +372,7 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
       {!dualModeActive && topOverlay && (
         <div
           className={`pointer-events-none absolute top-[110px] z-20 flex items-center left-3 ${
-            isLeftVisible ? 'lg:left-[356px]' : 'lg:left-3'
+            isLeftVisible ? 'lg:left-[336px] xl:left-[348px]' : 'lg:left-3'
           }`}
         >
           <div className="pointer-events-auto flex items-center gap-1.5">{topOverlay}</div>
@@ -408,6 +411,7 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
           onSelectTab={(tab) => {
             setMobileSheetTab(tab);
             setMobileSheetExpanded(true);
+            setMobileTab(tab === 'params' ? 'variables' : 'telemetry');
           }}
           onToggleExpand={() => {
             const next = !mobileSheetExpanded;

@@ -179,24 +179,47 @@ export function formatCleanEquation(rawEquation: string): string {
     eq = `${eqSegments[0]}=${eqSegments[1]}=${eqSegments[2]}`;
   }
 
-  return eq
+  // Unwrap \text{...}, \mathrm{...}, _{...}, ^{...} before fraction matching so nested braces resolve cleanly
+  eq = eq
     .replace(/\\text\{([^}]+)\}/g, '$1')
-    .replace(/\\sqrt\{\\frac\{([^}]+)\}\{([^}]+)\}\}/g, '√($1 / $2)')
-    .replace(/\\left\(\s*\\frac\{([^}]+)\}\{([^}]+)\}\s*\\right\)/g, '($1 / $2)')
-    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, (_match, num: string, den: string) => {
-      const cleanNum = num.trim();
-      const cleanDen = den.trim();
-      const fmtNum = /[+-]/.test(cleanNum) ? `(${cleanNum})` : cleanNum;
-      const fmtDen = /[+-]/.test(cleanDen) ? `(${cleanDen})` : cleanDen;
-      return `${fmtNum} / ${fmtDen}`;
-    })
+    .replace(/\\mathrm\{([^}]+)\}/g, '$1')
+    .replace(/_\{([^{}]+)\}/g, '_$1')
+    .replace(/\^\{([^{}]+)\}/g, '^$1')
+    .replace(/\\dot\{([A-Za-z])\}/g, '$1\u0307')
+    .replace(/\\bar\{([A-Za-z])\}/g, '$1\u0304')
+    .replace(/\\vec\{([A-Za-z])\}/g, '$1\u20D7')
+    .replace(/\\sqrt\{\\frac\{([^{}]+)\}\{([^{}]+)\}\}/g, '√($1 / $2)')
+    .replace(/\\left\(\s*\\frac\{([^{}]+)\}\{([^{}]+)\}\s*\\right\)/g, '($1 / $2)');
+
+  // Iteratively resolve \frac{num}{den} (handles nested braces up to 4 levels)
+  for (let pass = 0; pass < 4; pass += 1) {
+    const next = eq.replace(
+      /\\frac\{([^{}]+)\}\{([^{}]+)\}/g,
+      (_match, num: string, den: string) => {
+        const cleanNum = num.trim();
+        const cleanDen = den.trim();
+        const fmtNum = /[+-]/.test(cleanNum) ? `(${cleanNum})` : cleanNum;
+        const fmtDen = /[+-]/.test(cleanDen) ? `(${cleanDen})` : cleanDen;
+        return `${fmtNum} / ${fmtDen}`;
+      }
+    );
+    if (next === eq) break;
+    eq = next;
+  }
+
+  return eq
     .replace(/\\xrightarrow\{[^}]*\}/g, ' → ')
     .replace(/\\rightarrow/g, ' → ')
+    .replace(/\\implies/g, ' ⟹ ')
     .replace(/\\uparrow/g, '↑')
+    .replace(/\\downarrow/g, '↓')
     .replace(/_\{([^}]+)\}/g, '_$1')
+    .replace(/\^\{([^}]+)\}/g, '^$1')
     .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
     .replace(/\\left\(/g, '(')
     .replace(/\\right\)/g, ')')
+    .replace(/\\left\[/g, '[')
+    .replace(/\\right\]/g, ']')
     .replace(/\\Sigma/g, 'Σ')
     .replace(/\\Delta/g, 'Δ')
     .replace(/\\Psi/g, 'Ψ')
@@ -214,17 +237,21 @@ export function formatCleanEquation(rawEquation: string): string {
     .replace(/\\gamma/g, 'γ')
     .replace(/\\delta/g, 'δ')
     .replace(/\\omega/g, 'ω')
+    .replace(/\\sigma/g, 'σ')
+    .replace(/\\odot/g, '☉')
+    .replace(/\\oplus/g, '⊕')
     .replace(/\^\\circ/g, '°')
     .replace(/\\circ/g, '°')
     .replace(/\\cdot/g, '·')
     .replace(/\\times/g, '×')
+    .replace(/\\pm/g, '±')
     .replace(/\\approx/g, '≈')
     .replace(/\\propto/g, '∝')
+    .replace(/\\le\b/g, '≤')
+    .replace(/\\ge\b/g, '≥')
+    .replace(/\\infty/g, '∞')
     .replace(/\\quad/g, ' ')
-    .replace(/\\max/g, 'max')
-    .replace(/\\sin/g, 'sin')
-    .replace(/\\cos/g, 'cos')
-    .replace(/\\tan/g, 'tan')
+    .replace(/\\(arcsin|arccos|arctan|sin|cos|tan|log|ln|max|min|exp)\b/g, '$1')
     .replace(/_\*/g, '_*')
     .replace(/\\/g, '')
     .replace(/\s+/g, ' ')

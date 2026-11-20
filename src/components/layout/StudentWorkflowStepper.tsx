@@ -49,7 +49,7 @@ export const StudentWorkflowStepper: React.FC<StudentWorkflowStepperProps> = ({
     <nav
       aria-label="Tahapan Alur Praktikum"
       data-onboarding="workflow-stepper"
-      className="flex items-center gap-0.5 bg-stone-100/90 dark:bg-slate-900/90 border border-stone-200/80 dark:border-slate-800 p-1 rounded-xl shrink-0"
+      className="flex items-center gap-0.5 bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] p-1 rounded-xl shrink-0 max-w-full overflow-x-auto no-scrollbar"
     >
       {steps.map((item) => {
         const isActive = workflowStep === item.step;
@@ -67,12 +67,12 @@ export const StudentWorkflowStepper: React.FC<StudentWorkflowStepperProps> = ({
                 ? `Disarankan catat minimal 3 titik data pengamatan terlebih dahulu (${recordsCount}/3 tercatat)`
                 : undefined
             }
-            className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+            className={`px-1.5 xl:px-2 py-1 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer shrink-0 ${
               isActive
                 ? 'bg-sky-600 text-white shadow-xs'
                 : item.done
-                ? 'text-emerald-700 dark:text-emerald-400 hover:bg-stone-200/60 dark:hover:bg-slate-800/80'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-stone-200/50 dark:hover:bg-slate-800/60'
+                ? 'text-emerald-700 dark:text-emerald-400 hover:bg-[var(--comfort-surface)]'
+                : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface)]'
             }`}
           >
             {item.done && !isActive && (
@@ -86,7 +86,7 @@ export const StudentWorkflowStepper: React.FC<StudentWorkflowStepperProps> = ({
                     ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
                     : isActive
                     ? 'bg-sky-700 text-sky-100'
-                    : 'bg-stone-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                    : 'bg-[var(--comfort-surface)] text-[var(--comfort-text-muted)]'
                 }`}
               >
                 {item.badge}

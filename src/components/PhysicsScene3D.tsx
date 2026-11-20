@@ -124,7 +124,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     }))
   );
 
-  const [hudCollapsed] = useState(false);
   const [followCamEnabled, setFollowCamEnabled] = useState<boolean>(true);
   const followCamRef = useRef<boolean>(true);
   followCamRef.current = followCamEnabled;
@@ -562,7 +561,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           className={`pointer-events-none absolute flex flex-wrap items-center gap-3 rounded-xl bg-slate-950/92 border border-sky-400/35 px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
             isFullscreen
               ? 'bottom-4 left-4'
-              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
           }`}
         >
           <span className="flex items-center gap-1.5 text-sky-300">
@@ -588,7 +587,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         className={`pointer-events-auto absolute flex items-center gap-1 rounded-xl bg-slate-900/92 border border-white/15 px-2 py-1 shadow-lg z-20 opacity-90 hover:opacity-100 transition-all ${
           isFullscreen
             ? 'top-3 right-3'
-            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'}`
+            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[352px] xl:right-[364px]' : 'right-3'}`
         }`}
       >
         <button
@@ -702,12 +701,6 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
             >
               Follow
             </button>
-          )}
-          {!hudCollapsed && showVectorOverlay && (
-            <span className="hidden xl:flex items-center gap-1 px-2 text-[10px] font-mono text-emerald-300 border-l border-white/15">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              Vektor
-            </span>
           )}
           <span className="mx-1 h-3.5 w-px bg-white/15" aria-hidden="true" />
         </div>

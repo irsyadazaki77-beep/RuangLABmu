@@ -599,7 +599,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           className={`pointer-events-none absolute flex items-center gap-2 rounded-xl bg-slate-950/92 border border-emerald-400/40 px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
             isFullscreen
               ? 'bottom-4 left-4'
-              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
           }`}
         >
           <Ruler className="w-3.5 h-3.5 text-emerald-400" />
@@ -627,7 +627,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         className={`pointer-events-auto absolute flex items-center gap-1 rounded-xl bg-slate-900/92 border border-white/15 px-2 py-1 shadow-lg z-20 opacity-90 hover:opacity-100 transition-all ${
           isFullscreen
             ? 'top-3 right-3'
-            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'}`
+            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[352px] xl:right-[364px]' : 'right-3'}`
         }`}
       >
         <button
@@ -755,7 +755,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         className={`pointer-events-auto absolute w-56 sm:w-64 rounded-xl bg-slate-900/92 border border-emerald-500/30 p-1.5 shadow-lg z-20 ${
           isFullscreen
             ? 'top-3 left-3'
-            : `top-[110px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+            : `top-[110px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
         }`}
       >
         <div className="flex items-center gap-1.5 px-1 pb-0.5 text-emerald-400 text-[10px] font-semibold">
@@ -784,7 +784,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           className={`absolute z-30 px-3 py-1 rounded-xl bg-emerald-950/92 border border-emerald-500/40 text-emerald-200 text-xs font-medium shadow-lg flex items-center gap-2 pointer-events-none ${
             isFullscreen
               ? 'top-20 left-3'
-              : `top-[204px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'}`
+              : `top-[204px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
           }`}
         >
           <span className="w-2 h-2 rounded-full bg-emerald-400" />

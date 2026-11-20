@@ -37,10 +37,15 @@ export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
         labSound.playClick();
         onSelect(exp);
       }}
-      className="bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] hover:border-sky-500/60 rounded-xl overflow-hidden transition-colors duration-150 flex flex-col justify-between group cursor-pointer"
+      className="relative bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] hover:border-sky-500/60 hover:shadow-lg hover:-translate-y-0.5 rounded-2xl overflow-hidden transition-all duration-200 flex flex-col justify-between group cursor-pointer"
     >
+      <div
+        className="h-0.5 w-full opacity-80"
+        style={{ backgroundColor: accentColor }}
+        aria-hidden="true"
+      />
       <div>
-        <div className="relative h-[104px] w-full overflow-hidden border-b border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] lab-grid-bg flex items-center justify-center px-3">
+        <div className="relative h-[108px] w-full overflow-hidden border-b border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] lab-grid-bg flex items-center justify-center px-3">
           <ModuleSchematicIllustration
             moduleId={exp.id}
             domain={exp.domain}
@@ -59,7 +64,7 @@ export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
                 style={{ color: accentColor }}
                 aria-hidden="true"
               />
-              <span className="capitalize font-medium">{exp.domain}</span>
+              <span className="capitalize font-semibold text-[var(--comfort-text)]">{exp.domain}</span>
               {exp.chapterNumber && (
                 <>
                   <span aria-hidden="true">·</span>
@@ -96,7 +101,7 @@ export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
       <div className="px-4 pb-3.5 pt-2.5 border-t border-[var(--comfort-border)] flex items-center justify-between gap-2.5">
         {primaryEquation ? (
           <div
-            className="min-w-0 flex-1 px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs font-mono text-sky-700 dark:text-sky-300 truncate select-text"
+            className="min-w-0 flex-1 px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs font-mono text-sky-700 dark:text-sky-300 overflow-hidden text-ellipsis whitespace-nowrap select-text"
             title={primaryEquation}
           >
             <SciFormula text={primaryEquation} />
@@ -112,7 +117,7 @@ export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
             labSound.playClick();
             onSelect(exp);
           }}
-          className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-700 text-white transition-colors cursor-pointer whitespace-nowrap shrink-0"
+          className="px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition-colors cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
         >
           Mulai Praktikum →
         </button>
@@ -140,51 +145,62 @@ export const ChapterCatalogCard: React.FC<ChapterCatalogCardProps> = ({
         labSound.playClick();
         onOpenChapter(chapter);
       }}
-      className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] p-4 flex flex-col justify-between hover:border-sky-500/60 transition-colors space-y-3 cursor-pointer group"
+      className="relative rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] overflow-hidden flex flex-col justify-between hover:border-sky-500/60 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group"
     >
-      <div className="space-y-2">
-        {/* Clean unboxed typographic metadata */}
-        <div className="flex items-center justify-between gap-2 text-xs text-[var(--comfort-text-muted)]">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-mono font-bold text-[var(--comfort-text)]">
-              Bab {chapter.chapterNumber}
+      <div
+        className="h-1 w-full opacity-85"
+        style={{ backgroundColor: domainColor }}
+        aria-hidden="true"
+      />
+      <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+        <div className="space-y-2">
+          {/* Clean unboxed typographic metadata */}
+          <div className="flex items-center justify-between gap-2 text-xs text-[var(--comfort-text-muted)]">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-mono font-bold text-[var(--comfort-text)]">
+                Bab {chapter.chapterNumber}
+              </span>
+              <span aria-hidden="true">·</span>
+              <DomainIcon
+                className="w-3.5 h-3.5 shrink-0"
+                style={{ color: domainColor }}
+                aria-hidden="true"
+              />
+              <span className="capitalize font-medium truncate text-[var(--comfort-text)]">
+                {chapter.domain}
+              </span>
+            </div>
+            <span className="font-mono text-[11px] font-medium shrink-0 text-[var(--comfort-text-muted)]">
+              {getShortJenjangLabel(chapter)}
             </span>
-            <span aria-hidden="true">·</span>
-            <DomainIcon
-              className="w-3.5 h-3.5 shrink-0"
-              style={{ color: domainColor }}
-              aria-hidden="true"
-            />
-            <span className="capitalize font-medium truncate">{chapter.domain}</span>
           </div>
-          <span className="font-mono text-[11px] shrink-0">{getShortJenjangLabel(chapter)}</span>
+
+          <h3 className="text-sm sm:text-base font-bold leading-snug group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
+            {chapter.title}
+          </h3>
+
+          <p className="text-xs text-[var(--comfort-text-muted)] line-clamp-2 leading-relaxed">
+            {chapter.overviewDescription}
+          </p>
         </div>
 
-        <h3 className="text-sm sm:text-base font-bold leading-snug group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
-          {chapter.title}
-        </h3>
-
-        <p className="text-xs text-[var(--comfort-text-muted)] line-clamp-2 leading-relaxed">
-          {chapter.overviewDescription}
-        </p>
-      </div>
-
-      <div className="pt-2.5 flex items-center justify-between border-t border-[var(--comfort-border)]">
-        <span className="text-xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
-          {chapter.moduleIds.length} Modul 3D
-        </span>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            labSound.playClick();
-            onOpenChapter(chapter);
-          }}
-          className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap"
-        >
-          <span>Buka Bab</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        <div className="pt-2.5 flex items-center justify-between border-t border-[var(--comfort-border)]">
+          <span className="text-xs font-mono font-medium text-[var(--comfort-text-muted)] tabular-nums">
+            {chapter.moduleIds.length} Modul 3D
+          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              labSound.playClick();
+              onOpenChapter(chapter);
+            }}
+            className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shadow-2xs"
+          >
+            <span>Buka Bab</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
