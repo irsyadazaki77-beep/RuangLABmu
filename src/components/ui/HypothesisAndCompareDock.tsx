@@ -283,17 +283,17 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3 text-xs shadow-sm">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+    <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4 space-y-3 text-xs shadow-sm">
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--comfort-border)] pb-2.5">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
             <Lightbulb className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-900 dark:text-white text-xs leading-tight">
+            <h3 className="font-bold text-[var(--comfort-text)] text-xs leading-tight">
               Buku Catatan Hipotesis & Refleksi Ilmiah
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[260px]">
+            <p className="text-[11px] text-[var(--comfort-text-muted)] truncate max-w-[260px]">
               {moduleTitle} · Tersimpan otomatis ke Laporan Resmi
             </p>
           </div>
@@ -309,7 +309,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+              className="p-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
               title="Tutup Panel Hipotesis"
             >
               <X className="w-4 h-4" />
@@ -321,7 +321,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
       {/* Independent & Dependent Variables Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <div>
-          <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+          <label className="block text-[11px] font-semibold text-[var(--comfort-text)] mb-1">
             Variabel Bebas (Diubah di Slider)
           </label>
           <input
@@ -331,11 +331,11 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
               onChangeNote({ ...note, independentVar: e.target.value })
             }
             placeholder={defaultIndependentVar}
-            className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-sky-500"
+            className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs focus:outline-none focus:border-sky-500"
           />
         </div>
         <div>
-          <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+          <label className="block text-[11px] font-semibold text-[var(--comfort-text)] mb-1">
             Variabel Terikat (Respons Terukur)
           </label>
           <input
@@ -345,14 +345,14 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
               onChangeNote({ ...note, dependentVar: e.target.value })
             }
             placeholder={defaultDependentVar}
-            className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-sky-500"
+            className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs focus:outline-none focus:border-sky-500"
           />
         </div>
       </div>
 
       {/* Quick Hypothesis Templates */}
       <div className="space-y-1">
-        <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+        <div className="text-[11px] text-[var(--comfort-text-muted)] flex items-center justify-between">
           <span>Templat Perumusan Cepat:</span>
           <span className="font-mono text-[10px]">Klik untuk mengisi</span>
         </div>
@@ -368,7 +368,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
               key={tpl.val}
               type="button"
               onClick={() => handleInsertTemplate(tpl.val)}
-              className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-sky-500/20 text-slate-700 dark:text-slate-300 hover:text-sky-600 dark:hover:text-sky-300 border border-slate-200 dark:border-slate-700 font-medium text-[11px] transition-colors cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-[var(--comfort-surface-subtle)] hover:bg-sky-500/20 text-[var(--comfort-text)] hover:text-sky-600 dark:hover:text-sky-300 border border-[var(--comfort-border)] font-medium text-[11px] transition-colors cursor-pointer"
             >
               {tpl.label}
             </button>
@@ -378,7 +378,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
 
       {/* Hypothesis Textarea */}
       <div>
-        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 mb-1">
+        <label className="block text-[11px] font-semibold text-[var(--comfort-text)] mb-1">
           Hipotesis Awal Siswa (Sebelum / Saat Eksperimen):
         </label>
         <textarea
@@ -395,12 +395,12 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
             })
           }
           placeholder="Contoh: Jika gaya dorong F diperbesar pada massa tetap, maka percepatan a meningkat sebanding lurus sesuai F = m·a..."
-          className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs leading-relaxed focus:outline-none focus:border-sky-500"
+          className="w-full px-3 py-2 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs leading-relaxed focus:outline-none focus:border-sky-500"
         />
       </div>
 
       {/* POE Quantitative Prediction Box */}
-      <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/90 dark:border-amber-800/60 space-y-2.5">
+      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-[11px] font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
@@ -482,7 +482,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
 
       {/* Reflection / Empirical Verification Textarea */}
       <div>
-        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 mb-1">
+        <label className="block text-[11px] font-semibold text-[var(--comfort-text)] mb-1">
           Refleksi Hasil Pengamatan vs Hipotesis:
         </label>
         <textarea
@@ -499,15 +499,15 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
             })
           }
           placeholder="Apakah data rekaman membuktikan hipotesis Anda? Catat temuan gradien R² atau anomali di sini..."
-          className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs leading-relaxed focus:outline-none focus:border-emerald-500"
+          className="w-full px-3 py-2 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs leading-relaxed focus:outline-none focus:border-emerald-500"
         />
       </div>
 
       {/* Pin Live Recorded Trials as Evidence */}
       {records.length > 0 && (
-        <div className="pt-1 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
+        <div className="pt-1 border-t border-[var(--comfort-border)] space-y-1.5">
+          <div className="flex items-center justify-between text-[11px] text-[var(--comfort-text-muted)]">
+            <span className="flex items-center gap-1 font-semibold text-[var(--comfort-text)]">
               <Pin className="w-3 h-3 text-sky-500" />
               <span>Sematkan Bukti Data Eksperimen ({pinnedRecordIds.length})</span>
             </span>
@@ -524,7 +524,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
                   className={`px-2 py-1 rounded-lg border font-mono text-[10px] transition-colors cursor-pointer flex items-center gap-1 ${
                     pinned
                       ? 'bg-sky-500/20 border-sky-500 text-sky-700 dark:text-sky-300 font-bold'
-                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                      : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)]'
                   }`}
                 >
                   <span>{rec.id}</span>
@@ -576,9 +576,9 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
 
   if (records.length < 2 || !recordA || !recordB) {
     return (
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-xs space-y-2">
+      <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4 text-xs space-y-2">
         <div className="flex items-center justify-between">
-          <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <div className="font-bold text-[var(--comfort-text)] flex items-center gap-2">
             <ArrowLeftRight className="w-4 h-4 text-sky-500" />
             <span>Komparator 2 Rekaman Eksperimen Berdampingan (Diff)</span>
           </div>
@@ -586,13 +586,13 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded-lg text-slate-400 hover:text-white cursor-pointer"
+              className="p-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
-        <p className="text-slate-500 dark:text-slate-400">
+        <p className="text-[var(--comfort-text-muted)]">
           Rekam minimal <strong>2 titik data eksperimen</strong> di simulasi 3D untuk membandingkan perubahan parameter (ΔX) dan respons terukur (ΔY) secara berdampingan.
         </p>
       </div>
@@ -626,17 +626,17 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
   );
 
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 space-y-4 text-xs shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+    <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4 sm:p-5 space-y-4 text-xs shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--comfort-border)] pb-3">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
             <ArrowLeftRight className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
+            <h3 className="font-bold text-[var(--comfort-text)] text-xs sm:text-sm">
               Perbandingan 2 Eksperimen Berdampingan (Side-by-Side Diff)
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-[var(--comfort-text-muted)]">
               Analisis kausalitas perubahan parameter input terhadap metrik output terukur
             </p>
           </div>
@@ -645,7 +645,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+            className="p-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -654,7 +654,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
 
       {/* Selector Row: Percobaan A vs Percobaan B */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+        <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-1.5">
           <label className="text-[11px] font-mono font-bold text-sky-600 dark:text-sky-400 block">
             PERCOBAAN ACUAN (A)
           </label>
@@ -664,7 +664,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
               labSound.playClick();
               setTrialAId(e.target.value);
             }}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 cursor-pointer"
+            className="w-full bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--comfort-text)] focus:outline-none focus:border-sky-500 cursor-pointer"
           >
             {records.map((r) => (
               <option key={r.id} value={r.id}>
@@ -672,12 +672,12 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
               </option>
             ))}
           </select>
-          <div className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
+          <div className="font-mono text-[11px] text-[var(--comfort-text-muted)]">
             Parameter: {recordA.parametersSummary}
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+        <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-1.5">
           <label className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 block">
             PERCOBAAN PEMBANDING (B)
           </label>
@@ -687,7 +687,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
               labSound.playClick();
               setTrialBId(e.target.value);
             }}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+            className="w-full bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--comfort-text)] focus:outline-none focus:border-emerald-500 cursor-pointer"
           >
             {records.map((r) => (
               <option key={r.id} value={r.id}>
@@ -695,7 +695,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
               </option>
             ))}
           </select>
-          <div className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
+          <div className="font-mono text-[11px] text-[var(--comfort-text-muted)]">
             Parameter: {recordB.parametersSummary}
           </div>
         </div>
@@ -703,15 +703,15 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
 
       {/* Quantitative Delta KPI Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+        <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
+          <div className="text-[11px] text-[var(--comfort-text-muted)]">
             Perubahan Variabel Bebas (ΔX = X_B - X_A)
           </div>
-          <div className="mt-1 font-mono font-bold text-base text-slate-900 dark:text-white tabular-nums">
+          <div className="mt-1 font-mono font-bold text-base text-[var(--comfort-text)] tabular-nums">
             {dx !== null ? (
               <>
                 {dx > 0 ? `+${dx}` : dx}{' '}
-                <span className="text-xs font-normal text-slate-400">
+                <span className="text-xs font-normal text-[var(--comfort-text-muted)]">
                   ({recordA.numericX} → {recordB.numericX})
                 </span>
               </>
@@ -721,8 +721,8 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+        <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
+          <div className="text-[11px] text-[var(--comfort-text-muted)]">
             Selisih Respons Utama (ΔY₁ = Y₁_B - Y₁_A)
           </div>
           <div className="mt-1 font-mono font-bold text-base text-sky-600 dark:text-sky-400 tabular-nums">
@@ -741,15 +741,15 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+        <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
+          <div className="text-[11px] text-[var(--comfort-text-muted)]">
             Selisih Respons Sekunder (ΔY₂)
           </div>
           <div className="mt-1 font-mono font-bold text-base text-amber-600 dark:text-amber-400 tabular-nums">
             {dy2 !== null ? (
               <>
                 {dy2 > 0 ? `▲ +${dy2}` : dy2 < 0 ? `▼ ${dy2}` : '● 0'}{' '}
-                <span className="text-xs font-normal text-slate-400">
+                <span className="text-xs font-normal text-[var(--comfort-text-muted)]">
                   ({recordA.numericY2 ?? 0} → {recordB.numericY2 ?? 0})
                 </span>
               </>
@@ -761,17 +761,17 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
       </div>
 
       {/* Detailed Side-by-Side Metrics Comparison Table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+      <div className="overflow-x-auto rounded-xl border border-[var(--comfort-border)]">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
-            <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+            <tr className="bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] font-mono text-[11px]">
               <th className="py-2 px-3">Besaran Terukur</th>
               <th className="py-2 px-3">Percobaan A ({recordA.id})</th>
               <th className="py-2 px-3">Percobaan B ({recordB.id})</th>
               <th className="py-2 px-3">Perubahan (Δ)</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono tabular-nums">
+          <tbody className="divide-y divide-[var(--comfort-border)] font-mono tabular-nums">
             {allMetricKeys.map((key) => {
               const valA = String(recordA.keyMetrics[key] ?? '-');
               const valB = String(recordB.keyMetrics[key] ?? '-');
@@ -781,7 +781,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
               const diff = hasNumericDelta ? Number((numB - numA).toFixed(3)) : 0;
 
               return (
-                <tr key={key} className="text-slate-700 dark:text-slate-200">
+                <tr key={key} className="text-[var(--comfort-text)]">
                   <td className="py-2 px-3 font-sans font-semibold">{key}</td>
                   <td className="py-2 px-3">{valA}</td>
                   <td className="py-2 px-3 font-semibold">{valB}</td>
@@ -793,13 +793,13 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
                             ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
                             : diff < 0
                             ? 'text-amber-600 dark:text-amber-400 font-semibold'
-                            : 'text-slate-400'
+                            : 'text-[var(--comfort-text-muted)]'
                         }
                       >
                         {diff > 0 ? `↑ +${diff}` : diff < 0 ? `↓ ${diff}` : '= 0 (Tetap)'}
                       </span>
                     ) : valA === valB ? (
-                      <span className="text-slate-400">= Sama</span>
+                      <span className="text-[var(--comfort-text-muted)]">= Sama</span>
                     ) : (
                       <span className="text-sky-600 dark:text-sky-400">Berubah</span>
                     )}
@@ -812,7 +812,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
       </div>
 
       {/* Automatic Causal Interpretation Footer */}
-      <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/25 text-xs text-slate-800 dark:text-slate-200 flex items-start gap-2">
+      <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/25 text-xs text-[var(--comfort-text)] flex items-start gap-2">
         <FileSpreadsheet className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
         <div>
           <strong>Sintesis Kausalitas:</strong> Ketika parameter diubah dari{' '}

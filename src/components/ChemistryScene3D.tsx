@@ -553,10 +553,18 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       )}
 
       <div
-        className={`pointer-events-auto absolute flex items-center gap-1 rounded-xl bg-slate-900/92 border border-white/15 px-2 py-1 shadow-lg z-20 opacity-90 hover:opacity-100 transition-all ${
+        className={`pointer-events-auto absolute flex flex-wrap items-center justify-end gap-1 rounded-xl studio-hud-surface px-2 py-1 shadow-lg z-20 opacity-95 hover:opacity-100 transition-all max-w-[calc(100vw-24px)] ${
           isFullscreen
             ? 'top-3 right-3'
-            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[352px] xl:right-[364px]' : 'right-3'}`
+            : `top-16 ${
+                !zenMode && rightTelemetryOpen && leftDrawerOpen
+                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-704px)] xl:max-w-[calc(100%-736px)]'
+                  : !zenMode && rightTelemetryOpen
+                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-368px)]'
+                  : !zenMode && leftDrawerOpen
+                  ? 'right-3 lg:max-w-[calc(100%-348px)]'
+                  : 'right-3'
+              }`
         }`}
       >
         <button
@@ -571,7 +579,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
             showProbe3D
               ? 'bg-sky-500 text-slate-950 font-bold'
-              : 'text-sky-300 hover:text-white hover:bg-white/10'
+              : 'text-sky-600 dark:text-sky-300 hover:text-[var(--comfort-text)] hover:bg-sky-500/10'
           }`}
         >
           <Thermometer className="w-3.5 h-3.5" aria-hidden="true" />
@@ -596,7 +604,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
             }
           }}
           title="Snap-to-Port: Sambung & Transfer Reagen Kimia 3D"
-          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-white hover:bg-white/10 flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-600 dark:text-emerald-300 hover:text-[var(--comfort-text)] hover:bg-emerald-500/10 flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
         >
           <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
           <span className="hidden xl:inline">Snap</span>
@@ -611,12 +619,12 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
             void toggleImmersiveVRSession();
           }}
           title="Mode VR Spasial 3D (WebXR Immersive-VR)"
-          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
         >
           <span aria-hidden="true">🥽</span>
         </button>
 
-        <span className="mx-0.5 h-3.5 w-px bg-white/15" aria-hidden="true" />
+        <span className="mx-0.5 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
 
         <div className="hidden md:flex items-center gap-0.5">
           <button
@@ -625,7 +633,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
             aria-label="Reset View Kamera 3D"
             onClick={() => handleSelectCameraPreset('isometric')}
             title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+            className="px-2 py-1 text-[11px] font-medium rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
           >
             Reset
           </button>
@@ -646,13 +654,13 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
               className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
                 activePreset === p.id
                   ? 'bg-sky-500 text-slate-950 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+                  : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10'
               }`}
             >
               {p.label}
             </button>
           ))}
-          <span className="mx-1 h-3.5 w-px bg-white/15" aria-hidden="true" />
+          <span className="mx-1 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
         </div>
 
         <ConceptLabelToggleButton accentClass="bg-teal-500 text-slate-950 font-bold" />
@@ -662,13 +670,13 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           onClick={handleToggleFullscreen}
           aria-label={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
           aria-pressed={isFullscreen}
-          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-sky-500/10 text-[11px] font-medium text-[var(--comfort-text)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
           title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
         >
           {isFullscreen ? (
-            <Minimize2 className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+            <Minimize2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" aria-hidden="true" />
           ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+            <Maximize2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" aria-hidden="true" />
           )}
         </button>
       </div>

@@ -371,7 +371,7 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
       {/* 3. Floating Viewport Overlay */}
       {!dualModeActive && topOverlay && (
         <div
-          className={`pointer-events-none absolute top-[110px] z-20 flex items-center left-3 ${
+          className={`pointer-events-none absolute top-[146px] xl:top-[110px] z-20 flex items-center left-3 ${
             isLeftVisible ? 'lg:left-[336px] xl:left-[348px]' : 'lg:left-3'
           }`}
         >

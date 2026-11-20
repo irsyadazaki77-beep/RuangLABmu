@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { motion } from 'motion/react';
 import { BookOpen, Layers, Play, Sparkles } from 'lucide-react';
 import { SPRING_LAYOUT_PILL, SPRING_TACTILE } from '../styles/motionPresets';
@@ -33,9 +33,14 @@ import {
   filterExperimentModules,
 } from '../utils/spatialHudHelpers';
 import { chapterMatchesJenjang } from './lobby/lobbyFormatters';
-import { RoomCollabModal } from './lobby/RoomCollabModal';
-import { ChapterDetailModal } from './lobby/ChapterDetailModal';
 import { ChapterCatalogCard, ModuleCatalogCard } from './lobby/ModuleCatalogCard';
+
+const RoomCollabModal = React.lazy(() =>
+  import('./lobby/RoomCollabModal').then((m) => ({ default: m.RoomCollabModal }))
+);
+const ChapterDetailModal = React.lazy(() =>
+  import('./lobby/ChapterDetailModal').then((m) => ({ default: m.ChapterDetailModal }))
+);
 
 interface LabLobbyHubProps {
   activeTier: EducationTier;
@@ -232,27 +237,33 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-5 select-text">
-      <RoomCollabModal
-        isOpen={isRoomModalOpen}
-        mode={roomModalMode}
-        roomError={roomError}
-        userRole={userRole}
-        lanInfo={lanInfo}
-        onOpenMode={openRoomModal}
-        onClose={closeRoomModal}
-        onSetRoomError={setRoomError}
-        onSetUserRole={setUserRole}
-        onCreateRoom={onCreateRoom}
-        onJoinRoom={onJoinRoom}
-      />
+      <Suspense fallback={null}>
+        {isRoomModalOpen && (
+          <RoomCollabModal
+            isOpen={isRoomModalOpen}
+            mode={roomModalMode}
+            roomError={roomError}
+            userRole={userRole}
+            lanInfo={lanInfo}
+            onOpenMode={openRoomModal}
+            onClose={closeRoomModal}
+            onSetRoomError={setRoomError}
+            onSetUserRole={setUserRole}
+            onCreateRoom={onCreateRoom}
+            onJoinRoom={onJoinRoom}
+          />
+        )}
 
-      <ChapterDetailModal
-        chapter={detailChapter}
-        modules={detailChapterModules}
-        completedModuleIds={completedModuleIds}
-        onClose={() => setDetailChapter(null)}
-        onSelectExperiment={handleSelectAndTrackExperiment}
-      />
+        {detailChapter && (
+          <ChapterDetailModal
+            chapter={detailChapter}
+            modules={detailChapterModules}
+            completedModuleIds={completedModuleIds}
+            onClose={() => setDetailChapter(null)}
+            onSelectExperiment={handleSelectAndTrackExperiment}
+          />
+        )}
+      </Suspense>
 
       {/* Active Room Custom AI Mission Banner */}
       {activeCustomMission && (

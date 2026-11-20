@@ -52,14 +52,49 @@ export const TeacherDashboardView = React.lazy(() =>
 
 function AppLabThemeSkeleton() {
   return (
-    <div className="flex-1 min-h-0 flex flex-col items-center justify-center bg-[var(--comfort-bg)] text-[var(--comfort-text)] p-8">
-      <div className="w-full max-w-md rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-6 text-center space-y-3 shadow-lg">
-        <div className="w-10 h-10 rounded-xl bg-sky-500/15 border border-sky-400/40 flex items-center justify-center text-sky-400 mx-auto animate-spin">
-          <RefreshCw className="w-5 h-5" aria-hidden="true" />
+    <div
+      className="flex-1 min-h-0 flex flex-col bg-[var(--comfort-bg)] text-[var(--comfort-text)] p-3 sm:p-4 lg:p-6 gap-4"
+      role="status"
+      aria-live="polite"
+      aria-label="Memuat Studio Laboratorium"
+    >
+      {/* Top Studio bar shimmer */}
+      <div className="h-12 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] px-4 flex items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-7 h-7 rounded-lg bg-sky-500/20 animate-pulse" />
+          <div className="h-3.5 w-36 rounded-md bg-[var(--comfort-surface-muted)] animate-pulse" />
         </div>
-        <div className="text-sm font-bold">Memuat Modul Laboratorium 3D...</div>
-        <div className="text-xs text-[var(--comfort-text-muted)]">
-          Menyiapkan mesin simulasi &amp; kanvas WebGL sesuai tema
+        <div className="hidden sm:flex items-center gap-2">
+          <div className="h-7 w-20 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
+          <div className="h-7 w-24 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
+          <div className="h-7 w-20 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
+        </div>
+      </div>
+
+      {/* Spatial 3-column Studio shell skeleton */}
+      <div className="flex-1 min-h-[420px] grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="hidden lg:flex lg:col-span-3 flex-col gap-3 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4">
+          <div className="h-4 w-28 rounded bg-[var(--comfort-surface-muted)] animate-pulse" />
+          <div className="h-24 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
+          <div className="h-24 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
+          <div className="flex-1 rounded-lg bg-[var(--comfort-surface-muted)]/70 animate-pulse" />
+        </div>
+
+        <div className="lg:col-span-6 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] flex flex-col items-center justify-center p-6 text-center space-y-3 shadow-sm">
+          <div className="w-11 h-11 rounded-xl bg-sky-500/15 border border-sky-400/40 flex items-center justify-center text-sky-500 animate-spin">
+            <RefreshCw className="w-5 h-5" aria-hidden="true" />
+          </div>
+          <div className="text-sm font-bold">Memuat Modul Laboratorium 3D...</div>
+          <div className="text-xs text-[var(--comfort-text-muted)] max-w-xs">
+            Menyiapkan mesin simulasi &amp; kanvas WebGL sesuai tema kenyamanan Anda
+          </div>
+        </div>
+
+        <div className="hidden lg:flex lg:col-span-3 flex-col gap-3 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4">
+          <div className="h-4 w-32 rounded bg-[var(--comfort-surface-muted)] animate-pulse" />
+          <div className="h-20 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
+          <div className="h-32 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
+          <div className="flex-1 rounded-lg bg-[var(--comfort-surface-muted)]/70 animate-pulse" />
         </div>
       </div>
     </div>

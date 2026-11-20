@@ -106,25 +106,25 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
   const score = Math.round((correctCount / questions.length) * 100);
 
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-sm space-y-4">
+    <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-5 shadow-sm space-y-4">
       {/* Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
         <div className="flex items-center gap-2">
           <span className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
             <HelpCircle className="w-4 h-4" />
           </span>
           <div>
-            <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+            <h3 className="font-extrabold text-sm sm:text-base text-[var(--comfort-text)]">
               Kuis Evaluasi Pemahaman Pasca-Praktikum
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-[var(--comfort-text-muted)]">
               3 soal pilihan ganda kontekstual berdasarkan pengamatan eksperimen {activeStudentName}
             </p>
           </div>
         </div>
 
         {isSubmitted && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs font-bold text-amber-700 dark:text-amber-300">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs font-bold text-amber-700 dark:text-amber-300">
             <Award className="w-4 h-4 text-amber-500" />
             <span>Skor Kuis: {score} / 100</span>
           </div>
@@ -140,7 +140,7 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
           return (
             <div
               key={q.id}
-              className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 space-y-3"
+              className="p-4 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] space-y-3"
             >
               <div className="flex items-start justify-between gap-2">
                 <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400">
@@ -165,7 +165,7 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
                 )}
               </div>
 
-              <p className="text-xs font-semibold text-slate-900 dark:text-white leading-relaxed">
+              <p className="text-xs font-semibold text-[var(--comfort-text)] leading-relaxed">
                 {q.question}
               </p>
 
@@ -174,19 +174,19 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
                 {q.options.map((opt) => {
                   const isSelected = userAns === opt.key;
                   let optStyle =
-                    'border-slate-200 dark:border-slate-700 hover:border-sky-400 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200';
+                    'border-[var(--comfort-border)] hover:border-sky-400 bg-[var(--comfort-surface)] text-[var(--comfort-text)]';
 
                   if (isSubmitted) {
                     if (opt.key === q.correctKey) {
                       optStyle =
-                        'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold';
+                        'border-emerald-500 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-bold';
                     } else if (isSelected && !isCorrect) {
                       optStyle =
-                        'border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-200 line-through';
+                        'border-rose-500 bg-rose-500/15 text-rose-800 dark:text-rose-200 line-through';
                     }
                   } else if (isSelected) {
                     optStyle =
-                      'border-sky-500 bg-sky-50 dark:bg-sky-950/40 text-sky-900 dark:text-sky-200 font-bold';
+                      'border-sky-500 bg-sky-500/15 text-sky-800 dark:text-sky-200 font-bold';
                   }
 
                   return (
@@ -196,7 +196,7 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
                       onClick={() => handleSelectOption(q.id, opt.key)}
                       className={`text-left text-xs p-2.5 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 ${optStyle}`}
                     >
-                      <span className="font-mono font-bold text-slate-400 shrink-0">
+                      <span className="font-mono font-bold text-[var(--comfort-text-muted)] shrink-0">
                         {opt.key}.
                       </span>
                       <span className="leading-relaxed">{opt.text}</span>
@@ -207,7 +207,7 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
 
               {/* Explanation upon submission */}
               {isSubmitted && (
-                <div className="p-2.5 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 text-[11px] text-sky-900 dark:text-sky-200 leading-relaxed">
+                <div className="p-2.5 rounded-lg bg-sky-500/10 border border-sky-500/25 text-[11px] text-[var(--comfort-text)] leading-relaxed">
                   <strong>Pembahasan Ilmiah:</strong> {q.explanation}
                 </div>
               )}
@@ -218,7 +218,7 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
 
       {/* Action Footer */}
       <div className="flex items-center justify-between pt-2">
-        <div className="text-xs text-slate-500 dark:text-slate-400">
+        <div className="text-xs text-[var(--comfort-text-muted)]">
           Terjawab {answeredCount} dari {questions.length} soal
         </div>
 
@@ -227,7 +227,7 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
             <button
               type="button"
               onClick={handleRetake}
-              className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] hover:opacity-90 text-[var(--comfort-text)] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Ulangi Kuis</span>

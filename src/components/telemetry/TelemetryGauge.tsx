@@ -153,15 +153,17 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({
       </div>
 
       {/* Tabular Readout + Min/Max Scale */}
-      <div className="flex items-baseline justify-between gap-2 pt-0.5 border-t border-[var(--comfort-border)]">
-        <span className="text-[10px] font-mono text-[var(--comfort-text-muted)] tabular-nums">
-          {min}–{max}
+      <div className="flex items-baseline justify-between gap-1.5 pt-0.5 border-t border-[var(--comfort-border)] min-w-0">
+        <span className="text-[10px] font-mono text-[var(--comfort-text-muted)] tabular-nums shrink-0 whitespace-nowrap">
+          {Number.isInteger(min) ? min : Number(min.toFixed(1))}–{Number.isInteger(max) ? max : Math.ceil(max)}
         </span>
-        <div className="font-mono text-sm font-bold text-[var(--comfort-text)] tabular-nums">
-          {safeVal.toFixed(decimals)}{' '}
-          <span className="text-[11px] font-normal text-[var(--comfort-text-muted)]">
-            {unit}
-          </span>
+        <div className="font-mono text-xs sm:text-sm font-bold text-[var(--comfort-text)] tabular-nums truncate text-right">
+          {safeVal.toFixed(decimals)}
+          {unit ? (
+            <span className="ml-1 text-[10px] font-normal text-[var(--comfort-text-muted)]">
+              {unit}
+            </span>
+          ) : null}
         </div>
       </div>
 

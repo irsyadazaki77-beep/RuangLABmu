@@ -156,6 +156,7 @@ export const ServerExperimentRecordSchema = z
     studentName: z.string().min(1).max(120),
     groupId: z.string().max(120),
     domain: ScienceDomainDisplaySchema,
+    moduleId: z.string().max(120).optional(),
     experimentTitle: z.string().min(1).max(200),
     parametersSummary: z.string().max(1000).optional().default(''),
     keyMetrics: z.record(z.string(), z.union([z.number().finite(), z.string()])).optional().default({}),

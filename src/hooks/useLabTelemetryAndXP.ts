@@ -216,6 +216,7 @@ export function useLabTelemetryAndXP({
         studentName: currentProfile.name,
         groupId: currentProfile.group,
         domain,
+        moduleId: currentExperimentModule.id,
         experimentTitle: title,
         parametersSummary: paramsSummary,
         keyMetrics,

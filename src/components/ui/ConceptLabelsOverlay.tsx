@@ -3,7 +3,10 @@ import * as THREE from 'three';
 import { Tag } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import { labSound } from '../../utils/soundEngine';
-import { projectWorldAnchorToViewport } from '../../utils/pedagogicalHelpers';
+import {
+  projectWorldAnchorToViewport,
+  resolveConceptLabelCollisions,
+} from '../../utils/pedagogicalHelpers';
 
 export interface ConceptLabelToggleButtonProps {
   accentClass?: string;
@@ -32,7 +35,7 @@ export const ConceptLabelToggleButton: React.FC<ConceptLabelToggleButtonProps> =
       className={`px-2 py-1 text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
         showConceptLabels
           ? accentClass
-          : 'text-slate-300 hover:text-white hover:bg-white/10 font-medium'
+          : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10 font-medium'
       }`}
     >
       <Tag className="w-3 h-3" aria-hidden="true" />
@@ -145,6 +148,26 @@ export function updateProjectedConceptLabels(
   show: boolean,
   scratchVec: THREE.Vector3
 ): void {
+  const projectedVisible: {
+    dom: ConceptLabelDomRef;
+    text: string;
+    x: number;
+    y: number;
+  }[] = [];
+
+  const uiState = useUIStore.getState();
+  const isSpatialDesktop = width >= 1024;
+  const leftInset =
+    isSpatialDesktop && !uiState.zenMode && uiState.leftDrawerOpen
+      ? (width >= 1280 ? 430 : 418)
+      : 68;
+  const rightInset =
+    isSpatialDesktop && !uiState.zenMode && uiState.rightTelemetryOpen
+      ? (width >= 1280 ? 436 : 422)
+      : 68;
+  const topInset = isSpatialDesktop ? 164 : 112;
+  const bottomInset = isSpatialDesktop ? 98 : 110;
+
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
     const dom = entry.dom;
@@ -163,7 +186,15 @@ export function updateProjectedConceptLabels(
       scratchVec.y,
       scratchVec.z,
       width,
-      height
+      height,
+      68,
+      28,
+      {
+        left: leftInset,
+        right: rightInset,
+        top: topInset,
+        bottom: bottomInset,
+      }
     );
 
     if (!proj.visible) {
@@ -173,13 +204,31 @@ export function updateProjectedConceptLabels(
       continue;
     }
 
+    projectedVisible.push({
+      dom,
+      text: entry.text,
+      x: proj.x,
+      y: proj.y,
+    });
+  }
+
+  const resolved = resolveConceptLabelCollisions(projectedVisible, width, height, {
+    minX: leftInset,
+    maxX: Math.max(leftInset, width - rightInset),
+    minY: topInset,
+    maxY: Math.max(topInset, height - bottomInset),
+  });
+  for (let i = 0; i < resolved.length; i++) {
+    const item = resolved[i];
+    const { dom } = item;
+    if (!dom.root) continue;
     if (dom.root.style.display !== 'block') {
       dom.root.style.display = 'block';
     }
-    dom.root.style.transform = `translate3d(${proj.x.toFixed(1)}px, ${proj.y.toFixed(1)}px, 0px)`;
-    if (dom.text && dom.lastText !== entry.text) {
-      dom.text.textContent = entry.text;
-      dom.lastText = entry.text;
+    dom.root.style.transform = `translate3d(${item.x.toFixed(1)}px, ${item.y.toFixed(1)}px, 0px)`;
+    if (dom.text && dom.lastText !== item.text) {
+      dom.text.textContent = item.text;
+      dom.lastText = item.text;
     }
   }
 }

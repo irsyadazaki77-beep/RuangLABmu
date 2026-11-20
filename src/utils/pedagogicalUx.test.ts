@@ -12,6 +12,7 @@ import {
   getAstronomyParameterFeedback,
   translateObservationPattern,
   projectWorldAnchorToViewport,
+  resolveConceptLabelCollisions,
   computeGlossaryPopoverPosition,
 } from './pedagogicalHelpers';
 
@@ -200,4 +201,24 @@ test('computeGlossaryPopoverPosition keeps popover strictly inside 360px mobile 
     740
   );
   assert.equal(nearBottom.placeAbove, true);
+});
+
+test('resolveConceptLabelCollisions nudges vertically colliding 3D labels apart', () => {
+  const collided = resolveConceptLabelCollisions(
+    [
+      { x: 400, y: 240, text: 'Gaya Normal N = 38.0 N' },
+      { x: 412, y: 246, text: 'Gaya Gesek fk = 5.7 N' },
+      { x: 700, y: 245, text: 'Kecepatan v = 4.2 m/s' },
+    ],
+    1024,
+    680
+  );
+
+  assert.equal(collided.length, 3);
+  assert.ok(
+    Math.abs(collided[0].y - collided[1].y) >= 42,
+    `Expected overlapping labels to separate vertically >= 42px, got ${Math.abs(collided[0].y - collided[1].y)}`
+  );
+  assert.equal(collided[2].x, 700);
+  assert.equal(collided[2].y, 245);
 });

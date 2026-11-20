@@ -624,10 +624,18 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       )}
 
       <div
-        className={`pointer-events-auto absolute flex items-center gap-1 rounded-xl bg-slate-900/92 border border-white/15 px-2 py-1 shadow-lg z-20 opacity-90 hover:opacity-100 transition-all ${
+        className={`pointer-events-auto absolute flex flex-wrap items-center justify-end gap-1 rounded-xl studio-hud-surface px-2 py-1 shadow-lg z-20 opacity-95 hover:opacity-100 transition-all max-w-[calc(100vw-24px)] ${
           isFullscreen
             ? 'top-3 right-3'
-            : `top-16 ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[352px] xl:right-[364px]' : 'right-3'}`
+            : `top-16 ${
+                !zenMode && rightTelemetryOpen && leftDrawerOpen
+                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-704px)] xl:max-w-[calc(100%-736px)]'
+                  : !zenMode && rightTelemetryOpen
+                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-368px)]'
+                  : !zenMode && leftDrawerOpen
+                  ? 'right-3 lg:max-w-[calc(100%-348px)]'
+                  : 'right-3'
+              }`
         }`}
       >
         <button
@@ -642,7 +650,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
             showRuler3D
               ? 'bg-emerald-500 text-slate-950 font-bold'
-              : 'text-emerald-300 hover:text-white hover:bg-white/10'
+              : 'text-emerald-600 dark:text-emerald-300 hover:text-[var(--comfort-text)] hover:bg-emerald-500/10'
           }`}
         >
           <Ruler className="w-3.5 h-3.5" aria-hidden="true" />
@@ -666,7 +674,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
             }
           }}
           title="Snap-to-Port: Sambung & Transfer Spesimen Biologi 3D"
-          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-white hover:bg-white/10 flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-600 dark:text-emerald-300 hover:text-[var(--comfort-text)] hover:bg-emerald-500/10 flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
         >
           <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
           <span className="hidden xl:inline">Snap</span>
@@ -681,12 +689,12 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
             void toggleImmersiveVRSession();
           }}
           title="Mode VR Spasial 3D (WebXR Immersive-VR)"
-          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-emerald-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
         >
           <span aria-hidden="true">🥽</span>
         </button>
 
-        <span className="mx-0.5 h-3.5 w-px bg-white/15" aria-hidden="true" />
+        <span className="mx-0.5 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
 
         <div className="hidden md:flex items-center gap-0.5">
           <button
@@ -699,7 +707,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
               cameraCtrlRef.current?.setPreset('isometric');
             }}
             title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+            className="px-2 py-1 text-[11px] font-medium rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-emerald-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           >
             Reset
           </button>
@@ -724,13 +732,13 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
               className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
                 activePreset === preset.id
                   ? 'bg-emerald-500 text-slate-950 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+                  : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-emerald-500/10'
               }`}
             >
               {preset.label}
             </button>
           ))}
-          <span className="mx-1 h-3.5 w-px bg-white/15" aria-hidden="true" />
+          <span className="mx-1 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
         </div>
 
         <ConceptLabelToggleButton accentClass="bg-emerald-500 text-slate-950 font-bold" />
@@ -740,25 +748,25 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           onClick={handleToggleFullscreen}
           aria-label={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
           aria-pressed={isFullscreen}
-          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-white/10 text-[11px] font-medium text-slate-200 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-emerald-500/10 text-[11px] font-medium text-[var(--comfort-text)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
         >
           {isFullscreen ? (
-            <Minimize2 className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+            <Minimize2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
           ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+            <Maximize2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
           )}
         </button>
       </div>
 
       <div
-        className={`pointer-events-auto absolute w-56 sm:w-64 rounded-xl bg-slate-900/92 border border-emerald-500/30 p-1.5 shadow-lg z-20 ${
+        className={`pointer-events-auto absolute w-56 sm:w-64 rounded-xl studio-hud-surface p-1.5 shadow-lg z-20 ${
           isFullscreen
             ? 'top-3 left-3'
-            : `top-[110px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
+            : `top-[146px] xl:top-[110px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
         }`}
       >
-        <div className="flex items-center gap-1.5 px-1 pb-0.5 text-emerald-400 text-[10px] font-semibold">
+        <div className="flex items-center gap-1.5 px-1 pb-0.5 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold">
           <Focus className="w-3 h-3 shrink-0" />
           <span>Fokus Lensa Mikroskop</span>
         </div>

@@ -4,17 +4,20 @@ import { Calculator, Sparkles } from 'lucide-react';
 import { useLabStore } from '../../stores/useLabStore';
 import { formatCleanEquation } from '../../utils/spatialHudHelpers';
 import { SciFormula } from '../ui/ScientificNotation';
+import type { TelemetryMetricDescriptor } from '../layout/StandardLabViewShell';
 
 export interface LiveFormulaCardProps {
   moduleTitle: string;
   formulaEquation: string;
   domainLabel: string;
+  telemetryMetrics?: TelemetryMetricDescriptor[];
 }
 
 export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
   moduleTitle,
   formulaEquation,
   domainLabel,
+  telemetryMetrics = [],
 }) => {
   const { activeAdjustedParam, liveParamSnapshot } = useLabStore(
     useShallow((s) => ({
@@ -24,6 +27,7 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
   );
 
   const paramEntries = Object.entries(liveParamSnapshot).slice(0, 6);
+  const derivedOutputs = telemetryMetrics.slice(0, 3);
 
   return (
     <div
@@ -57,7 +61,7 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
       {paramEntries.length > 0 && (
         <div className="space-y-1.5">
           <div className="text-[10px] font-semibold text-[var(--comfort-text-muted)]">
-            Substitusi Variabel Real-Time:
+            Parameter Input (Slider):
           </div>
           <div className="grid grid-cols-1 gap-1.5">
             {paramEntries.map(([label, item]) => {
@@ -81,6 +85,38 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Derived Real-Time Computed Physics/Bio/Chem/Astro Outputs */}
+      {derivedOutputs.length > 0 && (
+        <div className="space-y-1.5 pt-1 border-t border-[var(--comfort-border)]">
+          <div className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+            Hasil Terhitung Real-Time:
+          </div>
+          <div className="grid grid-cols-1 gap-1.5" data-testid="live-formula-derived-outputs">
+            {derivedOutputs.map((metric) => (
+              <div
+                key={metric.id}
+                className="px-2.5 py-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 text-[11px] font-mono flex items-center justify-between gap-2"
+              >
+                <span className="text-[11px] text-[var(--comfort-text)] font-sans font-medium leading-tight flex items-center gap-1.5">
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: metric.color || '#10b981' }}
+                    aria-hidden="true"
+                  />
+                  <SciFormula text={metric.label} wrap />
+                </span>
+                <span className="tabular-nums font-bold shrink-0 text-emerald-700 dark:text-emerald-300">
+                  {Number.isFinite(metric.value)
+                    ? metric.value.toFixed(metric.precision ?? 2)
+                    : '0.00'}
+                  {metric.unit ? ` ${metric.unit}` : ''}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -78,7 +78,7 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
         'H_{\\max} = h_0 + \\frac{v_0^2 \\sin^2\\theta}{2g}',
       ],
       advancedConcept:
-        'Persamaan sudut tembak optimum dari tebing tinggi h0: θ_opt = arcsin(1 / √(2 + 2gh0/v0²)).',
+        'Persamaan sudut tembak optimum dari tebing tinggi h₀: θ opt = arcsin(1 / √(2 + 2gh₀/v₀²)).',
     },
   },
 
@@ -88,7 +88,7 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
     competencyLevel: 'Lanjut',
     commonMisconceptions: [
       'Astronot di stasiun luar angkasa mengapung karena tidak ada gravitasi. Faktanya: Gravitasi di orbit rendah Bumi (~400 km) masih sekitar 90% gravitasi permukaan; astronot mengapung karena stasiun dan seisinya sedang jatuh bebas bersama mengitari Bumi.',
-      'Kecepatan lepas bergantung pada bobot wahana roket. Faktanya: Kecepatan lepas v_esc = √(2GM/R) hanya ditentukan oleh massa dan radius benda langit sentral, sama sekali tidak bergantung pada massa wahana.',
+      'Kecepatan lepas bergantung pada bobot wahana roket. Faktanya: Kecepatan lepas v lepas = √(2GM/R) hanya ditentukan oleh massa dan radius benda langit sentral, sama sekali tidak bergantung pada massa wahana.',
     ],
     realWorldApplications: [
       'Penentuan kecepatan peluncuran Satelit Republik Indonesia (SATRIA-1) menuju orbit geostasioner (GEO 36.000 km).',
@@ -97,8 +97,8 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
     ],
     stepByStepGuide: [
       '1. Pilih planet Bumi (M = 5.97 × 10²⁴ kg, R = 6.37 × 10³ km).',
-      '2. Amati kecepatan orbit lingkaran v_orb (~7.91 km/s) dan kecepatan lepas v_esc (~11.18 km/s).',
-      '3. Buktikan secara matematis bahwa rasio v_esc / v_orb selalu bernilai tepat √2 ≈ 1.414.',
+      '2. Amati kecepatan orbit lingkaran v orbit (~7.91 km/s) dan kecepatan lepas v lepas (~11.18 km/s).',
+      '3. Buktikan secara matematis bahwa rasio v lepas / v orbit selalu bernilai tepat √2 ≈ 1.414.',
       '4. Ganti parameter massa benda sentral ke Jupiter untuk mengamati lonjakan kecepatan lepas hingga > 59 km/s.',
     ],
   },
@@ -567,7 +567,7 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
       'Teknologi pelensaan gravitasi (gravitational lensing) untuk mengukur massa gugus galaksi jauh.',
     ],
     stepByStepGuide: [
-      '1. Amati kecepatan rotasi teramati v_obs pada radius galaktosentris r = 8.2 kpc (~220 km/s).',
+      '1. Amati kecepatan rotasi teramati v obs pada radius galaktosentris r = 8.2 kpc (~220 km/s).',
       '2. Bandingkan dengan kurva kecepatan Keplerian berbasis materi tampak yang meluruh turun sebanding dengan 1/√r.',
       '3. Naikkan fraksi halo materi gelap dan saksikan kurva rotasi mendatar stabil pada jarak puluhan kiloparsek.',
       '4. Hitung massa materi gelap yang terkungkung di dalam orbit Bima Sakti.',

@@ -1,5 +1,6 @@
 import type { ExperimentModule, EducationTier, ScienceDomain } from '../registry/experimentRegistry';
 import type { CurriculumChapter } from '../registry/curriculumChapters';
+import type { ExperimentRecord } from './engines/statisticsAndRegression';
 
 export interface TelemetrySeriesPoint {
   cursorIndex: number;
@@ -182,9 +183,17 @@ export function formatCleanEquation(rawEquation: string): string {
   // Unwrap \text{...}, \mathrm{...}, _{...}, ^{...} before fraction matching so nested braces resolve cleanly
   eq = eq
     .replace(/\\text\{([^}]+)\}/g, '$1')
-    .replace(/\\mathrm\{([^}]+)\}/g, '$1')
-    .replace(/_\{([^{}]+)\}/g, '_$1')
-    .replace(/\^\{([^{}]+)\}/g, '^$1')
+    .replace(/\\mathrm\{([^}]+)\}/g, '$1');
+
+  for (let pass = 0; pass < 3; pass += 1) {
+    const next = eq
+      .replace(/_\{([^{}]+)\}/g, '_$1')
+      .replace(/\^\{([^{}]+)\}/g, '^$1');
+    if (next === eq) break;
+    eq = next;
+  }
+
+  eq = eq
     .replace(/\\dot\{([A-Za-z])\}/g, '$1\u0307')
     .replace(/\\bar\{([A-Za-z])\}/g, '$1\u0304')
     .replace(/\\vec\{([A-Za-z])\}/g, '$1\u20D7')
@@ -213,6 +222,11 @@ export function formatCleanEquation(rawEquation: string): string {
     .replace(/\\implies/g, ' ⟹ ')
     .replace(/\\uparrow/g, '↑')
     .replace(/\\downarrow/g, '↓')
+    .replace(/\\%/g, '%')
+    .replace(/\\sum\b/g, '∑')
+    .replace(/\\in\b/g, '∈')
+    .replace(/\\\{/g, '{')
+    .replace(/\\\}/g, '}')
     .replace(/_\{([^}]+)\}/g, '_$1')
     .replace(/\^\{([^}]+)\}/g, '^$1')
     .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
@@ -256,4 +270,88 @@ export function formatCleanEquation(rawEquation: string): string {
     .replace(/\\/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export function inferRecordModuleId(rec: ExperimentRecord): string | undefined {
+  if (rec.moduleId) return rec.moduleId;
+  const hint = `${rec.experimentTitle} ${rec.parametersSummary}`.toLowerCase();
+
+  if (rec.domain === 'Fisika') {
+    if (hint.includes('pegas') || hint.includes('hooke') || hint.includes('k=')) return 'spring-hooke';
+    if (hint.includes('bandul') || hint.includes('pendulum')) return 'pendulum-harmonic';
+    if (hint.includes('parabola') || hint.includes('proyektil') || hint.includes('projektil') || hint.includes('v₀') || hint.includes('v0=')) {
+      return 'projectile-motion';
+    }
+    if (hint.includes('tumbukan') || hint.includes('momentum')) return 'collision-momentum';
+    if (hint.includes('stokes') || hint.includes('viskositas')) return 'stokes-viscosity';
+    if (hint.includes('wheatstone') || hint.includes('ohm')) return 'ohm-wheatstone';
+    if (hint.includes('young') || hint.includes('interferensi') || hint.includes('celah')) return 'optics-young-slit';
+    if (hint.includes('fotolistrik') || hint.includes('planck')) return 'photoelectric-planck';
+    if (hint.includes('gravitasi universal') || hint.includes('orbital')) return 'gravity-orbital';
+    if (hint.includes('newton') || hint.includes('bidang miring') || hint.includes('f=')) return 'newton-incline';
+    return undefined;
+  }
+
+  if (rec.domain === 'Kimia') {
+    if (hint.includes('titrasi') || hint.includes('asam') || hint.includes('vb=') || hint.includes('v_b=')) {
+      return 'acid-base-titration';
+    }
+    if (hint.includes('galvani') || hint.includes('elektrokimia') || hint.includes('redoks') || hint.includes('anoda')) {
+      return 'redox-electrochemistry';
+    }
+    if (hint.includes('boyle') || hint.includes('gas ideal')) return 'ideal-gas-boyle';
+    if (hint.includes('arrhenius') || hint.includes('kinetika') || hint.includes('ea=')) {
+      return 'reaction-kinetics-arrhenius';
+    }
+    if (hint.includes('spektro') || hint.includes('beer')) return 'spectrophotometry-beer';
+    if (hint.includes('kalorimetri') || hint.includes('termo') || hint.includes('reaksi')) return 'thermo-calorimetry';
+    return undefined;
+  }
+
+  if (rec.domain === 'Biologi') {
+    if (hint.includes('fotosintesis') || hint.includes('ingenhousz')) return 'photosynthesis-ingenhousz';
+    if (hint.includes('katalase') || hint.includes('enzim') || hint.includes('[s]=') || hint.includes('michaelis')) {
+      return 'enzyme-catalase';
+    }
+    if (hint.includes('lotka') || hint.includes('predator') || hint.includes('mangsa')) return 'predator-prey-dynamics';
+    if (hint.includes('plasmolisis') || hint.includes('osmosis') || hint.includes('sel') || hint.includes('tonisitas')) {
+      return 'osmosis-plasmolysis';
+    }
+    if (hint.includes('jantung') || hint.includes('kardio') || hint.includes('bpm')) return 'anatomy-cardiovascular-heart';
+    if (hint.includes('paru') || hint.includes('respirasi') || hint.includes('spirometri')) {
+      return 'anatomy-respiratory-lungs';
+    }
+    if (hint.includes('sinaps') || hint.includes('saraf') || hint.includes('potensial aksi')) {
+      return 'anatomy-neural-synapse';
+    }
+    return undefined;
+  }
+
+  if (rec.domain === 'Astronomi') {
+    if (hint.includes('galaksi') || hint.includes('bima sakti') || hint.includes('dm=')) return 'milky-way-rotation';
+    if (hint.includes('eksoplanet') || hint.includes('transit') || hint.includes('rp=')) return 'exoplanet-transit';
+    if (hint.includes('wien') || hint.includes('benda hitam') || hint.includes('t*=')) return 'stellar-wien-spectrum';
+    if (hint.includes('hubble') || hint.includes('ekspansi') || hint.includes('h₀=') || hint.includes('h0=')) {
+      return 'hubble-expansion';
+    }
+    if (hint.includes('kepler') || hint.includes('orbit') || hint.includes('a=')) return 'solar-kepler';
+    return undefined;
+  }
+
+  return undefined;
+}
+
+export function filterRecordsForModule(
+  records: readonly ExperimentRecord[],
+  domain: string,
+  moduleId?: string
+): ExperimentRecord[] {
+  const targetDomain = domain.toLowerCase();
+  const domainRecords = records.filter((r) => r.domain.toLowerCase() === targetDomain);
+  if (!moduleId) return domainRecords;
+
+  return domainRecords.filter((rec) => {
+    const inferred = inferRecordModuleId(rec);
+    return !inferred || inferred === moduleId;
+  });
 }

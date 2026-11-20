@@ -124,7 +124,7 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
       ],
       Mahasiswa: [
         'Menentukan parameter kinetika Michaelis-Menten (Km dan Vmax) menggunakan plot Lineweaver-Burk.',
-        'Menganalisis profil stabilitas termal Arrhenius dan denaturasi protein eksponensial saat T > T_opt.',
+        'Menganalisis profil stabilitas termal Arrhenius dan denaturasi protein eksponensial saat T > T opt.',
       ],
     },
     theorySummary:

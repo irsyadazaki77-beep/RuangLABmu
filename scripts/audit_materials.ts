@@ -45,6 +45,26 @@ for (const mod of EXPERIMENT_CATALOG) {
     }
   }
 
+  // Typography & Clean Notation Validation for Non-Equation Prose / Quiz / Labels
+  const rawNotationRegex =
+    /\\frac|\\dot|\\text|\\cdot|\\times|\\approx|\\sum|\\%|_\{|\^\{|\b[A-Za-z°λΔΣ]+_[a-zA-Z]{2,}|10\^\d/;
+  const checkProseField = (fieldName: string, val: string) => {
+    if (rawNotationRegex.test(val)) {
+      console.error(`[ERROR] Module ${mod.id} ${fieldName} contains raw LaTeX/underscore notation: "${val.slice(0, 90)}"`);
+      totalErrors++;
+    }
+  };
+  checkProseField('theorySummary', mod.theorySummary || '');
+  (Object.values(mod.objectives || {}) as string[][]).flat().forEach((obj) => checkProseField('objective', obj));
+  (mod.commonMisconceptions || []).forEach((mc) => checkProseField('commonMisconceptions', mc));
+  (mod.stepByStepGuide || []).forEach((st) => checkProseField('stepByStepGuide', st));
+  (mod.outputs || []).forEach((out) => checkProseField(`output(${out.key}).label`, out.label));
+  (mod.preLabQuiz || []).forEach((q) => {
+    checkProseField(`quiz(${q.id}).question`, q.question);
+    q.options.forEach((opt) => checkProseField(`quiz(${q.id}).option`, opt));
+    if (q.explanation) checkProseField(`quiz(${q.id}).explanation`, q.explanation);
+  });
+
   // Parameters & ComputeStep validation
   const defaultParams: Record<string, number> = {};
   for (const p of mod.parameters) {
@@ -116,3 +136,6 @@ for (const q of WORKSHEET_QUESTIONS) {
 console.log(`\n=== AUDIT SUMMARY ===`);
 console.log(`Total Errors: ${totalErrors}`);
 console.log(`Total Warnings: ${totalWarnings}`);
+if (totalErrors > 0) {
+  process.exit(1);
+}

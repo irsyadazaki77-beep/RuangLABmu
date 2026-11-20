@@ -405,10 +405,10 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
             processRlabFiles(e.dataTransfer.files);
           }
         }}
-        className={`relative w-full max-w-5xl h-[90vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 border shadow-2xl overflow-hidden transition-all ${
+        className={`relative w-full max-w-5xl h-[90vh] flex flex-col rounded-3xl bg-[var(--comfort-surface)] border shadow-2xl overflow-hidden transition-all ${
           isDraggingFiles
             ? 'border-teal-400 ring-4 ring-teal-400/30'
-            : 'border-slate-200 dark:border-slate-800'
+            : 'border-[var(--comfort-border)]'
         }`}
       >
         {/* Drag-and-drop overlay */}
@@ -423,14 +423,14 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
         )}
 
         {/* Header Bar */}
-        <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-50/70 dark:bg-slate-950/40">
+        <div className="p-4 sm:p-6 border-b border-[var(--comfort-border)] flex flex-wrap items-center justify-between gap-4 bg-[var(--comfort-surface-subtle)]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-sky-600 flex items-center justify-center text-white shadow-md">
               <GraduationCap className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
+                <h2 className="text-lg sm:text-xl font-extrabold text-[var(--comfort-text)]">
                   Buku Nilai &amp; Rekap Laporan Guru
                 </h2>
                 {activeRoomId && (
@@ -439,7 +439,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-[var(--comfort-text-muted)]">
                 LMS Pipeline: Evaluasi Rubrik Otomatis RK4, regresi OLS, replay kronologi, dan ekspor CSV UTF-8 BOM
               </p>
             </div>
@@ -464,9 +464,9 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                 printBlankStudentWorksheet(defaultMod, 'SMA');
               }}
               title="Cetak format LKS kosong hemat tinta untuk difotokopi bagi siswa kelas 3T"
-              className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
+              className="px-3.5 py-2 rounded-xl bg-[var(--comfort-surface)] hover:opacity-90 text-[var(--comfort-text)] border border-[var(--comfort-border)] text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
             >
-              <Printer className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 shrink-0" />
+              <Printer className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] shrink-0" />
               <span>🖨️ Cetak LKS Kosong (Untuk Fotokopi Kelas)</span>
             </button>
 
@@ -567,10 +567,10 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
         )}
 
         {/* Status Counters, Search, Module Filter & Sortable Column Controls */}
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 text-xs">
+        <div className="p-4 border-b border-[var(--comfort-border)] flex flex-wrap items-center justify-between gap-3 bg-[var(--comfort-surface)] text-xs">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300">
-              Total Laporan: <strong className="font-mono text-slate-900 dark:text-white tabular-nums">{submissions.length}</strong>
+            <span className="px-2.5 py-1 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] font-semibold text-[var(--comfort-text)]">
+              Total Laporan: <strong className="font-mono text-[var(--comfort-text)] tabular-nums">{submissions.length}</strong>
             </span>
             <span className="px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1 tabular-nums">
               <Clock className="w-3.5 h-3.5" />
@@ -582,14 +582,14 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
             </span>
 
             {/* Sortable Score & Date Column Buttons */}
-            <div className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="inline-flex items-center gap-1 bg-[var(--comfort-surface-subtle)] p-0.5 rounded-xl border border-[var(--comfort-border)]">
               <button
                 type="button"
                 onClick={() => handleToggleSort('score')}
                 className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
                   sortField === 'score'
                     ? 'bg-sky-600 text-white'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                 }`}
                 title="Urutkan berdasarkan Skor Akhir / Rubrik"
               >
@@ -602,7 +602,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                 className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
                   sortField === 'quizScore'
                     ? 'bg-sky-600 text-white'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                 }`}
                 title="Urutkan berdasarkan Skor Kuis LKS"
               >
@@ -615,7 +615,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                 className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
                   sortField === 'submittedAt'
                     ? 'bg-sky-600 text-white'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                 }`}
                 title="Urutkan berdasarkan Waktu Pengumpulan"
               >
@@ -626,13 +626,13 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari siswa / modul..."
-                className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                className="pl-8 pr-3 py-1.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-xs text-[var(--comfort-text)] focus:outline-none focus:border-sky-500"
               />
             </div>
 
@@ -640,7 +640,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               value={domainFilter}
               onChange={(e) => setDomainFilter(e.target.value)}
               aria-label="Filter Domain Sains"
-              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300"
+              className="px-2.5 py-1.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] font-semibold text-[var(--comfort-text)]"
             >
               <option value="Semua">Semua Domain</option>
               <option value="Fisika">Fisika</option>
@@ -653,7 +653,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               value={moduleFilter}
               onChange={(e) => setModuleFilter(e.target.value)}
               aria-label="Filter Modul Praktikum"
-              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300"
+              className="px-2.5 py-1.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] font-semibold text-[var(--comfort-text)]"
             >
               <option value="Semua">Semua Modul</option>
               {availableModules.map((modId) => (
@@ -667,7 +667,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'Semua' | 'Belum Dinilai' | 'Sudah Dinilai')}
               aria-label="Filter Status Penilaian"
-              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300"
+              className="px-2.5 py-1.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] font-semibold text-[var(--comfort-text)]"
             >
               <option value="Semua">Semua Status</option>
               <option value="Belum Dinilai">Belum Dinilai</option>
@@ -679,9 +679,9 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
         {/* Main Content Area: Split View (Table Left, Fast Review Right) */}
         <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
           {/* Submissions List Table */}
-          <div className="w-full md:w-1/2 border-r border-slate-200 dark:border-slate-800 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
+          <div className="w-full md:w-1/2 border-r border-[var(--comfort-border)] overflow-y-auto divide-y divide-[var(--comfort-border)]">
             {filteredSubmissions.length === 0 ? (
-              <div className="p-8 text-center text-slate-400">
+              <div className="p-8 text-center text-[var(--comfort-text-muted)]">
                 <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-xs">Tidak ada data penyerahan laporan yang sesuai kriteria.</p>
               </div>
@@ -697,14 +697,14 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                     onClick={() => handleSelectSubmission(sub)}
                     className={`p-4 transition-colors cursor-pointer space-y-2 ${
                       isSelected
-                        ? 'bg-sky-50 dark:bg-sky-950/40 ring-1 ring-inset ring-sky-500/40'
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                        ? 'bg-sky-500/10 ring-1 ring-inset ring-sky-500/40'
+                        : 'hover:bg-[var(--comfort-surface-subtle)]'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                          <h4 className="font-bold text-xs sm:text-sm text-[var(--comfort-text)]">
                             {sub.studentName}
                           </h4>
                           {sub.id.startsWith('RLAB-') && (
@@ -715,11 +715,11 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                               📦 Luring (.rlab)
                             </span>
                           )}
-                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text-muted)]">
                             {sub.id}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                        <p className="text-[11px] text-[var(--comfort-text-muted)] font-medium">
                           Modul: {sub.moduleId} ({sub.domain})
                         </p>
                       </div>
@@ -736,14 +736,14 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                             <span>Rubrik: {rubric.score}/100</span>
                           </span>
                         )}
-                        <div className="text-[10px] text-slate-400 mt-1 tabular-nums">
+                        <div className="text-[10px] text-[var(--comfort-text-muted)] mt-1 tabular-nums">
                           Kuis: {sub.quizScore}/100 · RK4: {rubric.score}/100
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between gap-2 pt-1">
-                      <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-1 italic flex-1">
+                      <p className="text-xs text-[var(--comfort-text-muted)] line-clamp-1 italic flex-1">
                         "{sub.hypothesisText || 'Tidak ada hipotesis tertulis'}"
                       </p>
 
@@ -768,18 +768,18 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
           </div>
 
           {/* Quick Review, Expandable Auto-Rubric Drawer & Grading Form Panel (Right) */}
-          <div className="w-full md:w-1/2 flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-950/30">
+          <div className="w-full md:w-1/2 flex-1 overflow-y-auto p-4 sm:p-6 bg-[var(--comfort-surface-subtle)]">
             {selectedSubmission && selectedRubric ? (
               <div className="space-y-4">
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
                   <div>
                     <span className="text-[10px] font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold">
                       Review Laporan Siswa · {selectedSubmission.id}
                     </span>
-                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    <h3 className="text-base font-extrabold text-[var(--comfort-text)]">
                       {selectedSubmission.studentName}
                     </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-xs text-[var(--comfort-text-muted)]">
                       Diserahkan pada:{' '}
                       {new Date(selectedSubmission.submittedAt).toLocaleString('id-ID')}
                     </p>
@@ -807,7 +807,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                 {/* Expandable Deterministic RK4 Auto-Rubric Breakdown Drawer */}
                 <div
                   data-testid="teacher-rubric-breakdown-panel"
-                  className="rounded-2xl border border-teal-500/30 bg-white dark:bg-slate-900 overflow-hidden shadow-xs"
+                  className="rounded-2xl border border-teal-500/30 bg-[var(--comfort-surface)] overflow-hidden shadow-xs"
                 >
                   <button
                     type="button"
@@ -818,10 +818,10 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
                       <div>
-                        <span className="text-xs font-extrabold text-slate-900 dark:text-white block">
+                        <span className="text-xs font-extrabold text-[var(--comfort-text)] block">
                           Rincian Rubrik Otomatis &amp; Toleransi Numerik RK4
                         </span>
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <span className="text-[11px] text-[var(--comfort-text-muted)]">
                           Toleransi RK4: ±{selectedRubric.rk4TolerancePct}% · Status:{' '}
                           {selectedRubric.passed ? 'Lulus Kriteria Minimum' : 'Perlu Penguatan'}
                         </span>
@@ -832,7 +832,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                         {selectedRubric.score}/{selectedRubric.maxScore}
                       </span>
                       <ChevronDown
-                        className={`w-4 h-4 text-slate-500 transition-transform ${
+                        className={`w-4 h-4 text-[var(--comfort-text-muted)] transition-transform ${
                           expandedRubricOpen ? 'rotate-180' : ''
                         }`}
                       />
@@ -840,14 +840,14 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                   </button>
 
                   {expandedRubricOpen && (
-                    <div className="p-3.5 space-y-2.5 divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                    <div className="p-3.5 space-y-2.5 divide-y divide-[var(--comfort-border)] text-xs">
                       <p className="text-[11px] font-medium text-teal-700 dark:text-teal-300 pb-1">
                         {selectedRubric.summaryFeedback}
                       </p>
                       {selectedRubric.criteria.map((crit) => (
                         <div key={crit.id} className="pt-2 space-y-1">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-slate-800 dark:text-slate-100">
+                            <span className="font-bold text-[var(--comfort-text)]">
                               {crit.label}
                             </span>
                             <span
@@ -874,19 +874,19 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
 
                 {/* Hipotesis & Kesimpulan */}
                 <div className="space-y-3 text-xs">
-                  <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <div className="p-3 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)]">
                     <span className="font-bold text-[11px] text-amber-600 dark:text-amber-400 uppercase tracking-wider block mb-1">
                       Hipotesis Siswa:
                     </span>
-                    <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+                    <p className="text-[var(--comfort-text)] leading-relaxed">
                       {selectedSubmission.hypothesisText || '—'}
                     </p>
                   </div>
 
                   {/* Ringkasan Tabel Observasi & Regresi */}
-                  <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="p-3 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-[11px] text-slate-500 uppercase tracking-wider">
+                      <span className="font-bold text-[11px] text-[var(--comfort-text-muted)] uppercase tracking-wider">
                         Data Observasi ({selectedSubmission.observationData?.length || 0} Titik Uji)
                       </span>
                       <span className="text-[11px] font-mono font-bold text-sky-600 dark:text-sky-400">
@@ -894,9 +894,9 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                       </span>
                     </div>
                     {selectedSubmission.observationData && selectedSubmission.observationData.length > 0 && (
-                      <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800">
+                      <div className="overflow-x-auto rounded-lg border border-[var(--comfort-border)]">
                         <table className="w-full text-left text-[11px] font-mono tabular-nums">
-                          <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500">
+                          <thead className="bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)]">
                             <tr>
                               {Object.keys(selectedSubmission.observationData[0]).map((k) => (
                                 <th key={k} className="px-2 py-1 font-semibold">
@@ -905,11 +905,11 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                               ))}
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          <tbody className="divide-y divide-[var(--comfort-border)]">
                             {selectedSubmission.observationData.slice(0, 4).map((row, idx) => (
                               <tr key={idx}>
                                 {Object.values(row).map((val, cIdx) => (
-                                  <td key={cIdx} className="px-2 py-1 text-slate-700 dark:text-slate-300">
+                                  <td key={cIdx} className="px-2 py-1 text-[var(--comfort-text)]">
                                     {String(val)}
                                   </td>
                                 ))}
@@ -921,11 +921,11 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                     )}
                   </div>
 
-                  <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <div className="p-3 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)]">
                     <span className="font-bold text-[11px] text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mb-1">
                       Kesimpulan Siswa:
                     </span>
-                    <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+                    <p className="text-[var(--comfort-text)] leading-relaxed">
                       {selectedSubmission.conclusionText || '—'}
                     </p>
                   </div>
@@ -934,7 +934,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                 {/* Teacher Grading & Feedback Form */}
                 <form
                   onSubmit={handleSaveGrade}
-                  className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-sky-500/30 shadow-md space-y-4"
+                  className="p-4 rounded-2xl bg-[var(--comfort-surface)] border border-sky-500/30 shadow-md space-y-4"
                 >
                   <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-bold text-xs uppercase tracking-wider">
                     <Award className="w-4 h-4" />
@@ -943,7 +943,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                      <label className="block text-[11px] font-semibold text-[var(--comfort-text)] mb-1">
                         Nilai Numerik (0–100):
                       </label>
                       <input
@@ -953,13 +953,13 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                         step={1}
                         value={gradingScore}
                         onChange={(e) => setGradingScore(Number(e.target.value))}
-                        className="w-full text-base font-mono font-bold px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 tabular-nums"
+                        className="w-full text-base font-mono font-bold px-3 py-1.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] focus:outline-none focus:border-sky-500 tabular-nums"
                         required
                       />
                     </div>
 
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Skor Kuis LKS: <strong className="font-mono text-slate-900 dark:text-white tabular-nums">{selectedSubmission.quizScore}/100</strong>
+                    <div className="text-[11px] text-[var(--comfort-text-muted)]">
+                      Skor Kuis LKS: <strong className="font-mono text-[var(--comfort-text)] tabular-nums">{selectedSubmission.quizScore}/100</strong>
                       <br />
                       Rekomendasi Rubrik RK4: <strong className="font-mono text-teal-600 dark:text-teal-400 tabular-nums">{selectedRubric.score}/100</strong>
                       <br />
@@ -968,7 +968,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    <label className="block text-[11px] font-semibold text-[var(--comfort-text)] mb-1">
                       Catatan Evaluasi / Umpan Balik Guru:
                     </label>
                     <textarea
@@ -976,7 +976,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                       value={gradingFeedback}
                       onChange={(e) => setGradingFeedback(e.target.value)}
                       placeholder="Tuliskan apresiasi, koreksi metodologi, atau saran pendalaman teori..."
-                      className="w-full text-xs p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      className="w-full text-xs p-2.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] focus:outline-none focus:border-sky-500"
                     />
                   </div>
 

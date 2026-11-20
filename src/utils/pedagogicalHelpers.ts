@@ -1112,7 +1112,8 @@ export function projectWorldAnchorToViewport(
   width: number,
   height: number,
   paddingX = 56,
-  paddingY = 24
+  paddingY = 24,
+  extraInsets?: { left?: number; right?: number; top?: number; bottom?: number }
 ): ConceptProjectionResult {
   if (
     !Number.isFinite(ndcX) ||
@@ -1132,16 +1133,82 @@ export function projectWorldAnchorToViewport(
   const rawX = (ndcX * 0.5 + 0.5) * width;
   const rawY = (-ndcY * 0.5 + 0.5) * height;
 
-  const minX = Math.min(paddingX, width * 0.4);
-  const maxX = Math.max(minX, width - paddingX);
-  const minY = Math.min(48, height * 0.25);
-  const maxY = Math.max(minY, height - paddingY);
+  const minX = Math.max(Math.min(paddingX, width * 0.4), extraInsets?.left ?? 0);
+  const maxX = Math.max(minX, Math.min(width - paddingX, width - (extraInsets?.right ?? 0)));
+  const minY = Math.max(Math.min(48, height * 0.25), extraInsets?.top ?? 0);
+  const maxY = Math.max(minY, Math.min(height - paddingY, height - (extraInsets?.bottom ?? 0)));
 
   return {
     visible: true,
     x: Math.min(maxX, Math.max(minX, rawX)),
     y: Math.min(maxY, Math.max(minY, rawY)),
   };
+}
+
+export interface ConceptScreenBox {
+  x: number;
+  y: number;
+  text: string;
+}
+
+/**
+ * Resolve overlapping 2D projected concept/vector label pills in screen space
+ * by gently nudging colliding pills without triggering DOM layout reflows.
+ */
+export function resolveConceptLabelCollisions<T extends ConceptScreenBox>(
+  items: T[],
+  viewportWidth: number,
+  viewportHeight: number,
+  safeBounds?: { minX?: number; maxX?: number; minY?: number; maxY?: number }
+): T[] {
+  if (items.length <= 1) return items;
+  const minXBound = safeBounds?.minX ?? 56;
+  const maxXBound = safeBounds?.maxX ?? viewportWidth - 56;
+  const minY = safeBounds?.minY ?? Math.min(52, viewportHeight * 0.22);
+  const maxY = safeBounds?.maxY ?? Math.max(minY, viewportHeight - 20);
+  const pillH = 44;
+
+  const result = items.map((item) => ({ ...item }));
+  const order = result
+    .map((_, idx) => idx)
+    .sort((a, b) => result[b].y - result[a].y);
+
+  for (let pass = 0; pass < 3; pass++) {
+    let moved = false;
+    for (let i = 0; i < order.length; i++) {
+      const boxA = result[order[i]];
+      const halfWidthA = Math.max(46, Math.min(115, 16 + boxA.text.length * 3.2));
+
+      for (let j = i + 1; j < order.length; j++) {
+        const boxB = result[order[j]];
+        const halfWidthB = Math.max(46, Math.min(115, 16 + boxB.text.length * 3.2));
+        const minHorizDist = halfWidthA + halfWidthB + 10;
+
+        if (Math.abs(boxA.x - boxB.x) < minHorizDist) {
+          const dy = Math.abs(boxA.y - boxB.y);
+          if (dy < pillH) {
+            const shift = pillH - dy;
+            if (boxB.y - shift >= minY) {
+              boxB.y -= shift;
+            } else if (boxA.y + shift <= maxY) {
+              boxA.y += shift;
+            } else {
+              boxB.y = Math.max(minY, boxB.y - shift * 0.5);
+              boxA.y = Math.min(maxY, boxA.y + shift * 0.5);
+            }
+            if (Math.abs(boxA.y - boxB.y) < pillH - 2 && maxXBound - minXBound >= 180) {
+              const pushX = boxA.x <= boxB.x ? 18 : -18;
+              boxB.x = Math.min(maxXBound, Math.max(minXBound, boxB.x + pushX));
+            }
+            moved = true;
+          }
+        }
+      }
+    }
+    if (!moved) break;
+  }
+
+  return result;
 }
 
 export interface GlossaryPopoverPosition {

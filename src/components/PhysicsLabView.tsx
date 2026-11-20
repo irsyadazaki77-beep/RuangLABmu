@@ -45,6 +45,7 @@ import {
 import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
 import { PrecisionSlider } from './controls/PrecisionSlider';
+import { filterRecordsForModule } from '../utils/spatialHudHelpers';
 
 export interface PhysicsLabViewProps {
   params: PhysicsParams;
@@ -182,7 +183,6 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   }, [safetyHazard.isHazardous]);
   const metricsB = calculatePhysicsMetrics(realityBParams);
   const instantB = evaluateKinematicsAtTime(realityBParams, simTime);
-  const domainRecords = records.filter((r) => r.domain === 'Fisika');
 
   // Mode-adaptive Telemetry Metrics Array
   const telemetryMetrics =
@@ -322,6 +322,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     'photoelectric-planck': 'photoelectric-planck',
     'orbital-gravity': 'gravity-orbital',
   };
+  const moduleRecords = filterRecordsForModule(records, 'Fisika', modeToCatalogId[params.mode]);
 
   const handleRecordTrial = () => {
     labSound.playRecordSuccess();
@@ -397,9 +398,9 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   return (
     <StandardLabViewShell
       domain="Fisika"
-      recordsCount={domainRecords.length}
+      recordsCount={moduleRecords.length}
       hypothesisText={hypothesisNote?.hypothesisText}
-      recentRecords={domainRecords}
+      recentRecords={moduleRecords}
       onProceedToAnalysis={onProceedToAnalysis}
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
@@ -550,8 +551,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
           onClick={() => setShowVectorOverlay(!showVectorOverlay)}
           className={`border rounded-xl px-3 py-1.5 text-xs font-mono font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shadow-md ${
             showVectorOverlay
-              ? 'bg-sky-950/92 border-sky-400/60 text-sky-300'
-              : 'bg-slate-900/92 border-slate-700 text-slate-300'
+              ? 'bg-sky-500 border-sky-400 text-slate-950 font-bold'
+              : 'studio-hud-surface text-[var(--comfort-text)]'
           }`}
         >
           {showVectorOverlay ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -657,7 +658,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               <Camera className="w-4 h-4 shrink-0" />
               <span>
                 + Catat Data (
-                {domainRecords.length >= 3 ? `${domainRecords.length} Siap` : `${domainRecords.length}/3`})
+                {moduleRecords.length >= 3 ? `${moduleRecords.length} Siap` : `${moduleRecords.length}/3`})
               </span>
             </button>
 
@@ -669,7 +670,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                   onProceedToAnalysis();
                 }}
                 className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap ${
-                  domainRecords.length >= 3
+                  moduleRecords.length >= 3
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                     : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)]'
                 }`}
@@ -681,7 +682,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
           {/* Mode Switcher */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <label className="text-[11px] font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider">
               Mode Modul Fisika:
             </label>
             <select
@@ -694,7 +695,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                   useLabStore.getState().setActiveModule(modeToCatalogId[nextMode]);
                 }
               }}
-              className="w-full text-xs p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold"
+              className="w-full text-xs p-2 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] font-semibold"
             >
               <option value="newton-incline">Hukum II Newton &amp; Bidang Miring</option>
               <option value="projectile-gravity">Gerak Parabola (Kinematika Proyektil)</option>

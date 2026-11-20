@@ -19,6 +19,7 @@ import { computeMeasurementErrorSummary } from '../utils/uncertaintyEngine';
 import { getLabSafetyLicenseForModule } from '../services/labLicenseEngine';
 import { getExperimentById } from '../registry/experimentRegistry';
 import { AcademicReportPreviewModal } from './ui/AcademicReportPreviewModal';
+import { filterRecordsForModule } from '../utils/spatialHudHelpers';
 import {
   HypothesisNote,
   HypothesisScratchpadCard,
@@ -132,16 +133,49 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
   moduleId,
   domain,
 }) => {
-  const [selectedDatasetKey, setSelectedDatasetKey] = useState<string>(
-    records.length >= 2 ? 'custom-records' : 'newton-force-acc'
+  const activeMod = useMemo(() => (moduleId ? getExperimentById(moduleId) : undefined), [moduleId]);
+  const effectiveDomain = domain ?? activeMod?.domain;
+  const moduleRecords = useMemo(
+    () => (effectiveDomain && moduleId ? filterRecordsForModule(records, effectiveDomain, moduleId) : records),
+    [records, effectiveDomain, moduleId]
+  );
+
+  const customRecordPoints: DataPointMultiAxis[] = records
+    .filter((r) => r.numericX !== undefined && r.numericY1 !== undefined)
+    .map((r, i) => ({
+      label: r.id,
+      x: r.numericX ?? i + 1,
+      y1: r.numericY1 ?? 0,
+      y2: r.numericY2 ?? 0,
+    }));
+
+  const moduleRecordPoints: DataPointMultiAxis[] = moduleRecords
+    .filter((r) => r.numericX !== undefined && r.numericY1 !== undefined)
+    .map((r, i) => ({
+      label: r.id,
+      x: r.numericX ?? i + 1,
+      y1: r.numericY1 ?? 0,
+      y2: r.numericY2 ?? 0,
+    }));
+
+  const [selectedDatasetKey, setSelectedDatasetKey] = useState<string>(() =>
+    moduleRecordPoints.length >= 2
+      ? 'module-records'
+      : customRecordPoints.length >= 2
+      ? 'custom-records'
+      : 'newton-force-acc'
   );
   const [hasManualDatasetChoice, setHasManualDatasetChoice] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!hasManualDatasetChoice && records.length >= 2) {
-      setSelectedDatasetKey('custom-records');
+    if (!hasManualDatasetChoice) {
+      if (moduleRecordPoints.length >= 2) {
+        setSelectedDatasetKey('module-records');
+      } else if (customRecordPoints.length >= 2) {
+        setSelectedDatasetKey('custom-records');
+      }
     }
-  }, [records.length, hasManualDatasetChoice]);
+  }, [moduleRecordPoints.length, customRecordPoints.length, hasManualDatasetChoice]);
 
   const [curveModel, setCurveModel] = useState<CurveModelType>('linear');
   const [showCompareDock, setShowCompareDock] = useState<boolean>(false);
@@ -165,19 +199,18 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
     };
   }, [hypothesisNote]);
 
-  const customRecordPoints: DataPointMultiAxis[] = records
-    .filter((r) => r.numericX !== undefined && r.numericY1 !== undefined)
-    .map((r, i) => ({
-      label: r.id,
-      x: r.numericX ?? i + 1,
-      y1: r.numericY1 ?? 0,
-      y2: r.numericY2 ?? 0,
-    }));
-
   const activeDataset =
-    selectedDatasetKey === 'custom-records' && customRecordPoints.length >= 2
+    selectedDatasetKey === 'module-records' && moduleRecordPoints.length >= 2
       ? {
-          title: 'Dataset Rekaman Observasi Meja Praktikum Siswa',
+          title: `Dataset Modul Aktif: ${activeMod?.title || moduleId || 'Eksperimen'}`,
+          xAxisLabel: 'Variabel Bebas (X)',
+          y1AxisLabel: 'Respons Terikat (Y1)',
+          y2AxisLabel: 'Respons Sekunder (Y2)',
+          points: moduleRecordPoints,
+        }
+      : selectedDatasetKey === 'custom-records' && customRecordPoints.length >= 2
+      ? {
+          title: 'Dataset Rekaman Observasi Semua Sesi Siswa',
           xAxisLabel: 'Variabel Bebas (X)',
           y1AxisLabel: 'Respons Terikat (Y1)',
           y2AxisLabel: 'Respons Sekunder (Y2)',
@@ -398,9 +431,14 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
             }}
             className="min-w-0 max-w-full w-full sm:w-auto px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] font-semibold text-[var(--comfort-text)] cursor-pointer"
           >
+            {moduleRecordPoints.length >= 2 && (
+              <option value="module-records">
+                Data Modul Aktif: {activeMod?.title || moduleId} ({moduleRecordPoints.length} titik)
+              </option>
+            )}
             {customRecordPoints.length >= 2 && (
               <option value="custom-records">
-                Data Langsung Hasil Eksperimen Siswa ({customRecordPoints.length} titik)
+                Semua Data Sesi Praktikum ({customRecordPoints.length} titik)
               </option>
             )}
             <option value="newton-force-acc">Preset: Hukum II Newton (Gaya vs Percepatan)</option>

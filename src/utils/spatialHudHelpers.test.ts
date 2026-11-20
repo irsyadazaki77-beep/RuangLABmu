@@ -7,7 +7,9 @@ import {
   extractNumericPair,
   filterCurriculumChapters,
   filterExperimentModules,
+  filterRecordsForModule,
   formatCleanEquation,
+  inferRecordModuleId,
   shouldConfirmLabExit,
 } from './spatialHudHelpers';
 import { EXPERIMENT_CATALOG } from '../registry/experimentRegistry';
@@ -100,6 +102,62 @@ describe('spatialHudHelpers', () => {
         'E_{\\text{ion}} = \\frac{RT}{zF} \\ln\\left(\\frac{[Ion]_{\\text{luar}}}{[Ion]_{\\text{dalam}}}\\right) \\approx \\pm 61.5 \\log_{10}(x)'
       ),
       'E_ion = RT / zF ln([Ion]_luar / [Ion]_dalam) ≈ ± 61.5 log_10(x)'
+    );
+    assert.equal(
+      formatCleanEquation('P_{A\\text{O}_2} = 100\\%, \\sum F_x \\in \\{1, 2\\}'),
+      'P_AO_2 = 100%, ∑ F_x ∈ {1, 2}'
+    );
+  });
+
+  it('filters experiment records per module using explicit moduleId or title inference', () => {
+    const sampleRecords = [
+      {
+        id: 'EXP-1',
+        timestamp: '08:00:00',
+        studentName: 'Alya',
+        groupId: 'K1',
+        domain: 'Fisika' as const,
+        moduleId: 'newton-incline',
+        experimentTitle: 'Hukum II Newton',
+        parametersSummary: 'm=4 kg',
+        keyMetrics: {},
+        notes: '',
+      },
+      {
+        id: 'EXP-2',
+        timestamp: '08:05:00',
+        studentName: 'Bima',
+        groupId: 'K1',
+        domain: 'Fisika' as const,
+        experimentTitle: 'Kinematika Projektil & Gravitasi Mars',
+        parametersSummary: 'v0=20 m/s',
+        keyMetrics: {},
+        notes: '',
+      },
+      {
+        id: 'EXP-3',
+        timestamp: '08:10:00',
+        studentName: 'Citra',
+        groupId: 'K2',
+        domain: 'Kimia' as const,
+        moduleId: 'thermo-calorimetry',
+        experimentTitle: 'Kalorimetri',
+        parametersSummary: '',
+        keyMetrics: {},
+        notes: '',
+      },
+    ];
+
+    assert.equal(inferRecordModuleId(sampleRecords[1]), 'projectile-motion');
+    const inclineOnly = filterRecordsForModule(sampleRecords, 'Fisika', 'newton-incline');
+    assert.deepEqual(
+      inclineOnly.map((r) => r.id),
+      ['EXP-1']
+    );
+    const projectileOnly = filterRecordsForModule(sampleRecords, 'Fisika', 'projectile-motion');
+    assert.deepEqual(
+      projectileOnly.map((r) => r.id),
+      ['EXP-2']
     );
   });
 });

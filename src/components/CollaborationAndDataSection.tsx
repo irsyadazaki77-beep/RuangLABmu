@@ -285,15 +285,15 @@ export const CollaborationAndDataSection: React.FC<
   return (
     <div className="space-y-5">
       {/* Step 4 Header & Final Export Center */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs">
+      <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs">
         <div>
           <div className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
             04. Tahap Penyelesaian Laporan, Komparasi Data &amp; Kolaborasi Kelompok
           </div>
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
+          <h1 className="text-lg font-bold text-[var(--comfort-text)] mt-0.5">
             Pusat Ekspor Laporan Praktikum &amp; Diskusi Kelompok
           </h1>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 comfort-prose">
+          <p className="text-xs text-[var(--comfort-text-muted)] mt-0.5 comfort-prose">
             Tinjau perbandingan 2 percobaan berdampingan, lengkapi refleksi hipotesis, lalu unduh laporan akademik resmi (PDF/Cetak) atau berkas data CSV.
           </p>
         </div>
@@ -308,7 +308,7 @@ export const CollaborationAndDataSection: React.FC<
             className={`px-3.5 py-2 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
               showCompareView
                 ? 'bg-sky-600/15 border-sky-500 text-sky-700 dark:text-sky-300'
-                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)]'
             }`}
           >
             <ArrowLeftRight className="w-3.5 h-3.5" />
@@ -322,7 +322,7 @@ export const CollaborationAndDataSection: React.FC<
                 labSound.playClick();
                 onBackToAnalysis();
               }}
-              className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer whitespace-nowrap"
+              className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:opacity-90 transition-colors cursor-pointer whitespace-nowrap"
             >
               ← Kembali ke Grafik &amp; LKS
             </button>
@@ -343,7 +343,7 @@ export const CollaborationAndDataSection: React.FC<
               downloadAcademicReportFile(buildReportData(), 'html');
             }}
             disabled={records.length === 0}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[var(--comfort-text)] bg-[var(--comfort-surface-subtle)] hover:opacity-90 border border-[var(--comfort-border)] disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <FileText className="w-3.5 h-3.5 text-sky-500" />
             Laporan .HTML
@@ -364,7 +364,7 @@ export const CollaborationAndDataSection: React.FC<
                 labSound.playClick();
                 onBackToCatalog();
               }}
-              className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer whitespace-nowrap"
+              className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] hover:opacity-90 transition-colors cursor-pointer whitespace-nowrap"
             >
               Pilih Modul Baru
             </button>
@@ -413,20 +413,20 @@ export const CollaborationAndDataSection: React.FC<
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Experiment Data Log & CSV Export Table (7 cols) */}
-        <div className="lg:col-span-7 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div className="lg:col-span-7 bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+              <h2 className="text-base font-semibold text-[var(--comfort-text)]">
                 Tabel Pencatatan Data Eksperimen ({filteredRecords.length} Baris)
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-[var(--comfort-text-muted)]">
                 Data tersinkronisasi otomatis untuk seluruh anggota kelompok dan dapat diekspor ke CSV
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               {/* Domain Segmented Filter */}
-              <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg border border-slate-200/70 dark:border-slate-700">
+              <div className="flex items-center gap-1 p-1 bg-[var(--comfort-surface-subtle)] rounded-lg border border-[var(--comfort-border)]">
                 {(['Semua', 'Fisika', 'Kimia', 'Biologi', 'Astronomi'] as const).map((tab) => (
                   <button
                     key={tab}
@@ -437,8 +437,8 @@ export const CollaborationAndDataSection: React.FC<
                     }}
                     className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                       domainFilter === tab
-                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
-                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                        ? 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-xs font-semibold'
+                        : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                     }`}
                   >
                     {tab}
@@ -449,20 +449,20 @@ export const CollaborationAndDataSection: React.FC<
           </div>
 
           {filteredRecords.length === 0 ? (
-            <div className="p-8 text-center rounded-xl border border-dashed border-slate-300 dark:border-slate-800 space-y-2">
-              <FileSpreadsheet className="w-6 h-6 text-slate-400 mx-auto" />
-              <div className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <div className="p-8 text-center rounded-xl border border-dashed border-[var(--comfort-border)] space-y-2">
+              <FileSpreadsheet className="w-6 h-6 text-[var(--comfort-text-muted)] mx-auto" />
+              <div className="text-xs font-semibold text-[var(--comfort-text)]">
                 Belum ada data eksperimen untuk filter domain {domainFilter}.
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-[var(--comfort-text-muted)]">
                 Jalankan simulasi pada panel Fisika, Kimia, Biologi, atau Astronomi lalu klik &ldquo;+ Catat Data&rdquo;.
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto max-h-[420px] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800">
+            <div className="overflow-x-auto max-h-[420px] overflow-y-auto rounded-lg border border-[var(--comfort-border)]">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                  <tr className="bg-[var(--comfort-surface-subtle)] border-b border-[var(--comfort-border)] text-[var(--comfort-text-muted)] font-mono text-[11px]">
                     <th className="py-2.5 px-3">ID &amp; Waktu</th>
                     <th className="py-2.5 px-3">Praktikan</th>
                     <th className="py-2.5 px-3">Modul &amp; Parameter</th>
@@ -470,39 +470,39 @@ export const CollaborationAndDataSection: React.FC<
                     <th className="py-2.5 px-3 text-right">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                <tbody className="divide-y divide-[var(--comfort-border)]">
                   {filteredRecords.map((rec) => (
                     <motion.tr
                       key={rec.id}
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      className="hover:bg-[var(--comfort-surface-subtle)] transition-colors"
                     >
                       <td className="py-2.5 px-3 font-mono whitespace-nowrap align-top">
-                        <div className="font-semibold text-slate-900 dark:text-white">
+                        <div className="font-semibold text-[var(--comfort-text)]">
                           {rec.id}
                         </div>
-                        <div className="text-[11px] text-slate-400">
+                        <div className="text-[11px] text-[var(--comfort-text-muted)]">
                           {rec.timestamp} · {rec.domain}
                         </div>
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap align-top">
-                        <div className="font-medium text-slate-900 dark:text-white">
+                        <div className="font-medium text-[var(--comfort-text)]">
                           {rec.studentName}
                         </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] text-[var(--comfort-text-muted)]">
                           {rec.groupId}
                         </div>
                       </td>
                       <td className="py-2.5 px-3 align-top max-w-xs">
-                        <div className="font-semibold text-slate-900 dark:text-white">
+                        <div className="font-semibold text-[var(--comfort-text)]">
                           {rec.experimentTitle}
                         </div>
-                        <div className="font-mono text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                        <div className="font-mono text-[11px] text-[var(--comfort-text-muted)] mt-0.5">
                           {rec.parametersSummary}
                         </div>
                         {rec.notes && (
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 italic">
+                          <div className="text-[11px] text-[var(--comfort-text-muted)] mt-1 italic">
                             &ldquo;{rec.notes}&rdquo;
                           </div>
                         )}
@@ -511,10 +511,10 @@ export const CollaborationAndDataSection: React.FC<
                         <div className="space-y-0.5">
                           {Object.entries(rec.keyMetrics).map(([k, v]) => (
                             <div key={k} className="whitespace-nowrap">
-                              <span className="text-slate-500 dark:text-slate-400">
+                              <span className="text-[var(--comfort-text-muted)]">
                                 {k}:
                               </span>{' '}
-                              <span className="font-semibold text-slate-900 dark:text-white">
+                              <span className="font-semibold text-[var(--comfort-text)]">
                                 {v}
                               </span>
                             </div>
@@ -529,7 +529,7 @@ export const CollaborationAndDataSection: React.FC<
                             onDeleteRecord(rec.id);
                           }}
                           title="Hapus baris data"
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                          className="p-1.5 text-[var(--comfort-text-muted)] hover:text-rose-600 rounded transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -543,22 +543,22 @@ export const CollaborationAndDataSection: React.FC<
         </div>
 
         {/* Multi-User Group Collaboration: Checklist & Discussion Notes (5 cols) */}
-        <div className="lg:col-span-5 bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div className="lg:col-span-5 bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-5 space-y-5">
+          <div className="flex items-center justify-between border-b border-[var(--comfort-border)] pb-3">
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <h2 className="text-base font-semibold text-[var(--comfort-text)] flex items-center gap-2">
                 <Users className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                 Kolaborasi Kelompok Praktikum
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Aktif: <strong className="text-slate-700 dark:text-slate-200">{activeGroupId}</strong> ({activeStudentName})
+              <p className="text-xs text-[var(--comfort-text-muted)]">
+                Aktif: <strong className="text-[var(--comfort-text)]">{activeGroupId}</strong> ({activeStudentName})
               </p>
             </div>
           </div>
 
           {/* Shared Experiment Tasks Checklist */}
           <div className="space-y-2.5">
-            <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+            <div className="text-xs font-semibold text-[var(--comfort-text)]">
               Target Pengamatan Kelompok ({tasks.filter((t) => t.completed).length}/{tasks.length} Selesai)
             </div>
 
@@ -573,20 +573,20 @@ export const CollaborationAndDataSection: React.FC<
                   }}
                   className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-colors cursor-pointer ${
                     task.completed
-                      ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200/80 dark:border-emerald-800/60 text-slate-500 dark:text-slate-400'
-                      : 'bg-slate-50/70 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-900 dark:text-white'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-[var(--comfort-text-muted)]'
+                      : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text)]'
                   }`}
                 >
                   {task.completed ? (
                     <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                   ) : (
-                    <Square className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                    <Square className="w-4 h-4 text-[var(--comfort-text-muted)] shrink-0 mt-0.5" />
                   )}
                   <div className="text-xs flex-1">
                     <div className={task.completed ? 'line-through' : 'font-medium'}>
                       {task.title}
                     </div>
-                    <div className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                    <div className="text-[11px] text-[var(--comfort-text-muted)] mt-0.5 font-mono">
                       {task.domain} · {task.groupId}
                       {task.completedBy ? ` · Diselesaikan oleh ${task.completedBy}` : ''}
                     </div>
@@ -602,7 +602,7 @@ export const CollaborationAndDataSection: React.FC<
                   aria-label="Pilih Domain Tugas"
                   value={newTaskDomain}
                   onChange={(e) => setNewTaskDomain(e.target.value as ScienceDomain)}
-                  className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1.5 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  className="text-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-md px-2 py-1.5 text-[var(--comfort-text)] focus:outline-none focus:ring-2 focus:ring-sky-600"
                 >
                   <option value="Fisika">Fisika</option>
                   <option value="Kimia">Kimia</option>
@@ -617,11 +617,11 @@ export const CollaborationAndDataSection: React.FC<
                     if (taskError) setTaskError('');
                   }}
                   placeholder="Tambah tugas eksperimen baru..."
-                  className="flex-1 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2.5 py-1.5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  className="flex-1 text-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-md px-2.5 py-1.5 text-[var(--comfort-text)] placeholder:text-[var(--comfort-text-muted)] focus:outline-none focus:ring-2 focus:ring-sky-600"
                 />
                 <button
                   type="submit"
-                  className="px-2.5 py-1.5 bg-slate-900 dark:bg-sky-600 text-white rounded-md hover:bg-slate-800 dark:hover:bg-sky-500 transition-colors shrink-0 flex items-center gap-1 text-xs font-medium cursor-pointer"
+                  className="px-2.5 py-1.5 bg-sky-600 text-white rounded-md hover:bg-sky-500 transition-colors shrink-0 flex items-center gap-1 text-xs font-medium cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Tambah
@@ -634,8 +634,8 @@ export const CollaborationAndDataSection: React.FC<
           </div>
 
           {/* Shared Group Discussion & Teacher Feedback Feed */}
-          <div className="space-y-2.5 border-t border-slate-100 dark:border-slate-800 pt-4">
-            <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+          <div className="space-y-2.5 border-t border-[var(--comfort-border)] pt-4">
+            <div className="text-xs font-semibold text-[var(--comfort-text)]">
               Catatan Diskusi &amp; Umpan Balik Pengajar
             </div>
 
@@ -645,12 +645,12 @@ export const CollaborationAndDataSection: React.FC<
                   key={note.id}
                   className={`p-2.5 rounded-lg border text-xs ${
                     note.role === 'Pengajar'
-                      ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/70 text-slate-900 dark:text-amber-100'
-                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200'
+                      ? 'bg-amber-500/10 border-amber-500/30 text-[var(--comfort-text)]'
+                      : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)]'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1">
-                    <span className="font-semibold text-slate-900 dark:text-white">
+                  <div className="flex items-center justify-between text-[11px] text-[var(--comfort-text-muted)] mb-1">
+                    <span className="font-semibold text-[var(--comfort-text)]">
                       {note.author} · {note.role}
                     </span>
                     <span className="font-mono">{note.timestamp}</span>
@@ -666,7 +666,7 @@ export const CollaborationAndDataSection: React.FC<
                 value={newNoteText}
                 onChange={(e) => setNewNoteText(e.target.value)}
                 placeholder="Tulis kesimpulan atau diskusi..."
-                className="flex-1 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2.5 py-1.5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-600"
+                className="flex-1 text-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-md px-2.5 py-1.5 text-[var(--comfort-text)] placeholder:text-[var(--comfort-text-muted)] focus:outline-none focus:ring-2 focus:ring-sky-600"
               />
               <button
                 type="submit"

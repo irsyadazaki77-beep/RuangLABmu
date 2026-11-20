@@ -46,8 +46,8 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
     ],
     outputs: [
       { key: 'orbitalPeriodYears', label: 'Periode Orbit (T)', unit: 'tahun', formulaLatex: 'T = \\sqrt{a^3/M_*}', precision: 3 },
-      { key: 'perihelionVelocityKmS', label: 'Kecepatan Perihelion (v_peri)', unit: 'km/s', formulaLatex: 'v_{\\text{peri}}', precision: 2 },
-      { key: 'aphelionVelocityKmS', label: 'Kecepatan Aphelion (v_aph)', unit: 'km/s', formulaLatex: 'v_{\\text{aph}}', precision: 2 },
+      { key: 'perihelionVelocityKmS', label: 'Kecepatan Perihelion (v peri)', unit: 'km/s', formulaLatex: 'v_{\\text{peri}}', precision: 2 },
+      { key: 'aphelionVelocityKmS', label: 'Kecepatan Aphelion (v aph)', unit: 'km/s', formulaLatex: 'v_{\\text{aph}}', precision: 2 },
       { key: 'keplerRatio', label: 'Rasio Kepler (T²/a³)', unit: '', formulaLatex: 'T^2/a^3', precision: 3 },
     ],
     defaultRegressionAxes: { xKey: 'customSemiMajorAxisAu', yKey: 'orbitalPeriodYears', expectedSlopeMeaning: 'Hukum III Kepler (Pangkat 1.5)' },
@@ -118,7 +118,7 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
       { key: 'bulgeDiskMassFactor', label: 'Massa Piringan & Tonjolan Pusat', unit: 'x', min: 0.5, max: 2.5, step: 0.25, defaultValue: 1.0, variableRole: 'kontrol' },
     ],
     outputs: [
-      { key: 'observedVelocityKmS', label: 'Kecepatan Rotasi Teramati (v_obs)', unit: 'km/s', formulaLatex: 'v_{\\text{obs}}', precision: 1 },
+      { key: 'observedVelocityKmS', label: 'Kecepatan Rotasi Teramati (v obs)', unit: 'km/s', formulaLatex: 'v_{\\text{obs}}', precision: 1 },
       { key: 'keplerianExpectedKmS', label: 'Kecepatan Keplerian Teoretis', unit: 'km/s', formulaLatex: 'v_{\\text{baryon}}', precision: 1 },
       { key: 'darkMatterMassEnclosed', label: 'Massa Materi Gelap (< r)', unit: 'x 10¹⁰ M☉', formulaLatex: 'M_{\\text{DM}}(<r)', precision: 2 },
     ],
@@ -248,7 +248,7 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
       ],
     },
     theorySummary:
-      'Radiasi termal bintang didekati secara akurat oleh kurva radiasi benda hitam Planck. Hukum Pergeseran Wilhelm Wien menyatakan bahwa panjang gelombang emisi maksimum berbanding terbalik dengan suhu mutlak fotosfer: λ_max · T = b = 2.898 × 10⁻³ m·K. Bintang biru sangat panas (kelas O/B, T > 10.000 K), Matahari berwarna kuning (kelas G, T ≈ 5.778 K), dan bintang kerdil merah lebih dingin (kelas M, T < 3.500 K).',
+      'Radiasi termal bintang didekati secara akurat oleh kurva radiasi benda hitam Planck. Hukum Pergeseran Wilhelm Wien menyatakan bahwa panjang gelombang emisi maksimum berbanding terbalik dengan suhu mutlak fotosfer: λ maks · T = b = 2.898 × 10⁻³ m·K. Bintang biru sangat panas (kelas O/B, T > 10.000 K), Matahari berwarna kuning (kelas G, T ≈ 5.778 K), dan bintang kerdil merah lebih dingin (kelas M, T < 3.500 K).',
     keyEquations: [
       '\\lambda_{\\max} \\cdot T = b = 2.898 \\times 10^{-3} \\text{ m}\\cdot\\text{K} = 2.898 \\times 10^6 \\text{ nm}\\cdot\\text{K}',
       'L = 4\\pi R_*^2 \\sigma T^4 = L_\\odot \\left( \\frac{R_*}{R_\\odot} \\right)^2 \\left( \\frac{T}{T_\\odot} \\right)^4',
@@ -269,7 +269,7 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
       { key: 'distanceParsecs', label: 'Jarak ke Bintang (d)', unit: 'pc', min: 1.0, max: 500.0, step: 5.0, defaultValue: 10.0, variableRole: 'kontrol' },
     ],
     outputs: [
-      { key: 'peakWavelengthNm', label: 'Panjang Gelombang Puncak (λ_max)', unit: 'nm', formulaLatex: '\\lambda_{\\max} = b / T', precision: 1 },
+      { key: 'peakWavelengthNm', label: 'Panjang Gelombang Puncak (λ maks)', unit: 'nm', formulaLatex: '\\lambda_{\\max} = b / T', precision: 1 },
       { key: 'luminositySolar', label: 'Luminositas Total Bintang (L)', unit: 'L☉', formulaLatex: 'L/L_\\odot', precision: 2 },
       { key: 'colorIndexBMinusV', label: 'Indeks Warna Fotometri (B - V)', unit: '', formulaLatex: 'B - V', precision: 2 },
     ],
@@ -277,10 +277,10 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
     preLabQuiz: [
       {
         id: 'wien-q1',
-        question: 'Sebuah bintang raksasa biru memiliki suhu fotosfer T = 10.000 K. Di manakah perkiraan panjang gelombang puncak pancaran radiasinya (λ_max)?',
+        question: 'Sebuah bintang raksasa biru memiliki suhu fotosfer T = 10.000 K. Di manakah perkiraan panjang gelombang puncak pancaran radiasinya (λ maks)?',
         options: ['290 nm (daerah ultraviolet)', '500 nm (daerah tampak hijau)', '700 nm (daerah tampak merah)', '1000 nm (daerah inframerah)'],
         correctIndex: 0,
-        explanation: 'Berdasarkan Hukum Pergeseran Wien: λ_max = 2.898 × 10^6 nm·K / 10.000 K ≈ 289.8 nm (berada di wilayah spektrum ultraviolet dekat).',
+        explanation: 'Berdasarkan Hukum Pergeseran Wien: λ maks = 2.898 × 10⁶ nm·K / 10.000 K ≈ 289.8 nm (berada di wilayah spektrum ultraviolet dekat).',
       },
     ],
     computeStep: (params) => {
@@ -313,7 +313,7 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
         'Membuktikan bahwa kecepatan resesi galaksi berbanding lurus dengan jaraknya dari kita (v = H₀·d).',
       ],
       Mahasiswa: [
-        'Menentukan nilai konstanta laju ekspansi alam semesta Hubble (H₀) dan mengestimasi usia alam semesta (t_Hubble ≈ 1/H₀).',
+        'Menentukan nilai konstanta laju ekspansi alam semesta Hubble (H₀) dan mengestimasi usia alam semesta (t Hubble ≈ 1/H₀).',
         'Menganalisis efek kosmologis pergeseran merah relativistik z = Δλ / λ₀.',
       ],
     },

@@ -41,6 +41,7 @@ import {
 import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
 import { PrecisionSlider } from './controls/PrecisionSlider';
+import { filterRecordsForModule } from '../utils/spatialHudHelpers';
 
 export interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -156,7 +157,6 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     prevHazardRef.current = safetyHazard.isHazardous;
   }, [safetyHazard.isHazardous]);
   const metricsB = calculateChemistryMetrics(realityBParams);
-  const domainRecords = records.filter((r) => r.domain === 'Kimia');
 
   const telemetryMetrics =
     params.mode === 'acid-base-titration'
@@ -267,6 +267,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     'reaction-kinetics-arrhenius': 'reaction-kinetics-arrhenius',
     'spectrophotometry-beer': 'spectrophotometry-beer',
   };
+  const moduleRecords = filterRecordsForModule(records, 'Kimia', modeToCatalogId[params.mode]);
 
   const handleRecordTrial = () => {
     labSound.playRecordSuccess();
@@ -332,9 +333,9 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   return (
     <StandardLabViewShell
       domain="Kimia"
-      recordsCount={domainRecords.length}
+      recordsCount={moduleRecords.length}
       hypothesisText={hypothesisNote?.hypothesisText}
-      recentRecords={domainRecords}
+      recentRecords={moduleRecords}
       onProceedToAnalysis={onProceedToAnalysis}
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
@@ -596,7 +597,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               <Camera className="w-4 h-4 shrink-0" />
               <span>
                 + Catat Data (
-                {domainRecords.length >= 3 ? `${domainRecords.length} Siap` : `${domainRecords.length}/3`})
+                {moduleRecords.length >= 3 ? `${moduleRecords.length} Siap` : `${moduleRecords.length}/3`})
               </span>
             </button>
 
@@ -608,7 +609,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                   onProceedToAnalysis();
                 }}
                 className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap ${
-                  domainRecords.length >= 3
+                  moduleRecords.length >= 3
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                     : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)]'
                 }`}
@@ -620,7 +621,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
 
           {/* Mode Switcher */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <label className="text-[11px] font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider">
               Mode Modul Kimia:
             </label>
             <select
@@ -633,7 +634,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                   useLabStore.getState().setActiveModule(modeToCatalogId[nextMode]);
                 }
               }}
-              className="w-full text-xs p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold"
+              className="w-full text-xs p-2 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] font-semibold"
             >
               <option value="acid-base-titration">Titrasi Asam-Basa (pH &amp; Indikator)</option>
               <option value="thermo-calorimetry">Termokimia &amp; Kalorimetri Entalpi</option>

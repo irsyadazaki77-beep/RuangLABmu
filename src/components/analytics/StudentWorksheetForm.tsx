@@ -503,13 +503,13 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-sm space-y-5">
+    <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-5 shadow-sm space-y-5">
       {/* Offline .rlab Download Notice Banner */}
       {offlinePacketNotice && (
         <div
           role="status"
           data-testid="offline-packet-notice"
-          className="p-3.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-500/50 flex items-center gap-2.5 text-xs text-teal-800 dark:text-teal-200 font-semibold shadow-sm animate-fade-in"
+          className="p-3.5 rounded-xl bg-teal-500/10 border border-teal-500/40 flex items-center gap-2.5 text-xs text-teal-800 dark:text-teal-200 font-semibold shadow-sm animate-fade-in"
         >
           <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
           <span>{offlinePacketNotice}</span>
@@ -607,25 +607,25 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
       )}
 
       {/* Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
         <div className="flex items-center gap-2">
           <span className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
             <FileText className="w-4 h-4" />
           </span>
           <div>
-            <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+            <h3 className="font-extrabold text-sm sm:text-base text-[var(--comfort-text)]">
               {t('lks.title')}
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {t('lks.studentLabel')}: <strong>{activeStudentName}</strong> ({activeGroupId})
+            <p className="text-xs text-[var(--comfort-text-muted)]">
+              {t('lks.studentLabel')}: <strong className="text-[var(--comfort-text)]">{activeStudentName}</strong> ({activeGroupId})
             </p>
           </div>
         </div>
 
         {/* Filter and Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
-            <Filter className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
+          <div className="flex items-center gap-1 p-0.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs">
+            <Filter className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] ml-1.5" />
             {(['Semua', 'Fisika', 'Kimia', 'Biologi', 'Astronomi'] as const).map((dom) => (
               <button
                 key={dom}
@@ -633,8 +633,8 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                 onClick={() => setLksDomainFilter(dom)}
                 className={`px-2 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
                   lksDomainFilter === dom
-                    ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-[var(--comfort-surface)] text-sky-600 dark:text-sky-300 shadow-xs'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                 }`}
               >
                 {dom === 'Semua' ? t('lks.filterAll') : dom}
@@ -647,9 +647,9 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             data-testid="print-blank-worksheet-btn"
             onClick={handlePrintBlankLks}
             title="Cetak Lembar Kerja Siswa (LKS) kosong hitam-putih hemat tinta untuk fotokopi siswa di kelas"
-            className="px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-stone-300 dark:border-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-[var(--comfort-surface-subtle)] hover:opacity-90 text-[var(--comfort-text)] border border-[var(--comfort-border)] font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
           >
-            <Printer className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+            <Printer className="w-3.5 h-3.5 text-[var(--comfort-text-muted)]" />
             <span>🖨️ Cetak LKS Kosong (Untuk Fotokopi Kelas)</span>
           </button>
 
@@ -699,7 +699,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
       {/* Hypothesis Review & Conclusion Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Hipotesis Awal */}
-        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-1.5">
+        <div className="p-3.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-1.5">
           <span className="text-[11px] font-bold uppercase tracking-wider text-amber-500">
             {t('lks.initialHypothesis')}
           </span>
@@ -716,27 +716,27 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
               }
             }}
             placeholder={t('lks.hypothesisPlaceholder')}
-            className="w-full text-xs p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-60"
+            className="w-full text-xs p-2 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] focus:outline-none focus:border-sky-500 disabled:opacity-60"
           />
         </div>
 
         {/* Kesimpulan Akhir */}
-        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+        <div className="p-3.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-2.5">
           {/* Feature 4: Penerjemah Arti Data Otomatis di LKS */}
           <div
             data-testid="lks-data-pattern-summary"
             className={`p-3 rounded-xl border text-xs space-y-1.5 ${
               patternTranslation.status === 'ready'
-                ? 'bg-sky-50/90 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800/70'
-                : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60'
+                ? 'bg-sky-500/10 border-sky-500/30'
+                : 'bg-amber-500/10 border-amber-500/30'
             }`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-bold text-slate-900 dark:text-slate-100">
+              <span className="font-bold text-[var(--comfort-text)]">
                 💡 Ringkasan Pola Datamu
               </span>
               {patternTranslation.status === 'ready' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/80 dark:bg-slate-900/80 border border-sky-200 dark:border-sky-700 font-mono text-[10px] font-bold text-sky-700 dark:text-sky-300">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--comfort-surface)] border border-sky-500/35 font-mono text-[10px] font-bold text-sky-700 dark:text-sky-300">
                   <ScienceGlossaryTerm term="R²" displayLabel="R²" />
                   <span>{patternTranslation.rSquaredPct}%</span>
                   <span>·</span>
@@ -744,10 +744,10 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                 </span>
               )}
             </div>
-            <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-100 leading-relaxed">
+            <p className="text-[11px] font-semibold text-[var(--comfort-text)] leading-relaxed">
               {patternTranslation.summaryText}
             </p>
-            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug">
+            <p className="text-[11px] text-[var(--comfort-text-muted)] leading-snug">
               {patternTranslation.guidanceText}
             </p>
           </div>
@@ -763,7 +763,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
               if (!isSubmissionLocked) setConclusionText(e.target.value);
             }}
             placeholder={t('lks.conclusionPlaceholder')}
-            className="w-full text-xs p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-60"
+            className="w-full text-xs p-2 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] focus:outline-none focus:border-sky-500 disabled:opacity-60"
           />
         </div>
       </div>
@@ -772,37 +772,37 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
       {activeCustomMission && (
         <div
           data-testid="lks-custom-ai-mission-section"
-          className="p-4 rounded-2xl bg-indigo-950/30 border border-indigo-500/40 space-y-3"
+          className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/35 space-y-3"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold">
+              <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-bold">
                 ✨ MISI STUDI KASUS GURU · ROOM {activeCustomMission.roomId}
               </span>
-              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white mt-1">
+              <h4 className="text-sm font-extrabold text-[var(--comfort-text)] mt-1">
                 {activeCustomMission.title}
               </h4>
             </div>
-            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
               Target {activeCustomMission.targetVariable.variableLabel}:{' '}
               {activeCustomMission.targetVariable.minSuccessValue} –{' '}
               {activeCustomMission.targetVariable.maxSuccessValue}{' '}
               {activeCustomMission.targetVariable.unit}
             </span>
           </div>
-          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+          <p className="text-xs text-[var(--comfort-text-muted)] leading-relaxed">
             {activeCustomMission.narrative}
           </p>
           <div className="space-y-2.5 pt-1">
             {activeCustomMission.contextualQuestions.slice(0, 3).map((cq, idx) => (
               <div
                 key={cq.id || idx}
-                className="p-3 rounded-xl bg-white/80 dark:bg-slate-900/90 border border-indigo-500/25 space-y-1.5"
+                className="p-3 rounded-xl bg-[var(--comfort-surface)] border border-indigo-500/25 space-y-1.5"
               >
                 <div className="text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
                   Pertanyaan Kontekstual Studi Kasus #{idx + 1}
                 </div>
-                <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                <p className="text-xs font-semibold text-[var(--comfort-text)]">
                   {cq.questionText}
                 </p>
                 <input
@@ -816,7 +816,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                     }))
                   }
                   placeholder={`Petunjuk: ${cq.hint}`}
-                  className="w-full px-3 py-1.5 text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-1.5 text-xs rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] focus:outline-none focus:border-indigo-500"
                 />
               </div>
             ))}
@@ -835,11 +835,11 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             return (
               <div
                 key={q.id}
-                className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 space-y-2.5"
+                className="p-4 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] space-y-2.5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-2 text-xs text-[var(--comfort-text-muted)]">
                       <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
                         Soal {idx + 1} · {q.domain}
                       </span>
@@ -848,7 +848,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                         {t('lks.weight')}: {Math.round(100 / (filteredQuestions.length || 1))} {t('lks.points')}
                       </span>
                     </div>
-                    <p className="text-xs font-semibold text-slate-900 dark:text-white leading-relaxed">
+                    <p className="text-xs font-semibold text-[var(--comfort-text)] leading-relaxed">
                       {q.questionText}
                     </p>
                   </div>
@@ -858,7 +858,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                     type="button"
                     disabled={isSubmissionLocked}
                     onClick={() => handleAdvanceHint(q.id)}
-                    className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-50 text-amber-700 dark:text-amber-300 text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 disabled:opacity-50 text-amber-800 dark:text-amber-300 text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer"
                   >
                     <Lightbulb className="w-3.5 h-3.5" />
                     <span>
@@ -869,8 +869,8 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
 
                 {/* Scaffolded Hints Accordion */}
                 {hintLvl > 0 && (
-                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 space-y-1">
-                    <div className="font-bold text-[11px]">
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-[var(--comfort-text)] space-y-1">
+                    <div className="font-bold text-[11px] text-amber-800 dark:text-amber-300">
                       {hintLvl === 1
                         ? 'Petunjuk Tingkat 1 (Konseptual):'
                         : hintLvl === 2
@@ -895,7 +895,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                       }
                     }}
                     placeholder={t('lks.answerPlaceholder')}
-                    className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-mono disabled:opacity-60"
+                    className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] focus:outline-none focus:border-sky-500 font-mono disabled:opacity-60"
                   />
                   {evalItem && (
                     <span

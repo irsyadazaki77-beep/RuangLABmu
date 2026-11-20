@@ -138,21 +138,41 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('node_modules/three')) {
+            const nid = id.replace(/\\/g, '/');
+            if (nid.includes('node_modules/three/examples/')) {
+              return 'vendor-three-addons';
+            }
+            if (nid.includes('node_modules/three/')) {
               return 'vendor-three';
             }
             if (
-              id.includes('node_modules/react/') ||
-              id.includes('node_modules/react-dom/') ||
-              id.includes('node_modules/scheduler/')
+              nid.includes('node_modules/react/') ||
+              nid.includes('node_modules/react-dom/') ||
+              nid.includes('node_modules/scheduler/')
             ) {
               return 'vendor-react';
             }
-            if (id.includes('node_modules/motion') || id.includes('node_modules/lucide-react') || id.includes('node_modules/zustand')) {
+            if (
+              nid.includes('node_modules/i18next') ||
+              nid.includes('node_modules/react-i18next')
+            ) {
+              return 'vendor-i18n';
+            }
+            if (nid.includes('node_modules/zod')) {
+              return 'vendor-zod';
+            }
+            if (
+              nid.includes('node_modules/motion') ||
+              nid.includes('node_modules/lucide-react') ||
+              nid.includes('node_modules/zustand')
+            ) {
               return 'vendor-ui';
             }
-            if (id.includes('node_modules/jspdf') || id.includes('node_modules/jspdf-autotable')) {
+            if (nid.includes('node_modules/jspdf') || nid.includes('node_modules/jspdf-autotable')) {
               return 'vendor-pdf';
+            }
+            if (nid.includes('/src/registry/')) {
+              return 'lab-curriculum';
             }
           },
         },

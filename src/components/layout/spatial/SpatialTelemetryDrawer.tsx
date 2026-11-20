@@ -104,6 +104,7 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
               moduleTitle={moduleTitle}
               formulaEquation={formulaEquation}
               domainLabel={domainLabel}
+              telemetryMetrics={telemetryMetrics}
             />
 
             <LiveTimeSeriesChart

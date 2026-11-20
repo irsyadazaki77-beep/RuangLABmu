@@ -16,15 +16,15 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
       ],
       SMA: [
         'Menghitung perubahan entalpi reaksi standar (ΔH) berdasarkan q = m·c·ΔT.',
-        'Menganalisis hukum kekekalan energi kalorimetri (q_reaksi + q_larutan + q_kalorimeter = 0).',
+        'Menganalisis hukum kekekalan energi kalorimetri (q reaksi + q larutan + q kalorimeter = 0).',
       ],
       Mahasiswa: [
         'Menghitung perubahan energi bebas Gibbs (ΔG) dan entropi reaksi (ΔS).',
-        'Mengevaluasi kapasitas kalor kalorimeter (C_kal) dan koreksi pertukaran panas radiasi Newton.',
+        'Mengevaluasi kapasitas kalor kalorimeter (C kal) dan koreksi pertukaran panas radiasi Newton.',
       ],
     },
     theorySummary:
-      'Kalorimetri larutan mengukur perpindahan kalor reaksi kimia pada tekanan konstan (qp = ΔH). Reaksi netralisasi asam kuat HCl dengan basa kuat NaOH bersifat eksotermik pekat dengan entalpi netralisasi molar standar ΔH°_netral ≈ -57.3 kJ/mol. Kenaikan suhu larutan terukur memungkinkan penentuan kalor spesifik dan spontanitas termodinamika ΔG = ΔH - TΔS.',
+      'Kalorimetri larutan mengukur perpindahan kalor reaksi kimia pada tekanan konstan (qp = ΔH). Reaksi netralisasi asam kuat HCl dengan basa kuat NaOH bersifat eksotermik pekat dengan entalpi netralisasi molar standar ΔH° netral ≈ -57.3 kJ/mol. Kenaikan suhu larutan terukur memungkinkan penentuan kalor spesifik dan spontanitas termodinamika ΔG = ΔH - TΔS.',
     keyEquations: [
       'q = m \\cdot c \\cdot \\Delta T',
       '\\Delta H = -\\frac{q_{\\text{larutan}}}{n_{\\text{reaksi}}}',
@@ -127,7 +127,7 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
     ],
     outputs: [
       { key: 'calculatedPH', label: 'Nilai pH Larutan', unit: '', formulaLatex: '\\text{pH}', precision: 2 },
-      { key: 'equivVolumeMl', label: 'Volume Titik Ekuivalen (V_eq)', unit: 'mL', formulaLatex: 'V_{\\text{eq}} = \\frac{M_a V_a}{M_b}', precision: 2 },
+      { key: 'equivVolumeMl', label: 'Volume Titik Ekuivalen (V eq)', unit: 'mL', formulaLatex: 'V_{\\text{eq}} = \\frac{M_a V_a}{M_b}', precision: 2 },
       { key: 'hPlusConc', label: 'Konsentrasi [H⁺]', unit: 'mol/L', formulaLatex: '[H^+]', precision: 6 },
     ],
     defaultRegressionAxes: { xKey: 'titrantAddedMl', yKey: 'calculatedPH', expectedSlopeMeaning: 'Kurva Sigmoidal Lonjakan Ekuivalen' },
@@ -181,11 +181,11 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
       ],
       SMA: [
         'Merangkai sel Volta Daniell (Zn|Zn²⁺ || Cu²⁺|Cu) dengan jembatan garam.',
-        'Mengukur potensial sel standar (E°_sel) dan membandingkannya dengan deret kereaktifan logam Volt.',
+        'Mengukur potensial sel standar (E° sel) dan membandingkannya dengan deret kereaktifan logam Volt.',
       ],
       Mahasiswa: [
         'Menganalisis ketergantungan potensial sel terhadap rasio konsentrasi melalui Persamaan Nernst.',
-        'Menentukan konstanta kesetimbangan redoks K_eq dan koefisien aktivitas ion Debye-Hückel.',
+        'Menentukan konstanta kesetimbangan redoks K eq dan koefisien aktivitas ion Debye-Hückel.',
       ],
     },
     theorySummary:
@@ -211,8 +211,8 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
       { key: 'cathodeConcM', label: 'Konsentrasi Katoda [Cu²⁺]', unit: 'M', min: 0.01, max: 2.0, step: 0.05, defaultValue: 1.0, variableRole: 'kontrol', instrumentType: 'voltmeter' },
     ],
     outputs: [
-      { key: 'cellPotential', label: 'Potensial Sel Terukur (E_sel)', unit: 'V', formulaLatex: 'E_{\\text{sel}} = E^\\circ - \\frac{0.0592}{2}\\log Q', precision: 3 },
-      { key: 'stdCellPotential', label: 'Potensial Standar (E°_sel)', unit: 'V', formulaLatex: 'E^\\circ_{\\text{sel}} = 1.10\\text{ V}', precision: 3 },
+      { key: 'cellPotential', label: 'Potensial Sel Terukur (E sel)', unit: 'V', formulaLatex: 'E_{\\text{sel}} = E^\\circ - \\frac{0.0592}{2}\\log Q', precision: 3 },
+      { key: 'stdCellPotential', label: 'Potensial Standar (E° sel)', unit: 'V', formulaLatex: 'E^\\circ_{\\text{sel}} = 1.10\\text{ V}', precision: 3 },
       { key: 'gibbsEnergyKj', label: 'Energi Gibbs Sel (ΔG)', unit: 'kJ/mol', formulaLatex: '\\Delta G = -nFE_{\\text{sel}}', precision: 2 },
     ],
     defaultRegressionAxes: { xKey: 'anodeConcM', yKey: 'cellPotential', expectedSlopeMeaning: 'Gradien Logaritmik Nernst (-0.0296 V/dekade)' },
@@ -412,7 +412,7 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
       ],
       Mahasiswa: [
         'Membuktikan linearitas Hukum Lambert-Beer A = ε·b·c dan mengidentifikasi batas deviasi kimiawi/instrumen.',
-        'Menentukan absorptivitas molar molar absorptivity (ε) zat aktif pada panjang gelombang maksimum λ_max.',
+        'Menentukan absorptivitas molar (ε) zat aktif pada panjang gelombang maksimum (λ maks).',
       ],
     },
     theorySummary:

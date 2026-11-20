@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { CheckCircle2, Clock, X } from 'lucide-react';
 import { MODAL_POPOVER_VARIANTS } from '../../styles/motionPresets';
@@ -21,11 +21,23 @@ export const ChapterDetailModal: React.FC<ChapterDetailModalProps> = ({
   onClose,
   onSelectExperiment,
 }) => {
+  useEffect(() => {
+    if (!chapter) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [chapter, onClose]);
+
   return (
     <AnimatePresence>
       {chapter && (
         <div
           data-testid="chapter-detail-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Detail ${chapter.title}`}
           className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
           onClick={onClose}
         >

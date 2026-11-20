@@ -208,7 +208,7 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
       { key: 'period', label: 'Periode Ayunan (T)', unit: 's', formulaLatex: 'T = 2\\pi\\sqrt{L/g}', precision: 3 },
       { key: 'periodSquared', label: 'Kuadrat Periode (T²)', unit: 's²', formulaLatex: 'T^2 = \\frac{4\\pi^2}{g} L', precision: 3 },
       { key: 'frequency', label: 'Frekuensi (f)', unit: 'Hz', formulaLatex: 'f = 1 / T', precision: 3 },
-      { key: 'maxVelocity', label: 'Kecepatan Maksimum (v_max)', unit: 'm/s', formulaLatex: 'v_{\\max} = \\sqrt{2gL(1 - \\cos\\theta_0)}', precision: 3 },
+      { key: 'maxVelocity', label: 'Kecepatan Maksimum (v maks)', unit: 'm/s', formulaLatex: 'v_{\\max} = \\sqrt{2gL(1 - \\cos\\theta_0)}', precision: 3 },
     ],
     defaultRegressionAxes: { xKey: 'length', yKey: 'periodSquared', expectedSlopeMeaning: 'Konstanta 4π²/g (~4.02 s²/m)' },
     preLabQuiz: [
@@ -292,7 +292,7 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
         question: 'Dua buah pegas identik masing-masing memiliki konstanta k dirangkai secara paralel. Berapakah konstanta pegas penggantinya?',
         options: ['k / 2', 'k', '2k', '4k'],
         correctIndex: 2,
-        explanation: 'Pada susunan pegas paralel, gaya terbagi dan simpangan sama besar, sehingga konstanta penggantinya dijumlahkan: k_total = k1 + k2 = 2k.',
+        explanation: 'Pada susunan pegas paralel, gaya terbagi dan simpangan sama besar, sehingga konstanta penggantinya dijumlahkan: k total = k₁ + k₂ = 2k.',
       },
     ],
     computeStep: (params) => {
@@ -514,7 +514,7 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
       { key: 'totalCurrent', label: 'Arus Total Sirkuit (I)', unit: 'mA', formulaLatex: 'I_{\\text{tot}}', precision: 2 },
       { key: 'bridgeStatus', label: 'Status Keseimbangan', unit: '', formulaLatex: 'V_G \\approx 0', precision: 0 },
     ],
-    defaultRegressionAxes: { xKey: 'sourceVoltage', yKey: 'totalCurrent', expectedSlopeMeaning: 'Konduktansi Total Rangkaian (1/R_ekivalen)' },
+    defaultRegressionAxes: { xKey: 'sourceVoltage', yKey: 'totalCurrent', expectedSlopeMeaning: 'Konduktansi Total Rangkaian (1 / R ekivalen)' },
     preLabQuiz: [
       {
         id: 'wheat-q1',
@@ -727,18 +727,18 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
       { key: 'mass', label: 'Massa Wahana (m)', unit: 'kg', min: 100, max: 10000, step: 100, defaultValue: 1500, variableRole: 'bebas', instrumentType: 'dynamometer' },
     ],
     outputs: [
-      { key: 'escapeVelocityKmS', label: 'Kecepatan Lepas (v_esc)', unit: 'km/s', formulaLatex: 'v_e = \\sqrt{2GM/R}', precision: 2 },
-      { key: 'orbitalVelocityKmS', label: 'Kecepatan Orbit Melingkar (v_orb)', unit: 'km/s', formulaLatex: 'v_o = \\sqrt{GM/R}', precision: 2 },
+      { key: 'escapeVelocityKmS', label: 'Kecepatan Lepas (v lepas)', unit: 'km/s', formulaLatex: 'v_e = \\sqrt{2GM/R}', precision: 2 },
+      { key: 'orbitalVelocityKmS', label: 'Kecepatan Orbit Melingkar (v orbit)', unit: 'km/s', formulaLatex: 'v_o = \\sqrt{GM/R}', precision: 2 },
       { key: 'surfaceGravity', label: 'Percepatan Gravitasi Permukaan (g)', unit: 'm/s²', formulaLatex: 'g = GM/R^2', precision: 2 },
     ],
     defaultRegressionAxes: { xKey: 'secondaryMass', yKey: 'escapeVelocityKmS', expectedSlopeMeaning: 'Akar Massa Planet' },
     preLabQuiz: [
       {
         id: 'grav-q1',
-        question: 'Berapakah rasio antara kecepatan lepas (v_esc) dengan kecepatan orbit melingkar (v_orb) pada radius yang sama?',
+        question: 'Berapakah rasio antara kecepatan lepas (v lepas) dengan kecepatan orbit melingkar (v orbit) pada radius yang sama?',
         options: ['1.0', '√2 (sekitar 1.414)', '2.0', '1 / √2'],
         correctIndex: 1,
-        explanation: 'Kecepatan lepas v_esc = √(2GM/R) persis sama dengan √2 dikalikan kecepatan orbit melingkar v_orb = √(GM/R).',
+        explanation: 'Kecepatan lepas v lepas = √(2GM/R) persis sama dengan √2 dikalikan kecepatan orbit melingkar v orbit = √(GM/R).',
       },
     ],
     computeStep: (params) => {

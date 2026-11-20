@@ -86,6 +86,7 @@ export const MobileInstrumentSheet: React.FC<MobileInstrumentSheetProps> = ({
               moduleTitle={moduleTitle}
               formulaEquation={formulaEquation}
               domainLabel={domainLabel}
+              telemetryMetrics={telemetryMetrics}
             />
             {telemetryMetrics.length > 0 && (
               <div className="grid grid-cols-2 gap-2">

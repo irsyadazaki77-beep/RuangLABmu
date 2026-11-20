@@ -250,26 +250,26 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
     <div className="space-y-6">
       {/* Top 4-Column Summary KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+        <div className="bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4">
+          <div className="flex items-center justify-between text-xs text-[var(--comfort-text-muted)]">
             <span>Siswa Aktif di Laboratorium</span>
             <Activity className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           </div>
           <div className="mt-2 flex items-baseline">
-            <span className="text-3xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
+            <span className="text-3xl font-mono font-bold text-[var(--comfort-text)] tabular-nums">
               {students.length}
             </span>
-            <span className="text-xs font-mono text-slate-400 dark:text-slate-500 ml-1.5">
+            <span className="text-xs font-mono text-[var(--comfort-text-muted)] ml-1.5">
               SISWA ONLINE
             </span>
           </div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <div className="mt-1 text-xs text-[var(--comfort-text-muted)]">
             Terbagi dalam 3 kelompok praktikum kolaboratif
           </div>
         </div>
 
-        <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+        <div className="bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4">
+          <div className="flex items-center justify-between text-xs text-[var(--comfort-text-muted)]">
             <span>Rata-Rata Progres Modul</span>
             <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
@@ -277,35 +277,35 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             <span className="text-3xl font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
               {avgCompletion}%
             </span>
-            <span className="text-xs font-mono text-slate-400 dark:text-slate-500 ml-1.5">
+            <span className="text-xs font-mono text-[var(--comfort-text-muted)] ml-1.5">
               TERCAPAI
             </span>
           </div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <div className="mt-1 text-xs text-[var(--comfort-text-muted)]">
             Target kurikulum Fisika & Kimia: 80%
           </div>
         </div>
 
-        <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+        <div className="bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4">
+          <div className="flex items-center justify-between text-xs text-[var(--comfort-text-muted)]">
             <span>Total Data Eksperimen Terekam</span>
             <ClipboardList className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           </div>
           <div className="mt-2 flex items-baseline">
-            <span className="text-3xl font-mono font-bold text-slate-900 dark:text-white tabular-nums">
+            <span className="text-3xl font-mono font-bold text-[var(--comfort-text)] tabular-nums">
               {totalTrials}
             </span>
-            <span className="text-xs font-mono text-slate-400 dark:text-slate-500 ml-1.5">
+            <span className="text-xs font-mono text-[var(--comfort-text-muted)] ml-1.5">
               PERCOBAAN
             </span>
           </div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <div className="mt-1 text-xs text-[var(--comfort-text-muted)]">
             Siap dievaluasi dan diekspor ke CSV
           </div>
         </div>
 
-        <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+        <div className="bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4">
+          <div className="flex items-center justify-between text-xs text-[var(--comfort-text-muted)]">
             <span>Status Bimbingan Siswa</span>
             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
           </div>
@@ -313,23 +313,23 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             <span className="text-3xl font-mono font-bold text-amber-600 dark:text-amber-400 tabular-nums">
               {studentsNeedingHelp}
             </span>
-            <span className="text-xs font-mono text-slate-400 dark:text-slate-500 ml-1.5">
+            <span className="text-xs font-mono text-[var(--comfort-text-muted)] ml-1.5">
               PERLU ARAHAN
             </span>
           </div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <div className="mt-1 text-xs text-[var(--comfort-text-muted)]">
             Deteksi otomatis saat R² &lt; 0.80 atau tertahan &gt; 8 menit
           </div>
         </div>
       </div>
 
       {/* Ringkasan Ergonomi Belajar & Perancah Kognitif (Scaffolding) Kelas */}
-      <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-0.5">
           <div className="text-[11px] font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold">
             Telemetri Ergonomi Kognitif & Scaffolding Belajar
           </div>
-          <p className="text-xs text-slate-600 dark:text-slate-300">
+          <p className="text-xs text-[var(--comfort-text-muted)]">
             Siswa difasilitasi dengan Buku Catatan Hipotesis Terstruktur, Komparator Diff 2 Percobaan, dan Petunjuk Bertahap (3-Tier Hints) untuk mereduksi beban kognitif.
           </p>
         </div>
@@ -347,7 +347,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
       <div
         role="tablist"
         aria-label="Navigasi Dashboard Pengajar"
-        className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+        className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] shadow-xs"
       >
         <button
           type="button"
@@ -360,7 +360,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
             teacherTab === 'radar'
               ? 'bg-sky-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              : 'text-[var(--comfort-text-muted)] hover:bg-[var(--comfort-surface-subtle)] hover:text-[var(--comfort-text)]'
           }`}
         >
           <Compass className="w-4 h-4 shrink-0" />
@@ -378,7 +378,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
             teacherTab === 'rubrik'
               ? 'bg-emerald-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              : 'text-[var(--comfort-text-muted)] hover:bg-[var(--comfort-surface-subtle)] hover:text-[var(--comfort-text)]'
           }`}
         >
           <FileCheck2 className="w-4 h-4 shrink-0" />
@@ -396,7 +396,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
             teacherTab === 'ujian-misteri'
               ? 'bg-amber-500 text-slate-950 shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              : 'text-[var(--comfort-text-muted)] hover:bg-[var(--comfort-surface-subtle)] hover:text-[var(--comfort-text)]'
           }`}
         >
           <Radio className="w-4 h-4 shrink-0" />
@@ -406,22 +406,22 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
 
       {/* TAB 1: RADAR PROGRES KELAS REAL-TIME (4 TAHAP PRAKTIKUM) */}
       {teacherTab === 'radar' && (
-      <div className="bg-white/95 dark:bg-slate-900/85 lab-glass-panel border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+      <div className="bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+              <h2 className="text-base font-bold text-[var(--comfort-text)]">
                 Radar Progres Kelas Real-Time (4 Tahap Praktikum)
               </h2>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-xs text-[var(--comfort-text-muted)] mt-0.5">
               Distribusi siswa sepanjang 4 tahap alur terstruktur · Deteksi otomatis saat R² &lt; 0.80 atau tertahan &gt; 8 menit
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-500 dark:text-slate-400">Filter:</span>
-            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg border border-slate-200/70 dark:border-slate-700">
+            <span className="text-[11px] text-[var(--comfort-text-muted)]">Filter:</span>
+            <div className="flex items-center gap-1 p-1 bg-[var(--comfort-surface-subtle)] rounded-lg border border-[var(--comfort-border)]">
               {groups.map((grp) => (
                 <button
                   key={grp}
@@ -432,8 +432,8 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                   }}
                   className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     groupFilter === grp
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-xs font-semibold'
+                      : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                   }`}
                 >
                   {grp === 'Semua' ? 'Semua Kelompok' : grp.split(' — ')[0]}
@@ -456,26 +456,26 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             return (
               <div
                 key={lane.step}
-                className="flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-3 space-y-3"
+                className="flex flex-col rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] p-3 space-y-3"
               >
                 {/* Lane Header */}
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800/80">
+                <div className="flex items-center justify-between pb-2 border-b border-[var(--comfort-border)]">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`w-5 h-5 rounded-md ${laneColors.stepBadge} font-mono font-bold text-[10px] flex items-center justify-center shrink-0`}>
                       {lane.step}
                     </span>
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      <div className="text-xs font-bold text-[var(--comfort-text)] truncate">
                         {lane.title}
                       </div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                      <div className="text-[10px] text-[var(--comfort-text-muted)] truncate">
                         {lane.subtitle}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0 font-mono text-[11px]">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
+                    <span className="px-2 py-0.5 rounded-full bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold">
                       {lane.students.length}
                     </span>
                     {lane.needsHelpCount > 0 && (
@@ -490,9 +490,9 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                 {/* Students Container */}
                 <div className="flex-1 space-y-2.5 min-h-[160px]">
                   {lane.students.length === 0 ? (
-                    <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 border border-dashed border-slate-200 dark:border-slate-800/60 rounded-xl text-slate-400 dark:text-slate-600">
+                    <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 border border-dashed border-[var(--comfort-border)] rounded-xl text-[var(--comfort-text-muted)]">
                       <p className="text-xs">Tidak ada siswa</p>
-                      <p className="text-[10px] text-slate-400">di tahap ini</p>
+                      <p className="text-[10px] opacity-80">di tahap ini</p>
                     </div>
                   ) : (
                     lane.students.map((stu) => {
@@ -515,17 +515,17 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                           key={stu.id}
                           className={`rounded-xl p-3 border transition-all text-xs space-y-2.5 ${
                             stu.needsHelp
-                              ? 'bg-amber-50/70 dark:bg-amber-950/25 border-amber-400 dark:border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.18)] ring-1 ring-amber-400/30'
-                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xs hover:border-slate-300 dark:hover:border-slate-700'
+                              ? 'bg-amber-500/10 border-amber-400 dark:border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.18)] ring-1 ring-amber-400/30'
+                              : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] shadow-xs hover:border-sky-500/40'
                           }`}
                         >
                           {/* Student Header */}
                           <div className="flex items-start justify-between gap-1.5">
                             <div className="min-w-0">
-                              <div className="font-bold text-slate-900 dark:text-white truncate">
+                              <div className="font-bold text-[var(--comfort-text)] truncate">
                                 {stu.name}
                               </div>
-                              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                              <div className="text-[10px] text-[var(--comfort-text-muted)] truncate">
                                 {stu.groupId.split(' — ')[0]}
                               </div>
                             </div>
@@ -537,26 +537,26 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                           </div>
 
                           {/* Active Module Badge */}
-                          <div className="text-[11px] font-medium text-slate-800 dark:text-slate-200 line-clamp-1 bg-slate-100/80 dark:bg-slate-800/60 px-2 py-1 rounded-md">
+                          <div className="text-[11px] font-medium text-[var(--comfort-text)] line-clamp-1 bg-[var(--comfort-surface-subtle)] px-2 py-1 rounded-md">
                             {moduleDisplayName}
                           </div>
 
                           {/* Metrics Row: Time Spent + Recorded Trials */}
-                          <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400 pt-0.5">
+                          <div className="flex items-center justify-between text-[10px] font-mono text-[var(--comfort-text-muted)] pt-0.5">
                             <div className="flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-slate-400" />
+                              <Clock className="w-3 h-3" />
                               <span className={stu.timeInStepMinutes && stu.timeInStepMinutes > 8 ? 'text-amber-500 font-bold' : ''}>
                                 {stu.formattedTimeInStep}
                               </span>
                             </div>
-                            <div className="text-slate-700 dark:text-slate-300 font-semibold">
+                            <div className="text-[var(--comfort-text)] font-semibold">
                               {stu.trialsRecorded > 0 ? `${stu.trialsRecorded}/3 Data` : '0 Data'}
                             </div>
                           </div>
 
                           {/* Status Flag */}
                           {stu.needsHelp ? (
-                            <div className="p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 flex items-start gap-1.5 text-[10px] leading-tight font-medium">
+                            <div className="p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 flex items-start gap-1.5 text-[10px] leading-tight font-medium">
                               <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                               <div>
                                 <span className="font-bold">▲ Butuh Bantuan:</span>{' '}
@@ -579,7 +579,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleOpenQuickNote(stu)}
-                            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 text-[11px] font-semibold rounded-lg bg-slate-100 hover:bg-sky-50 dark:bg-slate-800 dark:hover:bg-sky-950/50 text-slate-700 hover:text-sky-600 dark:text-slate-200 dark:hover:text-sky-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 text-[11px] font-semibold rounded-lg bg-[var(--comfort-surface-subtle)] hover:bg-sky-500/10 text-[var(--comfort-text)] hover:text-sky-600 dark:hover:text-sky-300 border border-[var(--comfort-border)] transition-colors cursor-pointer"
                           >
                             <MessageSquare className="w-3 h-3 text-sky-500" />
                             <span>Beri Catatan Instruktur</span>
@@ -599,23 +599,23 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
       {/* QUICK INSTRUCTOR NOTE MODAL */}
       {quickNoteStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="w-full max-w-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between pb-3 border-b border-[var(--comfort-border)]">
               <div className="space-y-0.5">
                 <div className="text-[11px] font-mono font-semibold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
                   Arahan Instruktur Langsung
                 </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                <h3 className="text-base font-bold text-[var(--comfort-text)]">
                   Kirim Catatan ke {quickNoteStudent.name}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-[var(--comfort-text-muted)]">
                   {quickNoteStudent.groupId} · Tahap {quickNoteStudent.resolvedStep} ({quickNoteStudent.activeModuleTitle || quickNoteStudent.currentActivity.split('(')[0].trim()})
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setQuickNoteStudent(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                className="p-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -625,7 +625,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               <div>
                 <label
                   htmlFor="quick-note-input"
-                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1"
+                  className="block text-xs font-medium text-[var(--comfort-text)] mb-1"
                 >
                   Pesan Pembimbingan (akan tampil langsung di layar siswa):
                 </label>
@@ -634,7 +634,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                   rows={3}
                   value={quickNoteText}
                   onChange={(e) => setQuickNoteText(e.target.value)}
-                  className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  className="w-full text-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-xl p-3 text-[var(--comfort-text)] focus:outline-none focus:ring-2 focus:ring-sky-600"
                   placeholder="Ketik catatan atau pilih saran cepat di bawah..."
                   autoFocus
                 />
@@ -642,7 +642,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
 
               {/* Quick Template Chips */}
               <div className="space-y-1.5">
-                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] font-medium text-[var(--comfort-text-muted)]">
                   Pilihan Cepat:
                 </span>
                 <div className="flex flex-wrap gap-1.5">
@@ -653,7 +653,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                         'Perhatikan kemiringan garis regresi ΣF = m·a. Pastikan ada minimal 3 variasi data dengan jarak nilai seimbang.'
                       )
                     }
-                    className="px-2 py-1 text-[11px] rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+                    className="px-2 py-1 text-[11px] rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500/40 cursor-pointer"
                   >
                     Petunjuk Garis Regresi
                   </button>
@@ -664,7 +664,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                         'Amati titik belok pH pada kurva titrasi buret di sekitar volume 20 mL untuk akurasi titik ekuivalen.'
                       )
                     }
-                    className="px-2 py-1 text-[11px] rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+                    className="px-2 py-1 text-[11px] rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500/40 cursor-pointer"
                   >
                     Titik Ekuivalen Kimia
                   </button>
@@ -675,18 +675,18 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                         'Kerja bagus! Lanjutkan ke tahap analisis grafik dan lengkapi pertanyaan LKS.'
                       )
                     }
-                    className="px-2 py-1 text-[11px] rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+                    className="px-2 py-1 text-[11px] rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500/40 cursor-pointer"
                   >
                     Apresiasi & Lanjut LKS
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--comfort-border)]">
                 <button
                   type="button"
                   onClick={() => setQuickNoteStudent(null)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:opacity-90 cursor-pointer"
                 >
                   Batal
                 </button>
@@ -713,13 +713,13 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
           <ClassLeaderboardCard students={visibleStudents} />
 
           {/* 1. Student Live Activity Table */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-2xl p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
               <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                <h2 className="text-base font-bold text-[var(--comfort-text)]">
                   Pemantauan Aktivitas & Progres Siswa Secara Langsung
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-[var(--comfort-text-muted)]">
                   Memantau parameter yang sedang diuji, jumlah rekaman data, dan penyelesaian tugas tiap siswa
                 </p>
               </div>
@@ -728,7 +728,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  <tr className="border-b border-[var(--comfort-border)] text-xs font-semibold text-[var(--comfort-text-muted)]">
                     <th className="py-2.5 pr-3">Nama Siswa & Kelompok</th>
                     <th className="py-2.5 px-3">Aktivitas Eksperimen Saat Ini</th>
                     <th className="py-2.5 px-3">Data & Tugas</th>
@@ -736,41 +736,41 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                     <th className="py-2.5 pl-3">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                <tbody className="divide-y divide-[var(--comfort-border)] text-xs">
                   {visibleStudents.map((stu) => (
                     <tr
                       key={stu.id}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
+                      className="hover:bg-[var(--comfort-surface-subtle)] transition-colors"
                     >
                       <td className="py-3 pr-3 align-middle">
-                        <div className="font-semibold text-slate-900 dark:text-white">
+                        <div className="font-semibold text-[var(--comfort-text)]">
                           {stu.name}
                         </div>
-                        <div className="text-slate-500 dark:text-slate-400 mt-0.5">
+                        <div className="text-[var(--comfort-text-muted)] mt-0.5">
                           {stu.groupId} · {stu.lastActive}
                         </div>
                       </td>
                       <td className="py-3 px-3 align-middle">
-                        <div className="text-slate-900 dark:text-white font-medium">
+                        <div className="text-[var(--comfort-text)] font-medium">
                           {stu.currentActivity}
                         </div>
-                        <div className="text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                        <div className="text-[var(--comfort-text-muted)] font-mono mt-0.5">
                           Modul: Praktikum {stu.activeDomain}
                         </div>
                       </td>
-                      <td className="py-3 px-3 align-middle font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                      <td className="py-3 px-3 align-middle font-mono tabular-nums text-[var(--comfort-text)]">
                         <div>{stu.trialsRecorded} Percobaan</div>
-                        <div className="text-slate-500 dark:text-slate-400">
+                        <div className="text-[var(--comfort-text-muted)]">
                           {stu.tasksCompleted}/{stu.totalTasks} Tugas
                         </div>
                       </td>
                       <td className="py-3 px-3 align-middle w-32">
                         <div className="flex items-center justify-between font-mono tabular-nums mb-1">
-                          <span className="font-semibold text-slate-900 dark:text-white">
+                          <span className="font-semibold text-[var(--comfort-text)]">
                             {stu.completionPct}%
                           </span>
                         </div>
-                        <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                        <div className="w-full h-2 bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full ${
                               stu.completionPct >= 80
@@ -808,14 +808,14 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
           </div>
 
           {/* 2. Automated Rubric Grading Matrix & Class CSV Export */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-2xl p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
               <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <h2 className="text-base font-bold text-[var(--comfort-text)] flex items-center gap-2">
                   <FileCheck2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   <span>Matriks Rubrik Penilaian Otomatis & Rekap Nilai Kelas</span>
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-[var(--comfort-text-muted)]">
                   Eksperimen (25%) · Analisis Regresi (25%) · Tugas Kolaborasi (25%) · Skor LKS/Kuis (25%)
                 </p>
               </div>
@@ -844,7 +844,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  <tr className="border-b border-[var(--comfort-border)] text-xs font-semibold text-[var(--comfort-text-muted)]">
                     <th className="py-2.5 pr-3">Nama Siswa & Kelompok</th>
                     <th className="py-2.5 px-3 text-right">Eksperimen (25%)</th>
                     <th className="py-2.5 px-3 text-right">Regresi Data (25%)</th>
@@ -854,33 +854,33 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                     <th className="py-2.5 pl-3">Predikat Rubrik</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-mono tabular-nums">
+                <tbody className="divide-y divide-[var(--comfort-border)] text-xs font-mono tabular-nums">
                   {rubricRows.map((row) => (
                     <tr
                       key={row.studentId}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
+                      className="hover:bg-[var(--comfort-surface-subtle)] transition-colors"
                     >
                       <td className="py-3 pr-3 font-sans">
-                        <div className="font-semibold text-slate-900 dark:text-white">
+                        <div className="font-semibold text-[var(--comfort-text)]">
                           {row.studentName}
                         </div>
-                        <div className="text-slate-500 dark:text-slate-400">
+                        <div className="text-[var(--comfort-text-muted)]">
                           {row.groupId}
                         </div>
                       </td>
-                      <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
+                      <td className="py-3 px-3 text-right text-[var(--comfort-text)]">
                         {row.experimentScore}
                       </td>
-                      <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
+                      <td className="py-3 px-3 text-right text-[var(--comfort-text)]">
                         {row.regressionAnalysisScore}
                       </td>
-                      <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
+                      <td className="py-3 px-3 text-right text-[var(--comfort-text)]">
                         {row.collaborationScore}
                       </td>
-                      <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300">
+                      <td className="py-3 px-3 text-right text-[var(--comfort-text)]">
                         {row.worksheetQuizScore}
                       </td>
-                      <td className="py-3 px-3 text-right font-bold text-slate-900 dark:text-white text-sm">
+                      <td className="py-3 px-3 text-right font-bold text-[var(--comfort-text)] text-sm">
                         {row.finalTotalScore}
                       </td>
                       <td className="py-3 pl-3 whitespace-nowrap">
@@ -903,13 +903,13 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             </div>
 
             {/* 3. RK4 / Velocity Verlet Theoretical Solver Auto-Grading Diagnostic Matrix */}
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+            <div className="pt-4 border-t border-[var(--comfort-border)] space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  <h3 className="text-sm font-bold text-[var(--comfort-text)]">
                     Auto-Grading Diagnostik vs Solver Numerik RK4 / Velocity Verlet
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-[var(--comfort-text-muted)]">
                     Membandingkan hasil regresi &amp; propagasi ralat ketidakpastian siswa terhadap referensi solver teoretis
                   </p>
                 </div>
@@ -917,7 +917,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-700 font-semibold text-slate-600 dark:text-slate-300">
+                    <tr className="border-b border-[var(--comfort-border)] font-semibold text-[var(--comfort-text-muted)]">
                       <th className="py-2 pr-3">Siswa &amp; Modul</th>
                       <th className="py-2 px-3 text-right">Target Solver</th>
                       <th className="py-2 px-3 text-right">Terukur</th>
@@ -926,17 +926,17 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                       <th className="py-2 pl-3">Feedback Diagnostik Otomatis</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-[var(--comfort-border)]">
                     {solverAutoGradeRows.map((ev) => (
-                      <tr key={ev.studentId} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
+                      <tr key={ev.studentId} className="hover:bg-[var(--comfort-surface-subtle)]">
                         <td className="py-2.5 pr-3">
-                          <div className="font-semibold text-slate-900 dark:text-white">{ev.studentName}</div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400">{ev.moduleTitle}</div>
+                          <div className="font-semibold text-[var(--comfort-text)]">{ev.studentName}</div>
+                          <div className="text-[11px] text-[var(--comfort-text-muted)]">{ev.moduleTitle}</div>
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[var(--comfort-text)]">
                           {ev.theoreticalSolverValue.toFixed(2)}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[var(--comfort-text)]">
                           {ev.observedValue.toFixed(2)}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono tabular-nums text-amber-600 dark:text-amber-400 font-semibold">
@@ -945,7 +945,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                         <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
                           {ev.totalScore}/100 ({ev.letterGrade})
                         </td>
-                        <td className="py-2.5 pl-3 text-[11px] text-slate-600 dark:text-slate-300 max-w-md">
+                        <td className="py-2.5 pl-3 text-[11px] text-[var(--comfort-text-muted)] max-w-md">
                           {ev.diagnosticFeedback}
                         </td>
                       </tr>
@@ -962,15 +962,15 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
         {teacherTab === 'ujian-misteri' && (
         <div className="lg:col-span-12 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           {/* 1. Mystery Challenge Broadcast & Submissions */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-            <div className="border-b border-slate-100 dark:border-slate-800 pb-3 space-y-1">
+          <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-2xl p-5 space-y-4">
+            <div className="border-b border-[var(--comfort-border)] pb-3 space-y-1">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <h2 className="text-base font-bold text-[var(--comfort-text)] flex items-center gap-2">
                   <Radio className="w-4 h-4 text-amber-500" />
                   <span>Siaran Ujian Sampel Misterius</span>
                 </h2>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              <p className="text-xs text-[var(--comfort-text-muted)] leading-relaxed">
                 Siarkan sampel tak dikenal ke seluruh siswa untuk diuji secara kuantitatif.
               </p>
               {activeMysteryChallenge && (
@@ -981,7 +981,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             </div>
 
             {/* Mode Switcher: Preset vs Custom Builder */}
-            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs">
               <button
                 type="button"
                 onClick={() => {
@@ -990,8 +990,8 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                 }}
                 className={`py-1.5 px-2 rounded-lg font-semibold transition-colors cursor-pointer ${
                   challengeBuilderMode === 'preset'
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    ? 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-xs'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                 }`}
               >
                 Paket Preset ({PRESET_MYSTERY_CHALLENGES.length})
@@ -1005,7 +1005,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                 className={`py-1.5 px-2 rounded-lg font-semibold transition-colors cursor-pointer ${
                   challengeBuilderMode === 'custom'
                     ? 'bg-amber-500 text-slate-950 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                 }`}
               >
                 + Racik Sampel Kustom
@@ -1015,13 +1015,13 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             {challengeBuilderMode === 'preset' ? (
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300 block mb-1">
+                  <label className="text-xs font-medium text-[var(--comfort-text)] block mb-1">
                     Pilih Paket Tantangan:
                   </label>
                   <select
                     value={selectedChallengeId}
                     onChange={(e) => setSelectedChallengeId(e.target.value)}
-                    className="w-full text-xs font-mono bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full text-xs font-mono bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-xl p-2.5 text-[var(--comfort-text)] focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
                     {PRESET_MYSTERY_CHALLENGES.map((ch) => (
                       <option key={ch.id} value={ch.id}>
@@ -1052,7 +1052,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               <div className="space-y-2.5 text-xs">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+                    <label className="block text-[11px] font-medium text-[var(--comfort-text-muted)] mb-0.5">
                       Domain Lab
                     </label>
                     <select
@@ -1062,7 +1062,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                           e.target.value as 'Fisika' | 'Kimia' | 'Astronomi'
                         )
                       }
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs"
                     >
                       <option value="Fisika">Fisika</option>
                       <option value="Kimia">Kimia</option>
@@ -1070,33 +1070,33 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+                    <label className="block text-[11px] font-medium text-[var(--comfort-text-muted)] mb-0.5">
                       Kode Sampel
                     </label>
                     <input
                       type="text"
                       value={customCodename}
                       onChange={(e) => setCustomCodename(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 font-mono text-xs"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] font-mono text-xs"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+                  <label className="block text-[11px] font-medium text-[var(--comfort-text-muted)] mb-0.5">
                     Judul Ujian Sampel
                   </label>
                   <input
                     type="text"
                     value={customTitle}
                     onChange={(e) => setCustomTitle(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs"
                   />
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 font-mono">
                   <div>
-                    <label className="block text-[10px] text-slate-600 dark:text-slate-400 mb-0.5">
+                    <label className="block text-[10px] text-[var(--comfort-text-muted)] mb-0.5">
                       Nilai Rahasia
                     </label>
                     <input
@@ -1104,22 +1104,22 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                       step="any"
                       value={customSecretValue}
                       onChange={(e) => setCustomSecretValue(e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs tabular-nums"
+                      className="w-full px-2 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs tabular-nums"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-slate-600 dark:text-slate-400 mb-0.5">
+                    <label className="block text-[10px] text-[var(--comfort-text-muted)] mb-0.5">
                       Satuan
                     </label>
                     <input
                       type="text"
                       value={customUnit}
                       onChange={(e) => setCustomUnit(e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs"
+                      className="w-full px-2 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-slate-600 dark:text-slate-400 mb-0.5">
+                    <label className="block text-[10px] text-[var(--comfort-text-muted)] mb-0.5">
                       Toleransi (%)
                     </label>
                     <input
@@ -1127,20 +1127,20 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                       step="0.5"
                       value={customTolerancePct}
                       onChange={(e) => setCustomTolerancePct(e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs tabular-nums"
+                      className="w-full px-2 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs tabular-nums"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+                  <label className="block text-[11px] font-medium text-[var(--comfort-text-muted)] mb-0.5">
                     Instruksi Kasus untuk Siswa
                   </label>
                   <textarea
                     rows={2}
                     value={customStory}
                     onChange={(e) => setCustomStory(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs"
                   />
                 </div>
 
@@ -1192,12 +1192,12 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               </div>
             )}
 
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-              <div className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <div className="pt-3 border-t border-[var(--comfort-border)] space-y-2">
+              <div className="text-xs font-semibold text-[var(--comfort-text)]">
                 Hasil Jawaban Siswa ({mysterySubmissions.length} Dikirim)
               </div>
               {mysterySubmissions.length === 0 ? (
-                <div className="p-3 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                <div className="p-3 text-xs text-[var(--comfort-text-muted)] bg-[var(--comfort-surface-subtle)] rounded-xl border border-dashed border-[var(--comfort-border)]">
                   Belum ada kiriman estimasi ujian misterius dari siswa.
                 </div>
               ) : (
@@ -1205,13 +1205,13 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                   {mysterySubmissions.map((sub, idx) => (
                     <div
                       key={idx}
-                      className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2"
+                      className="p-2.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] flex items-center justify-between gap-2"
                     >
                       <div>
-                        <div className="font-sans font-semibold text-slate-900 dark:text-white">
+                        <div className="font-sans font-semibold text-[var(--comfort-text)]">
                           {sub.codename} · Tebakan: {sub.studentGuess}
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-[11px] text-[var(--comfort-text-muted)]">
                           Asli: {sub.actualValue} · Galat: {sub.errorPercentage}%
                         </div>
                       </div>
@@ -1232,12 +1232,12 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
           </div>
 
           {/* 2. Instructor Direct Feedback & Guidance Console */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-            <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+          <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-2xl p-5 space-y-4">
+            <div className="border-b border-[var(--comfort-border)] pb-3">
+              <h3 className="text-base font-bold text-[var(--comfort-text)]">
                 Kirim Umpan Balik & Instruksi Pengajar
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-[var(--comfort-text-muted)]">
                 Pesan tampil di laci notifikasi siswa serta tercatat di diskusi kelompok
               </p>
             </div>
@@ -1246,7 +1246,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               <div>
                 <label
                   htmlFor="teacher-target-select"
-                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1"
+                  className="block text-xs font-medium text-[var(--comfort-text)] mb-1"
                 >
                   Penerima Arahan
                 </label>
@@ -1254,7 +1254,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                   id="teacher-target-select"
                   value={selectedStudentId}
                   onChange={(e) => setSelectedStudentId(e.target.value)}
-                  className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  className="w-full text-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-xl px-3 py-2 text-[var(--comfort-text)] focus:outline-none focus:ring-2 focus:ring-sky-600"
                 >
                   <option value="all">
                     Seluruh Kelompok Praktikum (Broadcast)
@@ -1270,7 +1270,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               <div>
                 <label
                   htmlFor="teacher-feedback-textarea"
-                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1"
+                  className="block text-xs font-medium text-[var(--comfort-text)] mb-1"
                 >
                   Isi Umpan Balik / Petunjuk Eksperimen
                 </label>
@@ -1283,7 +1283,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                     if (feedbackError) setFeedbackError('');
                   }}
                   placeholder="Contoh: Untuk Dimas (Kelompok 2), naikkan suhu kalorimeter di atas 85°C agar dekomposisi CaCO₃ mencapai ΔG < 0..."
-                  className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  className="w-full text-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-xl p-3 text-[var(--comfort-text)] focus:outline-none focus:ring-2 focus:ring-sky-600"
                 />
                 {feedbackError && (
                   <p className="text-xs text-rose-600 dark:text-rose-400 font-medium mt-1">
@@ -1293,7 +1293,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                <div className="text-xs font-medium text-[var(--comfort-text-muted)]">
                   Template Cepat:
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -1305,7 +1305,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                         'Perhatikan hubungan linier ΣF terhadap percepatan a. Pastikan minimal 3 variasi massa dicatat sebelum ekspor CSV.'
                       );
                     }}
-                    className="px-2.5 py-1 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition-colors cursor-pointer"
+                    className="px-2.5 py-1 text-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] hover:opacity-90 text-[var(--comfort-text)] rounded-lg transition-colors cursor-pointer"
                   >
                     Cek Kemiringan Grafik F = m·a
                   </button>
@@ -1317,7 +1317,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                         'Pada titrasi asam-basa, amati lonjakan tajam pH di sekitar titik ekuivalen 20.0 mL dan catat ke LKS.'
                       );
                     }}
-                    className="px-2.5 py-1 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition-colors cursor-pointer"
+                    className="px-2.5 py-1 text-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] hover:opacity-90 text-[var(--comfort-text)] rounded-lg transition-colors cursor-pointer"
                   >
                     Petunjuk Titik Ekuivalen Titrasi
                   </button>

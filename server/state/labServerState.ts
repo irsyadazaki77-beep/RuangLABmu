@@ -86,6 +86,7 @@ export interface ServerExperimentRecord {
   studentName: string;
   groupId: string;
   domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
+  moduleId?: string;
   experimentTitle: string;
   parametersSummary: string;
   keyMetrics: Record<string, number | string>;
@@ -299,6 +300,7 @@ export function createLabServerState(options?: {
       studentName: 'Alya Pratama',
       groupId: 'Kelompok 1 — Mekanika',
       domain: 'Fisika',
+      moduleId: 'newton-incline',
       experimentTitle: 'Hukum II Newton & Bidang Miring (θ = 15°)',
       parametersSummary: 'm=4.0 kg, F=45 N, θ=15°, μk=0.15, g=9.81 m/s²',
       keyMetrics: {
@@ -317,6 +319,7 @@ export function createLabServerState(options?: {
       studentName: 'Bima Wijaya',
       groupId: 'Kelompok 1 — Mekanika',
       domain: 'Fisika',
+      moduleId: 'projectile-motion',
       experimentTitle: 'Kinematika Projektil & Gravitasi Mars (g = 3.72 m/s²)',
       parametersSummary: 'm=2.5 kg, v₀=20 m/s, ∠=45°, h₀=0 m, g=3.72 m/s²',
       keyMetrics: {
@@ -334,6 +337,7 @@ export function createLabServerState(options?: {
       studentName: 'Citra Lestari',
       groupId: 'Kelompok 2 — Termokimia',
       domain: 'Kimia',
+      moduleId: 'thermo-calorimetry',
       experimentTitle: 'Kalorimetri Netralisasi HCl + NaOH',
       parametersSummary: 'T₀=25°C, [M]=1.5 mol/L, V=250 mL, Katalis=Aktif',
       keyMetrics: {

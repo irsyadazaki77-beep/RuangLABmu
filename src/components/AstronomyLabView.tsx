@@ -40,6 +40,7 @@ import {
 import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
 import { PrecisionSlider } from './controls/PrecisionSlider';
+import { filterRecordsForModule } from '../utils/spatialHudHelpers';
 
 export interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -143,7 +144,6 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
 
   const metrics = calculateAstronomyMetrics(params);
   const metricsB = calculateAstronomyMetrics(realityBParams);
-  const domainRecords = records.filter((r) => r.domain === 'Astronomi');
 
   const telemetryMetrics =
     params.mode === 'milkyway-galaxy'
@@ -244,6 +244,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
     'stellar-wien-spectrum': 'stellar-wien-spectrum',
     'hubble-expansion': 'hubble-expansion',
   };
+  const moduleRecords = filterRecordsForModule(records, 'Astronomi', modeToCatalogId[params.mode]);
 
   const handleRecordTrial = () => {
     labSound.playRecordSuccess();
@@ -296,9 +297,9 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   return (
     <StandardLabViewShell
       domain="Astronomi"
-      recordsCount={domainRecords.length}
+      recordsCount={moduleRecords.length}
       hypothesisText={hypothesisNote?.hypothesisText}
-      recentRecords={domainRecords}
+      recentRecords={moduleRecords}
       onProceedToAnalysis={onProceedToAnalysis}
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
@@ -513,7 +514,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               <Camera className="w-4 h-4 shrink-0" />
               <span>
                 + Catat Data (
-                {domainRecords.length >= 3 ? `${domainRecords.length} Siap` : `${domainRecords.length}/3`})
+                {moduleRecords.length >= 3 ? `${moduleRecords.length} Siap` : `${moduleRecords.length}/3`})
               </span>
             </button>
 
@@ -525,7 +526,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                   onProceedToAnalysis();
                 }}
                 className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap ${
-                  domainRecords.length >= 3
+                  moduleRecords.length >= 3
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                     : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)]'
                 }`}
@@ -537,7 +538,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
 
           {/* Mode Switcher */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <label className="text-[11px] font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider">
               Mode Modul Astronomi:
             </label>
             <select
@@ -550,7 +551,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                   useLabStore.getState().setActiveModule(modeToCatalogId[nextMode]);
                 }
               }}
-              className="w-full text-xs p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold"
+              className="w-full text-xs p-2 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] font-semibold"
             >
               <option value="solar-kepler">Hukum-Hukum Orbit Kepler &amp; Tata Surya</option>
               <option value="milkyway-galaxy">Rotasi Galaksi Bima Sakti &amp; Materi Gelap</option>

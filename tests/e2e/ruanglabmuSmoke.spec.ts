@@ -433,6 +433,165 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
 
     expect(pageErrors).toEqual([]);
   });
+
+  test('Skenario 8 (Sepia Theme Cohesion, Lazy Modals, Clean Notation & Stage 3 Module Dataset Filtering)', async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    await expect(page.getByTestId('lobby-compact-filter-bar')).toBeVisible();
+
+    // 1. Switch theme ke Sepia dan verifikasi modal lazy (ChapterDetail & RoomCollab) + Escape
+    await page.getByTestId('settings-popover-trigger-btn').click();
+    await page.getByTestId('settings-popover-menu').getByRole('button', { name: /Sepia/i }).click();
+    await page.keyboard.press('Escape');
+
+    const activeTheme = await page.locator('html').getAttribute('data-comfort-theme');
+    expect(activeTheme).toBe('sepia');
+
+    await page.getByTestId('diet-chapter-card-1').getByRole('button').first().click();
+    await expect(page.getByTestId('chapter-detail-modal')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('chapter-detail-modal')).toHaveCount(0);
+
+    await page.getByTestId('navbar-meja-bersama-btn').click();
+    await page.getByTestId('meja-bersama-popover').getByRole('button', { name: '+ Buat Room' }).click();
+    await expect(page.getByPlaceholder('Contoh: LAB-ALPHA')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByPlaceholder('Contoh: LAB-ALPHA')).toHaveCount(0);
+
+    // 2. Buka modul Fisika Stage 1 -> pastikan tidak ada kebocoran LaTeX mentah / notasi underscore teknis
+    await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
+    await page.getByRole('button', { name: 'Fisika', exact: true }).click();
+    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+
+    const preLabText = await page.locator('main').innerText();
+    expect(preLabText).not.toMatch(/\\frac|\\sqrt|\\sum|\\in\b|10\^[0-9-]/);
+    expect(preLabText).not.toMatch(/\b[A-Za-z]+_[A-Za-z0-9]+\b/);
+
+    // 3. Stage 2 -> pastikan LiveFormulaCard menampilkan output terhitung real-time
+    await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).first().click();
+    await expect(page.getByTestId('main-3d-cockpit')).toBeVisible();
+    await expect(page.getByTestId('live-formula-derived-outputs')).toBeVisible();
+
+    // Catat 2 data uji modul aktif agar regresi Stage 3 otomatis memilih dataset module-records
+    for (let i = 0; i < 2; i += 1) {
+      await page.getByRole('button', { name: /\+ Catat Data/i }).first().click();
+      const dialogCount = await page.locator('[role="dialog"]').count();
+      if (dialogCount > 0) {
+        await page.keyboard.press('Escape');
+        if (await page.locator('[role="dialog"]').count()) {
+          await page.locator('[role="dialog"] button').first().click();
+        }
+      }
+    }
+
+    // 4. Stage 3 -> dataset selector default ke module-records & bebas latar rgb(255, 255, 255) di tema Sepia
+    await page.getByRole('button', { name: /Grafik & LKS/i }).first().click();
+    const datasetSelect = page.locator('#analytics-dataset-select');
+    await expect(datasetSelect).toBeVisible();
+    await expect(datasetSelect).toHaveValue('module-records');
+
+    const whiteCountStage3 = await page.evaluate(() => {
+      const main = document.querySelector('main');
+      if (!main) return 0;
+      return Array.from(main.querySelectorAll('div, section, table, select, input')).filter(
+        (el) =>
+          getComputedStyle(el).backgroundColor === 'rgb(255, 255, 255)' &&
+          el.getBoundingClientRect().height > 20
+      ).length;
+    });
+    expect(whiteCountStage3).toBe(0);
+
+    // 5. Stage 4 -> bebas latar putih polos di tema Sepia
+    await page.getByRole('button', { name: /Laporan & Tugas Kelompok/i }).first().click();
+    await expect(page.locator('#analytics-dataset-select')).toHaveCount(0);
+    const whiteCountStage4 = await page.evaluate(() => {
+      const main = document.querySelector('main');
+      if (!main) return 0;
+      return Array.from(main.querySelectorAll('div, section, textarea, input')).filter(
+        (el) =>
+          getComputedStyle(el).backgroundColor === 'rgb(255, 255, 255)' &&
+          el.getBoundingClientRect().height > 20
+      ).length;
+    });
+    expect(whiteCountStage4).toBe(0);
+
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('Skenario 9 (Tablet 1024x768 HUD Non-Overlap & Mobile 390x844 Stage 2 Viewport Safety)', async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
+    await page.getByRole('button', { name: 'Fisika', exact: true }).click();
+    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+    await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).first().click();
+    await expect(page.getByTestId('main-3d-cockpit')).toBeVisible();
+    await page.waitForTimeout(600);
+
+    // 1. Verifikasi toolbar 3D HUD & concept labels tidak bertumpukan dengan panel samping di 1024x768
+    const tabletAudit = await page.evaluate(() => {
+      const left = document.querySelector('[data-testid="spatial-left-drawer"]')?.getBoundingClientRect();
+      const right = document.querySelector('[data-testid="spatial-telemetry-hud-panel"]')?.getBoundingClientRect();
+      const camToolbar = document
+        .querySelector('[data-testid="camera-reset-btn"]')
+        ?.closest('div.pointer-events-auto.absolute')
+        ?.getBoundingClientRect();
+
+      const toolbarOverlapsLeft = Boolean(
+        camToolbar && left && camToolbar.left < left.right - 1 && camToolbar.bottom > left.top
+      );
+      const toolbarOverlapsRight = Boolean(
+        camToolbar && right && camToolbar.right > right.left + 1 && camToolbar.bottom > right.top
+      );
+
+      const pills = Array.from(document.querySelectorAll('[data-concept-label-id]'))
+        .filter((el) => getComputedStyle(el).display !== 'none')
+        .map((el) => el.firstElementChild?.getBoundingClientRect())
+        .filter((r): r is DOMRect => Boolean(r));
+
+      let pillCollision = false;
+      for (let i = 0; i < pills.length; i += 1) {
+        for (let j = i + 1; j < pills.length; j += 1) {
+          const a = pills[i];
+          const b = pills[j];
+          const overlapX = a.left < b.right && a.right > b.left;
+          const overlapY = a.top < b.bottom && a.bottom > b.top;
+          if (overlapX && overlapY) pillCollision = true;
+        }
+      }
+
+      const pillTouchesDrawer = pills.some(
+        (p) => (left && p.left < left.right) || (right && p.right > right.left)
+      );
+
+      return { toolbarOverlapsLeft, toolbarOverlapsRight, pillCollision, pillTouchesDrawer };
+    });
+
+    expect(tabletAudit.toolbarOverlapsLeft).toBe(false);
+    expect(tabletAudit.toolbarOverlapsRight).toBe(false);
+    expect(tabletAudit.pillCollision).toBe(false);
+    expect(tabletAudit.pillTouchesDrawer).toBe(false);
+
+    // 2. Uji Stage 2 pada viewport mobile 390x844 bebas horizontal overflow
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(300);
+    const mobileOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth + 1
+    );
+    expect(mobileOverflow).toBe(false);
+
+    expect(pageErrors).toEqual([]);
+  });
 });
 
 

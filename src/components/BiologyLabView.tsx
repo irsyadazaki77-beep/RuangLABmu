@@ -38,6 +38,7 @@ import {
 import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
 import { PrecisionSlider } from './controls/PrecisionSlider';
+import { filterRecordsForModule } from '../utils/spatialHudHelpers';
 
 export interface BiologyLabViewProps {
   activeStudentName: string;
@@ -164,7 +165,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     return currentModule.computeStep(realityBParamsState, Math.max(0.1, simTime));
   }, [currentModule, realityBParamsState, simTime]);
 
-  const domainRecords = records.filter((r) => r.domain === 'Biologi');
+  const moduleRecords = filterRecordsForModule(records, 'Biologi', currentModule.id);
 
   const telemetryMetrics = currentModule.outputs.map((out, idx) => ({
     id: out.key,
@@ -172,7 +173,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     value: currentOutputs[out.key] ?? 0,
     unit: out.unit,
     min: 0,
-    max: Math.max(10, (currentOutputs[out.key] ?? 10) * 1.8),
+    max: Math.max(10, Math.ceil((currentOutputs[out.key] ?? 10) * 1.8)),
     precision: out.precision,
     color: idx === 0 ? '#10b981' : idx === 1 ? '#38bdf8' : '#f59e0b',
   }));
@@ -282,9 +283,9 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   return (
     <StandardLabViewShell
       domain="Biologi"
-      recordsCount={domainRecords.length}
+      recordsCount={moduleRecords.length}
       hypothesisText={hypothesisNote?.hypothesisText}
-      recentRecords={domainRecords}
+      recentRecords={moduleRecords}
       onProceedToAnalysis={onProceedToAnalysis}
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
@@ -430,7 +431,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
               <Camera className="w-4 h-4 shrink-0" />
               <span>
                 + Catat Data (
-                {domainRecords.length >= 3 ? `${domainRecords.length} Siap` : `${domainRecords.length}/3`})
+                {moduleRecords.length >= 3 ? `${moduleRecords.length} Siap` : `${moduleRecords.length}/3`})
               </span>
             </button>
 
@@ -442,7 +443,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
                   onProceedToAnalysis();
                 }}
                 className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap ${
-                  domainRecords.length >= 3
+                  moduleRecords.length >= 3
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                     : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)]'
                 }`}
@@ -454,7 +455,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
 
           {/* Module Selector */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <label className="text-[11px] font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider">
               Pilih Eksperimen Biologi:
             </label>
             <select
@@ -465,7 +466,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
                 useLabStore.getState().setActiveModule(nextId);
                 onSelectModuleId?.(nextId);
               }}
-              className="w-full text-xs p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold"
+              className="w-full text-xs p-2 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] font-semibold"
             >
               {biologyModules.map((m) => (
                 <option key={m.id} value={m.id}>

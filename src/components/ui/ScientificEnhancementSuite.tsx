@@ -849,14 +849,14 @@ export const SnapshotAndReplayGallery: React.FC<SnapshotAndReplayGalleryProps> =
   onReplayRecord,
 }) => {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-4">
+    <div className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <h3 className="text-sm font-bold text-[var(--comfort-text)] flex items-center gap-2">
             <Camera className="w-4 h-4 text-sky-500" />
             <span>Galeri Bukti Foto 3D &amp; Pemutar Ulang Rekaman (Trial Replay)</span>
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-[var(--comfort-text-muted)]">
             Seluruh tangkapan layar 3D otomatis dilampirkan ke dalam dokumen Laporan Resmi Praktikum A4.
           </p>
         </div>
@@ -867,7 +867,7 @@ export const SnapshotAndReplayGallery: React.FC<SnapshotAndReplayGalleryProps> =
 
       {/* 3D Snapshots Grid */}
       {snapshots.length === 0 ? (
-        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-dashed border-slate-300 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 text-center">
+        <div className="p-4 rounded-xl bg-[var(--comfort-surface-subtle)] border border-dashed border-[var(--comfort-border)] text-xs text-[var(--comfort-text-muted)] text-center">
           Belum ada tangkapan layar 3D. Klik tombol <strong>&ldquo;Ambil Foto 3D&rdquo;</strong> di pojok kiri bawah kanvas simulasi 3D untuk mendokumentasikan percobaan Anda.
         </div>
       ) : (
@@ -875,7 +875,7 @@ export const SnapshotAndReplayGallery: React.FC<SnapshotAndReplayGalleryProps> =
           {snapshots.map((snap) => (
             <div
               key={snap.id}
-              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 overflow-hidden flex flex-col justify-between"
+              className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] overflow-hidden flex flex-col justify-between"
             >
               <div className="relative h-36 bg-slate-950 overflow-hidden">
                 <img
@@ -898,10 +898,10 @@ export const SnapshotAndReplayGallery: React.FC<SnapshotAndReplayGalleryProps> =
                 )}
               </div>
               <div className="p-3 space-y-1 text-xs">
-                <div className="font-bold text-slate-900 dark:text-white truncate">
+                <div className="font-bold text-[var(--comfort-text)] truncate">
                   {snap.moduleTitle}
                 </div>
-                <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                <div className="text-[11px] font-mono text-[var(--comfort-text-muted)] truncate">
                   {snap.parametersSummary || snap.paramsSummary}
                 </div>
                 <div className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold truncate">
@@ -915,8 +915,8 @@ export const SnapshotAndReplayGallery: React.FC<SnapshotAndReplayGalleryProps> =
 
       {/* Quick Trial Replay List */}
       {records.length > 0 && onReplayRecord && (
-        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
-          <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+        <div className="pt-2 border-t border-[var(--comfort-border)] space-y-2">
+          <div className="text-xs font-bold text-[var(--comfort-text)] flex items-center gap-1.5">
             <RotateCcw className="w-3.5 h-3.5 text-emerald-500" />
             <span>Putar Ulang Konfigurasi Rekaman ke Ruang 3D:</span>
           </div>
@@ -924,13 +924,13 @@ export const SnapshotAndReplayGallery: React.FC<SnapshotAndReplayGalleryProps> =
             {records.slice(0, 4).map((rec) => (
               <div
                 key={rec.id}
-                className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs"
+                className="px-3 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] flex items-center justify-between gap-2 text-xs"
               >
                 <div className="min-w-0">
-                  <div className="font-semibold text-slate-900 dark:text-white truncate">
+                  <div className="font-semibold text-[var(--comfort-text)] truncate">
                     {rec.id} · {rec.experimentTitle}
                   </div>
-                  <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                  <div className="text-[11px] font-mono text-[var(--comfort-text-muted)] truncate">
                     {rec.parametersSummary}
                   </div>
                 </div>
@@ -975,23 +975,23 @@ export const ClassLeaderboardCard: React.FC<{
     .sort((a, b) => b.compositeScore - a.compositeScore);
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4">
+    <div className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500">
             <Trophy className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+            <h3 className="text-sm font-bold text-[var(--comfort-text)]">
               Papan Peringkat Ketelitian &amp; Kompetensi Kelas
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-[var(--comfort-text-muted)]">
               Diurutkan berdasarkan Indeks Presisi Regresi (R²), Jumlah Data Terukur, dan Skor Diagnostik LKS
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-mono text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-3 text-xs font-mono text-[var(--comfort-text-muted)]">
           <span className="inline-flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
             <span>Terverifikasi Real-Time</span>
@@ -1002,7 +1002,7 @@ export const ClassLeaderboardCard: React.FC<{
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+            <tr className="border-b border-[var(--comfort-border)] text-[var(--comfort-text-muted)] font-mono text-[11px]">
               <th className="py-2.5 px-3">Peringkat</th>
               <th className="py-2.5 px-3">Nama Praktikan &amp; Kelompok</th>
               <th className="py-2.5 px-3">Domain &amp; Modul Aktif</th>
@@ -1012,7 +1012,7 @@ export const ClassLeaderboardCard: React.FC<{
               <th className="py-2.5 px-3 text-right">Indeks Total</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800">
+          <tbody className="divide-y divide-[var(--comfort-border)]">
             {rankedStudents.map((stu, idx) => {
               const isHighlighted = highlightStudentName && stu.name === highlightStudentName;
               return (
@@ -1021,7 +1021,7 @@ export const ClassLeaderboardCard: React.FC<{
                 className={`transition-colors ${
                   isHighlighted
                     ? 'bg-sky-500/10 dark:bg-sky-500/15'
-                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                    : 'hover:bg-[var(--comfort-surface-subtle)]'
                 }`}
               >
                 <td className="py-2.5 px-3 font-mono font-bold tabular-nums">
@@ -1032,12 +1032,12 @@ export const ClassLeaderboardCard: React.FC<{
                   ) : idx === 2 ? (
                     <span className="text-emerald-400 font-bold">#3</span>
                   ) : (
-                    <span className="text-slate-400">#{idx + 1}</span>
+                    <span className="text-[var(--comfort-text-muted)]">#{idx + 1}</span>
                   )}
                 </td>
                 <td className="py-2.5 px-3">
-                  <div className="font-bold text-slate-900 dark:text-white">{stu.name}</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  <div className="font-bold text-[var(--comfort-text)]">{stu.name}</div>
+                  <div className="text-[11px] text-[var(--comfort-text-muted)]">
                     {stu.groupId}
                   </div>
                 </td>
@@ -1045,18 +1045,18 @@ export const ClassLeaderboardCard: React.FC<{
                   <span className="font-semibold text-sky-600 dark:text-sky-400">
                     {stu.activeDomain}
                   </span>
-                  <span className="mx-1.5 text-slate-400">·</span>
-                  <span className="text-slate-600 dark:text-slate-300">
+                  <span className="mx-1.5 text-[var(--comfort-text-muted)]">·</span>
+                  <span className="text-[var(--comfort-text-muted)]">
                     {stu.activeModuleTitle || stu.currentActivity}
                   </span>
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-semibold">
                   {(stu.rSquared ?? 0.88).toFixed(3)}
                 </td>
-                <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700 dark:text-slate-200">
+                <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[var(--comfort-text)]">
                   {stu.trialsRecorded} sampel
                 </td>
-                <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700 dark:text-slate-200">
+                <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[var(--comfort-text)]">
                   {stu.quizScore ?? 80}/100
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-amber-600 dark:text-amber-400">

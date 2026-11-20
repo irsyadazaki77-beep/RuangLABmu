@@ -20,6 +20,7 @@ export interface ExperimentRecord {
   studentName: string;
   groupId: string;
   domain: ScienceDomain;
+  moduleId?: string;
   experimentTitle: string;
   parametersSummary: string;
   keyMetrics: Record<string, number | string>;

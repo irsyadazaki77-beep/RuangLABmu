@@ -155,19 +155,19 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
   }, [minX, maxX, regression, toScreenX, toScreenY1, points.length]);
 
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-sm space-y-4">
+    <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-5 shadow-sm space-y-4">
       {/* Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
         <div className="space-y-0.5 min-w-0">
           <div className="flex items-center gap-2">
             <span className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
               <TrendingUp className="w-4 h-4" />
             </span>
-            <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white truncate">
+            <h3 className="font-extrabold text-sm sm:text-base text-[var(--comfort-text)] truncate">
               Visualisasi Kurva Regresi Interaktif (SVG)
             </h3>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 truncate pl-9">
+          <p className="text-xs text-[var(--comfort-text-muted)] truncate pl-9">
             {datasetTitle}
           </p>
         </div>
@@ -180,7 +180,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
               labSound.playClick();
               onChangeCurveModel(e.target.value as CurveModelType);
             }}
-            className="text-xs px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-200 cursor-pointer"
+            className="text-xs px-2.5 py-1.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] font-semibold text-[var(--comfort-text)] cursor-pointer"
           >
             <option value="linear">Model: Linier OLS (y = mx + c)</option>
             <option value="quadratic">Model: Kuadratik (y = ax² + bx + c)</option>
@@ -188,8 +188,8 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             <option value="power">Model: Hukum Daya (y = a·x^b)</option>
           </select>
 
-          <div className="px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 flex items-center gap-2">
-            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1">
+          <div className="px-3 py-1.5 rounded-xl bg-sky-500/10 border border-sky-500/25 flex items-center gap-2">
+            <span className="text-[11px] font-mono text-[var(--comfort-text-muted)] flex items-center gap-1">
               <ScienceGlossaryTerm term="R²" displayLabel="R²" /> =
             </span>
             <span
@@ -208,23 +208,23 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
       </div>
 
       {/* Regression Equation Badge & Interactive Outlier Guide */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs bg-slate-50 dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800/80 font-mono">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs bg-[var(--comfort-surface-subtle)] p-3 rounded-xl border border-[var(--comfort-border)] font-mono">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-slate-500 dark:text-slate-400 font-sans font-bold">Persamaan:</span>
+          <span className="text-[var(--comfort-text-muted)] font-sans font-bold">Persamaan:</span>
           <span className="text-sky-600 dark:text-sky-300 font-bold">{regression.equationString}</span>
-          <span className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
+          <span className="text-[11px] font-sans text-[var(--comfort-text-muted)]">
             (<ScienceGlossaryTerm term="Slope/Gradien" />)
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 text-[11px] font-sans">
-          <span className="text-slate-500 flex items-center gap-1">
+          <span className="text-[var(--comfort-text-muted)] flex items-center gap-1">
             <Info className="w-3.5 h-3.5 text-sky-400" />
             <span>
               Klik titik untuk Kecualikan / Sertakan <ScienceGlossaryTerm term="Outlier" />:
             </span>
           </span>
-          <span className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-300">
+          <span className="inline-flex items-center gap-1 text-[var(--comfort-text)]">
             <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> Solid = Included
           </span>
           <span className="inline-flex items-center gap-1 text-rose-500 dark:text-rose-400">

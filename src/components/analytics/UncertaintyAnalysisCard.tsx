@@ -65,14 +65,14 @@ export const UncertaintyAnalysisCard: React.FC<UncertaintyAnalysisCardProps> = (
   const gradeStyle = GRADE_STYLE_MAP[summary.precisionGrade];
 
   return (
-    <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+    <section className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
             <Ruler className="w-4 h-4" />
             <span>Analisis Ketidakpastian &amp; Ralat Pengukuran (Tipe A + Tipe B)</span>
           </div>
-          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white mt-0.5">
+          <h3 className="text-sm sm:text-base font-extrabold text-[var(--comfort-text)] mt-0.5">
             Metrik Dianalisis: {metricLabel} ({summary.n} sampel data)
           </h3>
         </div>
@@ -91,9 +91,9 @@ export const UncertaintyAnalysisCard: React.FC<UncertaintyAnalysisCardProps> = (
       </div>
 
       {/* Controls for NST & Theoretical Reference */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
         <label className="block text-xs">
-          <span className="font-semibold text-slate-700 dark:text-slate-300">
+          <span className="font-semibold text-[var(--comfort-text)]">
             NST Alat Ukur (Nilai Skala Terkecil, opsional)
           </span>
           <input
@@ -103,12 +103,12 @@ export const UncertaintyAnalysisCard: React.FC<UncertaintyAnalysisCardProps> = (
             value={activeNstStr}
             onChange={(e) => setNst(e.target.value)}
             placeholder="Otomatis: 0.01 (ketidakpastian ½ NST = 0.005)"
-            className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-xs"
+            className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] font-mono text-xs"
           />
         </label>
 
         <label className="block text-xs">
-          <span className="font-semibold text-slate-700 dark:text-slate-300">
+          <span className="font-semibold text-[var(--comfort-text)]">
             Nilai Referensi Teoretis / Literatur (y_teori, opsional)
           </span>
           <input
@@ -117,7 +117,7 @@ export const UncertaintyAnalysisCard: React.FC<UncertaintyAnalysisCardProps> = (
             value={activeTheoryStr}
             onChange={(e) => setTheory(e.target.value)}
             placeholder="Isi nilai teori untuk hitung % Galat Sistematis"
-            className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-xs"
+            className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] font-mono text-xs"
           />
         </label>
       </div>
@@ -129,56 +129,56 @@ export const UncertaintyAnalysisCard: React.FC<UncertaintyAnalysisCardProps> = (
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50">
+            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/25">
               <div className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
                 Pelaporan Baku (x̄ ± Δx)
               </div>
-              <div className="text-sm sm:text-base font-extrabold font-mono text-slate-900 dark:text-white mt-0.5 break-all">
+              <div className="text-sm sm:text-base font-extrabold font-mono text-[var(--comfort-text)] mt-0.5 break-all">
                 {summary.mean.toFixed(3)} ± {summary.combinedUncertainty.toFixed(3)}
                 {unitSuffix}
               </div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+              <div className="text-[10px] text-[var(--comfort-text-muted)] mt-1">
                 Rentang: {summary.min.toFixed(3)} – {summary.max.toFixed(3)}
                 {unitSuffix}
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800">
-              <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+            <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
+              <div className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
                 Ralat Tipe A (Acak) &amp; Tipe B (Alat)
               </div>
-              <div className="text-xs font-mono text-slate-900 dark:text-white mt-1 space-y-0.5">
+              <div className="text-xs font-mono text-[var(--comfort-text)] mt-1 space-y-0.5">
                 <div>s (Std Dev): {summary.sampleStdDev.toFixed(4)}</div>
                 <div>sₓ̄ (SE Mean): {summary.standardErrorMean.toFixed(4)}</div>
                 <div>Δx_B (½ NST): {summary.instrumentUncertainty.toFixed(4)}</div>
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800">
-              <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+            <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
+              <div className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
                 Ketidakpastian Relatif &amp; Angka Penting
               </div>
-              <div className="text-sm sm:text-base font-extrabold font-mono text-slate-900 dark:text-white mt-0.5">
+              <div className="text-sm sm:text-base font-extrabold font-mono text-[var(--comfort-text)] mt-0.5">
                 ±{summary.relativeUncertaintyPct.toFixed(2)}%
               </div>
-              <div className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-1">
+              <div className="text-[11px] text-[var(--comfort-text-muted)] mt-1 flex items-center gap-1">
                 <Calculator className="w-3 h-3 text-indigo-500" />
                 <span>
-                  Disarankan: <strong>{summary.recommendedSignificantFigures} Angka Penting</strong>
+                  Disarankan: <strong className="text-[var(--comfort-text)]">{summary.recommendedSignificantFigures} Angka Penting</strong>
                 </span>
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800">
-              <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+            <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
+              <div className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
                 % Galat terhadap Teori
               </div>
-              <div className="text-sm sm:text-base font-extrabold font-mono text-slate-900 dark:text-white mt-0.5">
+              <div className="text-sm sm:text-base font-extrabold font-mono text-[var(--comfort-text)] mt-0.5">
                 {summary.percentErrorVsTheory !== undefined
                   ? `${summary.percentErrorVsTheory.toFixed(2)}%`
                   : 'Belum diisi'}
               </div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+              <div className="text-[10px] text-[var(--comfort-text-muted)] mt-1">
                 {summary.percentErrorVsTheory !== undefined
                   ? '|x̄ - y_teori| / |y_teori| × 100%'
                   : 'Masukkan y_teori di atas'}
