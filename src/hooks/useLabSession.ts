@@ -48,7 +48,6 @@ export function useLabSession() {
   );
 
   const activeRoom = useCollabStore((s) => s.activeRoom);
-  const comfortPrefs = useUIStore((s) => s.comfortPrefs);
   const setShowConceptLabels = useUIStore((s) => s.setShowConceptLabels);
 
   useEffect(() => {
@@ -62,7 +61,6 @@ export function useLabSession() {
     activeDomain,
     activeModuleId,
     soundEnabled,
-    comfortPrefs,
     setActiveDomain,
     setActiveModule,
     setIsLobbyMode,

@@ -1,13 +1,8 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import {
-  Camera,
-} from 'lucide-react';
-import {
   AstronomyParams,
   AcademicLevel,
   calculateAstronomyMetrics,
-  SOLAR_PLANET_PRESETS,
-  SolarPlanetPreset,
   LabNotification,
   ExperimentRecord,
 } from '../utils/scienceEngine';
@@ -17,7 +12,6 @@ import { labSound } from '../utils/soundEngine';
 const AstronomyScene3D = React.lazy(() => import('./AstronomyScene3D'));
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import {
-  TactileParameterControl,
   CollapsibleLabSection,
 } from './ui/LabInstruments';
 import {
@@ -33,14 +27,14 @@ import {
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
-import {
-  getAstronomyParameterFeedback,
-  normalizeEducationLevel,
-} from '../utils/pedagogicalHelpers';
+import { normalizeEducationLevel } from '../utils/pedagogicalHelpers';
 import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
 import { PrecisionSlider } from './controls/PrecisionSlider';
 import { filterRecordsForModule } from '../utils/spatialHudHelpers';
+import { LabSidebarActionHeader } from './layout/LabSidebarActionHeader';
+import { LabSceneFallback } from './three/LabSceneFallback';
+import { AstronomyParameterPanel } from './labs/AstronomyParameterPanel';
 
 export interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -435,9 +429,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                 <LabErrorBoundary domain="Astronomi" sceneName={`AstronomyScene3D-${side}`}>
                   <Suspense
                     fallback={
-                      <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-sky-300">
-                        Menyiapkan Realitas {side}...
-                      </div>
+                      <LabSceneFallback compact label={`Menyiapkan Realitas ${side}...`} />
                     }
                   >
                     <AstronomyScene3D
@@ -457,24 +449,17 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
       }
       topOverlay={
         focusedPlanetBadge ? (
-          <div className="px-3 py-1.5 rounded-xl bg-sky-950/92 border border-sky-500/50 text-sky-200 text-xs font-mono font-bold shadow-lg flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-sky-400" />
-            <span>Fokus Planet: {focusedPlanetBadge} (v = {metrics.meanOrbitalVelocityKms} km/s)</span>
+          <div className="px-3 py-1.5 rounded-xl studio-hud-surface border border-sky-500/45 text-[var(--comfort-hud-text)] text-xs font-mono font-bold shadow-lg flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-sky-500" />
+            <span>
+              Fokus Planet: {focusedPlanetBadge} (v = {metrics.meanOrbitalVelocityKms} km/s)
+            </span>
           </div>
         ) : null
       }
       canvas={
         <LabErrorBoundary domain="Astronomi" sceneName="AstronomyScene3D">
-          <Suspense
-            fallback={
-              <div className="w-full h-full min-h-[320px] flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 p-6 gap-3">
-                <div className="w-9 h-9 rounded-full border-2 border-sky-400 border-t-transparent animate-spin" />
-                <p className="text-xs font-mono font-semibold text-sky-300">
-                  Menyiapkan Ruang Laboratorium 3D...
-                </p>
-              </div>
-            }
-          >
+          <Suspense fallback={<LabSceneFallback accentColor="sky" />}>
             <AstronomyScene3D
               params={params}
               metrics={metrics}
@@ -504,39 +489,13 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
       }
       sidebar={
         <>
-          {/* Action Bar */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleRecordTrial}
-              className="flex-1 px-3.5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
-            >
-              <Camera className="w-4 h-4 shrink-0" />
-              <span>
-                + Catat Data (
-                {moduleRecords.length >= 3 ? `${moduleRecords.length} Siap` : `${moduleRecords.length}/3`})
-              </span>
-            </button>
+          <LabSidebarActionHeader
+            recordsCount={moduleRecords.length}
+            accentColor="sky"
+            onRecordTrial={handleRecordTrial}
+            onProceedToAnalysis={onProceedToAnalysis}
+          />
 
-            {onProceedToAnalysis && (
-              <button
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  onProceedToAnalysis();
-                }}
-                className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap ${
-                  moduleRecords.length >= 3
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)]'
-                }`}
-              >
-                Grafik &amp; LKS →
-              </button>
-            )}
-          </div>
-
-          {/* Mode Switcher */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider">
               Mode Modul Astronomi:
@@ -561,243 +520,13 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
             </select>
           </div>
 
-          {/* Planet Presets (for Solar Kepler mode) */}
-          {params.mode === 'solar-kepler' && (
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
-              <span className="font-bold text-[11px] text-slate-500 uppercase tracking-wider">
-                Pilih Benda Langit:
-              </span>
-              <div className="grid grid-cols-3 gap-1">
-                {SOLAR_PLANET_PRESETS.map((planet: SolarPlanetPreset) => (
-                  <button
-                    key={planet.id}
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick();
-                      handleParamPatch({
-                        selectedPlanetId: planet.id,
-                        customSemiMajorAxisAu: planet.semiMajorAxisAu,
-                        customEccentricity: planet.eccentricity,
-                      });
-                      setFocusedPlanetBadge(planet.name);
-                    }}
-                    className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
-                      params.selectedPlanetId === planet.id
-                        ? 'bg-sky-600 text-white border-sky-600'
-                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    {planet.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          <AstronomyParameterPanel
+            params={params}
+            educationLevel={effectiveEducationLevel}
+            onParamPatch={handleParamPatch}
+            onFocusPlanet={setFocusedPlanetBadge}
+          />
 
-          {/* Parameters & Sliders */}
-          <CollapsibleLabSection title="Parameter Astrofisika & Orbit" defaultOpen>
-            <div className="space-y-3">
-              {params.mode === 'milkyway-galaxy' ? (
-                <>
-                  <TactileParameterControl
-                    label="Jarak Galaktosentrik (R)"
-                    unit="kpc"
-                    value={params.galactocentricRadiusKpc}
-                    min={1.0}
-                    max={25.0}
-                    step={0.5}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'galactocentricRadiusKpc', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ galactocentricRadiusKpc: v })}
-                  />
-                  <TactileParameterControl
-                    label="Fraksi Halo Materi Gelap"
-                    unit="×"
-                    value={params.darkMatterHaloFraction}
-                    min={0}
-                    max={1.5}
-                    step={0.1}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'darkMatterHaloFraction', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ darkMatterHaloFraction: v })}
-                  />
-                  <TactileParameterControl
-                    label="Faktor Massa Bulge & Disk"
-                    unit="×"
-                    value={params.bulgeDiskMassFactor}
-                    min={0.5}
-                    max={2.0}
-                    step={0.1}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'bulgeDiskMassFactor', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ bulgeDiskMassFactor: v })}
-                  />
-                </>
-              ) : params.mode === 'stellar-exoplanet' ? (
-                <>
-                  <TactileParameterControl
-                    label="Radius Eksoplanet (Rp)"
-                    unit="R⊕"
-                    value={params.exoplanetRadiusEarth}
-                    min={0.5}
-                    max={15.0}
-                    step={0.5}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'exoplanetRadiusEarth', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ exoplanetRadiusEarth: v })}
-                  />
-                  <TactileParameterControl
-                    label="Radius Bintang Induk (R*)"
-                    unit="R☉"
-                    value={params.starRadiusSolar}
-                    min={0.2}
-                    max={5.0}
-                    step={0.1}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'starRadiusSolar', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ starRadiusSolar: v })}
-                  />
-                  <TactileParameterControl
-                    label="Jarak Orbit Eksoplanet"
-                    unit="AU"
-                    value={params.exoplanetOrbitAu}
-                    min={0.05}
-                    max={5.0}
-                    step={0.05}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'exoplanetOrbitAu', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ exoplanetOrbitAu: v })}
-                  />
-                </>
-              ) : params.mode === 'stellar-wien-spectrum' ? (
-                <>
-                  <TactileParameterControl
-                    paramKey="starEffectiveTempK"
-                    label="Suhu Efektif Bintang (T*)"
-                    unit="K"
-                    value={params.starEffectiveTempK}
-                    min={2800}
-                    max={30000}
-                    step={200}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'starEffectiveTempK', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ starEffectiveTempK: v })}
-                  />
-                  <TactileParameterControl
-                    paramKey="starRadiusSolar"
-                    label="Radius Bintang (R*)"
-                    unit="R☉"
-                    value={params.starRadiusSolar}
-                    min={0.2}
-                    max={10.0}
-                    step={0.2}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'starRadiusSolar', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ starRadiusSolar: v })}
-                  />
-                </>
-              ) : params.mode === 'hubble-expansion' ? (
-                <>
-                  <TactileParameterControl
-                    id="astro-hubble-distance"
-                    paramKey="galaxyDistanceMpc"
-                    label="Jarak Galaksi Jauh (d)"
-                    unit="Mpc"
-                    value={params.galaxyDistanceMpc ?? 120}
-                    min={20}
-                    max={600}
-                    step={10}
-                    glossaryTerm="Redshift"
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'galaxyDistanceMpc', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ galaxyDistanceMpc: v })}
-                  />
-                  <TactileParameterControl
-                    label="Konstanta Hubble (H₀)"
-                    unit="km/s/Mpc"
-                    value={params.hubbleConstantH0 ?? 70}
-                    min={65}
-                    max={78}
-                    step={1}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'hubbleConstantH0', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ hubbleConstantH0: v })}
-                  />
-                </>
-              ) : (
-                <>
-                  <TactileParameterControl
-                    paramKey="customSemiMajorAxisAu"
-                    label="Jarak Semi-Mayor (a)"
-                    unit="AU"
-                    value={params.customSemiMajorAxisAu}
-                    min={0.2}
-                    max={30}
-                    step={0.1}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'customSemiMajorAxisAu', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ customSemiMajorAxisAu: v })}
-                  />
-
-                  <TactileParameterControl
-                    id="astro-eccentricity"
-                    paramKey="customEccentricity"
-                    label="Eksentrisitas Orbit (e)"
-                    unit=""
-                    value={params.customEccentricity}
-                    min={0}
-                    max={0.9}
-                    step={0.02}
-                    glossaryTerm="Eksentrisitas"
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'customEccentricity', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ customEccentricity: v })}
-                  />
-
-                  <TactileParameterControl
-                    paramKey="centralStarMassSolar"
-                    label="Massa Bintang Pusat (M*)"
-                    unit="M☉"
-                    value={params.centralStarMassSolar}
-                    min={0.2}
-                    max={5.0}
-                    step={0.1}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getAstronomyParameterFeedback(params.mode, 'centralStarMassSolar', v, lvl)
-                    }
-                    onChange={(v) => handleParamPatch({ centralStarMassSolar: v })}
-                  />
-                </>
-              )}
-            </div>
-          </CollapsibleLabSection>
-
-          {/* Interactive Formula Card */}
           <CollapsibleLabSection title="Rumus & Kalkulator Interaktif" defaultOpen={false}>
             <InteractiveFormulaCard
               title="Hukum Astrofisika & Kosmologi"

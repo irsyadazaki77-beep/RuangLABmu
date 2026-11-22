@@ -163,9 +163,38 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
   });
   apparatusGroup.add(plantGroup);
 
-  const organellesGroup = createCellularOrganellesGroup(0.55);
-  organellesGroup.position.set(2.2, 1.3, 0);
-  apparatusGroup.add(organellesGroup);
+  // Grounded circular specimen pedestal for zoomed cellular chloroplast & organelle inspection
+  const specimenStandGroup = new THREE.Group();
+  specimenStandGroup.position.set(2.45, 0, 0);
+  const pedestalBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.68, 0.76, 0.14, 32),
+    new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.65, roughness: 0.3 })
+  );
+  pedestalBase.position.y = 0.07;
+  pedestalBase.castShadow = true;
+  pedestalBase.receiveShadow = true;
+  const pedestalStem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.14, 0.56, 18),
+    new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.82, roughness: 0.24 })
+  );
+  pedestalStem.position.y = 0.42;
+  pedestalStem.castShadow = true;
+  const specimenDishRim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.66, 0.032, 12, 36),
+    new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.84, roughness: 0.24 })
+  );
+  specimenDishRim.rotation.x = Math.PI / 2;
+  specimenDishRim.position.y = 0.72;
+  const specimenGlassDisc = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.64, 0.64, 0.04, 32),
+    slideGlassMat
+  );
+  specimenGlassDisc.position.y = 0.7;
+  const organellesGroup = createCellularOrganellesGroup(0.42);
+  organellesGroup.position.set(0, 0.94, 0);
+  specimenStandGroup.add(pedestalBase, pedestalStem, specimenDishRim, specimenGlassDisc, organellesGroup);
+  specimenStandGroup.name = '🔬 Pembesaran Sel & Kloroplas Hydrilla';
+  apparatusGroup.add(specimenStandGroup);
 
   // Variable Spectrum Lamp Housing + Filter Ring + Glowing Bulb + Photon Cone
   const lampGroup = new THREE.Group();

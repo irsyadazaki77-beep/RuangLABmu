@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Calculator,
-  Sparkles,
+  Info,
   BookOpen,
   SlidersHorizontal,
   ArrowRight,
@@ -12,15 +12,15 @@ import { labSound } from '../../utils/soundEngine';
 import { PrecisionSlider } from '../controls/PrecisionSlider';
 
 export interface FormulaToken {
-  symbol: string;       // e.g., "F", "=", "m", "·", "g", "·", "sin(θ)"
-  paramKey?: string;    // Links token to a slider/output key (e.g., "mass", "gravity", "angle")
+  symbol: string;
+  paramKey?: string;
   value?: number;
   min?: number;
   max?: number;
   unit?: string;
   color?: string;
   precision?: number;
-  description?: string; // Physical meaning of the symbol
+  description?: string;
 }
 
 export interface InteractiveFormulaCardProps {
@@ -107,8 +107,6 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
   >('symbol');
   const [localHoveredKey, setLocalHoveredKey] = useState<string | null>(null);
   const [selectedSymbolIdx, setSelectedSymbolIdx] = useState<number>(0);
-
-  // Local "What-If" overrides for the interactive formula calculator
   const [whatIfValues, setWhatIfValues] = useState<Record<string, number>>({});
 
   const variableTokens = useMemo(
@@ -119,7 +117,6 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
     [tokens]
   );
 
-  // Identify primary output token (usually LHS before '=')
   const outputToken = variableTokens[0];
   const highlightedKey = activeParamKey || localHoveredKey;
   const activeVarToken =
@@ -133,7 +130,6 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
     return tok.value;
   };
 
-  // Estimate causal impact on outputToken when testing a What-If value
   const whatIfAnalysis = useMemo(() => {
     if (!activeVarToken || activeVarToken.value === undefined) return null;
     const key = activeVarToken.paramKey || activeVarToken.symbol;
@@ -147,7 +143,6 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
         ? ((testedVal - baseVal) / Math.abs(baseVal)) * 100
         : 0;
 
-    // Determine mathematical relationship from surrounding operator tokens
     const tokIdx = activeVarToken.originalIdx;
     const prevSymbol = tokIdx > 0 ? tokens[tokIdx - 1]?.symbol || '' : '';
     const isDenominator = prevSymbol.includes('/');
@@ -197,29 +192,28 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
   }, [activeVarToken, whatIfValues, tokens, outputToken]);
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/90 p-3.5 space-y-3 shadow-xs">
+    <div className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-3.5 space-y-3 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
             <Calculator className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-tight truncate">
+            <h4 className="text-xs font-bold text-[var(--comfort-text)] leading-tight truncate">
               {title}
             </h4>
             {subtitle && (
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              <p className="text-[11px] text-[var(--comfort-text-muted)] truncate">
                 {subtitle}
               </p>
             )}
           </div>
         </div>
 
-        {/* Toggle between Mode Simbol, Substitusi Angka, and Bedah & Uji */}
         <div
           role="group"
           aria-label="Mode Visualisasi Rumus"
-          className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px]"
+          className="inline-flex items-center p-0.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[11px]"
         >
           <button
             type="button"
@@ -229,8 +223,8 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
             }}
             className={`px-2 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
               substitutionMode === 'symbol'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold shadow-2xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] font-semibold shadow-2xs'
+                : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
             }`}
           >
             Simbol
@@ -244,7 +238,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
             className={`px-2 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
               substitutionMode === 'number'
                 ? 'bg-sky-600 text-white font-semibold shadow-2xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
             }`}
           >
             Substitusi
@@ -261,7 +255,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
             className={`px-2 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer flex items-center gap-1 ${
               substitutionMode === 'calculator'
                 ? 'bg-emerald-600 text-white font-semibold shadow-2xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
             }`}
           >
             <BookOpen className="w-3 h-3" />
@@ -271,7 +265,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
       </div>
 
       {/* Interactive Formula Stage */}
-      <div className="relative rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-3.5 flex flex-wrap items-center justify-center gap-1.5 min-h-[70px] overflow-visible">
+      <div className="relative rounded-xl bg-[var(--comfort-bg)] border border-[var(--comfort-border)] px-3.5 py-3.5 flex flex-wrap items-center justify-center gap-1.5 min-h-[70px] overflow-visible">
         {tokens.map((tok, idx) => {
           const isOutputToken =
             outputToken &&
@@ -309,8 +303,8 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
 
           const dynamicScale = isVariable
             ? isHighlighted
-              ? 1 + normalizedValue * 0.2 + 0.04
-              : 1 + normalizedValue * 0.08
+              ? 1 + normalizedValue * 0.16 + 0.03
+              : 1 + normalizedValue * 0.06
             : 1;
 
           const formattedVal =
@@ -324,7 +318,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
             return (
               <span
                 key={`${tok.symbol}-${idx}`}
-                className="font-mono text-sm sm:text-base font-semibold text-slate-400 px-0.5 select-none"
+                className="font-mono text-sm sm:text-base font-semibold text-[var(--comfort-text-muted)] px-0.5 select-none"
               >
                 {tok.symbol}
               </span>
@@ -352,16 +346,16 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
               animate={{
                 scale: dynamicScale,
                 boxShadow: isHighlighted
-                  ? `0 0 14px ${tok.color || 'rgba(56, 189, 248, 0.5)'}`
+                  ? `0 0 12px ${tok.color || 'rgba(14, 165, 233, 0.35)'}`
                   : '0 0 0px rgba(0,0,0,0)',
               }}
               transition={{ type: 'spring', stiffness: 320, damping: 22 }}
               className={`relative inline-flex flex-col items-center justify-center px-2 py-1 rounded-lg font-mono border transition-colors cursor-pointer ${
                 isHighlighted
-                  ? 'bg-sky-500/25 border-sky-400 text-white z-20'
+                  ? 'bg-sky-500/20 border-sky-500 text-[var(--comfort-text)] z-20'
                   : isOutputToken
-                  ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200 z-10'
-                  : 'bg-slate-900/90 border-slate-700/90 text-sky-300 hover:border-sky-500/60 z-10'
+                  ? 'bg-emerald-500/15 border-emerald-500/60 text-emerald-700 dark:text-emerald-200 z-10'
+                  : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] text-sky-700 dark:text-sky-300 hover:border-sky-500/60 z-10'
               }`}
             >
               <AnimatePresence>
@@ -373,10 +367,10 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                       exit={{ opacity: 0, y: 4 }}
                       className={`text-[10px] font-mono tabular-nums whitespace-nowrap leading-none mb-0.5 ${
                         isHighlighted
-                          ? 'text-amber-300 font-bold'
+                          ? 'text-amber-700 dark:text-amber-300 font-bold'
                           : isOutputToken
-                          ? 'text-emerald-300 font-bold'
-                          : 'text-slate-400'
+                          ? 'text-emerald-700 dark:text-emerald-300 font-bold'
+                          : 'text-[var(--comfort-text-muted)]'
                       }`}
                     >
                       {substitutionMode !== 'number'
@@ -386,7 +380,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                   )}
               </AnimatePresence>
 
-              <span className="text-xs sm:text-sm font-bold tracking-tight text-white tabular-nums whitespace-nowrap">
+              <span className="text-xs sm:text-sm font-bold tracking-tight text-[var(--comfort-text)] tabular-nums whitespace-nowrap">
                 {substitutionMode !== 'number'
                   ? tok.symbol
                   : `${formattedVal}${tok.unit ? ` ${tok.unit}` : ''}`}
@@ -404,12 +398,11 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.18 }}
-            className="rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 space-y-2.5 text-xs overflow-hidden"
+            className="rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] p-3 space-y-2.5 text-xs overflow-hidden"
           >
-            {/* Variable Selector Pills */}
             <div className="flex flex-wrap items-center justify-between gap-1.5">
               <div className="flex flex-wrap items-center gap-1">
-                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mr-1">
+                <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)] mr-1">
                   Pilih Simbol:
                 </span>
                 {variableTokens.map((vt, vIdx) => (
@@ -423,7 +416,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                     className={`px-2 py-0.5 rounded-md font-mono text-[11px] font-bold border transition-colors cursor-pointer ${
                       selectedSymbolIdx === vIdx
                         ? 'bg-sky-600 border-sky-500 text-white'
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                        : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] text-[var(--comfort-text)]'
                     }`}
                   >
                     {vt.symbol}
@@ -438,7 +431,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                     labSound.playClick();
                     setWhatIfValues({});
                   }}
-                  className="text-[10px] font-mono text-slate-500 hover:text-sky-400 flex items-center gap-1 cursor-pointer"
+                  className="text-[10px] font-mono text-[var(--comfort-text-muted)] hover:text-sky-600 dark:hover:text-sky-400 flex items-center gap-1 cursor-pointer"
                 >
                   <RotateCcw className="w-3 h-3" />
                   <span>Reset Uji</span>
@@ -446,24 +439,23 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
               )}
             </div>
 
-            {/* Selected Symbol Explanation & What-If Scrubber */}
-            <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-2">
+            <div className="p-2.5 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
+                <span className="font-mono font-bold text-sky-700 dark:text-sky-400">
                   [{activeVarToken.symbol}]{' '}
                   {whatIfAnalysis && (
-                    <span className="text-[10px] font-sans font-normal text-slate-500 dark:text-slate-400">
+                    <span className="text-[10px] font-sans font-normal text-[var(--comfort-text-muted)]">
                       · {whatIfAnalysis.relationLabel}
                     </span>
                   )}
                 </span>
-                <span className="font-mono text-[11px] text-slate-700 dark:text-slate-200 font-bold tabular-nums">
+                <span className="font-mono text-[11px] text-[var(--comfort-text)] font-bold tabular-nums">
                   {resolveTokenValue(activeVarToken)?.toFixed(2) ?? '-'}{' '}
                   {activeVarToken.unit || ''}
                 </span>
               </div>
 
-              <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed">
                 {activeVarToken.description ||
                   SYMBOL_DICTIONARY[activeVarToken.symbol] ||
                   `Besaran fisis (${activeVarToken.symbol}) dalam persamaan ${title} dengan satuan ${activeVarToken.unit || 'SI'}.`}
@@ -471,9 +463,9 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
 
               {activeVarToken.value !== undefined &&
                 activeVarToken.originalIdx > 0 && (
-                  <div className="pt-1 space-y-2 border-t border-slate-200/70 dark:border-slate-800">
-                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                      <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
+                  <div className="pt-1 space-y-2 border-t border-[var(--comfort-border)]">
+                    <div className="flex items-center justify-between text-[10px] font-mono text-[var(--comfort-text-muted)]">
+                      <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
                         <SlidersHorizontal className="w-3 h-3" />
                         <span>
                           Uji Proporsi &ldquo;What-If&rdquo; (
@@ -518,16 +510,15 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                       }}
                     />
 
-                    {/* Live Causal Prediction & Apply Button */}
                     {whatIfAnalysis && outputToken && (
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                        <div className="text-[11px] font-mono text-slate-600 dark:text-slate-300 tabular-nums">
+                        <div className="text-[11px] font-mono text-[var(--comfort-text-muted)] tabular-nums">
                           Prediksi{' '}
-                          <strong className="text-emerald-600 dark:text-emerald-400">
+                          <strong className="text-emerald-700 dark:text-emerald-400">
                             {outputToken.symbol}
                           </strong>
                           : {(outputToken.value ?? 0).toFixed(2)} →{' '}
-                          <strong className="text-emerald-600 dark:text-emerald-400">
+                          <strong className="text-emerald-700 dark:text-emerald-400">
                             {whatIfAnalysis.estimatedOutput.toFixed(2)}{' '}
                             {outputToken.unit || ''}
                           </strong>
@@ -561,12 +552,11 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
         )}
       </AnimatePresence>
 
-      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-        <span className="flex items-center gap-1">
-          <Sparkles className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+      <div className="flex items-center justify-between text-[11px] text-[var(--comfort-text-muted)]">
+        <span className="flex items-center gap-1.5">
+          <Info className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
           <span>
-            Klik simbol pada rumus untuk membedah arti fisis &amp; menguji
-            dampak variabel secara langsung
+            Klik simbol pada rumus untuk membedah arti fisis &amp; menguji dampak variabel secara langsung
           </span>
         </span>
       </div>

@@ -19,7 +19,7 @@ import {
 } from '../utils/scienceEngine';
 import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
-import { Maximize2, Minimize2, Link2, Thermometer } from 'lucide-react';
+import { Thermometer } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
 import {
   globalMultiApparatusEngine,
@@ -32,12 +32,18 @@ import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
 import {
-  ConceptLabelToggleButton,
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from './ui/ConceptLabelsOverlay';
 import { buildChemistryCoreStage } from './scenes/chemistryCoreStage';
 import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
+import { Scene3DControlDock } from './ui/Scene3DControlDock';
+import { Scene3DInspectorCard } from './ui/Scene3DInspectorCard';
+import {
+  getAdaptiveCameraPose,
+  resolveApparatusInspection,
+  type ApparatusInspectionInfo,
+} from '../utils/studio3DCatalog';
 import { useThreeStudioScene } from './scenes/useThreeStudioScene';
 
 interface ChemistryScene3DProps {
@@ -63,8 +69,8 @@ interface ChemistryScene3DProps {
   onCameraSyncChange?: (pose: Omit<CameraSyncPose, 'seq'>) => void;
 }
 
-type CameraPreset = 'isometric' | 'front' | 'top' | 'closeup';
-const CHEM_ORDERED_PRESETS: readonly CameraPreset[] = ['isometric', 'front', 'top', 'closeup'];
+type CameraPreset = 'isometric' | 'front' | 'top' | 'focus';
+const CHEM_ORDERED_PRESETS: readonly CameraPreset[] = ['isometric', 'front', 'top', 'focus'];
 
 export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   params,
@@ -115,10 +121,9 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     onCaptureSnapshot,
   });
 
-  const { leftDrawerOpen, rightTelemetryOpen, zenMode } = useUIStore(
+  const { leftDrawerOpen, zenMode } = useUIStore(
     useShallow((s) => ({
       leftDrawerOpen: s.leftDrawerOpen,
-      rightTelemetryOpen: s.rightTelemetryOpen,
       zenMode: s.zenMode,
     }))
   );
@@ -127,6 +132,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
   const showProbe3DRef = useRef<boolean>(false);
   showProbe3DRef.current = showProbe3D;
   const [probeHudText, setProbeHudText] = useState<{ text: string; color: string } | null>(null);
+  const [inspectedPart, setInspectedPart] = useState<ApparatusInspectionInfo | null>(null);
+  const prevChemModeRef = useRef<string>(params.mode);
   const snapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -137,6 +144,14 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (prevChemModeRef.current !== params.mode) {
+      prevChemModeRef.current = params.mode;
+      setInspectedPart(null);
+      cameraCtrlRef.current?.setPreset('isometric');
+    }
+  }, [params.mode, cameraCtrlRef]);
 
   const latestRef = useRef({
     params,
@@ -175,20 +190,21 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     const height = container.clientHeight || 380;
     const initialColors = getSceneThemeColors(activeComfortTheme, 'Kimia');
 
+    const initialPose = getAdaptiveCameraPose('chemistry', latestRef.current.params.mode, 'isometric');
     let camTransitionActive = false;
     const host = initThreeStudioHost({
       container,
       fallbackSize: { width: 760, height: 380 },
-      backgroundHex: 0x0b0f17,
+      backgroundHex: initialColors.backgroundHex,
       fogDensity: 0.015,
       camera: {
         fov: 45,
         near: 0.1,
         far: 200,
-        position: [4.2, 5.8, 10.5],
+        position: initialPose.pos,
       },
       controls: {
-        target: [0, 1.4, 0],
+        target: initialPose.target,
         maxPolarAngle: Math.PI * 0.48,
         minDistance: 3.5,
         maxDistance: 24,
@@ -204,8 +220,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
     const { scene, camera, renderer, controls, fpsMonitor, isSoftwareGl } = host;
 
-    const desiredCamPos = new THREE.Vector3(4.2, 5.8, 10.5);
-    const desiredTarget = new THREE.Vector3(0, 1.4, 0);
+    const desiredCamPos = new THREE.Vector3(...initialPose.pos);
+    const desiredTarget = new THREE.Vector3(...initialPose.target);
 
     cameraSyncHandleRef.current = {
       applyPose: (pose) => {
@@ -215,19 +231,9 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     };
 
     const applyCameraPreset = (presetName: CameraPreset) => {
-      if (presetName === 'isometric') {
-        desiredCamPos.set(4.2, 5.8, 10.5);
-        desiredTarget.set(0, 1.4, 0);
-      } else if (presetName === 'front') {
-        desiredCamPos.set(0, 2.8, 11.2);
-        desiredTarget.set(0, 1.5, 0);
-      } else if (presetName === 'top') {
-        desiredCamPos.set(0, 14.5, 0.5);
-        desiredTarget.set(0, 0, 0);
-      } else {
-        desiredCamPos.set(1.5, 2.5, 5.2);
-        desiredTarget.set(0, 1.4, 0);
-      }
+      const pose = getAdaptiveCameraPose('chemistry', latestRef.current.params.mode, presetName);
+      desiredCamPos.set(...pose.pos);
+      desiredTarget.set(...pose.target);
       camTransitionActive = true;
     };
 
@@ -522,19 +528,22 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         ]}
         visible={showConceptLabels}
         onBindSlot={bindConceptSlot}
+        onSelectSlot={(slotId, labelText) => {
+          setInspectedPart(resolveApparatusInspection('chemistry', params.mode, `${slotId} ${labelText}`));
+        }}
       />
 
       {showProbe3D && (
         <div
-          className={`pointer-events-none absolute flex items-center gap-2 rounded-xl bg-slate-950/92 border border-white/15 px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
+          className={`pointer-events-none absolute flex items-center gap-2 rounded-xl studio-hud-surface border px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
             isFullscreen
-              ? 'bottom-4 left-4'
-              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
+              ? 'bottom-16 left-4'
+              : `bottom-[118px] lg:bottom-[104px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
           }`}
         >
-          <Thermometer className="w-3.5 h-3.5 text-sky-400" />
-          <span className="text-slate-400">Sensor Probe 3D:</span>
-          <span className="font-bold" style={{ color: probeHudText?.color ?? '#38bdf8' }}>
+          <Thermometer className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+          <span className="text-[var(--comfort-hud-muted)]">Sensor Probe 3D:</span>
+          <span className="font-bold" style={{ color: probeHudText?.color ?? '#0284c7' }}>
             {probeHudText?.text ??
               (params.mode === 'acid-base-titration' ||
               params.mode === 'electrochemistry-cell' ||
@@ -546,140 +555,74 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       )}
 
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-24 lg:bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
-          <span className="h-2 w-2 rounded-full bg-sky-400" />
-          <span>Menyetel Kimia 3D: {dragToast.label} = <b className="text-white">{dragToast.value}</b></span>
+        <div className="pointer-events-none absolute bottom-[118px] lg:bottom-[104px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-teal-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
+          <span>
+            Menyetel Kimia 3D: {dragToast.label} ={' '}
+            <b className="text-teal-700 dark:text-teal-300">{dragToast.value}</b>
+          </span>
         </div>
       )}
 
-      <div
-        className={`pointer-events-auto absolute flex flex-wrap items-center justify-end gap-1 rounded-xl studio-hud-surface px-2 py-1 shadow-lg z-20 opacity-95 hover:opacity-100 transition-all max-w-[calc(100vw-24px)] ${
-          isFullscreen
-            ? 'top-3 right-3'
-            : `top-16 ${
-                !zenMode && rightTelemetryOpen && leftDrawerOpen
-                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-704px)] xl:max-w-[calc(100%-736px)]'
-                  : !zenMode && rightTelemetryOpen
-                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-368px)]'
-                  : !zenMode && leftDrawerOpen
-                  ? 'right-3 lg:max-w-[calc(100%-348px)]'
-                  : 'right-3'
-              }`
-        }`}
-      >
-        <button
-          type="button"
-          data-testid="toggle-3d-probe-btn"
-          aria-pressed={showProbe3D}
-          onClick={() => {
-            labSound.playClick(700);
-            setShowProbe3D((prev) => !prev);
-          }}
-          title="Tampilkan / Sembunyikan Probe Sensor pH & Termokopel Digital 3D (Seret probe di meja)"
-          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
-            showProbe3D
-              ? 'bg-sky-500 text-slate-950 font-bold'
-              : 'text-sky-600 dark:text-sky-300 hover:text-[var(--comfort-text)] hover:bg-sky-500/10'
-          }`}
-        >
-          <Thermometer className="w-3.5 h-3.5" aria-hidden="true" />
-          <span className="hidden xl:inline">Probe</span>
-        </button>
+      <Scene3DInspectorCard
+        info={inspectedPart}
+        liveMetricSummary={
+          params.mode === 'acid-base-titration'
+            ? `pH = ${(metrics.currentPh ?? 7.0).toFixed(2)}`
+            : params.mode === 'thermo-calorimetry'
+            ? `T akhir = ${(metrics.finalTempC ?? params.initialTempC ?? 25).toFixed(1)} °C`
+            : undefined
+        }
+        onClose={() => setInspectedPart(null)}
+      />
 
-        <button
-          type="button"
-          data-testid="snap-dock-apparatus-btn"
-          onClick={() => {
-            const { docked, transfer } = triggerDomainApparatusSnap('Kimia');
-            if (docked) {
-              setDragToast({
-                label: `Port Docked (${docked.portType.toUpperCase()})`,
-                value: `ΔV = +${(transfer?.fluidTransferredMl ?? 0).toFixed(1)} mL`,
-              });
-              if (snapToastTimerRef.current) clearTimeout(snapToastTimerRef.current);
-              snapToastTimerRef.current = setTimeout(() => {
-                snapToastTimerRef.current = null;
-                setDragToast(null);
-              }, 1800);
-            }
-          }}
-          title="Snap-to-Port: Sambung & Transfer Reagen Kimia 3D"
-          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-600 dark:text-emerald-300 hover:text-[var(--comfort-text)] hover:bg-emerald-500/10 flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-        >
-          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
-          <span className="hidden xl:inline">Snap</span>
-        </button>
+      <Scene3DControlDock
+        accentTone="teal"
+        activePreset={activePreset}
+        onResetCamera={() => handleSelectCameraPreset('isometric')}
+        onSelectPreset={handleSelectCameraPreset}
+        isVRSupported={true}
+        onEnterVR={() => {
+          labSound.playClick(700);
+          void toggleImmersiveVRSession();
+        }}
+        onSnapApparatus={() => {
+          const { docked, transfer } = triggerDomainApparatusSnap('Kimia');
+          if (docked) {
+            setDragToast({
+              label: `Port Docked (${docked.portType.toUpperCase()})`,
+              value: `ΔV = +${(transfer?.fluidTransferredMl ?? 0).toFixed(1)} mL`,
+            });
+            if (snapToastTimerRef.current) clearTimeout(snapToastTimerRef.current);
+            snapToastTimerRef.current = setTimeout(() => {
+              snapToastTimerRef.current = null;
+              setDragToast(null);
+            }, 1800);
+          }
+        }}
+        tools={[
+          {
+            id: 'probe-3d',
+            testId: 'toggle-3d-probe-btn',
+            label: 'Probe',
+            title: 'Tampilkan / Sembunyikan Probe Sensor pH & Termokopel Digital 3D (Seret probe di meja)',
+            active: showProbe3D,
+            icon: <Thermometer className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />,
+            onClick: () => {
+              labSound.playClick(700);
+              setShowProbe3D((prev) => !prev);
+            },
+          },
+        ]}
+        onOpenInspector={() =>
+          setInspectedPart((prev) =>
+            prev ? null : resolveApparatusInspection('chemistry', params.mode, hoveredPartLabel ?? undefined)
+          )
+        }
+        inspectorActive={Boolean(inspectedPart)}
+        onToggleFullscreen={handleToggleFullscreen}
+        isFullscreen={isFullscreen}
+      />
 
-        <button
-          type="button"
-          data-testid="enter-vr-lab-btn"
-          aria-label="Mode VR Spasial 3D"
-          onClick={() => {
-            labSound.playClick(700);
-            void toggleImmersiveVRSession();
-          }}
-          title="Mode VR Spasial 3D (WebXR Immersive-VR)"
-          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-        >
-          <span aria-hidden="true">🥽</span>
-        </button>
-
-        <span className="mx-0.5 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
-
-        <div className="hidden md:flex items-center gap-0.5">
-          <button
-            type="button"
-            data-testid="camera-reset-btn"
-            aria-label="Reset View Kamera 3D"
-            onClick={() => handleSelectCameraPreset('isometric')}
-            title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 text-[11px] font-medium rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-          >
-            Reset
-          </button>
-          {(
-            [
-              { id: 'isometric', label: '3D' },
-              { id: 'front', label: 'Depan' },
-              { id: 'top', label: 'Atas' },
-              { id: 'closeup', label: 'Fokus' },
-            ] as const
-          ).map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              title={`Sudut Kamera ${p.label}`}
-              aria-pressed={activePreset === p.id}
-              onClick={() => handleSelectCameraPreset(p.id)}
-              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
-                activePreset === p.id
-                  ? 'bg-sky-500 text-slate-950 font-bold'
-                  : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-          <span className="mx-1 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
-        </div>
-
-        <ConceptLabelToggleButton accentClass="bg-teal-500 text-slate-950 font-bold" />
-
-        <button
-          type="button"
-          onClick={handleToggleFullscreen}
-          aria-label={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
-          aria-pressed={isFullscreen}
-          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-sky-500/10 text-[11px] font-medium text-[var(--comfort-text)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
-        >
-          {isFullscreen ? (
-            <Minimize2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" aria-hidden="true" />
-          ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" aria-hidden="true" />
-          )}
-        </button>
-      </div>
       <Scene3DHoverBadge hoveredLabel={dragToast ? null : hoveredPartLabel} accent="emerald" />
     </div>
   );

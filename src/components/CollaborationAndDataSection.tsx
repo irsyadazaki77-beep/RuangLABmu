@@ -285,36 +285,20 @@ export const CollaborationAndDataSection: React.FC<
   return (
     <div className="space-y-5">
       {/* Step 4 Header & Final Export Center */}
-      <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs">
-        <div>
-          <div className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-            04. Tahap Penyelesaian Laporan, Komparasi Data &amp; Kolaborasi Kelompok
+      <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="space-y-0.5">
+          <div className="text-xs font-medium text-[var(--comfort-accent)]">
+            Tahap 4 · Laporan Praktikum &amp; Kolaborasi Kelompok
           </div>
-          <h1 className="text-lg font-bold text-[var(--comfort-text)] mt-0.5">
+          <h1 className="text-lg font-bold text-[var(--comfort-text)]">
             Pusat Ekspor Laporan Praktikum &amp; Diskusi Kelompok
           </h1>
-          <p className="text-xs text-[var(--comfort-text-muted)] mt-0.5 comfort-prose">
-            Tinjau perbandingan 2 percobaan berdampingan, lengkapi refleksi hipotesis, lalu unduh laporan akademik resmi (PDF/Cetak) atau berkas data CSV.
+          <p className="text-xs text-[var(--comfort-text-muted)] comfort-prose">
+            Tinjau perbandingan percobaan, lengkapi refleksi hipotesis, lalu cetak laporan akademik A4 atau unduh data CSV.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setShowCompareView((v) => !v);
-            }}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              showCompareView
-                ? 'bg-sky-600/15 border-sky-500 text-sky-700 dark:text-sky-300'
-                : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)]'
-            }`}
-          >
-            <ArrowLeftRight className="w-3.5 h-3.5" />
-            <span>{showCompareView ? 'Sembunyikan Diff' : 'Tampilkan Diff'}</span>
-          </button>
-
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {onBackToAnalysis && (
             <button
               type="button"
@@ -322,19 +306,25 @@ export const CollaborationAndDataSection: React.FC<
                 labSound.playClick();
                 onBackToAnalysis();
               }}
-              className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:opacity-90 transition-colors cursor-pointer whitespace-nowrap"
+              className="px-3 py-2 text-xs font-medium rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500/50 transition-colors cursor-pointer whitespace-nowrap"
             >
-              ← Kembali ke Grafik &amp; LKS
+              ← Grafik &amp; LKS
             </button>
           )}
           <button
             type="button"
-            onClick={handlePrintAcademicReport}
-            disabled={records.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            onClick={() => {
+              labSound.playClick();
+              setShowCompareView((v) => !v);
+            }}
+            className={`px-3 py-2 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              showCompareView
+                ? 'bg-sky-600/12 border-sky-500/45 text-sky-700 dark:text-sky-300'
+                : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)]'
+            }`}
           >
-            <Printer className="w-3.5 h-3.5" />
-            Pratinjau &amp; Cetak Laporan A4
+            <ArrowLeftRight className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>{showCompareView ? 'Sembunyikan Diff' : 'Tampilkan Diff'}</span>
           </button>
           <button
             type="button"
@@ -343,19 +333,19 @@ export const CollaborationAndDataSection: React.FC<
               downloadAcademicReportFile(buildReportData(), 'html');
             }}
             disabled={records.length === 0}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[var(--comfort-text)] bg-[var(--comfort-surface-subtle)] hover:opacity-90 border border-[var(--comfort-border)] disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[var(--comfort-text)] bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 border border-[var(--comfort-border)] disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
-            <FileText className="w-3.5 h-3.5 text-sky-500" />
-            Laporan .HTML
+            <FileText className="w-3.5 h-3.5 text-[var(--comfort-text-muted)]" aria-hidden="true" />
+            <span>Ekspor .HTML</span>
           </button>
           <button
             type="button"
             onClick={handleDownloadCSV}
             disabled={filteredRecords.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[var(--comfort-text)] bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 border border-[var(--comfort-border)] disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums"
           >
-            <Download className="w-3.5 h-3.5" />
-            Unduh Data CSV ({filteredRecords.length})
+            <Download className="w-3.5 h-3.5 text-[var(--comfort-text-muted)]" aria-hidden="true" />
+            <span>Unduh CSV ({filteredRecords.length})</span>
           </button>
           {onBackToCatalog && (
             <button
@@ -364,11 +354,20 @@ export const CollaborationAndDataSection: React.FC<
                 labSound.playClick();
                 onBackToCatalog();
               }}
-              className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] hover:opacity-90 transition-colors cursor-pointer whitespace-nowrap"
+              className="px-3 py-2 text-xs font-medium rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] hover:border-sky-500/50 transition-colors cursor-pointer whitespace-nowrap"
             >
-              Pilih Modul Baru
+              Katalog Modul
             </button>
           )}
+          <button
+            type="button"
+            onClick={handlePrintAcademicReport}
+            disabled={records.length === 0}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <Printer className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Pratinjau &amp; Cetak Laporan A4</span>
+          </button>
         </div>
       </div>
 

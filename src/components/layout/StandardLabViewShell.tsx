@@ -13,6 +13,7 @@ import { SpatialParameterDrawer } from './spatial/SpatialParameterDrawer';
 import { SpatialTelemetryDrawer } from './spatial/SpatialTelemetryDrawer';
 import { MobileInstrumentSheet } from './spatial/MobileInstrumentSheet';
 import { LabExitConfirmModal } from './spatial/LabExitConfirmModal';
+import { GuidedLabStepsOverlay } from './spatial/GuidedLabStepsOverlay';
 
 export type CameraPreset = string;
 
@@ -284,13 +285,8 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
 
   if (isMiniViewportMode) {
     return (
-      <div className="relative w-full h-full overflow-hidden bg-slate-950">
+      <div className="relative w-full h-full overflow-hidden bg-[var(--comfort-bg)]">
         {canvas}
-        {topOverlay && (
-          <div className="pointer-events-none absolute top-2 left-2 right-2 z-20 flex items-center justify-between">
-            <div className="pointer-events-auto">{topOverlay}</div>
-          </div>
-        )}
         {safetyModal}
       </div>
     );
@@ -299,7 +295,7 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
   return (
     <div
       data-testid="spatial-hud-shell"
-      className="relative w-full h-full min-h-0 overflow-hidden bg-slate-950 select-none"
+      className="relative w-full h-full min-h-0 overflow-hidden bg-[var(--comfort-bg)] select-none"
     >
       {/* 1. Full-Bleed 3D Viewport */}
       <div
@@ -308,7 +304,11 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
         }`}
       >
         {dualModeActive && dualViewport ? (
-          <div className="w-full h-full pt-16 pb-20 px-3 overflow-y-auto bg-slate-950">
+          <div
+            className={`w-full h-full pt-[60px] pb-[92px] px-3 overflow-hidden bg-[var(--comfort-bg)] transition-[padding] duration-200 ${
+              isLeftVisible ? 'lg:pl-[336px] xl:pl-[348px]' : ''
+            }`}
+          >
             {dualViewport}
           </div>
         ) : (
@@ -368,10 +368,20 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
         }}
       />
 
-      {/* 3. Floating Viewport Overlay */}
-      {!dualModeActive && topOverlay && (
+      {/* 3. Guided Step-by-Step Overlay (collapsible, strictly inside center corridor) */}
+      {!dualModeActive && !prefer2DFallback && !zenMode && activeExperiment?.stepByStepGuide && (
+        <GuidedLabStepsOverlay
+          steps={activeExperiment.stepByStepGuide}
+          recordsCount={recordsCount}
+          isLeftVisible={isLeftVisible}
+          isRightVisible={isRightVisible}
+        />
+      )}
+
+      {/* 3b. Floating Viewport Overlay */}
+      {!dualModeActive && !prefer2DFallback && topOverlay && (
         <div
-          className={`pointer-events-none absolute top-[146px] xl:top-[110px] z-20 flex items-center left-3 ${
+          className={`pointer-events-none absolute top-[164px] xl:top-[134px] z-20 flex items-center left-3 ${
             isLeftVisible ? 'lg:left-[336px] xl:left-[348px]' : 'lg:left-3'
           }`}
         >
@@ -387,9 +397,9 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
         sidebar={sidebar}
       />
 
-      {/* 5. Right Telemetry & Formula Drawer */}
+      {/* 5. Right Telemetry & Formula Drawer (auto-yields in Dual A/B mode so both panes remain wide) */}
       <SpatialTelemetryDrawer
-        isOpen={isRightVisible}
+        isOpen={isRightVisible && !dualModeActive}
         onClose={() => setRightTelemetryOpen(false)}
         oscilloscope={oscilloscope}
         telemetryMetrics={telemetryMetrics}

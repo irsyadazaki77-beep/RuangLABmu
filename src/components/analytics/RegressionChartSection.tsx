@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Info,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   DataPointMultiAxis,
   CurveModelType,
@@ -11,6 +12,8 @@ import {
 } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
 import { ScienceGlossaryTerm } from '../ui/ScienceGlossaryTerm';
+import { useUIStore } from '../../stores/useUIStore';
+import { getComfortChartPalette } from '../ui/VisualComfortToolbar';
 
 export interface PoePredictionPoint {
   x: number;
@@ -42,6 +45,14 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
   poePrediction,
   onAskDrLabMuAboutPoe,
 }) => {
+  const { theme, colorBlindSafe } = useUIStore(
+    useShallow((s) => ({
+      theme: s.comfortPrefs.theme,
+      colorBlindSafe: s.comfortPrefs.colorBlindSafe,
+    }))
+  );
+  const palette = getComfortChartPalette(theme, colorBlindSafe);
+
   // Set of point indices excluded as outliers
   const [excludedIndices, setExcludedIndices] = useState<Set<number>>(new Set());
   const [hoveredPointIdx, setHoveredPointIdx] = useState<number | null>(null);
@@ -188,17 +199,17 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             <option value="power">Model: Hukum Daya (y = a·x^b)</option>
           </select>
 
-          <div className="px-3 py-1.5 rounded-xl bg-sky-500/10 border border-sky-500/25 flex items-center gap-2">
-            <span className="text-[11px] font-mono text-[var(--comfort-text-muted)] flex items-center gap-1">
+          <div className="pl-2.5 border-l border-[var(--comfort-border)] flex items-center gap-1.5 tabular-nums">
+            <span className="text-xs font-mono text-[var(--comfort-text-muted)] flex items-center gap-1">
               <ScienceGlossaryTerm term="R²" displayLabel="R²" /> =
             </span>
             <span
-              className={`font-mono text-xs font-bold ${
+              className={`font-mono text-sm font-bold ${
                 regression.rSquared >= 0.95
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : regression.rSquared >= 0.85
                   ? 'text-sky-600 dark:text-sky-400'
-                  : 'text-amber-500'
+                  : 'text-amber-600 dark:text-amber-400'
               }`}
             >
               {regression.rSquared.toFixed(4)}
@@ -225,16 +236,30 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             </span>
           </span>
           <span className="inline-flex items-center gap-1 text-[var(--comfort-text)]">
-            <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> Solid = Included
+            <span
+              className="w-2.5 h-2.5 rounded-full inline-block"
+              style={{ backgroundColor: palette.primary }}
+            />{' '}
+            Solid = Included
           </span>
-          <span className="inline-flex items-center gap-1 text-rose-500 dark:text-rose-400">
-            <span className="w-2.5 h-2.5 rounded-full border border-rose-500 inline-block" /> Berongga ✕ = Outlier
+          <span
+            className="inline-flex items-center gap-1 font-semibold"
+            style={{ color: palette.critical }}
+          >
+            <span
+              className="w-2.5 h-2.5 rounded-full border inline-block"
+              style={{ borderColor: palette.critical }}
+            />{' '}
+            Berongga ✕ = Outlier
           </span>
         </div>
       </div>
 
       {/* Interactive SVG Chart Viewport */}
-      <div className="relative w-full aspect-[2/1] min-h-[300px] max-h-[420px] rounded-xl bg-slate-950 border border-slate-800 overflow-hidden select-none">
+      <div
+        className="relative w-full aspect-[2/1] min-h-[300px] max-h-[420px] rounded-xl border border-[var(--comfort-border)] overflow-hidden select-none"
+        style={{ backgroundColor: palette.canvasBg }}
+      >
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           className="w-full h-full"
@@ -251,14 +276,14 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                   y1={gy}
                   x2={svgWidth - padRight}
                   y2={gy}
-                  stroke="#1e293b"
+                  stroke={palette.gridStroke}
                   strokeWidth="1"
                   strokeDasharray="4 4"
                 />
                 <text
                   x={padLeft - 8}
                   y={gy + 4}
-                  fill="#64748b"
+                  fill={palette.labelFill}
                   fontSize="10"
                   fontFamily="monospace"
                   textAnchor="end"
@@ -280,14 +305,14 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                   y1={padTop}
                   x2={gx}
                   y2={svgHeight - padBottom}
-                  stroke="#1e293b"
+                  stroke={palette.gridStroke}
                   strokeWidth="1"
                   strokeDasharray="4 4"
                 />
                 <text
                   x={gx}
                   y={svgHeight - padBottom + 16}
-                  fill="#64748b"
+                  fill={palette.labelFill}
                   fontSize="10"
                   fontFamily="monospace"
                   textAnchor="middle"
@@ -304,7 +329,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             y1={svgHeight - padBottom}
             x2={svgWidth - padRight}
             y2={svgHeight - padBottom}
-            stroke="#475569"
+            stroke={palette.axisStroke}
             strokeWidth="1.5"
           />
           <line
@@ -312,7 +337,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             y1={padTop}
             x2={padLeft}
             y2={svgHeight - padBottom}
-            stroke="#475569"
+            stroke={palette.axisStroke}
             strokeWidth="1.5"
           />
 
@@ -320,7 +345,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
           <text
             x={padLeft + plotW / 2}
             y={svgHeight - 10}
-            fill="#94a3b8"
+            fill={palette.labelFill}
             fontSize="11"
             fontFamily="sans-serif"
             fontWeight="bold"
@@ -331,7 +356,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
           <text
             x={15}
             y={padTop + plotH / 2}
-            fill="#94a3b8"
+            fill={palette.labelFill}
             fontSize="11"
             fontFamily="sans-serif"
             fontWeight="bold"
@@ -346,7 +371,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             <path
               d={regressionPathD}
               fill="none"
-              stroke="#38bdf8"
+              stroke={palette.primary}
               strokeWidth="2.5"
               strokeLinecap="round"
             />
@@ -390,8 +415,8 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                       cx={sx}
                       cy={sy}
                       r={isHovered ? 8 : 6.5}
-                      fill="#0f172a"
-                      stroke="#f43f5e"
+                      fill={palette.canvasBg}
+                      stroke={palette.critical}
                       strokeWidth="2"
                     />
                     <line
@@ -399,7 +424,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                       y1={sy - 3.5}
                       x2={sx + 3.5}
                       y2={sy + 3.5}
-                      stroke="#f43f5e"
+                      stroke={palette.critical}
                       strokeWidth="2"
                     />
                     <line
@@ -407,7 +432,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                       y1={sy - 3.5}
                       x2={sx - 3.5}
                       y2={sy + 3.5}
-                      stroke="#f43f5e"
+                      stroke={palette.critical}
                       strokeWidth="2"
                     />
                   </g>
@@ -419,7 +444,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                         cx={sx}
                         cy={sy}
                         r="12"
-                        fill="#38bdf8"
+                        fill={palette.primary}
                         opacity="0.25"
                       />
                     )}
@@ -427,8 +452,8 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                       cx={sx}
                       cy={sy}
                       r={isHovered ? 7.5 : 5.5}
-                      fill="#38bdf8"
-                      stroke="#ffffff"
+                      fill={palette.primary}
+                      stroke={palette.pointStroke}
                       strokeWidth="2"
                     />
                   </g>
@@ -438,7 +463,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                 <text
                   x={sx}
                   y={sy - 12}
-                  fill={isExcluded ? '#f43f5e' : '#e2e8f0'}
+                  fill={isExcluded ? palette.critical : theme === 'dark' ? '#e2e8f0' : '#1e2530'}
                   fontSize="9.5"
                   fontFamily="monospace"
                   textAnchor="middle"
@@ -459,7 +484,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                   y1={toScreenY1(poePrediction.y)}
                   x2={toScreenX(poePrediction.x)}
                   y2={toScreenY1(regression.evaluateAt(poePrediction.x))}
-                  stroke="#f59e0b"
+                  stroke={palette.warning}
                   strokeWidth="1.8"
                   strokeDasharray="4 4"
                 />
@@ -470,14 +495,14 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                 },${toScreenY1(poePrediction.y)} ${toScreenX(poePrediction.x)},${
                   toScreenY1(poePrediction.y) + 9
                 } ${toScreenX(poePrediction.x) - 9},${toScreenY1(poePrediction.y)}`}
-                fill="#f59e0b"
-                stroke="#ffffff"
+                fill={palette.warning}
+                stroke={palette.pointStroke}
                 strokeWidth="2"
               />
               <text
                 x={toScreenX(poePrediction.x)}
                 y={toScreenY1(poePrediction.y) - 14}
-                fill="#fbbf24"
+                fill={palette.warning}
                 fontSize="10"
                 fontFamily="monospace"
                 fontWeight="bold"
@@ -492,39 +517,47 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
         {/* Hover Tooltip Overlay */}
         {hoveredPointIdx !== null && tooltipPos && (
           <div
-            className="absolute pointer-events-none z-30 p-2.5 rounded-xl bg-slate-900/95 border border-slate-700 shadow-xl text-[11px] font-mono text-slate-200 transform -translate-x-1/2 -translate-y-full mb-3 space-y-1 min-w-[170px]"
+            className="absolute pointer-events-none z-30 p-2.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] shadow-xl text-[11px] font-mono text-[var(--comfort-text)] transform -translate-x-1/2 -translate-y-full mb-3 space-y-1 min-w-[170px]"
             style={{
               left: `${Math.min(Math.max(tooltipPos.x, 90), svgWidth - 90)}px`,
               top: `${Math.max(tooltipPos.y - 12, 10)}px`,
             }}
           >
-            <div className="flex items-center justify-between font-bold text-sky-400 border-b border-slate-800 pb-1">
-              <span>{points[hoveredPointIdx].label || `Percobaan #${hoveredPointIdx + 1}`}</span>
-              <span className={excludedIndices.has(hoveredPointIdx) ? 'text-rose-400' : 'text-emerald-400'}>
+            <div className="flex items-center justify-between font-bold border-b border-[var(--comfort-border)] pb-1">
+              <span style={{ color: palette.primary }}>
+                {points[hoveredPointIdx].label || `Percobaan #${hoveredPointIdx + 1}`}
+              </span>
+              <span
+                style={{
+                  color: excludedIndices.has(hoveredPointIdx) ? palette.critical : palette.secondary,
+                }}
+              >
                 {excludedIndices.has(hoveredPointIdx) ? 'Outlier (Excluded)' : 'Aktif (Included)'}
               </span>
             </div>
             <div>
-              <span className="text-slate-400">X: </span>
-              <span className="font-bold text-white">{points[hoveredPointIdx].x}</span>
+              <span className="text-[var(--comfort-text-muted)]">X: </span>
+              <span className="font-bold">{points[hoveredPointIdx].x}</span>
             </div>
             <div>
-              <span className="text-slate-400">Y1: </span>
-              <span className="font-bold text-white">{points[hoveredPointIdx].y1}</span>
+              <span className="text-[var(--comfort-text-muted)]">Y1: </span>
+              <span className="font-bold">{points[hoveredPointIdx].y1}</span>
             </div>
-            <div className="pt-0.5 border-t border-slate-800 text-[10px]">
-              <span className="text-slate-400">Residu Galat (Δy): </span>
+            <div className="pt-0.5 border-t border-[var(--comfort-border)] text-[10px]">
+              <span className="text-[var(--comfort-text-muted)]">Residu Galat (Δy): </span>
               <span
-                className={`font-bold ${
-                  Math.abs(points[hoveredPointIdx].y1 - regression.evaluateAt(points[hoveredPointIdx].x)) > 2
-                    ? 'text-amber-400'
-                    : 'text-emerald-400'
-                }`}
+                className="font-bold"
+                style={{
+                  color:
+                    Math.abs(points[hoveredPointIdx].y1 - regression.evaluateAt(points[hoveredPointIdx].x)) > 2
+                      ? palette.warning
+                      : palette.secondary,
+                }}
               >
                 {(points[hoveredPointIdx].y1 - regression.evaluateAt(points[hoveredPointIdx].x)).toFixed(3)}
               </span>
             </div>
-            <div className="text-[9px] text-slate-400 pt-0.5 italic">
+            <div className="text-[9px] text-[var(--comfort-text-muted)] pt-0.5">
               *Klik titik untuk mengubah status outlier
             </div>
           </div>

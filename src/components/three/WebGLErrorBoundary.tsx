@@ -1,5 +1,5 @@
 import React, { Component, createRef, ErrorInfo, ReactNode } from 'react';
-import { Activity, AlertTriangle, RotateCcw, Sparkles } from 'lucide-react';
+import { Activity, AlertTriangle, Cpu, RotateCcw } from 'lucide-react';
 import { Simulation2DFallbackView } from './Simulation2DFallbackView';
 import { DOMAIN_TO_EN, useLabStore, type AnyLabDomain } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
@@ -201,28 +201,28 @@ export class WebGLErrorBoundary extends Component<
         {showRecoveryOverlay && (
           <div
             data-testid="lab-webgl-error-fallback"
-            className="absolute inset-0 z-30 w-full h-full min-h-[280px] rounded-2xl bg-slate-950/95 border border-amber-500/30 flex flex-col items-center justify-center p-6 text-center select-none"
+            className="absolute inset-0 z-30 w-full h-full min-h-[280px] rounded-2xl studio-hud-surface border border-amber-500/40 flex flex-col items-center justify-center p-6 text-center select-none"
           >
             <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center mb-3 shadow-inner">
-              <AlertTriangle className="w-6 h-6 text-amber-400" />
+              <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/25 text-[10px] font-mono uppercase tracking-wider text-amber-300 mb-2">
-              <Sparkles className="w-3 h-3" /> Proteksi Memori GPU 3T
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-[10px] font-mono uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-2">
+              <Cpu className="w-3 h-3" /> Proteksi Memori GPU 3T
             </div>
-            <h3 className="text-sm font-bold text-slate-100 mb-1">
+            <h3 className="text-sm font-bold text-[var(--comfort-hud-text)] mb-1">
               {this.props.sceneTitle || 'Visualisasi 3D'} Sedang Dipulihkan
             </h3>
-            <p className="text-xs text-slate-400 max-w-md mb-3 leading-relaxed">
+            <p className="text-xs text-[var(--comfort-hud-muted)] max-w-md mb-3 leading-relaxed">
               Perangkat mengalami keterbatasan memori grafis WebGL, namun mesin simulasi numerik
               dan lembar kerja pengamatan Anda tetap aman.
             </p>
             {this.state.preservedParamSummary && (
-              <p className="text-[11px] font-mono text-sky-300 bg-sky-500/10 px-3 py-1 rounded-lg border border-sky-500/25 mb-3 max-w-md truncate">
+              <p className="text-[11px] font-mono text-sky-700 dark:text-sky-300 bg-sky-500/12 px-3 py-1 rounded-lg border border-sky-500/30 mb-3 max-w-md truncate">
                 Snapshot Aktif: {this.state.preservedParamSummary}
               </p>
             )}
             {this.state.errorMessage && (
-              <code className="text-[10px] font-mono text-amber-300/90 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800 mb-4 max-w-sm truncate">
+              <code className="text-[10px] font-mono text-amber-700 dark:text-amber-300 studio-hud-subcard px-3 py-1.5 rounded-lg border mb-4 max-w-sm truncate">
                 {this.state.errorMessage}
               </code>
             )}
@@ -230,7 +230,7 @@ export class WebGLErrorBoundary extends Component<
               <button
                 type="button"
                 onClick={this.handleManualRecover}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 border border-teal-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 text-teal-800 dark:text-teal-200 border border-teal-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Pulihkan Canvas 3D
@@ -239,7 +239,7 @@ export class WebGLErrorBoundary extends Component<
                 type="button"
                 data-testid="switch-to-2d-fallback-btn"
                 onClick={this.handleSwitchTo2DFallback}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-800 dark:text-sky-200 border border-sky-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
               >
                 <Activity className="w-3.5 h-3.5" />
                 Gunakan Mode Ringan 2D

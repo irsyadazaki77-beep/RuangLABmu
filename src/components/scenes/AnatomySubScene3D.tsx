@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { Eye, Layers, Sparkles, X } from 'lucide-react';
 import {
   createBiologicalMembraneTexture,
+  createContactShadowPlane,
   smoothCameraDamp,
   type CameraSyncPose,
 } from '../../utils/threeStudioKit';
@@ -10,31 +10,38 @@ import { initThreeStudioHost, startStudioRenderLoop } from '../../utils/threeStu
 import { ThreeInteractionManager } from '../../utils/threeInteractionHelper';
 import { labSound } from '../../utils/soundEngine';
 import {
-  calculateCardiovascularHeart,
   calculateRespiratoryLungs,
   calculateNeuralSynapse,
 } from '../../utils/engines/biologyEngine';
 import { SpatialCursorPayload } from '../../utils/collabProtocol';
 import { attachTeacherCollabBridge } from '../../utils/spatialCursorGroup';
-import { ComfortThemeMode } from '../ui/VisualComfortToolbar';
+import { ComfortThemeMode, getSceneThemeColors, type SceneThemeColors } from '../ui/VisualComfortToolbar';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../../stores/useUIStore';
 import { WebGLErrorBoundary } from '../three/WebGLErrorBoundary';
 import { LAB_EVENTS, subscribeLabEvent } from '../../utils/labEventBus';
 import {
   ConceptLabelDomRef,
-  ConceptLabelToggleButton,
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from '../ui/ConceptLabelsOverlay';
+import {
+  ANATOMY_PINS,
+  evalHeart,
+  type AnatomyLayerMode,
+  type AnatomyMode,
+  type AnatomyModuleId,
+  type AnatomyPinDef,
+} from './anatomy/AnatomyPinsData';
+import { AnatomyHudOverlay } from './anatomy/AnatomyHudOverlay';
+import { Scene3DInspectorCard } from '../ui/Scene3DInspectorCard';
+import {
+  getAdaptiveCameraPose,
+  resolveApparatusInspection,
+  type ApparatusInspectionInfo,
+} from '../../utils/studio3DCatalog';
 
-export type AnatomyModuleId =
-  | 'anatomy-cardiovascular-heart'
-  | 'anatomy-respiratory-lungs'
-  | 'anatomy-neural-synapse';
-
-export type AnatomyMode = AnatomyModuleId;
-export type AnatomyLayerMode = 'outer' | 'xray' | 'cross-section';
+export type { AnatomyLayerMode, AnatomyMode, AnatomyModuleId };
 
 export interface AnatomySubScene3DProps {
   mode: AnatomyModuleId;
@@ -55,143 +62,6 @@ export interface AnatomySubScene3DProps {
   cameraSyncPose?: CameraSyncPose | null;
   onCameraSyncChange?: (pose: Omit<CameraSyncPose, 'seq'>) => void;
 }
-
-interface AnatomyPinDef {
-  id: string;
-  num: number;
-  name: string;
-  mode: AnatomyModuleId;
-  position: [number, number, number];
-  cameraTarget: [number, number, number];
-  cameraOffset: [number, number, number];
-  subtitle: string;
-  description: string;
-  getLiveMetrics: (p: Record<string, number>) => { label: string; value: string }[];
-}
-
-const evalHeart = (p: Record<string, number>, timeSec = 0.5) =>
-  calculateCardiovascularHeart({
-    heartRateBpm: p.heartRateBpm ?? 72,
-    vesselRadiusRatio: p.vesselRadiusRatio ?? 1.0,
-    bloodViscosity: p.bloodViscosity ?? 3.2,
-    exerciseIntensity: p.exerciseIntensity ?? 15,
-    timeSec,
-  });
-
-const ANATOMY_PINS: AnatomyPinDef[] = [
-  {
-    id: 'pin-aorta',
-    num: 1,
-    name: 'Aorta (Lengkung Aorta)',
-    mode: 'anatomy-cardiovascular-heart',
-    position: [0.25, 1.55, 0.25],
-    cameraTarget: [0.15, 1.25, 0.1],
-    cameraOffset: [2.2, 1.8, 3.2],
-    subtitle: 'Arteri Elastis Terbesar Tubuh',
-    description:
-      'Menerima darah kaya oksigen bertekanan tinggi dari Ventrikel Kiri saat sistol dan mendistribusikannya ke seluruh sirkulasi sistemik.',
-    getLiveMetrics: (p) => {
-      const m = evalHeart(p);
-      return [
-        { label: 'Tekanan Sistolik / Diastolik', value: `${m.systolicMmHg} / ${m.diastolicMmHg} mmHg` },
-        { label: 'Mean Arterial Pressure (MAP)', value: `${m.meanArterialPressure} mmHg` },
-        { label: 'Resistensi Vaskular (Poiseuille)', value: `${m.vascularResistance} PRU` },
-      ];
-    },
-  },
-  {
-    id: 'pin-left-ventricle',
-    num: 2,
-    name: 'Ventrikel Kiri (Miokardium)',
-    mode: 'anatomy-cardiovascular-heart',
-    position: [0.68, -0.35, 0.72],
-    cameraTarget: [0.4, -0.25, 0.3],
-    cameraOffset: [2.4, 0.9, 3.1],
-    subtitle: 'Bilik Pompa Utama Sistemik',
-    description:
-      'Memiliki dinding otot jantung (miokardium) paling tebal untuk memompa Stroke Volume melewati katup aorta melawan resistensi sistemik.',
-    getLiveMetrics: (p) => {
-      const m = evalHeart(p);
-      return [
-        { label: 'Stroke Volume (SV)', value: `${m.strokeVolumeMl} mL/detak` },
-        { label: 'Curah Jantung (Cardiac Output)', value: `${m.cardiacOutputLMin} L/menit` },
-        { label: 'Frekuensi Detak (HR)', value: `${Math.round(p.heartRateBpm ?? 72)} bpm` },
-      ];
-    },
-  },
-  {
-    id: 'pin-right-atrium',
-    num: 3,
-    name: 'Atrium Kanan & Vena Cava',
-    mode: 'anatomy-cardiovascular-heart',
-    position: [-0.95, 0.55, 0.45],
-    cameraTarget: [-0.55, 0.35, 0.2],
-    cameraOffset: [-2.6, 1.3, 3.2],
-    subtitle: 'Muara Aliran Balik Vena & Nodus SA',
-    description:
-      'Menerima darah deoksigenasi dari Vena Cava Superior/Inferior serta menjadi lokasi Nodus Sinoatrial (pacemaker alami pemicu gelombang P pada EKG).',
-    getLiveMetrics: (p) => {
-      const m = evalHeart(p, 0.16 * (60 / (p.heartRateBpm ?? 72)));
-      return [
-        { label: 'Potensial Pacemaker (EKG P-Wave)', value: `${m.ecgVoltageMv.toFixed(2)} mV` },
-        { label: 'Viskositas Darah (η)', value: `${(p.bloodViscosity ?? 3.2).toFixed(1)} cP` },
-        { label: 'Aliran Balik Vena', value: `${m.cardiacOutputLMin} L/menit` },
-      ];
-    },
-  },
-  {
-    id: 'pin-alveolus',
-    num: 4,
-    name: 'Alveolus & Bronkiolus Respiratorius',
-    mode: 'anatomy-respiratory-lungs',
-    position: [1.15, 0.25, 0.65],
-    cameraTarget: [0.4, 0.15, 0.1],
-    cameraOffset: [2.2, 1.3, 3.8],
-    subtitle: 'Unit Pertukaran Gas Kapiler-Alveolar',
-    description:
-      'Kantung udara mikroskopis tempat difusi O₂ menuju kapiler paru dan pelepasan CO₂ berdasarkan gradien tekanan parsial barometrik.',
-    getLiveMetrics: (p) => {
-      const m = calculateRespiratoryLungs({
-        respirationRate: p.respirationRate ?? 15,
-        diaphragmEffort: p.diaphragmEffort ?? 50,
-        airwayResistance: p.airwayResistance ?? 1.0,
-        altitudeMeters: p.altitudeMeters ?? 0,
-        timeSec: 0.5,
-      });
-      return [
-        { label: 'Tekanan O₂ Alveolus (PAO₂)', value: `${m.alveolarPo2MmHg} mmHg` },
-        { label: 'Saturasi Oksihemoglobin (SpO₂)', value: `${m.spo2Percent}%` },
-        { label: 'Ventilasi Menit (VE)', value: `${m.minuteVentilationLMin} L/menit` },
-      ];
-    },
-  },
-  {
-    id: 'pin-ranvier',
-    num: 5,
-    name: 'Nodus Ranvier & Selubung Mielin',
-    mode: 'anatomy-neural-synapse',
-    position: [0.35, 0.32, 0.35],
-    cameraTarget: [0.2, 0.0, 0.0],
-    cameraOffset: [1.6, 1.4, 3.6],
-    subtitle: 'Celah Kanal Ion Na⁺/K⁺ Berpintu Tegangan',
-    description:
-      'Celah mikro di antara segmen selubung mielin tempat terkonsentrasinya kanal Na⁺/K⁺ untuk melompatkan potensial aksi secara saltatorik.',
-    getLiveMetrics: (p) => {
-      const m = calculateNeuralSynapse({
-        stimulusVoltageMv: p.stimulusVoltageMv ?? -35,
-        myelinThickness: p.myelinThickness ?? 75,
-        extracellularNaMm: p.extracellularNaMm ?? 145,
-        extracellularKMm: p.extracellularKMm ?? 4.5,
-        timeSec: 0.22,
-      });
-      return [
-        { label: 'Hukum All-or-None', value: m.actionPotentialTriggered ? 'TERPICU (Depolarisasi)' : 'SUB-THRESHOLD' },
-        { label: 'Kecepatan Konduksi Saltatorik', value: `${m.conductionVelocityMs} m/s` },
-        { label: 'Potensial Nernst (ENa / EK)', value: `${m.nernstNaMv} / ${m.nernstKMv} mV` },
-      ];
-    },
-  },
-];
 
 export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   mode,
@@ -238,6 +108,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   const [layerMode, setLayerMode] = useState<AnatomyLayerMode>('outer');
   const layerModeRef = useRef<AnatomyLayerMode>('outer');
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
+  const [inspectedPart, setInspectedPart] = useState<ApparatusInspectionInfo | null>(null);
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
   const [sceneKey, setSceneKey] = useState<number>(0);
   const cameraLerpRef = useRef<{ target: THREE.Vector3; pos: THREE.Vector3; active: boolean }>({
@@ -246,10 +117,18 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     active: false,
   });
 
+  const activeComfortTheme = useUIStore((s) => s.comfortPrefs.theme);
+  const themeColors = getSceneThemeColors(activeComfortTheme, 'Biologi');
+
   const onCameraSyncChangeRef = useRef(onCameraSyncChange);
   onCameraSyncChangeRef.current = onCameraSyncChange;
   const lastAppliedCamSeqRef = useRef<number>(-1);
   const cameraSyncHandleRef = useRef<{ applyPose: (pose: CameraSyncPose) => void } | null>(null);
+  const themeApplyRef = useRef<((colors: SceneThemeColors) => void) | null>(null);
+
+  useEffect(() => {
+    themeApplyRef.current?.(getSceneThemeColors(activeComfortTheme, 'Biologi'));
+  }, [activeComfortTheme]);
 
   useEffect(() => {
     if (!cameraSyncPose || cameraSyncPose.seq === lastAppliedCamSeqRef.current) return;
@@ -263,6 +142,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   useEffect(() => { layerModeRef.current = layerMode; }, [layerMode]);
   useEffect(() => {
     setSelectedPinId(null);
+    setInspectedPart(null);
     setLayerMode('outer');
     cameraLerpRef.current.active = false;
   }, [mode]);
@@ -289,6 +169,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   const selectedPin = ANATOMY_PINS.find((pin) => pin.id === selectedPinId) ?? null;
 
   const handleSelectPin = (pin: AnatomyPinDef) => {
+    setInspectedPart(null);
     setSelectedPinId(pin.id);
     cameraLerpRef.current = {
       target: new THREE.Vector3(...pin.cameraTarget),
@@ -303,19 +184,21 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
     const width = container.clientWidth || 720;
     const height = container.clientHeight || 460;
+    const initialColors = getSceneThemeColors(activeComfortTheme, 'Biologi');
+    const initialPose = getAdaptiveCameraPose('biology', mode, 'isometric');
     const host = initThreeStudioHost({
       container,
       fallbackSize: { width: 720, height: 460 },
-      backgroundHex: 0x0b0f17,
+      backgroundHex: initialColors.backgroundHex,
       fogDensity: 0.045,
       camera: {
         fov: 44,
         near: 0.1,
         far: 100,
-        position: [0, 1.3, 5.2],
+        position: initialPose.pos,
       },
       controls: {
-        target: [0, 0.1, 0],
+        target: initialPose.target,
         maxPolarAngle: Math.PI * 0.48,
         minDistance: 2.2,
         maxDistance: 16,
@@ -343,7 +226,12 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       domElement: renderer.domElement,
     });
 
-    scene.add(new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 0.45));
+    const anatomyHemiLight = new THREE.HemisphereLight(
+      initialColors.ambientSkyHex,
+      initialColors.ambientGroundHex,
+      Math.min(0.75, initialColors.ambientIntensity)
+    );
+    scene.add(anatomyHemiLight);
     const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
     keyLight.position.set(5, 8, 6);
     keyLight.castShadow = true;
@@ -362,15 +250,31 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     // Studio Circular Pedestal Stage receiving crisp shadow
     const pedestalGeo = new THREE.CylinderGeometry(2.6, 2.9, 0.16, 48);
     const pedestalMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
+      color: initialColors.tableHex,
       roughness: 0.85,
       metalness: 0.08,
       envMapIntensity: 0.35,
     });
+    themeApplyRef.current = (colors) => {
+      if (scene.background instanceof THREE.Color) {
+        scene.background.setHex(colors.backgroundHex);
+      } else {
+        scene.background = new THREE.Color(colors.backgroundHex);
+      }
+      scene.fog = new THREE.FogExp2(colors.fogHex, 0.045);
+      pedestalMat.color.setHex(colors.tableHex);
+      anatomyHemiLight.color.setHex(colors.ambientSkyHex);
+      anatomyHemiLight.groundColor.setHex(colors.ambientGroundHex);
+      anatomyHemiLight.intensity = Math.min(0.75, colors.ambientIntensity);
+    };
     const pedestal = new THREE.Mesh(pedestalGeo, pedestalMat);
     pedestal.position.y = -2.28;
     pedestal.receiveShadow = true;
     scene.add(pedestal);
+
+    const pedestalContactShadow = createContactShadowPlane(4.4, 4.4, 0.24);
+    pedestalContactShadow.position.set(0, -2.195, 0);
+    scene.add(pedestalContactShadow);
 
     const haloTrim = new THREE.Mesh(
       new THREE.TorusGeometry(2.62, 0.022, 12, 64),
@@ -1219,6 +1123,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
     });
 
     return () => {
+      themeApplyRef.current = null;
       loopHandle.stop();
       cameraSyncHandleRef.current = null;
       if (dragToastTimer) clearTimeout(dragToastTimer);
@@ -1230,7 +1135,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   }, [mode, sceneKey]);
 
   return (
-    <div className="relative w-full h-full min-h-[420px] bg-slate-950 overflow-hidden select-none">
+    <div className={`relative w-full h-full min-h-[420px] ${themeColors.containerBgClass} overflow-hidden select-none transition-colors duration-300`}>
       <WebGLErrorBoundary sceneTitle="Anatomi 3D Interaktif">
         <div ref={mountRef} data-testid="anatomy-simulation-canvas" className="w-full h-full min-h-[420px]" />
       </WebGLErrorBoundary>
@@ -1243,119 +1148,40 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         ]}
         visible={showConceptLabels}
         onBindSlot={bindConceptSlot}
+        onSelectSlot={(slotId, labelText) => {
+          setSelectedPinId(null);
+          setInspectedPart(resolveApparatusInspection('biology', mode, `${slotId} ${labelText}`));
+        }}
       />
 
-      {dragToast && (
-        <div className="pointer-events-none absolute bottom-24 lg:bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-slate-950/92 border border-cyan-400/50 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-cyan-200">
-          <span className="h-2 w-2 rounded-full bg-cyan-400" />
-          <span className="text-slate-300">{dragToast.label}:</span>
-          <span className="font-bold text-cyan-300">{dragToast.value}</span>
-        </div>
-      )}
+      <Scene3DInspectorCard
+        info={inspectedPart}
+        onClose={() => setInspectedPart(null)}
+      />
 
-      {/* Top HUD: X-Ray & Cross-Section Layer Toggle */}
-      <div
-        className={`absolute top-16 flex flex-wrap items-center justify-between gap-2 pointer-events-none z-20 ${
-          !zenMode && leftDrawerOpen ? 'left-3 lg:left-[356px]' : 'left-3'
-        } ${!zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'}`}
-      >
-        <div className="pointer-events-auto flex items-center gap-1 bg-slate-900/92 border border-slate-700/80 rounded-xl p-1 shadow-lg">
-          {([
-            { id: 'outer', label: 'Lapisan Luar', Icon: Eye, activeBg: 'bg-rose-600' },
-            { id: 'xray', label: 'Mode X-Ray Transparan', Icon: Sparkles, activeBg: 'bg-cyan-600' },
-            { id: 'cross-section', label: 'Penampang Dalam', Icon: Layers, activeBg: 'bg-indigo-600' },
-          ] as const).map(({ id, label, Icon, activeBg }) => (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={layerMode === id}
-              onClick={() => setLayerMode(id)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
-                layerMode === id ? `${activeBg} text-white shadow-sm` : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" aria-hidden="true" />
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Interactive Anatomical Pins Bar */}
-        <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 bg-slate-900/92 border border-slate-700/80 rounded-xl p-1.5 shadow-lg">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-cyan-400 px-1.5">
-            Pin Anatomi 3D:
-          </span>
-          {activePins.map((pin) => (
-            <button
-              key={pin.id}
-              type="button"
-              aria-pressed={selectedPinId === pin.id}
-              onClick={() => handleSelectPin(pin)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
-                selectedPinId === pin.id
-                  ? 'bg-cyan-500 text-slate-950 shadow-sm'
-                  : 'bg-slate-800/90 text-cyan-200 hover:bg-slate-700'
-              }`}
-            >
-              [{pin.num}] {pin.name.split(' ')[0]}
-            </button>
-          ))}
-          <span className="mx-0.5 h-4 w-px bg-slate-700/80" aria-hidden="true" />
-          <button
-            type="button"
-            data-testid="camera-reset-btn"
-            aria-label="Reset View Kamera 3D"
-            onClick={() => {
-              labSound.playClick();
-              setSelectedPinId(null);
-              cameraLerpRef.current.target.set(0, 0.1, 0);
-              cameraLerpRef.current.pos.set(0, 1.3, 5.2);
-              cameraLerpRef.current.active = true;
-            }}
-            title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
-          >
-            Reset
-          </button>
-          <ConceptLabelToggleButton accentClass="bg-cyan-500 text-slate-950 font-bold" />
-        </div>
-      </div>
-
-      {/* Floating Anatomical Pin Info Card */}
-      {selectedPin && (
-        <div
-          className={`absolute bottom-24 lg:bottom-20 z-20 w-80 max-w-[calc(100%-1.5rem)] bg-slate-900/95 border border-cyan-500/50 rounded-xl p-3.5 text-slate-100 shadow-2xl ${
-            !zenMode && rightTelemetryOpen ? 'right-3 lg:right-[368px]' : 'right-3'
-          }`}
-        >
-          <div className="flex items-start justify-between gap-2 mb-1.5">
-            <div>
-              <span className="inline-block text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 mb-1">
-                Pin #{selectedPin.num} • Inspeksi Organ 3D
-              </span>
-              <h4 className="text-sm font-bold text-white leading-tight">{selectedPin.name}</h4>
-              <p className="text-[11px] text-cyan-300/90">{selectedPin.subtitle}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedPinId(null)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
-              aria-label="Tutup kartu pin"
-            >
-              <X className="w-4 h-4" aria-hidden="true" />
-            </button>
-          </div>
-          <p className="text-xs text-slate-300 leading-relaxed mb-2.5">{selectedPin.description}</p>
-          <div className="space-y-1.5 border-t border-slate-800 pt-2">
-            {selectedPin.getLiveMetrics(params).map((m) => (
-              <div key={m.label} className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">{m.label}</span>
-                <span className="font-mono font-semibold text-cyan-300">{m.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <AnatomyHudOverlay
+        zenMode={zenMode}
+        leftDrawerOpen={leftDrawerOpen}
+        rightTelemetryOpen={rightTelemetryOpen}
+        layerMode={layerMode}
+        onChangeLayerMode={setLayerMode}
+        activePins={activePins}
+        selectedPinId={selectedPinId}
+        selectedPin={selectedPin}
+        onSelectPin={handleSelectPin}
+        onClosePinCard={() => setSelectedPinId(null)}
+        onResetCamera={() => {
+          labSound.playClick();
+          setSelectedPinId(null);
+          setInspectedPart(null);
+          const pose = getAdaptiveCameraPose('biology', mode, 'isometric');
+          cameraLerpRef.current.target.set(...pose.target);
+          cameraLerpRef.current.pos.set(...pose.pos);
+          cameraLerpRef.current.active = true;
+        }}
+        dragToast={dragToast}
+        params={params}
+      />
     </div>
   );
 };

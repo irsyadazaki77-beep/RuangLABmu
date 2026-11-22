@@ -3,6 +3,7 @@ import { CHEMISTRY_MODULES } from './modules/chemistryModules';
 import { BIOLOGY_MODULES } from './modules/biologyModules';
 import { ASTRONOMY_MODULES } from './modules/astronomyModules';
 import { MODULE_DEEP_DIVE_MAP } from './moduleDeepDiveData';
+import { MODULE_PEDAGOGY_MAP } from './pedagogy';
 import { CURRICULUM_CHAPTERS, CurriculumChapter, CompetencyTier } from './curriculumChapters';
 
 export type ScienceDomain = 'fisika' | 'kimia' | 'biologi' | 'astronomi';
@@ -45,6 +46,33 @@ export interface DeepDiveContent {
   advancedConcept?: string;
 }
 
+export interface FormulaVariableItem {
+  symbol: string;
+  name: string;
+  unit: string;
+  role: 'bebas' | 'terikat' | 'konstanta';
+  explanation: string;
+}
+
+export interface EverydayAnalogy {
+  title: string;
+  scenario: string;
+  connection: string;
+}
+
+export interface WorkedExample {
+  question: string;
+  given: string[];
+  steps: string[];
+  answer: string;
+  physicalMeaning: string;
+}
+
+export interface GlossaryTerm {
+  term: string;
+  definition: string;
+}
+
 export interface ExperimentModule {
   id: string;
   title: string;
@@ -59,6 +87,11 @@ export interface ExperimentModule {
   objectives: Record<EducationTier, string[]>; // Capaian Pembelajaran per jenjang
   theorySummary: string;
   keyEquations: string[];
+  keyTakeaways?: string[];
+  everydayAnalogy?: EverydayAnalogy;
+  formulaBreakdown?: FormulaVariableItem[];
+  workedExample?: WorkedExample;
+  glossary?: GlossaryTerm[];
   apparatusList: string[]; // Alat & Bahan
   safetyNotes: string[];   // K3 Laboratorium
   commonMisconceptions?: string[];
@@ -79,9 +112,26 @@ export const EXPERIMENT_CATALOG: ExperimentModule[] = [
   ...ASTRONOMY_MODULES,
 ].map((mod) => {
   const deepDive = MODULE_DEEP_DIVE_MAP[mod.id] || {};
+  const pedagogy = MODULE_PEDAGOGY_MAP[mod.id];
+  const mergedDeepDiveContent = deepDive.deepDiveContent ?? pedagogy?.deepDiveContent;
+  const mergedQuiz = pedagogy?.extraPreLabQuestions?.length
+    ? [...mod.preLabQuiz, ...pedagogy.extraPreLabQuestions]
+    : mod.preLabQuiz;
+
   return {
     ...mod,
     ...deepDive,
+    ...(pedagogy
+      ? {
+          keyTakeaways: pedagogy.keyTakeaways,
+          everydayAnalogy: pedagogy.everydayAnalogy,
+          formulaBreakdown: pedagogy.formulaBreakdown,
+          workedExample: pedagogy.workedExample,
+          glossary: pedagogy.glossary,
+        }
+      : {}),
+    ...(mergedDeepDiveContent ? { deepDiveContent: mergedDeepDiveContent } : {}),
+    preLabQuiz: mergedQuiz,
   };
 });
 

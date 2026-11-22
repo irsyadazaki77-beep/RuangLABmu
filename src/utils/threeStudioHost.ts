@@ -129,32 +129,21 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   if (hudStatusBadge) {
     hudStatusBadge.setAttribute('data-testid', 'hud-performance-tier-badge');
     hudStatusBadge.style.cssText =
-      'position:absolute;bottom:108px;left:50%;transform:translateX(-50%);z-index:12;pointer-events:none;padding:3px 10px;border-radius:8px;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:700;background:rgba(15,23,42,0.92);border:1px solid rgba(56,189,248,0.35);color:#bae6fd;display:none;align-items:center;gap:6px;white-space:nowrap;';
+      'position:absolute;bottom:144px;left:50%;transform:translateX(-50%);z-index:12;pointer-events:none;padding:3px 10px;border-radius:8px;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:700;background:rgba(15,23,42,0.92);border:1px solid rgba(56,189,248,0.35);color:#bae6fd;display:none;align-items:center;gap:6px;white-space:nowrap;';
     container.appendChild(hudStatusBadge);
   }
 
-  const syncHudBadge = (tier: QualityTier, contextLost = false, measuredFps?: number) => {
+  const syncHudBadge = (_tier: QualityTier, contextLost = false, _measuredFps?: number) => {
     if (!hudStatusBadge) return;
     if (contextLost) {
       hudStatusBadge.style.display = 'inline-flex';
       hudStatusBadge.style.borderColor = 'rgba(245,158,11,0.65)';
       hudStatusBadge.style.color = '#fde68a';
-      hudStatusBadge.textContent = '⚡ Memulihkan Konteks WebGL 3D...';
+      hudStatusBadge.textContent = 'Memulihkan Tampilan WebGL 3D...';
       return;
     }
-    if (tier === '3t-saver') {
-      hudStatusBadge.style.display = 'inline-flex';
-      hudStatusBadge.style.borderColor = 'rgba(56,189,248,0.35)';
-      hudStatusBadge.style.color = '#bae6fd';
-      const fpsTag =
-        typeof measuredFps === 'number' && Number.isFinite(measuredFps)
-          ? ` (${Math.round(measuredFps)} FPS)`
-          : '';
-      hudStatusBadge.textContent = `Mode 3T-Saver • DPR 1x • Shadow Nonaktif${fpsTag}`;
-    } else {
-      hudStatusBadge.style.display = 'none';
-      hudStatusBadge.textContent = '';
-    }
+    hudStatusBadge.style.display = 'none';
+    hudStatusBadge.textContent = '';
   };
 
   const qualityController = createAdaptiveQualityController({
@@ -248,18 +237,23 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
 
   let envTexture: THREE.Texture;
   if (isSoftwareGl) {
-    // Fast equirectangular studio reflection gradient (<0.1ms) avoids multi-second CPU PMREM convolution on SwiftShader
-    const w = 16;
-    const h = 8;
+    // Fast procedural studio softbox equirectangular reflection map (<0.2ms) for crisp chrome/glass speculars on SwiftShader
+    const w = 32;
+    const h = 16;
     const data = new Uint8Array(w * h * 4);
     for (let y = 0; y < h; y++) {
       const v = y / (h - 1);
       for (let x = 0; x < w; x++) {
+        const u = x / (w - 1);
         const idx = (y * w + x) * 4;
-        const sky = Math.pow(v, 1.3);
-        data[idx] = Math.round(28 + sky * 195);
-        data[idx + 1] = Math.round(38 + sky * 195);
-        data[idx + 2] = Math.round(56 + sky * 190);
+        const sky = Math.pow(v, 1.15);
+        // Overhead studio softbox + subtle warm key / cool rim horizon panels
+        const overheadSoftbox = v > 0.76 ? 48 : 0;
+        const keyPanel = v > 0.35 && v < 0.72 && u > 0.12 && u < 0.36 ? 34 : 0;
+        const rimPanel = v > 0.32 && v < 0.68 && u > 0.64 && u < 0.88 ? 28 : 0;
+        data[idx] = Math.min(255, Math.round(44 + sky * 172 + overheadSoftbox + keyPanel));
+        data[idx + 1] = Math.min(255, Math.round(52 + sky * 174 + overheadSoftbox + keyPanel * 0.9 + rimPanel * 0.85));
+        data[idx + 2] = Math.min(255, Math.round(66 + sky * 172 + overheadSoftbox + keyPanel * 0.75 + rimPanel * 1.15));
         data[idx + 3] = 255;
       }
     }
@@ -276,7 +270,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     pmrem.dispose();
   }
   scene.environment = envTexture;
-  scene.environmentIntensity = options.environmentIntensity ?? 0.35;
+  scene.environmentIntensity = options.environmentIntensity ?? 0.58;
 
   const baseFov = options.camera.fov ?? 45;
   const computePortraitSafeFov = (aspect: number) => {
@@ -447,6 +441,13 @@ export interface StudioLightingRig {
   rimLight: THREE.DirectionalLight;
   applyTheme: (
     colors: {
+      backgroundHex?: number;
+      fogHex?: number;
+      floorHex?: number;
+      tableHex?: number;
+      trimHex?: number;
+      gridPrimaryHex?: number;
+      gridSecondaryHex?: number;
       ambientSkyHex: number;
       ambientGroundHex: number;
       ambientIntensity: number;
@@ -459,7 +460,11 @@ export interface StudioLightingRig {
 
 export function createStudioThreePointLighting(
   scene: THREE.Scene,
-  initialColors: { ambientSkyHex: number; ambientGroundHex: number },
+  initialColors: {
+    ambientSkyHex: number;
+    ambientGroundHex: number;
+    ambientIntensity?: number;
+  },
   options?: {
     keyPosition?: [number, number, number];
     rimPosition?: [number, number, number];
@@ -472,13 +477,13 @@ export function createStudioThreePointLighting(
   const hemiLight = new THREE.HemisphereLight(
     initialColors.ambientSkyHex,
     initialColors.ambientGroundHex,
-    0.52
+    Math.min(0.75, initialColors.ambientIntensity ?? 0.65)
   );
   scene.add(hemiLight);
 
   const keyPos = options?.keyPosition ?? [6, 12, 8];
   const shadowSize = options?.shadowMapSize ?? 1024;
-  const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.02);
+  const keyLight = new THREE.DirectionalLight(0xfffaf2, 1.15);
   keyLight.position.set(keyPos[0], keyPos[1], keyPos[2]);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.width = shadowSize;
@@ -495,7 +500,7 @@ export function createStudioThreePointLighting(
   scene.add(keyLight);
 
   const rimPos = options?.rimPosition ?? [-7, 5, -6];
-  const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.38);
+  const rimLight = new THREE.DirectionalLight(0xbae6fd, 0.48);
   rimLight.position.set(rimPos[0], rimPos[1], rimPos[2]);
   scene.add(rimLight);
 
@@ -504,12 +509,21 @@ export function createStudioThreePointLighting(
     keyLight,
     rimLight,
     applyTheme: (colors, targetScene, fogDensity = 0.015, workbench) => {
-      targetScene.background = new THREE.Color(0x0b0f17);
-      targetScene.fog = new THREE.FogExp2(0x0b0f17, fogDensity);
+      const bgHex = colors.backgroundHex ?? 0xe6ecf3;
+      const fogHex = colors.fogHex ?? bgHex;
+      if (targetScene.background instanceof THREE.Color) {
+        targetScene.background.setHex(bgHex);
+      } else {
+        targetScene.background = new THREE.Color(bgHex);
+      }
+      targetScene.fog = new THREE.FogExp2(fogHex, fogDensity);
+      const bgCol = new THREE.Color(bgHex);
+      const isDarkScene = bgCol.r * 0.299 + bgCol.g * 0.587 + bgCol.b * 0.114 < 0.35;
+      targetScene.environmentIntensity = isDarkScene ? 0.46 : 0.6;
       workbench?.updateTheme(colors);
       hemiLight.color.setHex(colors.ambientSkyHex);
       hemiLight.groundColor.setHex(colors.ambientGroundHex);
-      hemiLight.intensity = Math.min(0.55, colors.ambientIntensity);
+      hemiLight.intensity = Math.min(0.78, colors.ambientIntensity);
     },
   };
 }

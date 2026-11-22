@@ -7,6 +7,7 @@ import {
   projectWorldAnchorToViewport,
   resolveConceptLabelCollisions,
 } from '../../utils/pedagogicalHelpers';
+import { useSceneEmbedMode } from '../../contexts/SceneEmbedModeContext';
 
 export interface ConceptLabelToggleButtonProps {
   accentClass?: string;
@@ -66,18 +67,22 @@ export interface ConceptLabelsLayerProps {
   slots: ConceptLabelSlot[];
   visible: boolean;
   onBindSlot: (id: string, dom: ConceptLabelDomRef | null) => void;
+  onSelectSlot?: (slotId: string, labelText: string) => void;
 }
 
 interface ConceptLabelSlotItemProps {
   slot: ConceptLabelSlot;
   onBindSlot: (id: string, dom: ConceptLabelDomRef | null) => void;
+  onSelectSlot?: (slotId: string, labelText: string) => void;
 }
 
 const ConceptLabelSlotItem: React.FC<ConceptLabelSlotItemProps> = React.memo(
-  ({ slot, onBindSlot }) => {
+  ({ slot, onBindSlot, onSelectSlot }) => {
+    const textNodeRef = React.useRef<HTMLSpanElement | null>(null);
     const handleRef = React.useCallback(
       (el: HTMLDivElement | null) => {
         if (!el) {
+          textNodeRef.current = null;
           onBindSlot(slot.id, null);
           return;
         }
@@ -87,10 +92,17 @@ const ConceptLabelSlotItem: React.FC<ConceptLabelSlotItemProps> = React.memo(
           el.dataset.conceptInit = '1';
         }
         const textEl = el.querySelector<HTMLSpanElement>('[data-concept-text]');
+        textNodeRef.current = textEl;
         onBindSlot(slot.id, { root: el, text: textEl, lastText: '' });
       },
       [slot.id, onBindSlot]
     );
+
+    const handleClick = React.useCallback(() => {
+      if (!onSelectSlot) return;
+      labSound.playClick(680);
+      onSelectSlot(slot.id, textNodeRef.current?.textContent || slot.id);
+    }, [onSelectSlot, slot.id]);
 
     return (
       <div
@@ -99,19 +111,34 @@ const ConceptLabelSlotItem: React.FC<ConceptLabelSlotItemProps> = React.memo(
         className="absolute top-0 left-0 will-change-transform"
       >
         <div className="relative -translate-x-1/2 -translate-y-[calc(100%+10px)] flex flex-col items-center">
-          <div className="px-2 py-0.5 rounded-md bg-slate-950/92 border border-slate-600/80 text-[10px] font-mono font-semibold text-slate-100 whitespace-nowrap shadow-md flex items-center gap-1.5">
-            <span
-              className="w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: slot.accentHex || '#38bdf8' }}
-            />
-            <span data-concept-text />
-          </div>
+          {onSelectSlot ? (
+            <button
+              type="button"
+              onClick={handleClick}
+              title="Klik untuk inspeksi konsep & rumus terkait"
+              className="pointer-events-auto cursor-pointer px-2 py-0.5 rounded-md studio-hud-surface hover:border-sky-500/70 text-[10px] font-mono font-semibold text-[var(--comfort-hud-text)] whitespace-nowrap shadow-md flex items-center gap-1.5 transition-colors"
+            >
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: slot.accentHex || '#38bdf8' }}
+              />
+              <span data-concept-text />
+            </button>
+          ) : (
+            <div className="px-2 py-0.5 rounded-md studio-hud-surface text-[10px] font-mono font-semibold text-[var(--comfort-hud-text)] whitespace-nowrap shadow-md flex items-center gap-1.5">
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: slot.accentHex || '#38bdf8' }}
+              />
+              <span data-concept-text />
+            </div>
+          )}
           <div
             className="w-px h-2.5"
             style={{ backgroundColor: slot.accentHex || '#38bdf8' }}
           />
           <span
-            className="w-1.5 h-1.5 rounded-full border border-slate-950"
+            className="w-1.5 h-1.5 rounded-full border border-[var(--comfort-border)]"
             style={{ backgroundColor: slot.accentHex || '#38bdf8' }}
           />
         </div>
@@ -122,17 +149,22 @@ const ConceptLabelSlotItem: React.FC<ConceptLabelSlotItemProps> = React.memo(
 ConceptLabelSlotItem.displayName = 'ConceptLabelSlotItem';
 
 export const ConceptLabelsLayer: React.FC<ConceptLabelsLayerProps> = React.memo(
-  ({ slots, visible, onBindSlot }) => {
-    if (!visible) return null;
+  ({ slots, visible, onBindSlot, onSelectSlot }) => {
+    const embedMode = useSceneEmbedMode();
+    if (!visible || embedMode !== 'full') return null;
 
     return (
       <div
         data-testid="concept-labels-layer"
         className="pointer-events-none absolute inset-0 overflow-hidden z-10 select-none"
-        aria-hidden="true"
       >
         {slots.map((slot) => (
-          <ConceptLabelSlotItem key={slot.id} slot={slot} onBindSlot={onBindSlot} />
+          <ConceptLabelSlotItem
+            key={slot.id}
+            slot={slot}
+            onBindSlot={onBindSlot}
+            onSelectSlot={onSelectSlot}
+          />
         ))}
       </div>
     );
@@ -159,14 +191,16 @@ export function updateProjectedConceptLabels(
   const isSpatialDesktop = width >= 1024;
   const leftInset =
     isSpatialDesktop && !uiState.zenMode && uiState.leftDrawerOpen
-      ? (width >= 1280 ? 430 : 418)
-      : 68;
+      ? (width >= 1280 ? 440 : 426)
+      : 86;
   const rightInset =
     isSpatialDesktop && !uiState.zenMode && uiState.rightTelemetryOpen
-      ? (width >= 1280 ? 436 : 422)
-      : 68;
-  const topInset = isSpatialDesktop ? 164 : 112;
-  const bottomInset = isSpatialDesktop ? 98 : 110;
+      ? (width >= 1280 ? 446 : 430)
+      : 86;
+  // ConceptLabelSlotItem renders ~38px above its projected (x, y) anchor dot;
+  // reserve full clearance below SpatialHudTopBar + Scene3DControlDock + GuidedLabStepsOverlay.
+  const topInset = width >= 1280 ? 198 : isSpatialDesktop ? 218 : 186;
+  const bottomInset = isSpatialDesktop ? 124 : 134;
 
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];

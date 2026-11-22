@@ -10,7 +10,6 @@ import {
   FlaskConical,
   Leaf,
   Orbit,
-  Sparkles,
 } from 'lucide-react';
 import {
   ExperimentModule,
@@ -154,29 +153,29 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
   return (
     <div className="space-y-6">
       {/* Step 1 Intro Banner & Science Domain Selector */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs space-y-5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+      <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-5 shadow-xs space-y-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[var(--comfort-border)] pb-4">
           <div>
             <div className="text-xs font-mono text-sky-600 dark:text-sky-400 font-semibold">
               01. Tahap Persiapan & Pemilihan Modul
             </div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">
+            <h1 className="text-xl font-bold text-[var(--comfort-text)] mt-0.5">
               Pilih Bidang Sains & Modul Eksperimen
             </h1>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+            <p className="text-xs text-[var(--comfort-text-muted)] mt-1">
               Pelajari capaian pembelajaran serta prosedur Keselamatan Kerja (K3), lalu lanjutkan ke ruang simulasi 3D.
             </p>
           </div>
 
           {/* Search Input */}
           <div className="relative w-full lg:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-[var(--comfort-text-muted)] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cari judul modul, alat, atau konsep..."
-              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
+              className="w-full pl-9 pr-3 py-2 text-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-lg text-[var(--comfort-text)] placeholder-[var(--comfort-text-muted)] focus:outline-none focus:border-sky-500"
             />
           </div>
         </div>
@@ -198,14 +197,14 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
                   className={`text-left p-3.5 rounded-xl border transition-colors cursor-pointer flex items-start gap-3 ${
                     isSelected
                       ? item.activeBg
-                      : 'bg-slate-50/70 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/70'
+                      : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)] hover:bg-[var(--comfort-elevated)]'
                   }`}
                 >
                   <div
                     className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
                       isSelected
                         ? 'bg-white/20 text-white'
-                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ' +
+                        : 'bg-[var(--comfort-surface)] border border-[var(--comfort-border)] ' +
                           item.accentText
                     }`}
                   >
@@ -219,7 +218,7 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
                       className={`text-[11px] mt-0.5 line-clamp-1 ${
                         isSelected
                           ? 'text-white/85'
-                          : 'text-slate-500 dark:text-slate-400'
+                          : 'text-[var(--comfort-text-muted)]'
                       }`}
                     >
                       {item.desc}
@@ -234,7 +233,7 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
         {/* Filter Bar: Tier & SubCategory */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-slate-500 dark:text-slate-400 font-medium mr-1 flex items-center gap-1">
+            <span className="text-[var(--comfort-text-muted)] font-medium mr-1 flex items-center gap-1">
               <Filter className="w-3.5 h-3.5" /> Filter Jenjang:
             </span>
             {(['Semua', 'SMP', 'SMA', 'Mahasiswa'] as const).map((t) => {
@@ -246,8 +245,8 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
                   onClick={() => handleTierClick(t)}
                   className={`px-2.5 py-1 rounded-md font-medium text-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     active
-                      ? 'bg-slate-900 dark:bg-sky-600 text-white'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-sky-600 text-white'
+                      : 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] border border-[var(--comfort-border)] hover:text-[var(--comfort-text)]'
                   }`}
                 >
                   {t === 'Mahasiswa' ? 'Perguruan Tinggi' : t}
@@ -270,8 +269,8 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
                   }}
                   className={`px-2.5 py-1 rounded-md text-xs whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                     active
-                      ? 'bg-slate-900 dark:bg-slate-700 text-white font-medium'
-                      : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                      ? 'bg-sky-600 text-white font-medium'
+                      : 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] border border-[var(--comfort-border)] hover:text-[var(--comfort-text)]'
                   }`}
                 >
                   {label}
@@ -283,8 +282,8 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
 
         {/* Chapter Filter Pills for the Domain */}
         {domainChapters.length > 0 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto text-xs py-1 border-t border-slate-100 dark:border-slate-800/80 pt-2">
-            <span className="text-slate-500 dark:text-slate-400 font-medium mr-1 flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto text-xs py-1 border-t border-[var(--comfort-border)] pt-2">
+            <span className="text-[var(--comfort-text-muted)] font-medium mr-1 flex items-center gap-1 shrink-0">
               <BookOpen className="w-3.5 h-3.5 text-sky-500" /> Bab Kurikulum:
             </span>
             <button
@@ -295,8 +294,8 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
               }}
               className={`px-2.5 py-1 rounded-md text-xs whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                 selectedChapterNum === 'all'
-                  ? 'bg-slate-900 dark:bg-slate-700 text-white font-medium'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  ? 'bg-sky-600 text-white font-medium'
+                  : 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] border border-[var(--comfort-border)] hover:text-[var(--comfort-text)]'
               }`}
             >
               Semua Bab
@@ -314,7 +313,7 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
                   className={`px-2.5 py-1 rounded-md text-xs whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                     active
                       ? 'bg-sky-600 text-white font-medium shadow-2xs'
-                      : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      : 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] border border-[var(--comfort-border)] hover:text-[var(--comfort-text)]'
                   }`}
                 >
                   {ch.shortTitle} ({ch.competencyTier.split(' ')[0]})
@@ -337,22 +336,22 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
               key={exp.id}
               className={`flex flex-col justify-between rounded-xl border p-5 transition-colors ${
                 isCurrent
-                  ? 'border-sky-500 bg-white dark:bg-slate-900 shadow-xs'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 hover:border-slate-300 dark:hover:border-slate-700'
+                  ? 'border-sky-500 bg-[var(--comfort-surface)] shadow-xs'
+                  : 'border-[var(--comfort-border)] bg-[var(--comfort-surface)] hover:border-sky-500/40'
               }`}
             >
               <div>
                 {/* Unboxed Clean Metadata Row */}
-                <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+                <div className="flex items-center justify-between gap-2 text-xs text-[var(--comfort-text-muted)] mb-2">
                   <div className="flex items-center gap-1.5 truncate">
                     {exp.chapterNumber && (
-                      <span className="font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/70 border border-sky-200 dark:border-sky-800/80 px-1.5 py-0.2 rounded text-[10px]">
-                        Bab {exp.chapterNumber}
+                      <span className="font-bold text-sky-700 dark:text-sky-300">
+                        Bab {exp.chapterNumber} ·
                       </span>
                     )}
                     {exp.competencyLevel && (
-                      <span className="font-mono text-[10px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded">
-                        {exp.competencyLevel}
+                      <span className="font-mono text-[11px] font-semibold text-[var(--comfort-text-muted)]">
+                        {exp.competencyLevel} ·
                       </span>
                     )}
                     <span className="font-medium text-sky-600 dark:text-sky-400">
@@ -377,31 +376,31 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
                 </div>
 
                 {/* Primary Title */}
-                <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug">
+                <h3 className="font-bold text-[var(--comfort-text)] text-base leading-snug">
                   {exp.title}
                 </h3>
 
                 {/* Theory Summary */}
-                <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                <p className="text-xs text-[var(--comfort-text-muted)] mt-2 line-clamp-2 leading-relaxed comfort-prose">
                   {exp.theorySummary}
                 </p>
 
-                {/* In-depth content badge */}
-                <div className="mt-2 flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 px-2 py-1 rounded-lg">
-                  <Sparkles className="w-3 h-3 text-emerald-500 shrink-0" />
-                  <span className="truncate">Miskonsepsi &amp; Industri Indonesia Lengkap</span>
+                {/* Subtle Curriculum Context Note */}
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">Miskonsepsi &amp; Konteks Industri Lengkap</span>
                 </div>
 
                 {/* Primary Formula Box */}
                 {exp.keyEquations.length > 0 && (
-                  <div className="mt-3 px-3 py-2 bg-slate-50 dark:bg-slate-950/70 rounded-lg border border-slate-200/80 dark:border-slate-800 font-mono text-xs text-slate-800 dark:text-sky-300 truncate">
+                  <div className="mt-3 px-3 py-2 bg-[var(--comfort-surface-subtle)] rounded-lg border border-[var(--comfort-border)] font-mono text-xs text-[var(--comfort-text)] truncate">
                     {exp.keyEquations[0]}
                   </div>
                 )}
 
                 {/* Unboxed Apparatus List */}
-                <div className="mt-3 text-xs text-slate-500 dark:text-slate-400 truncate">
-                  <span className="font-medium text-slate-700 dark:text-slate-300">
+                <div className="mt-3 text-xs text-[var(--comfort-text-muted)] truncate">
+                  <span className="font-medium text-[var(--comfort-text)]">
                     Alat Utama:{' '}
                   </span>
                   {exp.apparatusList.slice(0, 3).join(' · ')}
@@ -409,14 +408,14 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
               </div>
 
               {/* Action Buttons: Step 1A (Pre-Lab & K3) -> Step 1B (Start 3D Lab) */}
-              <div className="flex items-center gap-2.5 mt-5 pt-3.5 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5 mt-5 pt-3.5 border-t border-[var(--comfort-border)]">
                 <button
                   type="button"
                   onClick={() => {
                     labSound.playClick();
                     onOpenPreLabModal(exp);
                   }}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-[var(--comfort-text)] bg-[var(--comfort-surface-subtle)] hover:bg-[var(--comfort-elevated)] border border-[var(--comfort-border)] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <ShieldCheck className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                   <span>Panduan & K3</span>
@@ -449,12 +448,12 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
       </div>
 
       {filteredExperiments.length === 0 && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 text-center space-y-2">
-          <BookOpen className="w-7 h-7 text-slate-400 mx-auto" />
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+        <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-8 text-center space-y-2">
+          <BookOpen className="w-7 h-7 text-[var(--comfort-text-muted)] mx-auto" />
+          <p className="text-sm font-semibold text-[var(--comfort-text)]">
             Tidak ada modul yang cocok dengan pencarian Anda
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-[var(--comfort-text-muted)]">
             Coba ubah filter jenjang kurikulum atau kata kunci pencarian di atas.
           </p>
         </div>

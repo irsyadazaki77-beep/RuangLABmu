@@ -321,7 +321,7 @@ test('configureLabRenderer clamps exposure to 1.0..1.1, enables ACESFilmicToneMa
   assert.equal(mockRenderer.toneMapping, THREE.ACESFilmicToneMapping);
   assert.equal(mockRenderer.toneMappingExposure, 1.1);
   assert.equal(mockRenderer.shadowMap.enabled, true);
-  assert.equal(mockRenderer.shadowMap.type, THREE.PCFSoftShadowMap);
+  assert.equal(mockRenderer.shadowMap.type, THREE.PCFShadowMap);
   assert.ok(appliedDpr >= 1 && appliedDpr <= 1.5);
 
   configureLabRenderer(mockRenderer, { exposure: 0.7, isSoftwareGl: true, isLite: true });

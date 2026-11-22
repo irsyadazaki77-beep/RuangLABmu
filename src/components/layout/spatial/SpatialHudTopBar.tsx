@@ -148,12 +148,12 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
 
         <span
           data-testid="hud-3t-connection-pill"
-          className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg border text-[10px] font-mono font-medium whitespace-nowrap shrink-0 ${
+          className={`inline-flex items-center gap-1 px-1.5 py-1 text-[11px] font-medium whitespace-nowrap shrink-0 ${
             !isOnline || outboxPendingCount > 0
-              ? 'bg-amber-500/12 border-amber-500/40 text-amber-700 dark:text-amber-300'
+              ? 'text-amber-700 dark:text-amber-300'
               : outboxSyncStatus === 'syncing'
-              ? 'bg-sky-500/12 border-sky-500/40 text-sky-700 dark:text-sky-300'
-              : 'bg-emerald-500/12 border-emerald-500/35 text-emerald-700 dark:text-emerald-300'
+              ? 'text-sky-700 dark:text-sky-300'
+              : 'text-[var(--comfort-hud-muted)]'
           }`}
           title={
             isOnline
@@ -164,7 +164,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
           }
         >
           {isOnline ? (
-            <Wifi className="w-3 h-3 shrink-0" aria-hidden="true" />
+            <Wifi className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
           ) : (
             <WifiOff className="w-3 h-3 shrink-0" aria-hidden="true" />
           )}
@@ -173,7 +173,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
           </span>
         </span>
 
-        {/* Live FPS & 3T Lite Mode Toggle */}
+        {/* 3T Lite Mode Toggle (clean mode control without raw FPS ticker noise) */}
         <button
           type="button"
           data-testid="hud-lite-mode-toggle-btn"
@@ -184,24 +184,22 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
           }}
           title={
             liteDeviceMode
-              ? 'Mode Ringan 3T Aktif (Klik untuk Kualitas Otomatis)'
-              : 'Klik untuk Mengaktifkan Mode Ringan 3T'
+              ? `Mode Ringan 3T Aktif (${Math.round(fps)} FPS) — Klik untuk Kualitas Otomatis`
+              : `Kualitas ${qualityTier} — Klik untuk Mengaktifkan Mode Ringan 3T`
           }
-          className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg border font-mono text-[10px] font-semibold tabular-nums transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
             liteDeviceMode
-              ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-700 dark:text-cyan-200'
-              : 'studio-hud-subcard hover:border-cyan-500/50 text-sky-700 dark:text-cyan-300'
+              ? 'bg-sky-500/18 border-sky-500/50 text-sky-700 dark:text-sky-300 font-semibold'
+              : 'studio-hud-subcard hover:border-sky-500/45 text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)]'
           }`}
         >
           {liteDeviceMode ? (
             <Zap className="w-3 h-3 text-amber-500 dark:text-amber-400 shrink-0" aria-hidden="true" />
           ) : (
-            <Cpu className="w-3 h-3 text-sky-600 dark:text-cyan-400 shrink-0" aria-hidden="true" />
+            <Cpu className="w-3 h-3 shrink-0" aria-hidden="true" />
           )}
-          <span data-testid="hud-fps-quality-badge">{Math.round(fps)} FPS</span>
-          <span className="opacity-45 hidden sm:inline" aria-hidden="true">·</span>
-          <span className="uppercase text-[9px] hidden sm:inline">
-            {liteDeviceMode ? 'lite' : qualityTier}
+          <span data-testid="hud-fps-quality-badge">
+            {liteDeviceMode ? 'Mode Lite' : 'Standar'}
           </span>
         </button>
 

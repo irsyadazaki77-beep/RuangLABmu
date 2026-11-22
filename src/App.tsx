@@ -11,6 +11,7 @@ import { TopNavigationHeader } from './components/layout/TopNavigationHeader';
 import { MainLabWorkspace } from './components/layout/MainLabWorkspace';
 import { PWAInstallBanner } from './components/ui/PWAInstallBanner';
 import { PwaUpdateToast } from './components/common/PwaUpdateToast';
+import { EyeComfortController } from './components/ui/EyeComfortController';
 import { ExamSessionController } from './components/exam/ExamSessionController';
 import { LabSessionProvider } from './contexts/LabSessionContext';
 import { useLabSession } from './hooks/useLabSession';
@@ -421,7 +422,8 @@ export default function App() {
             <CommandPaletteModal onSelectModule={handleSelectCatalogModule} />
           </Suspense>
 
-          {/* 4. In-App PWA Prompts */}
+          {/* 4. Eye-Comfort Ergonomics & In-App PWA Prompts */}
+          <EyeComfortController />
           <PWAInstallBanner />
           <PwaUpdateToast />
         </div>

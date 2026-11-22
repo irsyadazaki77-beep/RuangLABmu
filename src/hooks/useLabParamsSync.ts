@@ -7,7 +7,6 @@ import {
   getExperimentById,
   EXPERIMENT_CATALOG,
 } from '../registry/experimentRegistry';
-import { VisualComfortPreferences } from '../components/ui/VisualComfortToolbar';
 import {
   INITIAL_PHYSICS_PARAMS,
   INITIAL_CHEMISTRY_PARAMS,
@@ -21,7 +20,6 @@ export interface UseLabParamsSyncOptions {
   activeDomain: LabDomain;
   activeModuleId: string;
   soundEnabled: boolean;
-  comfortPrefs: VisualComfortPreferences;
   setActiveDomain: (domain: LabDomain) => void;
   setActiveModule: (moduleId: string) => void;
   setIsLobbyMode: (lobby: boolean) => void;
@@ -32,7 +30,6 @@ export function useLabParamsSync({
   activeDomain,
   activeModuleId,
   soundEnabled,
-  comfortPrefs,
   setActiveDomain,
   setActiveModule,
   setIsLobbyMode,
@@ -65,20 +62,6 @@ export function useLabParamsSync({
       },
     };
   });
-
-  // Sync Comfort Preferences with DOM root attributes
-  useEffect(() => {
-    const root = document.documentElement;
-    root.setAttribute('data-comfort-theme', comfortPrefs.theme);
-    root.setAttribute('data-font-scale', comfortPrefs.fontScale);
-    root.setAttribute('data-line-spacing', comfortPrefs.lineSpacing);
-    root.setAttribute('data-colorblind', comfortPrefs.colorBlindSafe ? 'true' : 'false');
-    if (comfortPrefs.theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-  }, [comfortPrefs]);
 
   useEffect(() => {
     labSound.setEnabled(soundEnabled);

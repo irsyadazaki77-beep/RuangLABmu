@@ -22,7 +22,7 @@ import {
 import { SimulationFrame } from '../utils/simulationBuffer';
 import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
-import { Maximize2, Minimize2, Link2, Ruler } from 'lucide-react';
+import { Eye, EyeOff, Ruler } from 'lucide-react';
 import { labSound } from '../utils/soundEngine';
 import {
   globalMultiApparatusEngine,
@@ -34,11 +34,17 @@ import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
 import { buildPhysicsCoreStage } from './scenes/physicsCoreStage';
 import {
-  ConceptLabelToggleButton,
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from './ui/ConceptLabelsOverlay';
 import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
+import { Scene3DControlDock } from './ui/Scene3DControlDock';
+import { Scene3DInspectorCard } from './ui/Scene3DInspectorCard';
+import {
+  getAdaptiveCameraPose,
+  resolveApparatusInspection,
+  type ApparatusInspectionInfo,
+} from '../utils/studio3DCatalog';
 import { useThreeStudioScene } from './scenes/useThreeStudioScene';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../stores/useUIStore';
@@ -50,6 +56,7 @@ interface PhysicsScene3DProps {
   simTime: number;
   simTimeRef?: React.RefObject<number>;
   showVectorOverlay: boolean;
+  onToggleVectorOverlay?: () => void;
   simFrame?: SimulationFrame | null;
   remoteCursors?: Record<string, SpatialCursorPayload>;
   onEmitCursor?: (
@@ -75,6 +82,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   simTime,
   simTimeRef,
   showVectorOverlay,
+  onToggleVectorOverlay,
   simFrame,
   remoteCursors,
   onEmitCursor,
@@ -116,10 +124,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     onCaptureSnapshot,
   });
 
-  const { leftDrawerOpen, rightTelemetryOpen, zenMode } = useUIStore(
+  const { leftDrawerOpen, zenMode } = useUIStore(
     useShallow((s) => ({
       leftDrawerOpen: s.leftDrawerOpen,
-      rightTelemetryOpen: s.rightTelemetryOpen,
       zenMode: s.zenMode,
     }))
   );
@@ -134,6 +141,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     ruler: '40.00 ± 0.05 cm',
     protractor: '30.0 ± 0.5°',
   });
+  const [inspectedPart, setInspectedPart] = useState<ApparatusInspectionInfo | null>(null);
+  const prevPhysicsModeRef = useRef<string>(params.mode);
 
   const latestRef = useRef({
     params,
@@ -177,6 +186,14 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
   }, [params, metrics, showConceptLabels]);
 
   useEffect(() => {
+    if (prevPhysicsModeRef.current !== params.mode) {
+      prevPhysicsModeRef.current = params.mode;
+      setInspectedPart(null);
+      cameraCtrlRef.current?.setPreset('isometric');
+    }
+  }, [params.mode, cameraCtrlRef]);
+
+  useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
@@ -184,20 +201,21 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     const height = container.clientHeight || 380;
     const initialThemeColors = getSceneThemeColors(activeComfortTheme, 'Fisika');
 
+    const initialPose = getAdaptiveCameraPose('physics', latestRef.current.params.mode, 'isometric');
     let camTransitionActive = false;
     const host = initThreeStudioHost({
       container,
       fallbackSize: { width: 760, height: 380 },
-      backgroundHex: 0x0b0f17,
+      backgroundHex: initialThemeColors.backgroundHex,
       fogDensity: 0.014,
       camera: {
         fov: 45,
         near: 0.1,
         far: 250,
-        position: [4.8, 6.2, 12.8],
+        position: initialPose.pos,
       },
       controls: {
-        target: [0, 1.4, 0],
+        target: initialPose.target,
         maxPolarAngle: Math.PI * 0.48,
         minDistance: 1.2,
         maxDistance: 18,
@@ -213,8 +231,8 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
 
     const { scene, camera, renderer, controls, fpsMonitor, isSoftwareGl } = host;
 
-    const desiredCamPos = new THREE.Vector3(4.8, 6.2, 12.8);
-    const desiredTarget = new THREE.Vector3(0, 1.4, 0);
+    const desiredCamPos = new THREE.Vector3(...initialPose.pos);
+    const desiredTarget = new THREE.Vector3(...initialPose.target);
 
     cameraSyncHandleRef.current = {
       applyPose: (pose) => {
@@ -224,19 +242,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
     };
 
     const applyCameraPreset = (preset: CameraPreset) => {
-      if (preset === 'isometric') {
-        desiredCamPos.set(4.8, 6.2, 12.8);
-        desiredTarget.set(0, 1.4, 0);
-      } else if (preset === 'front') {
-        desiredCamPos.set(0, 2.6, 14.2);
-        desiredTarget.set(0, 1.5, 0);
-      } else if (preset === 'top') {
-        desiredCamPos.set(0, 16.5, 0.8);
-        desiredTarget.set(0, 0, 0);
-      } else {
-        desiredCamPos.set(1.8, 3.4, 8.2);
-        desiredTarget.set(0, 1.6, 0);
-      }
+      const pose = getAdaptiveCameraPose('physics', latestRef.current.params.mode, preset);
+      desiredCamPos.set(...pose.pos);
+      desiredTarget.set(...pose.target);
       camTransitionActive = true;
     };
 
@@ -554,144 +562,112 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         ]}
         visible={showConceptLabels}
         onBindSlot={bindConceptSlot}
+        onSelectSlot={(slotId, labelText) => {
+          setInspectedPart(resolveApparatusInspection('physics', params.mode, `${slotId} ${labelText}`));
+        }}
       />
 
       {showMeasureTools && (
         <div
-          className={`pointer-events-none absolute flex flex-wrap items-center gap-3 rounded-xl bg-slate-950/92 border border-sky-400/35 px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
+          className={`pointer-events-none absolute flex flex-wrap items-center gap-3 rounded-xl studio-hud-surface border px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
             isFullscreen
-              ? 'bottom-4 left-4'
-              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
+              ? 'bottom-16 left-4'
+              : `bottom-[118px] lg:bottom-[104px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
           }`}
         >
-          <span className="flex items-center gap-1.5 text-sky-300">
-            <Ruler className="w-3.5 h-3.5 text-sky-400" />
+          <span className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300">
+            <Ruler className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
             <span>Mistar:</span>
-            <b className="text-white">{measureHud.ruler}</b>
+            <b className="text-[var(--comfort-hud-text)]">{measureHud.ruler}</b>
           </span>
-          <span className="h-3 w-px bg-white/15" />
-          <span className="text-amber-300">
-            Busur: <b className="text-white">{measureHud.protractor}</b>
+          <span className="h-3 w-px bg-[var(--comfort-border)]" />
+          <span className="text-amber-700 dark:text-amber-300">
+            Busur: <b className="text-[var(--comfort-hud-text)]">{measureHud.protractor}</b>
           </span>
         </div>
       )}
 
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-24 lg:bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
-          <span className="h-2 w-2 rounded-full bg-sky-400" />
-          <span>Menyetel 3D: {dragToast.label} = <b className="text-white">{dragToast.value}</b></span>
+        <div className="pointer-events-none absolute bottom-[118px] lg:bottom-[104px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-sky-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
+          <span>
+            Menyetel 3D: {dragToast.label} ={' '}
+            <b className="text-sky-700 dark:text-sky-300">{dragToast.value}</b>
+          </span>
         </div>
       )}
 
-      <div
-        className={`pointer-events-auto absolute flex flex-wrap items-center justify-end gap-1 rounded-xl studio-hud-surface px-2 py-1 shadow-lg z-20 opacity-95 hover:opacity-100 transition-all max-w-[calc(100vw-24px)] ${
-          isFullscreen
-            ? 'top-3 right-3'
-            : `top-16 ${
-                !zenMode && rightTelemetryOpen && leftDrawerOpen
-                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-704px)] xl:max-w-[calc(100%-736px)]'
-                  : !zenMode && rightTelemetryOpen
-                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-368px)]'
-                  : !zenMode && leftDrawerOpen
-                  ? 'right-3 lg:max-w-[calc(100%-348px)]'
-                  : 'right-3'
-              }`
-        }`}
-      >
-        <button
-          type="button"
-          data-testid="toggle-3d-measure-btn"
-          aria-pressed={showMeasureTools}
-          onClick={() => {
-            labSound.playClick(700);
-            setShowMeasureTools((prev) => !prev);
-          }}
-          title="Tampilkan / Sembunyikan Mistar Kaliper & Busur Derajat 3D (Seret pin/lengan di layar)"
-          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
-            showMeasureTools
-              ? 'bg-sky-500 text-slate-950 font-bold'
-              : 'text-sky-600 dark:text-sky-300 hover:text-[var(--comfort-text)] hover:bg-sky-500/10'
-          }`}
-        >
-          <Ruler className="w-3.5 h-3.5" aria-hidden="true" />
-          <span className="hidden xl:inline">Ukur 3D</span>
-        </button>
+      <Scene3DInspectorCard
+        info={inspectedPart}
+        liveMetricSummary={
+          Number.isFinite(metrics.acceleration) && params.mode === 'newton-incline'
+            ? `a = ${metrics.acceleration.toFixed(2)} m/s²`
+            : Number.isFinite(instant.speed)
+            ? `v = ${instant.speed.toFixed(2)} m/s`
+            : undefined
+        }
+        onClose={() => setInspectedPart(null)}
+      />
 
-        <button
-          type="button"
-          data-testid="snap-dock-apparatus-btn"
-          onClick={() => {
-            const { docked, transfer } = triggerDomainApparatusSnap('Fisika');
-            if (docked) {
-              setDragToast({
-                label: `Port Docked (${docked.portType.toUpperCase()})`,
-                value: `I = ${(transfer?.electricCurrentAmp ?? 0).toFixed(2)} A`,
-              });
-              if (snapToastTimerRef.current) clearTimeout(snapToastTimerRef.current);
-              snapToastTimerRef.current = setTimeout(() => {
-                snapToastTimerRef.current = null;
-                setDragToast(null);
-              }, 1800);
-            }
-          }}
-          title="Snap-to-Port: Sambung & Transfer Aparatus 3D"
-          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-600 dark:text-emerald-300 hover:text-[var(--comfort-text)] hover:bg-emerald-500/10 flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-        >
-          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
-          <span className="hidden xl:inline">Snap</span>
-        </button>
-
-        <button
-          type="button"
-          data-testid="enter-vr-lab-btn"
-          aria-label="Mode VR Spasial 3D"
-          onClick={() => {
-            labSound.playClick(700);
-            void toggleImmersiveVRSession();
-          }}
-          title="Mode VR Spasial 3D (WebXR Immersive-VR)"
-          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-        >
-          <span aria-hidden="true">🥽</span>
-        </button>
-
-        <span className="mx-0.5 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
-
-        <div className="hidden md:flex items-center gap-0.5">
-          <button
-            type="button"
-            data-testid="camera-reset-btn"
-            aria-label="Reset View Kamera 3D"
-            onClick={() => handleSelectCameraPreset('isometric')}
-            title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 text-[11px] font-medium rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-          >
-            Reset
-          </button>
-          {(
-            [
-              { id: 'isometric', label: '3D' },
-              { id: 'front', label: 'Depan' },
-              { id: 'top', label: 'Atas' },
-              { id: 'focus', label: 'Fokus' },
-            ] as const
-          ).map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              title={`Sudut Kamera ${preset.label}`}
-              aria-pressed={activePreset === preset.id}
-              onClick={() => handleSelectCameraPreset(preset.id)}
-              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
-                activePreset === preset.id
-                  ? 'bg-sky-500 text-slate-950 font-bold'
-                  : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10'
-              }`}
-            >
-              {preset.label}
-            </button>
-          ))}
-          {(params.mode === 'projectile-gravity' || (params.mode as string) === 'projectile-motion') && (
+      <Scene3DControlDock
+        accentTone="sky"
+        activePreset={activePreset}
+        onResetCamera={() => handleSelectCameraPreset('isometric')}
+        onSelectPreset={handleSelectCameraPreset}
+        isVRSupported={true}
+        onEnterVR={() => {
+          labSound.playClick(700);
+          void toggleImmersiveVRSession();
+        }}
+        onSnapApparatus={() => {
+          const { docked, transfer } = triggerDomainApparatusSnap('Fisika');
+          if (docked) {
+            setDragToast({
+              label: `Port Docked (${docked.portType.toUpperCase()})`,
+              value: `I = ${(transfer?.electricCurrentAmp ?? 0).toFixed(2)} A`,
+            });
+            if (snapToastTimerRef.current) clearTimeout(snapToastTimerRef.current);
+            snapToastTimerRef.current = setTimeout(() => {
+              snapToastTimerRef.current = null;
+              setDragToast(null);
+            }, 1800);
+          }
+        }}
+        tools={[
+          ...(onToggleVectorOverlay
+            ? [
+                {
+                  id: 'vector-3d',
+                  testId: 'toggle-3d-vectors-btn',
+                  label: 'Vektor',
+                  title: 'Tampilkan / Sembunyikan Panah Vektor Gaya 3D',
+                  active: showVectorOverlay,
+                  icon: showVectorOverlay ? (
+                    <Eye className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <EyeOff className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  ),
+                  onClick: () => {
+                    labSound.playClick(showVectorOverlay ? 520 : 680);
+                    onToggleVectorOverlay();
+                  },
+                },
+              ]
+            : []),
+          {
+            id: 'measure-3d',
+            testId: 'toggle-3d-measure-btn',
+            label: 'Ukur 3D',
+            title: 'Tampilkan / Sembunyikan Mistar Kaliper & Busur Derajat 3D (Seret pin/lengan di layar)',
+            active: showMeasureTools,
+            icon: <Ruler className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />,
+            onClick: () => {
+              labSound.playClick(700);
+              setShowMeasureTools((prev) => !prev);
+            },
+          },
+        ]}
+        extraControl={
+          params.mode === 'projectile-gravity' || (params.mode as string) === 'projectile-motion' ? (
             <button
               type="button"
               data-testid="projectile-follow-cam-toggle"
@@ -701,35 +677,26 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
                 setFollowCamEnabled((prev) => !prev);
               }}
               title="Follow Cam: Ikuti lintasan proyektil secara halus"
-              className={`px-2 py-1 text-[10px] font-mono rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+              className={`px-2 py-1 text-[10px] font-mono rounded-lg transition-colors cursor-pointer shrink-0 ${
                 followCamEnabled
                   ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 font-semibold'
-                  : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10'
+                  : 'text-[var(--comfort-hud-text)]/80 hover:text-[var(--comfort-hud-text)] hover:bg-sky-500/12'
               }`}
             >
               Follow
             </button>
-          )}
-          <span className="mx-1 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
-        </div>
+          ) : undefined
+        }
+        onOpenInspector={() =>
+          setInspectedPart((prev) =>
+            prev ? null : resolveApparatusInspection('physics', params.mode, hoveredPartLabel ?? undefined)
+          )
+        }
+        inspectorActive={Boolean(inspectedPart)}
+        onToggleFullscreen={handleToggleFullscreen}
+        isFullscreen={isFullscreen}
+      />
 
-        <ConceptLabelToggleButton accentClass="bg-sky-500 text-slate-950 font-bold" />
-
-        <button
-          type="button"
-          onClick={handleToggleFullscreen}
-          aria-label={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
-          aria-pressed={isFullscreen}
-          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-sky-500/10 text-[11px] font-medium text-[var(--comfort-text)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
-        >
-          {isFullscreen ? (
-            <Minimize2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" aria-hidden="true" />
-          ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" aria-hidden="true" />
-          )}
-        </button>
-      </div>
       <Scene3DHoverBadge hoveredLabel={dragToast ? null : hoveredPartLabel} accent="sky" />
     </div>
   );

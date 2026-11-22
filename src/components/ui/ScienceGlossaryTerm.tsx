@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpen, Sparkles, X } from 'lucide-react';
+import { BookOpen, Lightbulb, X } from 'lucide-react';
 import {
   computeGlossaryPopoverPosition,
   getGlossaryEntry,
@@ -134,11 +134,11 @@ export const ScienceGlossaryTerm: React.FC<ScienceGlossaryTermProps> = ({
 
   const popoverSurfaceClass =
     themeMode === 'dark'
-      ? 'bg-slate-950 text-slate-100 border-slate-700'
+      ? 'studio-hud-surface text-[var(--comfort-hud-text)] border-[var(--comfort-hud-border)]'
       : 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] border-[var(--comfort-border)]';
 
   const popoverMutedClass =
-    themeMode === 'dark' ? 'text-slate-300' : 'text-[var(--comfort-muted)]';
+    themeMode === 'dark' ? 'text-[var(--comfort-hud-muted)]' : 'text-[var(--comfort-muted)]';
 
   const handleToggleActivate = (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -249,7 +249,7 @@ export const ScienceGlossaryTerm: React.FC<ScienceGlossaryTermProps> = ({
 
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 space-y-0.5">
               <div className="flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">
-                <Sparkles className="w-3 h-3 shrink-0" />
+                <Lightbulb className="w-3 h-3 shrink-0" />
                 <span>Analogi Sehari-hari</span>
               </div>
               <p className={`text-[11px] leading-snug ${popoverMutedClass}`}>

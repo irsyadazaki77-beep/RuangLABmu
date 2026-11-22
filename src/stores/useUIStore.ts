@@ -23,11 +23,16 @@ export interface LivePerfStats {
   qualityTier: LiveQualityTier;
 }
 
+export const EYE_REST_INTERVAL_SEC = 20 * 60;
+export const EYE_REST_BREAK_SEC = 20;
+
 const DEFAULT_COMFORT_PREFS: VisualComfortPreferences = {
   theme: 'light',
   fontScale: 'normal',
   lineSpacing: 'standard',
+  dyslexiaMode: false,
   colorBlindSafe: false,
+  blueLightFilter: 'off',
   eyeRestTimerEnabled: true,
 };
 
@@ -36,10 +41,20 @@ function loadStoredComfortPrefs(): VisualComfortPreferences {
     const savedPrefs = window.localStorage.getItem('simulab-comfort-prefs');
     if (savedPrefs) {
       const parsed = JSON.parse(savedPrefs);
-      if (parsed && parsed.theme) return parsed;
+      if (parsed && parsed.theme) {
+        return {
+          ...DEFAULT_COMFORT_PREFS,
+          ...parsed,
+          dyslexiaMode: Boolean(parsed.dyslexiaMode),
+          blueLightFilter:
+            parsed.blueLightFilter === 'dusk' || parsed.blueLightFilter === 'night'
+              ? parsed.blueLightFilter
+              : 'off',
+        };
+      }
     }
     const legacyTheme = window.localStorage.getItem('simulab-theme');
-    if (legacyTheme === 'light' || legacyTheme === 'dark') {
+    if (legacyTheme === 'light' || legacyTheme === 'dark' || legacyTheme === 'sepia') {
       return {
         ...DEFAULT_COMFORT_PREFS,
         theme: legacyTheme,
@@ -73,6 +88,10 @@ export interface UIState {
   livePerfStats: LivePerfStats;
   leftDrawerOpen: boolean;
   rightTelemetryOpen: boolean;
+  eyeRestSecondsLeft: number;
+  eyeRestPromptOpen: boolean;
+  eyeRestBreakSecondsLeft: number | null;
+  eyeRestPaused: boolean;
 
   // Actions
   toggleZenMode: () => void;
@@ -104,6 +123,13 @@ export interface UIState {
   setLivePerfStats: (stats: LivePerfStats) => void;
   setLeftDrawerOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   setRightTelemetryOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  tickEyeRestTimer: () => { event: 'prompt' | 'break-complete' | null };
+  startEyeRestBreak: () => void;
+  snoozeEyeRestBreak: (minutes?: number) => void;
+  dismissEyeRestBreak: () => void;
+  resetEyeRestCycle: () => void;
+  toggleEyeRestPaused: () => void;
+  triggerEyeRestNow: () => void;
 }
 
 function loadInitialLiteMode(): boolean {
@@ -169,6 +195,10 @@ export const useUIStore = create<UIState>((set) => ({
   livePerfStats: { fps: 60, qualityTier: 'high' },
   leftDrawerOpen: true,
   rightTelemetryOpen: true,
+  eyeRestSecondsLeft: EYE_REST_INTERVAL_SEC,
+  eyeRestPromptOpen: false,
+  eyeRestBreakSecondsLeft: null,
+  eyeRestPaused: false,
 
   toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
 
@@ -188,13 +218,23 @@ export const useUIStore = create<UIState>((set) => ({
     set((state) => {
       const nextPrefs =
         typeof prefs === 'function' ? prefs(state.comfortPrefs) : { ...state.comfortPrefs, ...prefs };
+      const timerEnabled =
+        nextPrefs.eyeRestTimerEnabled ?? nextPrefs.eyeRestReminderEnabled ?? true;
       try {
         window.localStorage.setItem('simulab-comfort-prefs', JSON.stringify(nextPrefs));
         window.localStorage.setItem('simulab-theme', nextPrefs.theme === 'dark' ? 'dark' : 'light');
       } catch {
         // Ignore storage error
       }
-      return { comfortPrefs: nextPrefs };
+      return {
+        comfortPrefs: nextPrefs,
+        ...(timerEnabled
+          ? {}
+          : {
+              eyeRestPromptOpen: false,
+              eyeRestBreakSecondsLeft: null,
+            }),
+      };
     });
   },
 
@@ -316,6 +356,88 @@ export const useUIStore = create<UIState>((set) => ({
       return { projectorMode: next };
     });
   },
+
+  tickEyeRestTimer: () => {
+    let event: 'prompt' | 'break-complete' | null = null;
+    set((state) => {
+      const enabled =
+        state.comfortPrefs.eyeRestTimerEnabled ??
+        state.comfortPrefs.eyeRestReminderEnabled ??
+        true;
+      if (!enabled || state.eyeRestPaused) {
+        return state;
+      }
+      if (state.eyeRestBreakSecondsLeft !== null) {
+        if (state.eyeRestBreakSecondsLeft <= 1) {
+          event = 'break-complete';
+          return {
+            eyeRestBreakSecondsLeft: null,
+            eyeRestPromptOpen: false,
+            eyeRestSecondsLeft: EYE_REST_INTERVAL_SEC,
+          };
+        }
+        return {
+          eyeRestBreakSecondsLeft: state.eyeRestBreakSecondsLeft - 1,
+        };
+      }
+      if (state.eyeRestPromptOpen) {
+        return state;
+      }
+      if (state.eyeRestSecondsLeft <= 1) {
+        event = 'prompt';
+        return {
+          eyeRestSecondsLeft: 0,
+          eyeRestPromptOpen: true,
+        };
+      }
+      return {
+        eyeRestSecondsLeft: state.eyeRestSecondsLeft - 1,
+      };
+    });
+    return { event };
+  },
+
+  startEyeRestBreak: () =>
+    set({
+      eyeRestPromptOpen: true,
+      eyeRestBreakSecondsLeft: EYE_REST_BREAK_SEC,
+      eyeRestPaused: false,
+    }),
+
+  snoozeEyeRestBreak: (minutes = 5) =>
+    set({
+      eyeRestPromptOpen: false,
+      eyeRestBreakSecondsLeft: null,
+      eyeRestSecondsLeft: Math.max(60, Math.round(minutes * 60)),
+      eyeRestPaused: false,
+    }),
+
+  dismissEyeRestBreak: () =>
+    set({
+      eyeRestPromptOpen: false,
+      eyeRestBreakSecondsLeft: null,
+      eyeRestSecondsLeft: EYE_REST_INTERVAL_SEC,
+    }),
+
+  resetEyeRestCycle: () =>
+    set({
+      eyeRestPromptOpen: false,
+      eyeRestBreakSecondsLeft: null,
+      eyeRestSecondsLeft: EYE_REST_INTERVAL_SEC,
+      eyeRestPaused: false,
+    }),
+
+  toggleEyeRestPaused: () =>
+    set((state) => ({
+      eyeRestPaused: !state.eyeRestPaused,
+    })),
+
+  triggerEyeRestNow: () =>
+    set({
+      eyeRestPromptOpen: true,
+      eyeRestBreakSecondsLeft: EYE_REST_BREAK_SEC,
+      eyeRestPaused: false,
+    }),
 }));
 
 

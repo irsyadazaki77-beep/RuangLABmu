@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import { Activity, Cpu, RotateCcw } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useLabStore, type LabDomain } from '../../stores/useLabStore';
 import { useUIStore } from '../../stores/useUIStore';
+import { getComfortChartPalette } from '../ui/VisualComfortToolbar';
 
 export interface TelemetryPoint2D {
   cursorIndex: number;
@@ -195,26 +197,36 @@ export const Simulation2DFallbackView: React.FC<Simulation2DFallbackViewProps> =
   const orbitCx = 90 + Math.cos(phaseAngle) * 44;
   const orbitCy = 65 + Math.sin(phaseAngle) * 26;
 
+  const { theme, colorBlindSafe } = useUIStore(
+    useShallow((s) => ({
+      theme: s.comfortPrefs.theme,
+      colorBlindSafe: s.comfortPrefs.colorBlindSafe,
+    }))
+  );
+  const palette = getComfortChartPalette(theme, colorBlindSafe);
+  const primaryStroke = colorBlindSafe ? palette.primary : model.accentHex;
+  const secondaryStroke = palette.warning;
+
   const safeLeftPad = !zenMode && leftDrawerOpen ? 'lg:pl-[352px]' : '';
   const safeRightPad = !zenMode && rightTelemetryOpen ? 'lg:pr-[372px]' : '';
 
   return (
     <div
       data-testid="lab-2d-fallback-view"
-      className={`w-full h-full min-h-[280px] bg-slate-950 pt-16 pb-28 sm:pb-24 px-3 sm:px-4 ${safeLeftPad} ${safeRightPad} flex flex-col select-none overflow-hidden`}
+      className={`w-full h-full min-h-[280px] bg-[var(--comfort-bg)] pt-16 pb-28 sm:pb-24 px-3 sm:px-4 ${safeLeftPad} ${safeRightPad} flex flex-col select-none overflow-hidden`}
     >
-      <div className="w-full flex-1 min-h-0 rounded-2xl bg-slate-950/95 border border-sky-500/30 p-3.5 sm:p-5 flex flex-col justify-between gap-3 text-slate-100 overflow-y-auto shadow-2xl">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+      <div className="w-full flex-1 min-h-0 rounded-2xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] p-3.5 sm:p-5 flex flex-col justify-between gap-3 text-[var(--comfort-text)] overflow-y-auto shadow-xl">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--comfort-border)] pb-2.5">
         <div className="flex items-center gap-2 min-w-0">
           <span className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/35 flex items-center justify-center shrink-0">
-            <Activity className="w-4 h-4 text-sky-400" />
+            <Activity className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           </span>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-sky-300">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-sky-700 dark:text-sky-300">
               <Cpu className="w-3 h-3" />
               <span>Mode Ringan 2D · Hemat GPU 3T</span>
             </div>
-            <h3 className="text-xs sm:text-sm font-bold text-white truncate">
+            <h3 className="text-xs sm:text-sm font-bold text-[var(--comfort-text)] truncate">
               {sceneTitle || model.title} ({activeModuleId})
             </h3>
           </div>
@@ -225,7 +237,7 @@ export const Simulation2DFallbackView: React.FC<Simulation2DFallbackViewProps> =
             type="button"
             data-testid="restore-3d-from-2d-btn"
             onClick={onRestore3D}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 border border-teal-400/45 text-teal-200 text-xs font-bold transition-colors cursor-pointer shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/40 text-teal-800 dark:text-teal-200 text-xs font-bold transition-colors cursor-pointer shrink-0"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Kembali ke Mode 3D</span>
@@ -234,26 +246,27 @@ export const Simulation2DFallbackView: React.FC<Simulation2DFallbackViewProps> =
       </div>
 
       {contextLostReason && (
-        <p className="text-[11px] font-mono text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-1.5">
+        <p className="text-[11px] font-mono text-amber-800 dark:text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-1.5">
           {contextLostReason}
         </p>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 flex-1 items-stretch">
         {/* Domain 2D Schematic Diagram */}
-        <div className="xl:col-span-5 rounded-xl bg-slate-900/90 border border-slate-800 p-3 flex flex-col justify-between">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">
+        <div className="xl:col-span-5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] p-3 flex flex-col justify-between">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--comfort-text-muted)] mb-1">
             Skema Aparatus 2D ({resolvedDomain})
           </div>
           <svg
             viewBox="0 0 180 130"
-            className="w-full h-32 rounded-lg bg-slate-950/90 border border-slate-800/80"
+            className="w-full h-32 rounded-lg border border-[var(--comfort-border)]"
+            style={{ backgroundColor: palette.canvasBg }}
             aria-label="Skema Simulasi 2D"
           >
-            <line x1="12" y1="108" x2="168" y2="108" stroke="#334155" strokeWidth="2" />
+            <line x1="12" y1="108" x2="168" y2="108" stroke={palette.axisStroke} strokeWidth="2" />
             {resolvedDomain === 'physics' && (
               <>
-                <polygon points="24,108 136,108 24,52" fill="#1e293b" stroke="#38bdf8" strokeWidth="1.5" />
+                <polygon points="24,108 136,108 24,52" fill={palette.gridStroke} stroke={primaryStroke} strokeWidth="1.5" />
                 <rect
                   x={Math.min(110, 44 + ((phaseAngle / (Math.PI * 2)) * 55))}
                   y="72"
@@ -261,68 +274,70 @@ export const Simulation2DFallbackView: React.FC<Simulation2DFallbackViewProps> =
                   height="16"
                   rx="3"
                   transform="rotate(24 72 80)"
-                  fill="#0284c7"
-                  stroke="#bae6fd"
+                  fill={primaryStroke}
+                  stroke={palette.pointStroke}
                   strokeWidth="1.5"
                 />
               </>
             )}
             {resolvedDomain === 'chemistry' && (
               <>
-                <path d="M68,26 L112,26 L124,106 L56,106 Z" fill="#0f172a" stroke="#94a3b8" strokeWidth="2" />
-                <path d="M62,72 L118,72 L123,105 L57,105 Z" fill="#14b8a6" fillOpacity="0.65" />
-                <rect x="86" y="10" width="8" height="24" fill="#cbd5e1" rx="2" />
+                <path d="M68,26 L112,26 L124,106 L56,106 Z" fill={palette.canvasBg} stroke={palette.axisStroke} strokeWidth="2" />
+                <path d="M62,72 L118,72 L123,105 L57,105 Z" fill={palette.secondary} fillOpacity="0.65" />
+                <rect x="86" y="10" width="8" height="24" fill={palette.labelFill} rx="2" />
               </>
             )}
             {resolvedDomain === 'biology' && (
               <>
-                <ellipse cx="90" cy="65" rx="58" ry="38" fill="#064e3b" fillOpacity="0.45" stroke="#10b981" strokeWidth="2" />
-                <circle cx="90" cy="65" r="17" fill="#0f766e" stroke="#5eead4" strokeWidth="1.5" />
-                <circle cx={orbitCx * 0.7 + 25} cy={orbitCy * 0.65 + 22} r="5" fill="#fbbf24" />
+                <ellipse cx="90" cy="65" rx="58" ry="38" fill={palette.secondary} fillOpacity="0.2" stroke={palette.secondary} strokeWidth="2" />
+                <circle cx="90" cy="65" r="17" fill={palette.primary} fillOpacity="0.55" stroke={palette.secondary} strokeWidth="1.5" />
+                <circle cx={orbitCx * 0.7 + 25} cy={orbitCy * 0.65 + 22} r="5" fill={palette.warning} />
               </>
             )}
             {resolvedDomain === 'astronomy' && (
               <>
-                <ellipse cx="90" cy="65" rx="48" ry="28" fill="none" stroke="#475569" strokeDasharray="3 3" />
-                <circle cx="90" cy="65" r="11" fill="#f59e0b" />
-                <circle cx={orbitCx} cy={orbitCy} r="5.5" fill="#38bdf8" stroke="#e0f2fe" strokeWidth="1.2" />
+                <ellipse cx="90" cy="65" rx="48" ry="28" fill="none" stroke={palette.axisStroke} strokeDasharray="3 3" />
+                <circle cx="90" cy="65" r="11" fill={palette.warning} />
+                <circle cx={orbitCx} cy={orbitCy} r="5.5" fill={primaryStroke} stroke={palette.pointStroke} strokeWidth="1.2" />
               </>
             )}
           </svg>
-          <div className="flex items-center justify-between text-[11px] font-mono text-slate-300 mt-1.5">
+          <div className="flex items-center justify-between text-[11px] font-mono text-[var(--comfort-text-muted)] mt-1.5">
             <span>t = {model.latestTime.toFixed(2)} s</span>
-            <span style={{ color: model.accentHex }} className="font-bold">
+            <span style={{ color: primaryStroke }} className="font-bold">
               y = {model.latestPrimary.toFixed(3)}
             </span>
           </div>
         </div>
 
         {/* Live Telemetry Curve from SimulationRingBuffer */}
-        <div className="xl:col-span-7 rounded-xl bg-slate-900/90 border border-slate-800 p-3 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">
+        <div className="xl:col-span-7 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] p-3 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-[var(--comfort-text-muted)] mb-1">
             <span>Kurva Real-Time (RingBuffer 2D)</span>
-            <span className="text-slate-300">
+            <span className="text-[var(--comfort-text)]">
               [{model.minPrimary.toFixed(2)} .. {model.maxPrimary.toFixed(2)}]
             </span>
           </div>
           <svg
             viewBox="0 0 420 140"
-            className="w-full h-32 rounded-lg bg-slate-950/90 border border-slate-800/80"
+            className="w-full h-32 rounded-lg border border-[var(--comfort-border)]"
+            style={{ backgroundColor: palette.canvasBg }}
             aria-label="Grafik Kurva Telemetri 2D"
           >
-            <line x1="10" y1="70" x2="410" y2="70" stroke="#1e293b" strokeWidth="1" strokeDasharray="4 4" />
+            <line x1="10" y1="70" x2="410" y2="70" stroke={palette.gridStroke} strokeWidth="1" strokeDasharray="4 4" />
             {model.secondaryPolylinePoints && (
               <polyline
                 fill="none"
-                stroke="#f59e0b"
+                stroke={secondaryStroke}
                 strokeWidth="1.8"
-                strokeOpacity="0.8"
+                strokeOpacity="0.85"
+                strokeDasharray={colorBlindSafe ? '4 2' : undefined}
                 points={model.secondaryPolylinePoints}
               />
             )}
             <polyline
               fill="none"
-              stroke={model.accentHex}
+              stroke={primaryStroke}
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -334,14 +349,14 @@ export const Simulation2DFallbackView: React.FC<Simulation2DFallbackViewProps> =
               model.paramEntries.map((entry) => (
                 <span
                   key={entry.label}
-                  className="px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 text-[10px] font-mono text-slate-300"
+                  className="px-2 py-0.5 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[10px] font-mono text-[var(--comfort-text-muted)]"
                 >
-                  {entry.label}: <b className="text-white">{entry.value}</b>
+                  {entry.label}: <b className="text-[var(--comfort-text)]">{entry.value}</b>
                   {entry.unit ? ` ${entry.unit}` : ''}
                 </span>
               ))
             ) : (
-              <span className="text-[11px] font-mono text-slate-400">
+              <span className="text-[11px] font-mono text-[var(--comfort-text-muted)]">
                 Parameter & kalkulator numerik aktif di panel variabel — siap mencatat percobaan.
               </span>
             )}

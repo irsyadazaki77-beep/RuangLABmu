@@ -5,6 +5,7 @@ import { useLabStore } from '../../../stores/useLabStore';
 import { useUIStore } from '../../../stores/useUIStore';
 import { normalizeEducationLevel } from '../../../utils/pedagogicalHelpers';
 import { MysteryChallengeCockpitBanner } from '../../exam/MysteryChallengeCockpitBanner';
+import { SceneEmbedModeProvider } from '../../../contexts/SceneEmbedModeContext';
 
 const PhysicsLabView = React.lazy(() =>
   import('../../PhysicsLabView').then((m) => ({ default: m.PhysicsLabView }))
@@ -85,10 +86,10 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
         effectiveStep === 2
           ? 'flex-1 min-h-0 flex flex-col overflow-hidden relative w-full h-full'
           : pip3DMode === 'split'
-          ? 'w-full lg:w-[45%] h-[300px] lg:h-full shrink-0 flex flex-col overflow-hidden relative border-b lg:border-b-0 lg:border-r border-[var(--comfort-border)] bg-slate-950'
+          ? 'w-full lg:w-[45%] h-[300px] lg:h-full shrink-0 flex flex-col overflow-hidden relative border-b lg:border-b-0 lg:border-r border-[var(--comfort-border)] bg-[var(--comfort-surface)]'
           : pip3DMode === 'pip'
-          ? 'fixed bottom-4 right-4 w-[310px] sm:w-[360px] h-[235px] z-30 rounded-xl border border-sky-500/50 bg-slate-950 shadow-2xl overflow-hidden flex flex-col'
-          : 'fixed bottom-4 right-4 w-auto h-auto z-30 rounded-xl border border-sky-500/40 bg-slate-900/95 shadow-xl overflow-hidden flex flex-col'
+          ? 'fixed bottom-4 right-4 w-[310px] sm:w-[360px] h-[235px] z-30 rounded-xl border border-sky-500/45 bg-[var(--comfort-surface)] shadow-2xl overflow-hidden flex flex-col'
+          : 'fixed bottom-4 right-4 w-auto h-auto z-30 rounded-xl border border-sky-500/40 studio-hud-surface shadow-xl overflow-hidden flex flex-col'
       }
     >
       {/* Active Mystery Sample Forensic Exam Banner (All 4 Domains on Step 2) */}
@@ -113,11 +114,10 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
 
       {/* Mini-3D PiP / Split Control Header Bar when in Step 3 or Step 4 */}
       {effectiveStep !== 2 && (
-        <div className="px-3 py-1.5 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between gap-2 text-[11px] text-slate-200 shrink-0 z-20">
+        <div className="px-3 py-1.5 studio-hud-surface border-b border-[var(--comfort-hud-border)] flex items-center justify-between gap-2 text-[11px] text-[var(--comfort-hud-text)] shrink-0 z-20">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-            <span className="font-mono font-bold text-sky-400 truncate">
-              Live 3D PiP · {currentExperimentModule.title}
+            <span className="font-semibold text-[var(--comfort-hud-text)] truncate">
+              Pratinjau 3D · {currentExperimentModule.title}
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -132,7 +132,7 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
               className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold cursor-pointer transition-colors ${
                 pip3DMode === 'split'
                   ? 'bg-sky-600 text-white'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  : 'studio-hud-subcard border hover:border-sky-500/50 text-[var(--comfort-hud-text)]'
               }`}
               title="Alihkan antara Split 45%/55% dan Jendela Melayang Mini-PiP"
             >
@@ -146,7 +146,7 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
                 onChangePip3DMode(pip3DMode === 'minimized' ? 'pip' : 'minimized');
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
               }}
-              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
+              className="px-2 py-0.5 rounded studio-hud-subcard border hover:border-sky-500/50 text-[var(--comfort-hud-text)] font-mono text-[10px] cursor-pointer transition-colors"
             >
               {pip3DMode === 'minimized' ? 'Tampilkan 3D' : 'Kecilkan'}
             </button>
@@ -157,7 +157,7 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
                 labSound.playClick();
                 setWorkflowStep(2);
               }}
-              className="px-2 py-0.5 rounded bg-emerald-600/90 hover:bg-emerald-500 text-white font-mono text-[10px] font-bold cursor-pointer"
+              className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-[10px] font-bold cursor-pointer transition-colors"
             >
               Penuh
             </button>
@@ -166,13 +166,14 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
       )}
 
       {/* 3D Scene Inner Viewport */}
-      <div
-        className={
-          effectiveStep !== 2 && pip3DMode === 'minimized'
-            ? 'hidden'
-            : 'flex-1 min-h-0 flex overflow-hidden relative w-full h-full'
-        }
-      >
+      <SceneEmbedModeProvider mode={effectiveStep === 2 ? 'full' : 'pip'}>
+        <div
+          className={
+            effectiveStep !== 2 && pip3DMode === 'minimized'
+              ? 'hidden'
+              : 'flex-1 min-h-0 flex overflow-hidden relative w-full h-full'
+          }
+        >
         {activeDomain === 'physics' && (
           <PhysicsLabView
             params={physicsParams}
@@ -314,7 +315,8 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
             onCompleteChallenge={(ch) => onCompleteChallenge(ch.id)}
           />
         )}
-      </div>
+        </div>
+      </SceneEmbedModeProvider>
     </div>
   );
 };

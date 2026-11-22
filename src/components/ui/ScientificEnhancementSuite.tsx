@@ -1,36 +1,20 @@
 import React, { useState } from 'react';
 import {
   Camera,
-  Trophy,
   Award,
   Target,
-  Sparkles,
+  Zap,
   GitCompareArrows,
   RotateCcw,
   CheckCircle2,
   RefreshCw,
-  Trash2,
-  Eye,
   Compass,
-  ShieldCheck,
 } from 'lucide-react';
-import { ScienceDomain, ExperimentRecord } from '../../utils/scienceEngine';
+import { ScienceDomain } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
-import { StudentProgressItem } from '../TeacherDashboardView';
 
-// ============================================================================
-// 1. 3D SNAPSHOT & VISUAL EVIDENCE TYPES
-// ============================================================================
-export interface Lab3DSnapshot {
-  id: string;
-  timestamp: string;
-  domain: ScienceDomain;
-  moduleTitle: string;
-  paramsSummary?: string;
-  parametersSummary?: string;
-  primaryMetric: string;
-  dataUrl: string;
-}
+export { SnapshotAndReplayGallery, type Lab3DSnapshot } from './SnapshotAndReplayGallery';
+export { ClassLeaderboardCard } from './ClassLeaderboardCard';
 
 // ============================================================================
 // 2. AUTOMATIC TARGET CHALLENGE GENERATOR
@@ -260,16 +244,16 @@ export const QuickChallengeMissionBanner: React.FC<QuickChallengeMissionBannerPr
 
   if (!activeChallenge) {
     return (
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 flex items-center justify-between gap-3">
+      <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-3.5 py-2.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
             <Target className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+            <div className="text-xs font-bold text-[var(--comfort-text)] truncate">
               Tantangan Kilat Laboratorium ({resolvedCompletedIds.length} Selesai)
             </div>
-            <div className="text-[11px] text-slate-600 dark:text-slate-300 truncate">
+            <div className="text-[11px] text-[var(--comfort-text-muted)] truncate">
               Uji ketelitian Anda mencapai target metrik tertentu di ruang 3D
             </div>
           </div>
@@ -279,7 +263,7 @@ export const QuickChallengeMissionBanner: React.FC<QuickChallengeMissionBannerPr
           onClick={handleStartNewChallenge}
           className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
         >
-          <Sparkles className="w-3.5 h-3.5" />
+          <Zap className="w-3.5 h-3.5" />
           <span>Buat Tantangan</span>
         </button>
       </div>
@@ -312,17 +296,17 @@ export const QuickChallengeMissionBanner: React.FC<QuickChallengeMissionBannerPr
     <div
       className={`rounded-xl border p-3.5 space-y-2.5 transition-colors ${
         isWithinTarget
-          ? 'border-emerald-500/50 bg-emerald-500/10'
+          ? 'border-emerald-500/45 bg-emerald-500/10'
           : 'border-amber-500/40 bg-amber-500/10'
       }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-0.5">
-          <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-amber-600 dark:text-amber-400">
+          <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-amber-700 dark:text-amber-400">
             <Target className="w-3.5 h-3.5 shrink-0" />
             <span>MISI TANTANGAN KILAT · +{activeChallenge.rewardPoints} POIN</span>
           </div>
-          <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+          <h4 className="text-xs font-bold text-[var(--comfort-text)]">
             {activeChallenge.title}
           </h4>
         </div>
@@ -332,50 +316,50 @@ export const QuickChallengeMissionBanner: React.FC<QuickChallengeMissionBannerPr
             type="button"
             onClick={handleStartNewChallenge}
             title="Acak tantangan baru"
-            className="p-1.5 rounded-lg bg-slate-900/50 hover:bg-slate-800 text-slate-300 text-[11px] cursor-pointer"
+            className="p-1.5 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] text-[11px] cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
             onClick={() => setActiveChallenge(null)}
-            className="px-2 py-1 rounded-lg bg-slate-900/50 hover:bg-slate-800 text-slate-300 text-[10px] font-semibold cursor-pointer"
+            className="px-2 py-1 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] text-[10px] font-semibold cursor-pointer"
           >
             Tutup
           </button>
         </div>
       </div>
 
-      <p className="text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed">
+      <p className="text-[11px] text-[var(--comfort-text)] leading-relaxed">
         {activeChallenge.instruction}
       </p>
 
       {/* Live Target Meter */}
-      <div className="bg-slate-950/70 border border-slate-800 rounded-lg p-2.5 space-y-1.5">
+      <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-lg p-2.5 space-y-1.5">
         <div className="flex items-center justify-between text-[11px] font-mono tabular-nums">
-          <span className="text-slate-400">
+          <span className="text-[var(--comfort-text-muted)]">
             Saat Ini ({activeChallenge.metricLabel}):{' '}
-            <strong className="text-white">
+            <strong className="text-[var(--comfort-text)]">
               {resolvedValue.toFixed(2)} {activeChallenge.unit}
             </strong>
           </span>
-          <span className="text-amber-400 font-bold">
+          <span className="text-amber-700 dark:text-amber-400 font-bold">
             Target: {activeChallenge.targetValue.toFixed(2)} ± {activeChallenge.tolerance}{' '}
             {activeChallenge.unit}
           </span>
         </div>
 
-        <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+        <div className="w-full h-2 rounded-full bg-[var(--comfort-surface-subtle)] overflow-hidden">
           <div
             className={`h-full transition-all duration-200 ${
-              isWithinTarget ? 'bg-emerald-400' : 'bg-amber-400'
+              isWithinTarget ? 'bg-emerald-500' : 'bg-amber-500'
             }`}
             style={{ width: `${isWithinTarget ? 100 : proximityPct}%` }}
           />
         </div>
 
         <div className="flex items-center justify-between pt-1">
-          <span className="text-[10px] text-slate-400 italic truncate pr-2">
+          <span className="text-[10px] text-[var(--comfort-text-muted)] italic truncate pr-2">
             Petunjuk: {activeChallenge.hint}
           </span>
 
@@ -386,15 +370,15 @@ export const QuickChallengeMissionBanner: React.FC<QuickChallengeMissionBannerPr
               onClick={handleClaimChallenge}
               className={`px-3 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer ${
                 justSolved
-                  ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
-                  : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-sm'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs'
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>{justSolved ? 'Tantangan Terverifikasi!' : 'Verifikasi Target (+Poin)'}</span>
             </button>
           ) : (
-            <span className="text-[10px] font-mono text-amber-400 shrink-0">
+            <span className="text-[10px] font-mono text-amber-700 dark:text-amber-400 shrink-0 tabular-nums">
               Selisih: {diff.toFixed(2)} {activeChallenge.unit}
             </span>
           )}
@@ -463,15 +447,15 @@ export const ABLiveComparisonWidget: React.FC<ABLiveComparisonWidgetProps> = ({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 p-3.5 space-y-3">
+    <div className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-3.5 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <GitCompareArrows className="w-4 h-4 text-sky-500 shrink-0" />
+          <GitCompareArrows className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
           <div className="min-w-0">
-            <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+            <div className="text-xs font-bold text-[var(--comfort-text)] truncate">
               Simulasi Komparasi A/B ({domainLabel})
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+            <div className="text-[11px] text-[var(--comfort-text-muted)] truncate">
               Sematkan Percobaan A (Acuan) untuk melihat delta perubahan Percobaan B secara langsung
             </div>
           </div>
@@ -487,7 +471,7 @@ export const ABLiveComparisonWidget: React.FC<ABLiveComparisonWidgetProps> = ({
       </div>
 
       {!baseline ? (
-        <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 rounded-lg p-3 text-center">
+        <div className="text-[11px] text-[var(--comfort-text-muted)] bg-[var(--comfort-surface-subtle)] border border-dashed border-[var(--comfort-border)] rounded-lg p-3 text-center">
           Belum ada Percobaan A yang dikunci. Klik <strong>Sematkan Acuan (Run A)</strong> lalu ubah slider parameter untuk membandingkan hasilnya secara berdampingan.
         </div>
       ) : (
@@ -506,14 +490,14 @@ export const ABLiveComparisonWidget: React.FC<ABLiveComparisonWidgetProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[11px] font-mono tabular-nums">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                <tr className="border-b border-[var(--comfort-border)] text-[var(--comfort-text-muted)]">
                   <th className="py-1.5 pr-2">Besaran Ukur</th>
-                  <th className="py-1.5 px-2 text-amber-600 dark:text-amber-400">Run A</th>
-                  <th className="py-1.5 px-2 text-sky-600 dark:text-sky-400">Run B</th>
+                  <th className="py-1.5 px-2 text-amber-700 dark:text-amber-400">Run A</th>
+                  <th className="py-1.5 px-2 text-sky-700 dark:text-sky-400">Run B</th>
                   <th className="py-1.5 pl-2 text-right">Selisih (Δ)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/70">
+              <tbody className="divide-y divide-[var(--comfort-border)]">
                 {resolvedMetrics.map((cur, idx) => {
                   const baseItem = baseline.metrics[idx] || cur;
                   const delta = cur.value - baseItem.value;
@@ -525,13 +509,13 @@ export const ABLiveComparisonWidget: React.FC<ABLiveComparisonWidgetProps> = ({
                   const isNegative = delta < -0.001;
                   return (
                     <tr key={cur.key || cur.label}>
-                      <td className="py-1.5 pr-2 font-sans font-medium text-slate-700 dark:text-slate-200">
+                      <td className="py-1.5 pr-2 font-sans font-medium text-[var(--comfort-text)]">
                         {cur.label}
                       </td>
-                      <td className="py-1.5 px-2 text-slate-600 dark:text-slate-300">
+                      <td className="py-1.5 px-2 text-[var(--comfort-text-muted)]">
                         {baseItem.value.toFixed(2)} {cur.unit}
                       </td>
-                      <td className="py-1.5 px-2 font-bold text-slate-900 dark:text-white">
+                      <td className="py-1.5 px-2 font-bold text-[var(--comfort-text)]">
                         {cur.value.toFixed(2)} {cur.unit}
                       </td>
                       <td
@@ -540,7 +524,7 @@ export const ABLiveComparisonWidget: React.FC<ABLiveComparisonWidgetProps> = ({
                             ? 'text-emerald-600 dark:text-emerald-400'
                             : isNegative
                             ? 'text-rose-600 dark:text-rose-400'
-                            : 'text-slate-400'
+                            : 'text-[var(--comfort-text-muted)]'
                         }`}
                       >
                         {delta >= 0 ? '+' : ''}
@@ -565,7 +549,7 @@ export const ABLiveComparisonWidget: React.FC<ABLiveComparisonWidgetProps> = ({
                     onRestoreBaselineParams(baseline.params);
                   }
                 }}
-                className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text)] text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Pulihkan Parameter Run A</span>
@@ -574,7 +558,7 @@ export const ABLiveComparisonWidget: React.FC<ABLiveComparisonWidgetProps> = ({
             <button
               type="button"
               onClick={() => setBaseline(null)}
-              className="px-2.5 py-1 rounded-lg text-slate-500 hover:text-rose-500 text-[11px] font-medium cursor-pointer"
+              className="px-2.5 py-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-rose-500 text-[11px] font-medium cursor-pointer"
             >
               Reset A/B
             </button>
@@ -631,37 +615,38 @@ export const Scene3DTelemetryHUD: React.FC<Scene3DTelemetryHUDProps> = ({
         <div className="pointer-events-none absolute inset-0 bg-white/60 z-40 transition-opacity duration-300" />
       )}
 
-      {/* Top-Left Live 3D Telemetry Readout HUD (WebGL-safe solid dark surface) */}
-      <div className="pointer-events-auto absolute top-4 left-4 z-20 hidden sm:flex flex-col gap-1.5 rounded-xl bg-slate-950/90 border border-slate-700/80 px-3.5 py-2.5 shadow-xl min-w-[215px]">
-        <div className="flex items-center justify-between gap-3 text-[10px] font-mono text-sky-400 font-semibold">
+      {/* Top-Left Live 3D Telemetry Readout HUD */}
+      <div className="pointer-events-auto absolute top-4 left-4 z-20 hidden sm:flex flex-col gap-1.5 rounded-xl studio-hud-surface border px-3.5 py-2.5 shadow-xl min-w-[215px]">
+        <div className="flex items-center justify-between gap-3 text-[10px] font-mono text-sky-700 dark:text-sky-400 font-semibold">
           <span>HUD TELEMETRI 3D · {domainTitle.toUpperCase()}</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 pt-0.5">
-          <div>
-            <div className="text-[10px] text-slate-400 truncate">{primaryLabel}</div>
-            <div className="text-xs font-mono font-bold text-white tabular-nums">
+        <div className="flex items-stretch gap-3 pt-0.5">
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] text-[var(--comfort-hud-muted)] truncate">{primaryLabel}</div>
+            <div className="text-xs font-mono font-bold text-[var(--comfort-hud-text)] tabular-nums">
               {primaryValue}
             </div>
           </div>
-          <div className="border-l border-slate-800 pl-2.5">
-            <div className="text-[10px] text-slate-400 truncate">{secondaryLabel}</div>
-            <div className="text-xs font-mono font-bold text-emerald-400 tabular-nums">
+          <div className="w-px bg-[var(--comfort-hud-border)] shrink-0" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] text-[var(--comfort-hud-muted)] truncate">{secondaryLabel}</div>
+            <div className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
               {secondaryValue}
             </div>
           </div>
         </div>
 
         <div className="space-y-1 pt-0.5">
-          <div className="flex items-center justify-between text-[9px] font-mono text-slate-400">
+          <div className="flex items-center justify-between text-[9px] font-mono text-[var(--comfort-hud-muted)]">
             <span>{energyBarLabel}</span>
-            <span className="tabular-nums text-sky-300">
+            <span className="tabular-nums text-sky-700 dark:text-sky-300 font-semibold">
               {Math.max(0, Math.min(100, Math.round(energyBarRatio)))}%
             </span>
           </div>
-          <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
+          <div className="w-full h-1.5 rounded-full bg-[var(--comfort-surface-subtle)] overflow-hidden flex">
             <div
-              className="h-full bg-sky-400 transition-all duration-200"
+              className="h-full bg-sky-500 transition-all duration-200"
               style={{ width: `${Math.max(5, Math.min(95, energyBarRatio))}%` }}
             />
             <div className="h-full flex-1 bg-amber-500/80" />
@@ -675,13 +660,13 @@ export const Scene3DTelemetryHUD: React.FC<Scene3DTelemetryHUDProps> = ({
           <button
             type="button"
             onClick={handleSnap}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/90 hover:bg-sky-950 border border-sky-500/40 text-xs font-mono font-semibold text-sky-200 hover:text-white shadow-xl transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl studio-hud-surface hover:border-sky-500/60 border text-xs font-mono font-semibold text-sky-700 dark:text-sky-200 shadow-xl transition-colors cursor-pointer"
             title="Tangkap layar kanvas 3D untuk dilampirkan ke Laporan Akademik A4"
           >
-            <Camera className="w-3.5 h-3.5 text-sky-400" />
+            <Camera className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
             <span>Ambil Foto 3D</span>
             {snapshotCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 text-[10px] tabular-nums">
+              <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-700 dark:text-sky-300 text-[10px] tabular-nums">
                 {snapshotCount}
               </span>
             )}
@@ -698,7 +683,7 @@ export const Scene3DTelemetryHUD: React.FC<Scene3DTelemetryHUDProps> = ({
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-mono font-semibold shadow-xl transition-colors cursor-pointer ${
               isOrbiting
                 ? 'bg-amber-500 text-slate-950 border-amber-400'
-                : 'bg-slate-950/90 hover:bg-slate-900 border-slate-700/80 text-slate-200'
+                : 'studio-hud-surface hover:border-sky-500/50 text-[var(--comfort-hud-text)]'
             }`}
             title="Putar kamera sinematik mengelilingi aparatus 3D secara mulus"
           >
@@ -783,19 +768,19 @@ export const AchievementBadgesStrip: React.FC<{
   const totalPoints = badges.reduce((acc, b) => acc + (b.unlocked ? b.points : 0), 0);
 
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
+    <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Award className="w-4 h-4 text-amber-500" />
-          <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+          <Award className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+          <h3 className="text-xs sm:text-sm font-bold text-[var(--comfort-text)]">
             Lencana Pencapaian Kompetensi Praktikum
           </h3>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono">
-          <span className="text-slate-500 dark:text-slate-400">
-            Terbuka: <strong className="text-slate-900 dark:text-white">{unlockedCount}/{badges.length}</strong>
+          <span className="text-[var(--comfort-text-muted)]">
+            Terbuka: <strong className="text-[var(--comfort-text)]">{unlockedCount}/{badges.length}</strong>
           </span>
-          <span>·</span>
+          <span className="text-[var(--comfort-text-muted)]">·</span>
           <span className="text-amber-600 dark:text-amber-400 font-bold tabular-nums">
             {totalPoints} Poin Sains
           </span>
@@ -808,265 +793,27 @@ export const AchievementBadgesStrip: React.FC<{
             key={badge.id}
             className={`p-3 rounded-xl border transition-colors flex flex-col justify-between gap-1.5 ${
               badge.unlocked
-                ? 'bg-emerald-500/5 border-emerald-500/30 text-slate-900 dark:text-white'
-                : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/70 dark:border-slate-800/80 text-slate-400 opacity-75'
+                ? 'bg-emerald-500/8 border-emerald-500/35 text-[var(--comfort-text)]'
+                : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)] opacity-80'
             }`}
           >
             <div className="flex items-center justify-between gap-1.5">
               <span className="text-xs font-bold truncate">{badge.title}</span>
               <span
                 className={`font-mono text-[10px] font-bold shrink-0 ${
-                  badge.unlocked ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'
+                  badge.unlocked
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-[var(--comfort-text-muted)]'
                 }`}
               >
                 {badge.unlocked ? '✓ TERBUKA' : `+${badge.points}`}
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+            <p className="text-[11px] text-[var(--comfort-text-muted)] leading-snug">
               {badge.description}
             </p>
           </div>
         ))}
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// 7.3D SNAPSHOT GALLERY & TRIAL REPLAY DOCK
-// ============================================================================
-interface SnapshotAndReplayGalleryProps {
-  snapshots: Lab3DSnapshot[];
-  onDeleteSnapshot?: (id: string) => void;
-  records?: ExperimentRecord[];
-  onReplayRecord?: (record: ExperimentRecord) => void;
-}
-
-export const SnapshotAndReplayGallery: React.FC<SnapshotAndReplayGalleryProps> = ({
-  snapshots,
-  onDeleteSnapshot,
-  records = [],
-  onReplayRecord,
-}) => {
-  return (
-    <div className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-bold text-[var(--comfort-text)] flex items-center gap-2">
-            <Camera className="w-4 h-4 text-sky-500" />
-            <span>Galeri Bukti Foto 3D &amp; Pemutar Ulang Rekaman (Trial Replay)</span>
-          </h3>
-          <p className="text-xs text-[var(--comfort-text-muted)]">
-            Seluruh tangkapan layar 3D otomatis dilampirkan ke dalam dokumen Laporan Resmi Praktikum A4.
-          </p>
-        </div>
-        <span className="text-xs font-mono text-sky-600 dark:text-sky-400 font-semibold tabular-nums">
-          {snapshots.length} Foto 3D · {records.length} Rekaman Data
-        </span>
-      </div>
-
-      {/* 3D Snapshots Grid */}
-      {snapshots.length === 0 ? (
-        <div className="p-4 rounded-xl bg-[var(--comfort-surface-subtle)] border border-dashed border-[var(--comfort-border)] text-xs text-[var(--comfort-text-muted)] text-center">
-          Belum ada tangkapan layar 3D. Klik tombol <strong>&ldquo;Ambil Foto 3D&rdquo;</strong> di pojok kiri bawah kanvas simulasi 3D untuk mendokumentasikan percobaan Anda.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {snapshots.map((snap) => (
-            <div
-              key={snap.id}
-              className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] overflow-hidden flex flex-col justify-between"
-            >
-              <div className="relative h-36 bg-slate-950 overflow-hidden">
-                <img
-                  src={snap.dataUrl}
-                  alt={snap.moduleTitle}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-slate-950/85 text-[10px] font-mono text-sky-300 border border-white/10">
-                  {snap.domain} · {snap.timestamp}
-                </div>
-                {onDeleteSnapshot && (
-                  <button
-                    type="button"
-                    onClick={() => onDeleteSnapshot(snap.id)}
-                    aria-label="Hapus foto 3D"
-                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-slate-950/85 hover:bg-rose-600 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-              <div className="p-3 space-y-1 text-xs">
-                <div className="font-bold text-[var(--comfort-text)] truncate">
-                  {snap.moduleTitle}
-                </div>
-                <div className="text-[11px] font-mono text-[var(--comfort-text-muted)] truncate">
-                  {snap.parametersSummary || snap.paramsSummary}
-                </div>
-                <div className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold truncate">
-                  Hasil: {snap.primaryMetric}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Quick Trial Replay List */}
-      {records.length > 0 && onReplayRecord && (
-        <div className="pt-2 border-t border-[var(--comfort-border)] space-y-2">
-          <div className="text-xs font-bold text-[var(--comfort-text)] flex items-center gap-1.5">
-            <RotateCcw className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Putar Ulang Konfigurasi Rekaman ke Ruang 3D:</span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {records.slice(0, 4).map((rec) => (
-              <div
-                key={rec.id}
-                className="px-3 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] flex items-center justify-between gap-2 text-xs"
-              >
-                <div className="min-w-0">
-                  <div className="font-semibold text-[var(--comfort-text)] truncate">
-                    {rec.id} · {rec.experimentTitle}
-                  </div>
-                  <div className="text-[11px] font-mono text-[var(--comfort-text-muted)] truncate">
-                    {rec.parametersSummary}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    labSound.playClick();
-                    onReplayRecord(rec);
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold text-[11px] shrink-0 flex items-center gap-1 cursor-pointer"
-                >
-                  <Eye className="w-3 h-3" />
-                  <span>Putar di 3D</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ============================================================================
-// 8. CLASS & GROUP LEADERBOARD CARD
-// ============================================================================
-export const ClassLeaderboardCard: React.FC<{
-  students: StudentProgressItem[];
-  highlightStudentName?: string;
-}> = ({ students, highlightStudentName }) => {
-  const rankedStudents = [...students]
-    .map((s) => {
-      const r2Score = Math.round((s.rSquared ?? 0.85) * 40);
-      const trialScore = Math.min(30, s.trialsRecorded * 8);
-      const quizPart = Math.round(((s.quizScore ?? 75) / 100) * 30);
-      const compositeScore = Math.min(100, r2Score + trialScore + quizPart);
-      return {
-        ...s,
-        compositeScore,
-      };
-    })
-    .sort((a, b) => b.compositeScore - a.compositeScore);
-
-  return (
-    <div className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-5 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500">
-            <Trophy className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-[var(--comfort-text)]">
-              Papan Peringkat Ketelitian &amp; Kompetensi Kelas
-            </h3>
-            <p className="text-xs text-[var(--comfort-text-muted)]">
-              Diurutkan berdasarkan Indeks Presisi Regresi (R²), Jumlah Data Terukur, dan Skor Diagnostik LKS
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 text-xs font-mono text-[var(--comfort-text-muted)]">
-          <span className="inline-flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Terverifikasi Real-Time</span>
-          </span>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="border-b border-[var(--comfort-border)] text-[var(--comfort-text-muted)] font-mono text-[11px]">
-              <th className="py-2.5 px-3">Peringkat</th>
-              <th className="py-2.5 px-3">Nama Praktikan &amp; Kelompok</th>
-              <th className="py-2.5 px-3">Domain &amp; Modul Aktif</th>
-              <th className="py-2.5 px-3 text-right">Presisi R²</th>
-              <th className="py-2.5 px-3 text-right">Data Uji</th>
-              <th className="py-2.5 px-3 text-right">Skor LKS</th>
-              <th className="py-2.5 px-3 text-right">Indeks Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--comfort-border)]">
-            {rankedStudents.map((stu, idx) => {
-              const isHighlighted = highlightStudentName && stu.name === highlightStudentName;
-              return (
-              <tr
-                key={stu.id}
-                className={`transition-colors ${
-                  isHighlighted
-                    ? 'bg-sky-500/10 dark:bg-sky-500/15'
-                    : 'hover:bg-[var(--comfort-surface-subtle)]'
-                }`}
-              >
-                <td className="py-2.5 px-3 font-mono font-bold tabular-nums">
-                  {idx === 0 ? (
-                    <span className="text-amber-500 font-extrabold">#1 UTAMA</span>
-                  ) : idx === 1 ? (
-                    <span className="text-sky-400 font-bold">#2</span>
-                  ) : idx === 2 ? (
-                    <span className="text-emerald-400 font-bold">#3</span>
-                  ) : (
-                    <span className="text-[var(--comfort-text-muted)]">#{idx + 1}</span>
-                  )}
-                </td>
-                <td className="py-2.5 px-3">
-                  <div className="font-bold text-[var(--comfort-text)]">{stu.name}</div>
-                  <div className="text-[11px] text-[var(--comfort-text-muted)]">
-                    {stu.groupId}
-                  </div>
-                </td>
-                <td className="py-2.5 px-3">
-                  <span className="font-semibold text-sky-600 dark:text-sky-400">
-                    {stu.activeDomain}
-                  </span>
-                  <span className="mx-1.5 text-[var(--comfort-text-muted)]">·</span>
-                  <span className="text-[var(--comfort-text-muted)]">
-                    {stu.activeModuleTitle || stu.currentActivity}
-                  </span>
-                </td>
-                <td className="py-2.5 px-3 text-right font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-semibold">
-                  {(stu.rSquared ?? 0.88).toFixed(3)}
-                </td>
-                <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[var(--comfort-text)]">
-                  {stu.trialsRecorded} sampel
-                </td>
-                <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[var(--comfort-text)]">
-                  {stu.quizScore ?? 80}/100
-                </td>
-                <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-amber-600 dark:text-amber-400">
-                  {stu.compositeScore} pts
-                </td>
-              </tr>
-              );
-            })}
-          </tbody>
-        </table>
       </div>
     </div>
   );

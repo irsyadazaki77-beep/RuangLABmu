@@ -116,6 +116,19 @@ const PRESET_DATASETS: Record<
   },
 };
 
+function resolveDefaultPresetForModule(domain?: string, moduleId?: string): string {
+  const idLower = (moduleId || '').toLowerCase();
+  const domainLower = (domain || '').toLowerCase();
+  if (idLower.includes('spring') || idLower.includes('hooke')) return 'hooke-spring';
+  if (domainLower === 'kimia' || domainLower === 'chemistry' || idLower.includes('thermo') || idLower.includes('titration')) {
+    return 'thermo-gibbs';
+  }
+  if (domainLower === 'astronomi' || domainLower === 'astronomy' || idLower.includes('kepler') || idLower.includes('solar')) {
+    return 'kepler-third-law';
+  }
+  return 'newton-force-acc';
+}
+
 export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProps> = ({
   records,
   activeStudentName,
@@ -158,24 +171,26 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
       y2: r.numericY2 ?? 0,
     }));
 
+  const defaultPresetKey = resolveDefaultPresetForModule(effectiveDomain, moduleId);
+  const hasDistinctModuleX = useMemo(
+    () => new Set(moduleRecordPoints.map((p) => p.x)).size >= 2,
+    [moduleRecordPoints]
+  );
+
   const [selectedDatasetKey, setSelectedDatasetKey] = useState<string>(() =>
-    moduleRecordPoints.length >= 2
-      ? 'module-records'
-      : customRecordPoints.length >= 2
-      ? 'custom-records'
-      : 'newton-force-acc'
+    hasDistinctModuleX ? 'module-records' : defaultPresetKey
   );
   const [hasManualDatasetChoice, setHasManualDatasetChoice] = useState<boolean>(false);
 
   useEffect(() => {
     if (!hasManualDatasetChoice) {
-      if (moduleRecordPoints.length >= 2) {
+      if (hasDistinctModuleX) {
         setSelectedDatasetKey('module-records');
-      } else if (customRecordPoints.length >= 2) {
-        setSelectedDatasetKey('custom-records');
+      } else {
+        setSelectedDatasetKey(defaultPresetKey);
       }
     }
-  }, [moduleRecordPoints.length, customRecordPoints.length, hasManualDatasetChoice]);
+  }, [hasDistinctModuleX, defaultPresetKey, hasManualDatasetChoice]);
 
   const [curveModel, setCurveModel] = useState<CurveModelType>('linear');
   const [showCompareDock, setShowCompareDock] = useState<boolean>(false);
@@ -339,9 +354,9 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
     <div className="space-y-6 select-text">
       {/* Top Navigation & Subheader */}
       <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="text-xs font-mono text-[var(--comfort-accent)] font-bold uppercase tracking-wider">
-            03 · Analisis Data Kuantitatif, Regresi &amp; LKS
+        <div className="space-y-0.5">
+          <div className="text-xs font-medium text-[var(--comfort-accent)]">
+            Tahap 3 · Analisis Data &amp; Lembar Kerja
           </div>
           <h1 className="text-lg sm:text-xl font-bold text-[var(--comfort-text)] tracking-tight">
             Grafik Regresi Ilmiah, Tabel Data &amp; Lembar Kerja Praktikan

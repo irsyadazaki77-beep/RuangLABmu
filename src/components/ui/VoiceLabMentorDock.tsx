@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Mic, MicOff, Volume2, Loader2, Sparkles, ChevronUp, ChevronDown } from 'lucide-react';
+import { Mic, MicOff, Volume2, Loader2, MessageSquare, ChevronUp, ChevronDown } from 'lucide-react';
 import {
   aiVoiceAssistant,
   VoiceAssistantState,
@@ -55,14 +55,14 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
       case 'listening':
         return {
           badge: voiceState.locale === 'en-US' ? 'Listening (VAD Active)' : 'Mendengarkan (VAD Aktif)',
-          ringClass: 'border-sky-400/80 bg-sky-950/90 text-sky-300 shadow-sky-500/20',
-          barColor: 'bg-sky-400',
+          ringClass: 'border-sky-500/70 bg-sky-500/15 text-sky-700 dark:text-sky-300 shadow-xs',
+          barColor: 'bg-sky-500 dark:bg-sky-400',
         };
       case 'thinking':
         return {
           badge: voiceState.locale === 'en-US' ? 'Thinking (Analyzing 3D Data...)' : 'Memproses Data 3D...',
-          ringClass: 'border-amber-400/80 bg-amber-950/90 text-amber-300 shadow-amber-500/20',
-          barColor: 'bg-amber-400',
+          ringClass: 'border-amber-500/70 bg-amber-500/15 text-amber-700 dark:text-amber-300 shadow-xs',
+          barColor: 'bg-amber-500 dark:bg-amber-400',
         };
       case 'speaking':
         return {
@@ -70,14 +70,14 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
             voiceState.locale === 'en-US'
               ? 'Dr. LabMu Speaking (Mic Muted)'
               : 'Dr. LabMu Berbicara (Mic Dijeda)',
-          ringClass: 'border-emerald-400/85 bg-emerald-950/90 text-emerald-300 shadow-emerald-500/25',
-          barColor: 'bg-emerald-400',
+          ringClass: 'border-emerald-500/75 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 shadow-xs',
+          barColor: 'bg-emerald-500 dark:bg-emerald-400',
         };
       default:
         return {
           badge: voiceState.locale === 'en-US' ? 'Voice Mentor Standby' : 'Mentor Suara Siaga',
-          ringClass: 'border-slate-700/80 bg-slate-900/90 text-slate-300',
-          barColor: 'bg-slate-500',
+          ringClass: 'border-[var(--comfort-hud-border)] bg-[var(--comfort-hud-surface)] text-[var(--comfort-hud-muted)]',
+          barColor: 'bg-[var(--comfort-hud-muted)]',
         };
     }
   })();
@@ -90,13 +90,13 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
     >
       {/* Expanded Full-Duplex Transcript & Socratic Guidance Card */}
       {isExpanded && (
-        <div className="w-72 sm:w-80 rounded-2xl bg-slate-950/95 border border-slate-700/80 p-3.5 shadow-2xl text-xs text-slate-200 space-y-2.5">
-          <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
+        <div className="w-72 sm:w-80 rounded-2xl studio-hud-surface border p-3.5 shadow-2xl text-xs text-[var(--comfort-hud-text)] space-y-2.5">
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--comfort-hud-border)] pb-2">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="font-bold text-white truncate">
+              <span className="font-bold text-[var(--comfort-hud-text)] truncate">
                 Dr. LabMu Full-Duplex
               </span>
-              <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-sky-300">
+              <span className="px-1.5 py-0.5 rounded studio-hud-subcard border text-[10px] font-mono text-sky-700 dark:text-sky-300">
                 VAD
               </span>
             </div>
@@ -105,7 +105,7 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
               <div
                 role="group"
                 aria-label="Bahasa Suara STT/TTS"
-                className="flex items-center rounded-lg bg-slate-900 border border-slate-800 p-0.5 text-[10px] font-mono"
+                className="flex items-center rounded-lg studio-hud-subcard border p-0.5 text-[10px] font-mono"
               >
                 <button
                   type="button"
@@ -113,7 +113,7 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
                   className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
                     voiceState.locale === 'id-ID'
                       ? 'bg-sky-600 text-white font-bold'
-                      : 'text-slate-400 hover:text-white'
+                      : 'text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)]'
                   }`}
                 >
                   ID
@@ -124,7 +124,7 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
                   className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
                     voiceState.locale === 'en-US'
                       ? 'bg-sky-600 text-white font-bold'
-                      : 'text-slate-400 hover:text-white'
+                      : 'text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)]'
                   }`}
                 >
                   EN
@@ -135,7 +135,7 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
                 type="button"
                 onClick={() => setIsExpanded(false)}
                 aria-label="Sembunyikan Panel Transkrip Suara"
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+                className="p-1 rounded-lg text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)] cursor-pointer"
               >
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>
@@ -143,31 +143,31 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
           </div>
 
           {/* Status & Anti-Feedback Indicator */}
-          <div className="flex items-center justify-between text-[11px] bg-slate-900/90 rounded-lg px-2.5 py-1.5 border border-slate-800">
-            <span className="font-medium text-slate-300">{statusMeta.badge}</span>
-            <span className="font-mono text-[10px] text-slate-400">
+          <div className="flex items-center justify-between text-[11px] studio-hud-subcard rounded-lg px-2.5 py-1.5 border">
+            <span className="font-medium text-[var(--comfort-hud-text)]">{statusMeta.badge}</span>
+            <span className="font-mono text-[10px] text-[var(--comfort-hud-muted)]">
               {voiceState.isMicMutedForTTS ? 'Anti-Loop: Aktif' : 'Duplex: Siap'}
             </span>
           </div>
 
           {/* Student Live Transcript */}
           {(voiceState.interimTranscript || voiceState.lastUserTranscript) && (
-            <div className="rounded-lg bg-slate-900/70 border border-slate-800/80 px-2.5 py-1.5 text-[11px]">
-              <span className="text-[10px] uppercase tracking-wider font-mono text-sky-400 block mb-0.5">
+            <div className="rounded-lg studio-hud-subcard border px-2.5 py-1.5 text-[11px]">
+              <span className="text-[10px] uppercase tracking-wider font-mono text-sky-700 dark:text-sky-400 block mb-0.5">
                 {voiceState.locale === 'en-US' ? 'Student Voice:' : 'Suara Siswa:'}
               </span>
-              <p className="text-slate-200 italic">
-                "{voiceState.interimTranscript || voiceState.lastUserTranscript}"
+              <p className="text-[var(--comfort-hud-text)] italic">
+                &ldquo;{voiceState.interimTranscript || voiceState.lastUserTranscript}&rdquo;
               </p>
             </div>
           )}
 
           {/* Mentor Socratic Spoken Guidance */}
-          <div className="rounded-lg bg-emerald-950/30 border border-emerald-500/25 px-2.5 py-2 text-[11px] leading-relaxed">
-            <span className="text-[10px] uppercase tracking-wider font-mono text-emerald-400 block mb-0.5">
+          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-2 text-[11px] leading-relaxed">
+            <span className="text-[10px] uppercase tracking-wider font-mono text-emerald-700 dark:text-emerald-400 block mb-0.5">
               {voiceState.locale === 'en-US' ? 'Dr. LabMu Guidance:' : 'Bimbingan Lisan Dr. LabMu:'}
             </span>
-            <p className="text-slate-200 line-clamp-4">{voiceState.lastMentorReply}</p>
+            <p className="text-[var(--comfort-hud-text)] line-clamp-4">{voiceState.lastMentorReply}</p>
           </div>
 
           {/* Quick Test Socratic Voice Prompt Button */}
@@ -175,9 +175,9 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
             <button
               type="button"
               onClick={handleSimulatedVoiceQuery}
-              className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-sky-200 font-semibold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              className="flex-1 px-2.5 py-1.5 rounded-lg studio-hud-subcard border hover:border-sky-500/50 text-sky-700 dark:text-sky-300 font-semibold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <MessageSquare className="w-3.5 h-3.5" />
               <span>
                 {voiceState.locale === 'en-US'
                   ? 'Simulate Voice Question'
@@ -188,8 +188,8 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
         </div>
       )}
 
-      {/* Floating Circular Audio Visualizer & Full-Duplex Control Pill */}
-      <div className="flex items-center gap-1.5 rounded-full bg-slate-950/95 border border-slate-700/80 p-1.5 pr-3 shadow-xl">
+      {/* Floating Circular Audio Visualizer & Full-Duplex Control Dock */}
+      <div className="flex items-center gap-1.5 rounded-full studio-hud-surface border p-1.5 pr-3 shadow-xl">
         {/* Circular Reactive Waveform Visualizer Button */}
         <button
           type="button"
@@ -199,7 +199,7 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
               ? 'Matikan Asisten Suara Full-Duplex Dr. LabMu'
               : 'Aktifkan Asisten Suara Full-Duplex Dr. LabMu'
           }
-          className={`relative w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer shadow-lg ${statusMeta.ringClass}`}
+          className={`relative w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer ${statusMeta.ringClass}`}
         >
           {/* Thinking State: Rotating Orbit Ring */}
           {voiceState.status === 'thinking' && (
@@ -209,7 +209,7 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
             />
           )}
 
-          {/* Speaking State: Glowing Outer Halo */}
+          {/* Speaking State: Outer Halo */}
           {voiceState.status === 'speaking' && (
             <span
               data-testid="voice-speaking-halo"
@@ -218,13 +218,13 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
           )}
 
           {voiceState.status === 'thinking' ? (
-            <Loader2 className="w-4 h-4 animate-spin text-amber-300" />
+            <Loader2 className="w-4 h-4 animate-spin text-amber-600 dark:text-amber-300" />
           ) : voiceState.status === 'speaking' ? (
-            <Volume2 className="w-4 h-4 text-emerald-300" />
+            <Volume2 className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />
           ) : voiceState.fullDuplexEnabled ? (
-            <Mic className="w-4 h-4 text-sky-300" />
+            <Mic className="w-4 h-4 text-sky-600 dark:text-sky-300" />
           ) : (
-            <MicOff className="w-4 h-4 text-slate-400" />
+            <MicOff className="w-4 h-4 text-[var(--comfort-hud-muted)]" />
           )}
         </button>
 
@@ -264,17 +264,17 @@ export const VoiceLabMentorDock: React.FC<VoiceLabMentorDockProps> = ({
           className="flex items-center gap-1.5 text-left cursor-pointer group"
         >
           <div className="flex flex-col">
-            <span className="text-[11px] font-bold text-white leading-tight group-hover:text-sky-300 transition-colors">
+            <span className="text-[11px] font-bold text-[var(--comfort-hud-text)] leading-tight group-hover:text-sky-600 dark:group-hover:text-sky-300 transition-colors">
               Suara Dr. LabMu
             </span>
-            <span className="text-[10px] font-mono text-slate-400 leading-tight">
+            <span className="text-[10px] font-mono text-[var(--comfort-hud-muted)] leading-tight">
               {statusMeta.badge}
             </span>
           </div>
           {isExpanded ? (
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-white" />
+            <ChevronDown className="w-3.5 h-3.5 text-[var(--comfort-hud-muted)] group-hover:text-[var(--comfort-hud-text)]" />
           ) : (
-            <ChevronUp className="w-3.5 h-3.5 text-slate-400 group-hover:text-white" />
+            <ChevronUp className="w-3.5 h-3.5 text-[var(--comfort-hud-muted)] group-hover:text-[var(--comfort-hud-text)]" />
           )}
         </button>
       </div>

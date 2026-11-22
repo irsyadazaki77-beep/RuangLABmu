@@ -92,13 +92,13 @@ export const SciFormula: React.FC<SciFormulaProps> = ({
     .replace(/\b(R)\^(2)\b/g, 'R^2');
 
   // Tokenize by explicit superscripts (^{...} or ^token) and subscripts (_{...} or _token)
-  const tokenRegex = /(\^\{[^}]+\}|\^[+-]?\d+|\^[a-zA-Z]+|_\{[^}]+\}|_[a-zA-Z0-9,*+-]+)/g;
+  const tokenRegex = /(\^\{[^}]+\}|\^[+-]?\d+|\^[a-zA-Z]+|_\{[^}]+\}|_[a-zA-Z0-9,*]+)/g;
   const parts = processed.split(tokenRegex).filter((p) => p.length > 0);
 
   return (
     <span
-      className={`inline-flex items-baseline ${
-        wrap ? 'flex-wrap whitespace-normal' : 'whitespace-nowrap'
+      className={`inline ${
+        wrap ? 'whitespace-normal' : 'whitespace-nowrap'
       } ${className}`}
     >
       {parts.map((part, idx) => {
@@ -168,7 +168,7 @@ export const ChemFormula: React.FC<ChemFormulaProps> = ({
   );
 
   return (
-    <span className={`inline-flex items-baseline font-mono ${className}`}>
+    <span className={`inline font-mono ${className}`}>
       {tokens.map((tok, idx) => {
         if (!tok) return null;
         if (tok.startsWith('^')) {

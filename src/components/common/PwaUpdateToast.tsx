@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw, Sparkles, X } from 'lucide-react';
+import { DownloadCloud, RefreshCw, X } from 'lucide-react';
 import { labSound } from '../../utils/soundEngine';
 
 export const PwaUpdateToast: React.FC = () => {
@@ -78,17 +78,17 @@ export const PwaUpdateToast: React.FC = () => {
       aria-live="polite"
       aria-label="Pembaruan Aplikasi Tersedia"
       data-testid="pwa-update-toast"
-      className="fixed bottom-4 left-4 z-50 max-w-sm p-3.5 rounded-2xl bg-slate-900/95 backdrop-blur-md border border-sky-500/40 text-slate-100 shadow-2xl flex items-start gap-3"
+      className="fixed bottom-4 left-4 z-50 max-w-sm p-3.5 rounded-2xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] shadow-2xl flex items-start gap-3"
     >
-      <div className="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 shrink-0">
-        <Sparkles className="w-4 h-4" aria-hidden="true" />
+      <div className="w-9 h-9 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
+        <DownloadCloud className="w-4 h-4" aria-hidden="true" />
       </div>
 
       <div className="flex-1 min-w-0 space-y-1.5">
-        <div className="text-xs font-bold text-white">
+        <div className="text-xs font-bold text-[var(--comfort-text)]">
           Pembaruan Aplikasi Tersedia
         </div>
-        <p className="text-[11px] text-slate-300 leading-snug">
+        <p className="text-[11px] text-[var(--comfort-text-muted)] leading-snug">
           Versi baru RuangLABmu siap digunakan. Muat ulang saat Anda selesai menyimpan pengamatan.
         </p>
         <div className="flex items-center gap-2 pt-0.5">
@@ -97,7 +97,7 @@ export const PwaUpdateToast: React.FC = () => {
             data-testid="pwa-update-reload-btn"
             disabled={isUpdating}
             onClick={() => void handleApplyUpdate()}
-            className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+            className="min-h-[36px] px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
           >
             <RefreshCw className={`w-3 h-3 ${isUpdating ? 'animate-spin' : ''}`} aria-hidden="true" />
             <span>{isUpdating ? 'Memuat...' : 'Muat Ulang'}</span>
@@ -106,7 +106,7 @@ export const PwaUpdateToast: React.FC = () => {
             type="button"
             data-testid="pwa-update-dismiss-btn"
             onClick={handleDismiss}
-            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+            className="min-h-[36px] px-2.5 py-1 rounded-lg bg-[var(--comfort-surface-subtle)] hover:border-sky-500/40 border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs font-semibold cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
           >
             Nanti
           </button>
@@ -117,7 +117,7 @@ export const PwaUpdateToast: React.FC = () => {
         type="button"
         onClick={handleDismiss}
         aria-label="Tutup pemberitahuan pembaruan aplikasi"
-        className="p-1 rounded-md text-slate-400 hover:text-white cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+        className="p-1.5 rounded-md text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
       >
         <X className="w-4 h-4" aria-hidden="true" />
       </button>

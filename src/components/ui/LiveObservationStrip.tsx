@@ -60,20 +60,20 @@ export const ActiveHypothesisBanner: React.FC<ActiveHypothesisBannerProps> = ({
             </span>
             {trimmed ? (
               <p
-                className={`text-[11px] text-slate-700 dark:text-slate-200 leading-snug ${
+                className={`text-[11px] text-[var(--comfort-text)] leading-snug ${
                   expanded ? '' : 'line-clamp-2'
                 }`}
               >
                 &ldquo;{trimmed}&rdquo;
               </p>
             ) : (
-              <p className="text-[11px] italic text-slate-500 dark:text-slate-400 leading-snug">
+              <p className="text-[11px] italic text-[var(--comfort-text-muted)] leading-snug">
                 Belum ada dugaan awal tercatat dari Tahap 1.
               </p>
             )}
           </div>
           {trimmed.length > 60 && (
-            <span className="text-slate-400 shrink-0 mt-0.5">
+            <span className="text-[var(--comfort-text-muted)] shrink-0 mt-0.5">
               {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </span>
           )}
@@ -87,7 +87,7 @@ export const ActiveHypothesisBanner: React.FC<ActiveHypothesisBannerProps> = ({
               onEditPreLab();
             }}
             title="Kembali ke Tahap 1 untuk menulis atau memperbarui hipotesis"
-            className="shrink-0 p-1 rounded-lg hover:bg-white/40 dark:hover:bg-slate-800/70 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+            className="shrink-0 p-1.5 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
           >
             <Edit3 className="w-3.5 h-3.5" />
           </button>
@@ -126,7 +126,7 @@ export const LiveObservationFeedCard: React.FC<LiveObservationFeedCardProps> = (
   return (
     <section
       data-testid="live-observation-feed-card"
-      className="rounded-xl border border-stone-200/90 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 p-3 space-y-2.5 text-xs"
+      className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-3 space-y-2.5 text-xs"
     >
       {/* Header + Progress Bar */}
       <button
@@ -139,30 +139,30 @@ export const LiveObservationFeedCard: React.FC<LiveObservationFeedCardProps> = (
       >
         <div className="flex items-center gap-1.5 min-w-0">
           <Table2 className={`w-3.5 h-3.5 shrink-0 ${accent.badgeTextClass}`} />
-          <span className="font-bold text-slate-800 dark:text-slate-100 truncate">
+          <span className="font-bold text-[var(--comfort-text)] truncate">
             Log Data Pengamatan Terkini
           </span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span
-            className={`px-1.5 py-0.5 rounded-md font-mono text-[10px] font-bold tabular-nums border ${
+            className={`font-mono text-[10px] font-bold tabular-nums ${
               readiness.isReady
-                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/35'
-                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                ? 'text-emerald-700 dark:text-emerald-400'
+                : 'text-amber-700 dark:text-amber-400'
             }`}
           >
             {readiness.badgeLabel}
           </span>
           {collapsed ? (
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            <ChevronDown className="w-3.5 h-3.5 text-[var(--comfort-text-muted)]" />
           ) : (
-            <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+            <ChevronUp className="w-3.5 h-3.5 text-[var(--comfort-text-muted)]" />
           )}
         </div>
       </button>
 
       {/* Progress Track */}
-      <div className="w-full h-1.5 rounded-full bg-stone-200 dark:bg-slate-800 overflow-hidden">
+      <div className="w-full h-1.5 rounded-full bg-[var(--comfort-surface-subtle)] overflow-hidden">
         <div
           className={`h-full transition-all duration-300 ${
             readiness.isReady ? 'bg-emerald-500' : accent.progressBarClass
@@ -174,7 +174,7 @@ export const LiveObservationFeedCard: React.FC<LiveObservationFeedCardProps> = (
       {!collapsed && (
         <div className="space-y-2 pt-0.5">
           {recentRows.length === 0 ? (
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed bg-stone-100/70 dark:bg-slate-950/60 rounded-lg px-2.5 py-2 border border-dashed border-stone-300 dark:border-slate-800">
+            <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed bg-[var(--comfort-surface-subtle)] rounded-lg px-2.5 py-2 border border-dashed border-[var(--comfort-border)]">
               {readiness.guidanceText}
             </p>
           ) : (
@@ -182,16 +182,16 @@ export const LiveObservationFeedCard: React.FC<LiveObservationFeedCardProps> = (
               {recentRows.map((rec, idx) => (
                 <li
                   key={rec.id}
-                  className="flex items-center justify-between gap-2 rounded-lg bg-stone-100/80 dark:bg-slate-950/70 border border-stone-200/80 dark:border-slate-800/80 px-2.5 py-1.5"
+                  className="flex items-center justify-between gap-2 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-2.5 py-1.5"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                      <span className="font-bold text-slate-700 dark:text-slate-300">
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--comfort-text-muted)]">
+                      <span className="font-bold text-[var(--comfort-text)] tabular-nums">
                         #{domainRecords.length - idx}
                       </span>
                       <span className="truncate">{rec.parametersSummary}</span>
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-100 truncate">
+                    <div className="text-[11px] font-semibold text-[var(--comfort-text)] truncate">
                       {formatDomainPrimaryMetric(rec)}
                     </div>
                   </div>
@@ -204,7 +204,7 @@ export const LiveObservationFeedCard: React.FC<LiveObservationFeedCardProps> = (
                       }}
                       aria-label="Hapus titik data ini"
                       title="Hapus baris pengamatan ini"
-                      className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                      className="p-1.5 rounded-md text-[var(--comfort-text-muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

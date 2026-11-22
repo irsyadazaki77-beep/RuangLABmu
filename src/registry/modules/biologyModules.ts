@@ -580,7 +580,7 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
       'Kenaikan konsentrasi kalium ekstraseluler [K⁺]ₒ di atas 8 mM (hiperkalemia) menggeser potensial istirahat menjadi kurang negatif.',
     ],
     parameters: [
-      { key: 'stimulusVoltageMv', label: 'Tegangan Stimulus (V_stim)', unit: 'mV', min: -70, max: 50, step: 5, defaultValue: -40, variableRole: 'bebas', instrumentType: 'voltmeter' },
+      { key: 'stimulusVoltageMv', label: 'Tegangan Stimulus (V stim)', unit: 'mV', min: -70, max: 50, step: 5, defaultValue: -40, variableRole: 'bebas', instrumentType: 'voltmeter' },
       { key: 'myelinThickness', label: 'Ketebalan Selubung Mielin', unit: '%', min: 0, max: 100, step: 5, defaultValue: 75, variableRole: 'bebas', instrumentType: 'ruler' },
       { key: 'extracellularNaMm', label: 'Konsentrasi [Na⁺] Luar', unit: 'mM', min: 50, max: 200, step: 5, defaultValue: 145, variableRole: 'kontrol' },
       { key: 'extracellularKMm', label: 'Konsentrasi [K⁺] Luar', unit: 'mM', min: 2, max: 15, step: 0.5, defaultValue: 4.5, variableRole: 'kontrol' },

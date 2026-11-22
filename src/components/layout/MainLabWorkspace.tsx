@@ -45,10 +45,10 @@ function LabLoadingSkeleton() {
       aria-label="Memuat Lingkungan Laboratorium 3D"
     >
       <div className="hidden lg:flex lg:col-span-3 flex-col gap-3 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4">
-        <div className="h-4 w-32 rounded bg-[var(--comfort-surface-muted)] animate-pulse" />
-        <div className="h-16 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
-        <div className="h-28 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
-        <div className="flex-1 rounded-lg bg-[var(--comfort-surface-muted)]/70 animate-pulse" />
+        <div className="h-4 w-32 rounded bg-[var(--comfort-surface-subtle)] animate-pulse" />
+        <div className="h-16 rounded-lg bg-[var(--comfort-surface-subtle)] animate-pulse" />
+        <div className="h-28 rounded-lg bg-[var(--comfort-surface-subtle)] animate-pulse" />
+        <div className="flex-1 rounded-lg bg-[var(--comfort-surface-subtle)] opacity-70 animate-pulse" />
       </div>
 
       <div className="lg:col-span-6 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] flex flex-col items-center justify-center p-8 space-y-4 shadow-sm">
@@ -64,9 +64,9 @@ function LabLoadingSkeleton() {
       </div>
 
       <div className="hidden lg:flex lg:col-span-3 flex-col gap-3 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4">
-        <div className="h-4 w-28 rounded bg-[var(--comfort-surface-muted)] animate-pulse" />
-        <div className="h-24 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
-        <div className="flex-1 rounded-lg bg-[var(--comfort-surface-muted)]/70 animate-pulse" />
+        <div className="h-4 w-28 rounded bg-[var(--comfort-surface-subtle)] animate-pulse" />
+        <div className="h-24 rounded-lg bg-[var(--comfort-surface-subtle)] animate-pulse" />
+        <div className="flex-1 rounded-lg bg-[var(--comfort-surface-subtle)] opacity-70 animate-pulse" />
       </div>
     </div>
   );
@@ -206,9 +206,7 @@ export const MainLabWorkspace: React.FC = () => {
     id: number;
     prompt: string;
   } | null>(externalDrLabMuPrompt);
-  const [pip3DMode, setPip3DMode] = useState<'pip' | 'split' | 'minimized'>(() =>
-    typeof window !== 'undefined' && window.innerWidth < 640 ? 'minimized' : 'pip'
-  );
+  const [pip3DMode, setPip3DMode] = useState<'pip' | 'split' | 'minimized'>('minimized');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -389,10 +387,10 @@ export const MainLabWorkspace: React.FC = () => {
                   (remoteTeacherCameraSync?.enabled || remoteTeacherLaser?.active) && (
                     <div
                       data-testid="student-follow-teacher-cam-pill"
-                      className="absolute top-14 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-indigo-400/60 text-xs text-slate-100 shadow-xl"
+                      className="absolute top-14 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl studio-hud-surface border border-indigo-500/45 text-xs text-[var(--comfort-hud-text)] shadow-xl"
                     >
                       {remoteTeacherLaser?.active && (
-                        <span className="inline-flex items-center gap-1.5 text-rose-300 font-semibold">
+                        <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-300 font-semibold">
                           <span className="w-2 h-2 rounded-full bg-rose-500" />
                           <span>
                             Laser {remoteTeacherLaser.teacherName}:{' '}
@@ -402,7 +400,7 @@ export const MainLabWorkspace: React.FC = () => {
                       )}
                       {remoteTeacherCameraSync?.enabled && (
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 text-indigo-300 font-semibold">
+                          <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-300 font-semibold">
                             <Video className="w-3.5 h-3.5" aria-hidden="true" />
                             <span>
                               {followTeacherCamera

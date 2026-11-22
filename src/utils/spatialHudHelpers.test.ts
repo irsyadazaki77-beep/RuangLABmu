@@ -14,6 +14,7 @@ import {
 } from './spatialHudHelpers';
 import { EXPERIMENT_CATALOG } from '../registry/experimentRegistry';
 import { CURRICULUM_CHAPTERS } from '../registry/curriculumChapters';
+import { resolveStepFromParam } from '../hooks/useUrlRouterSync';
 
 describe('spatialHudHelpers', () => {
   it('filters curriculum chapters by domain and formula/title search query', () => {
@@ -107,6 +108,30 @@ describe('spatialHudHelpers', () => {
       formatCleanEquation('P_{A\\text{O}_2} = 100\\%, \\sum F_x \\in \\{1, 2\\}'),
       'P_AO_2 = 100%, ∑ F_x ∈ {1, 2}'
     );
+    assert.equal(
+      formatCleanEquation('V_{\\text{EKG}}(t) = \\sum_{i \\in \\{P,Q,R,S,T\\}} A_i\\exp(-t^2)'),
+      'V_EKG(t) = ∑_i ∈ {P,Q,R,S,T} A_i exp(-t^2)'
+    );
+    assert.equal(
+      formatCleanEquation('R_{\\text{vascular}}=\\frac{8\\eta L}{\\pi r^4}\\propto\\frac{\\eta}{r^4}'),
+      'R_vascular = 8η L / π r^4 ∝ η / r^4'
+    );
+    assert.equal(
+      formatCleanEquation('H^+ + OH^- \\rightarrow H_2O'),
+      'H^+ + OH^- → H_2O'
+    );
+  });
+
+  it('resolves deep-link workflow step aliases including intro and analytics cleanly', () => {
+    assert.equal(resolveStepFromParam('intro'), 1);
+    assert.equal(resolveStepFromParam('materi'), 1);
+    assert.equal(resolveStepFromParam('hipotesis'), 1);
+    assert.equal(resolveStepFromParam('briefing'), 1);
+    assert.equal(resolveStepFromParam('simulation'), 2);
+    assert.equal(resolveStepFromParam('analytics'), 3);
+    assert.equal(resolveStepFromParam('analisis'), 3);
+    assert.equal(resolveStepFromParam('analysis'), 3);
+    assert.equal(resolveStepFromParam('report'), 4);
   });
 
   it('filters experiment records per module using explicit moduleId or title inference', () => {

@@ -1,8 +1,5 @@
 import React, { Suspense, useState, useMemo, useEffect, useRef } from 'react';
 import {
-  Camera,
-} from 'lucide-react';
-import {
   EducationTier,
   getExperimentsByDomain,
 } from '../registry/experimentRegistry';
@@ -39,6 +36,8 @@ import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
 import { PrecisionSlider } from './controls/PrecisionSlider';
 import { filterRecordsForModule } from '../utils/spatialHudHelpers';
+import { LabSidebarActionHeader } from './layout/LabSidebarActionHeader';
+import { LabSceneFallback } from './three/LabSceneFallback';
 
 export interface BiologyLabViewProps {
   activeStudentName: string;
@@ -362,9 +361,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
                 <LabErrorBoundary domain="Biologi" sceneName={`BiologyScene3D-${side}`}>
                   <Suspense
                     fallback={
-                      <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-emerald-300">
-                        Menyiapkan Realitas {side}...
-                      </div>
+                      <LabSceneFallback compact label={`Menyiapkan Realitas ${side}...`} />
                     }
                   >
                     <BiologyScene3D
@@ -385,16 +382,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
       }
       canvas={
         <LabErrorBoundary domain="Biologi" sceneName="BiologyScene3D">
-          <Suspense
-            fallback={
-              <div className="w-full h-full min-h-[320px] flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 p-6 gap-3">
-                <div className="w-9 h-9 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                <p className="text-xs font-mono font-semibold text-emerald-300">
-                  Menyiapkan Ruang Laboratorium 3D...
-                </p>
-              </div>
-            }
-          >
+          <Suspense fallback={<LabSceneFallback accentColor="emerald" />}>
             <BiologyScene3D
               mode={currentModule.id as any}
               params={paramsState}
@@ -421,37 +409,12 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
       }
       sidebar={
         <>
-          {/* Action Bar */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleRecordTrial}
-              className="flex-1 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
-            >
-              <Camera className="w-4 h-4 shrink-0" />
-              <span>
-                + Catat Data (
-                {moduleRecords.length >= 3 ? `${moduleRecords.length} Siap` : `${moduleRecords.length}/3`})
-              </span>
-            </button>
-
-            {onProceedToAnalysis && (
-              <button
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  onProceedToAnalysis();
-                }}
-                className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap ${
-                  moduleRecords.length >= 3
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)]'
-                }`}
-              >
-                Grafik &amp; LKS →
-              </button>
-            )}
-          </div>
+          <LabSidebarActionHeader
+            recordsCount={moduleRecords.length}
+            accentColor="emerald"
+            onRecordTrial={handleRecordTrial}
+            onProceedToAnalysis={onProceedToAnalysis}
+          />
 
           {/* Module Selector */}
           <div className="space-y-1.5">

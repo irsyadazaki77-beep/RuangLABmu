@@ -9,10 +9,10 @@ import {
   Ticket,
   Lock,
   AlertTriangle,
-  Download,
   Users,
 } from 'lucide-react';
 import { PassAndPlayRotationModal } from './PassAndPlayRotationModal';
+import { WorksheetQuestionList } from './WorksheetQuestionList';
 import { useTranslation } from 'react-i18next';
 import {
   WORKSHEET_QUESTIONS,
@@ -103,7 +103,6 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   const [rateLimitCountdown, setRateLimitCountdown] = useState<number>(0);
   const [offlinePacketNotice, setOfflinePacketNotice] = useState<string | null>(null);
 
-  // FITUR 3: Pass-and-Play Classroom Rotation States
   const [isRotationModalOpen, setIsRotationModalOpen] = useState(false);
   const [isRotatingGroup, setIsRotatingGroup] = useState(false);
   const [rotationNotice, setRotationNotice] = useState<string | null>(null);
@@ -113,7 +112,6 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     moduleId,
   });
 
-  // Compute next suggested group & student name
   const currentIdx = STUDENT_PROFILES.findIndex(
     (p) => p.group === activeGroupId || p.name === activeStudentName
   );
@@ -178,7 +176,6 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
       telemetryLog,
     };
 
-    // 1. Permanently preserve in LocalStorage so Kelompok A's report is NEVER lost
     try {
       const storedKey = 'ruanglab_pass_and_play_submissions';
       const prevSubmissions = JSON.parse(window.localStorage.getItem(storedKey) || '[]');
@@ -190,7 +187,6 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
       // ignore storage error
     }
 
-    // 2. Also attempt server persistence if backend is reachable, or queue to offlineOutbox
     const pnpMutationId = generateMutationUuid();
     const pnpPayload = {
       ...submissionRecord,
@@ -225,7 +221,6 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
       }).catch(() => undefined);
     }
 
-    // 3. Clear LKS form inputs for the next group
     const blankAnswers: Record<string, string> = {};
     for (const q of WORKSHEET_QUESTIONS) {
       blankAnswers[q.id] = '';
@@ -236,7 +231,6 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     setSubmissionSuccessTicket(null);
     setSubmissionLocked(false);
 
-    // 4. Reset hypothesis note if callback available
     if (onChangeHypothesisNote && hypothesisNote) {
       onChangeHypothesisNote({
         independentVar: '',
@@ -251,7 +245,6 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     const targetStudent = nextStudentInput.trim() || 'Siswa Kelompok Baru';
     const targetGroup = nextGroupInput.trim() || 'Kelompok Berikutnya';
 
-    // 5. Notify parent to rotate student profile & clear active observation records table
     if (onRotateGroup) {
       onRotateGroup(targetStudent, targetGroup);
     }
@@ -260,7 +253,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     setIsRotatingGroup(false);
 
     setRotationNotice(
-      `✓ Laporan [${prevGroupName}] berhasil disimpan secara permanen! Meja praktikum & tabel pengamatan direset bersih untuk [${targetGroup}].`
+      `Laporan [${prevGroupName}] berhasil disimpan permanen! Meja praktikum & tabel pengamatan direset bersih untuk [${targetGroup}].`
     );
     setTimeout(() => setRotationNotice(null), 8000);
   };
@@ -318,11 +311,11 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     const regSummary = computeRecordsRegressionSummary(observationRecords);
     try {
       const obsPayload = (observationRecords || []).map((r, i) => ({
-        'No': i + 1,
-        'Waktu': r.timestamp,
-        'X': r.numericX ?? 0,
-        'Y1': r.numericY1 ?? 0,
-        'Parameter': r.parametersSummary,
+        No: i + 1,
+        Waktu: r.timestamp,
+        X: r.numericX ?? 0,
+        Y1: r.numericY1 ?? 0,
+        Parameter: r.parametersSummary,
       }));
 
       const telemetryLog = buildSubmissionTelemetryTimeline(domain || 'Fisika', obsPayload);
@@ -403,16 +396,13 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         setRateLimitMessage(null);
         setRateLimitCountdown(0);
         setSubmissionSuccessTicket(data.ticketCode || 'SUB-OK');
-        // FITUR 2: Kunci Pengiriman (Submission Lock) setelah tombol kirim ditekan
         setSubmissionLocked(true);
-        // FITUR 1: Berikan XP & Lencana untuk LKS & Presisi Data
         recordPerfectLksQuiz(finalGrade.totalScore, domain, moduleId);
         if (regSummary.hasRegression) {
           evaluateDataPrecisionXP(regSummary.rSquared, domain, moduleId);
         }
       }
     } catch {
-      // Queue deterministically in IndexedDB outbox when offline/unreachable
       const fallbackMutationId = generateMutationUuid();
       const obsFallback = (observationRecords || []).map((r, i) => ({
         No: i + 1,
@@ -509,7 +499,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         <div
           role="status"
           data-testid="offline-packet-notice"
-          className="p-3.5 rounded-xl bg-teal-500/10 border border-teal-500/40 flex items-center gap-2.5 text-xs text-teal-800 dark:text-teal-200 font-semibold shadow-sm animate-fade-in"
+          className="p-3.5 rounded-xl bg-teal-500/12 border border-teal-500/40 flex items-center gap-2.5 text-xs text-[var(--comfort-text)] font-semibold shadow-sm animate-fade-in"
         >
           <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
           <span>{offlinePacketNotice}</span>
@@ -521,7 +511,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         <div
           role="status"
           data-testid="rotation-notice-banner"
-          className="p-3.5 rounded-xl bg-sky-50 dark:bg-sky-950/60 border border-sky-500/50 flex items-center justify-between gap-3 text-xs text-sky-900 dark:text-sky-100 font-bold shadow-md animate-fade-in"
+          className="p-3.5 rounded-xl bg-sky-500/12 border border-sky-500/40 flex items-center justify-between gap-3 text-xs text-[var(--comfort-text)] font-bold shadow-sm animate-fade-in"
         >
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
@@ -530,7 +520,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
           <button
             type="button"
             onClick={() => setRotationNotice(null)}
-            className="text-sky-500 hover:text-sky-700 dark:hover:text-sky-300 font-mono text-[11px] underline cursor-pointer"
+            className="text-sky-600 dark:text-sky-300 font-mono text-[11px] underline cursor-pointer"
           >
             Tutup
           </button>
@@ -542,28 +532,28 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         <div
           role="alert"
           data-testid="lks-rate-limit-banner"
-          className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-500/40 flex items-center justify-between gap-3 text-xs"
+          className="p-3.5 rounded-xl bg-amber-500/12 border border-amber-500/40 flex items-center justify-between gap-3 text-xs"
         >
-          <div className="flex items-center gap-2.5 text-amber-800 dark:text-amber-200 font-semibold">
+          <div className="flex items-center gap-2.5 text-[var(--comfort-text)] font-semibold">
             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>{rateLimitMessage}</span>
           </div>
           {rateLimitCountdown > 0 && (
-            <span className="font-mono font-bold text-[11px] px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-200 shrink-0">
+            <span className="font-mono font-bold text-[11px] px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
               Tunggu {rateLimitCountdown} dtk
             </span>
           )}
         </div>
       )}
 
-      {/* Submission Lock Banner (FITUR 2) */}
+      {/* Submission Lock Banner */}
       {isSubmissionLocked && (
         <div
           role="status"
           data-testid="lks-submission-locked-banner"
-          className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-500/40 flex items-center justify-between gap-3 text-xs"
+          className="p-3.5 rounded-xl bg-amber-500/12 border border-amber-500/40 flex items-center justify-between gap-3 text-xs"
         >
-          <div className="flex items-center gap-2.5 text-amber-800 dark:text-amber-200 font-semibold">
+          <div className="flex items-center gap-2.5 text-[var(--comfort-text)] font-semibold">
             <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>{t('lks.lockedNotice')}</span>
           </div>
@@ -577,21 +567,21 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
 
       {/* Ticket Modal Confirmation */}
       {submissionSuccessTicket && (
-        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg animate-in fade-in">
+        <div className="p-4 rounded-2xl bg-emerald-500/12 border border-emerald-500/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm animate-in fade-in">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
               <Ticket className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="font-bold text-sm text-emerald-900 dark:text-emerald-100">
+                <h4 className="font-bold text-sm text-[var(--comfort-text)]">
                   Laporan Berhasil Diserahkan ke Guru!
                 </h4>
                 <span className="text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
                   {submissionSuccessTicket}
                 </span>
               </div>
-              <p className="text-xs text-emerald-700 dark:text-emerald-300">
+              <p className="text-xs text-[var(--comfort-text-muted)]">
                 Laporan praktikum beserta rekaman telemetri kronologis telah tersimpan di portal guru dan dikunci.
               </p>
             </div>
@@ -647,10 +637,10 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             data-testid="print-blank-worksheet-btn"
             onClick={handlePrintBlankLks}
             title="Cetak Lembar Kerja Siswa (LKS) kosong hitam-putih hemat tinta untuk fotokopi siswa di kelas"
-            className="px-3 py-1.5 rounded-xl bg-[var(--comfort-surface-subtle)] hover:opacity-90 text-[var(--comfort-text)] border border-[var(--comfort-border)] font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            className="px-3 py-1.5 min-h-[38px] rounded-xl bg-[var(--comfort-surface-subtle)] hover:opacity-90 text-[var(--comfort-text)] border border-[var(--comfort-border)] font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5 text-[var(--comfort-text-muted)]" />
-            <span>🖨️ Cetak LKS Kosong (Untuk Fotokopi Kelas)</span>
+            <span>Cetak LKS Kosong (Untuk Fotokopi Kelas)</span>
           </button>
 
           <button
@@ -661,17 +651,17 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
               setIsRotationModalOpen(true);
             }}
             title="Simpan laporan kelompok aktif dan reset meja praktikum untuk giliran kelompok berikutnya (Pass-and-Play)"
-            className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 min-h-[38px] rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
           >
             <Users className="w-3.5 h-3.5" />
-            <span>👥 Simpan & Ganti Giliran Kelompok</span>
+            <span>Simpan &amp; Ganti Giliran Kelompok</span>
           </button>
 
           <button
             type="button"
             onClick={handleSubmitReportToTeacher}
             disabled={isSubmittingReport || isSubmissionLocked}
-            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 min-h-[38px] rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
           >
             {isSubmissionLocked ? <Lock className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
             <span>
@@ -687,7 +677,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             <button
               type="button"
               onClick={() => onPrintPDFReport(conclusionText)}
-              className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              className="px-3.5 py-1.5 min-h-[38px] rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>{t('lks.printPdf')}</span>
@@ -698,9 +688,8 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
 
       {/* Hypothesis Review & Conclusion Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Hipotesis Awal */}
         <div className="p-3.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-1.5">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-500">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
             {t('lks.initialHypothesis')}
           </span>
           <textarea
@@ -720,9 +709,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
           />
         </div>
 
-        {/* Kesimpulan Akhir */}
         <div className="p-3.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-2.5">
-          {/* Feature 4: Penerjemah Arti Data Otomatis di LKS */}
           <div
             data-testid="lks-data-pattern-summary"
             className={`p-3 rounded-xl border text-xs space-y-1.5 ${
@@ -732,8 +719,9 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             }`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-bold text-[var(--comfort-text)]">
-                💡 Ringkasan Pola Datamu
+              <span className="inline-flex items-center gap-1.5 font-bold text-[var(--comfort-text)]">
+                <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>Ringkasan Pola Datamu</span>
               </span>
               {patternTranslation.status === 'ready' && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--comfort-surface)] border border-sky-500/35 font-mono text-[10px] font-bold text-sky-700 dark:text-sky-300">
@@ -744,10 +732,10 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
                 </span>
               )}
             </div>
-            <p className="text-[11px] font-semibold text-[var(--comfort-text)] leading-relaxed">
+            <p className="text-[11px] font-semibold text-[var(--comfort-text)] leading-relaxed comfort-prose">
               {patternTranslation.summaryText}
             </p>
-            <p className="text-[11px] text-[var(--comfort-text-muted)] leading-snug">
+            <p className="text-[11px] text-[var(--comfort-text-muted)] leading-snug comfort-prose">
               {patternTranslation.guidanceText}
             </p>
           </div>
@@ -768,214 +756,27 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         </div>
       </div>
 
-      {/* Active Teacher AI Custom Mission Contextual LKS Questions */}
-      {activeCustomMission && (
-        <div
-          data-testid="lks-custom-ai-mission-section"
-          className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/35 space-y-3"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-bold">
-                ✨ MISI STUDI KASUS GURU · ROOM {activeCustomMission.roomId}
-              </span>
-              <h4 className="text-sm font-extrabold text-[var(--comfort-text)] mt-1">
-                {activeCustomMission.title}
-              </h4>
-            </div>
-            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-              Target {activeCustomMission.targetVariable.variableLabel}:{' '}
-              {activeCustomMission.targetVariable.minSuccessValue} –{' '}
-              {activeCustomMission.targetVariable.maxSuccessValue}{' '}
-              {activeCustomMission.targetVariable.unit}
-            </span>
-          </div>
-          <p className="text-xs text-[var(--comfort-text-muted)] leading-relaxed">
-            {activeCustomMission.narrative}
-          </p>
-          <div className="space-y-2.5 pt-1">
-            {activeCustomMission.contextualQuestions.slice(0, 3).map((cq, idx) => (
-              <div
-                key={cq.id || idx}
-                className="p-3 rounded-xl bg-[var(--comfort-surface)] border border-indigo-500/25 space-y-1.5"
-              >
-                <div className="text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  Pertanyaan Kontekstual Studi Kasus #{idx + 1}
-                </div>
-                <p className="text-xs font-semibold text-[var(--comfort-text)]">
-                  {cq.questionText}
-                </p>
-                <input
-                  type="text"
-                  disabled={isSubmissionLocked}
-                  value={customMissionAnswers[cq.id] || ''}
-                  onChange={(e) =>
-                    setCustomMissionAnswers((prev) => ({
-                      ...prev,
-                      [cq.id]: e.target.value,
-                    }))
-                  }
-                  placeholder={`Petunjuk: ${cq.hint}`}
-                  className="w-full px-3 py-1.5 text-xs rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Modular Custom Mission + Worksheet Questions List */}
+      <WorksheetQuestionList
+        activeCustomMission={activeCustomMission}
+        customMissionAnswers={customMissionAnswers}
+        onChangeCustomMissionAnswer={(qId, val) =>
+          setCustomMissionAnswers((prev) => ({ ...prev, [qId]: val }))
+        }
+        filteredQuestions={filteredQuestions}
+        answers={answers}
+        onChangeAnswer={(qId, val) => setAnswers((prev) => ({ ...prev, [qId]: val }))}
+        hintLevelByQuestion={hintLevelByQuestion}
+        onAdvanceHint={handleAdvanceHint}
+        gradedResult={gradedResult}
+        isSubmissionLocked={isSubmissionLocked}
+        isSubmittingReport={isSubmittingReport}
+        onGradeForm={handleGradeForm}
+        onOpenRotationModal={() => setIsRotationModalOpen(true)}
+        onDownloadOfflineRlab={handleDownloadOfflineRlab}
+        onSubmitReportToTeacher={handleSubmitReportToTeacher}
+      />
 
-      {/* LKS Questions Form */}
-      <form onSubmit={handleGradeForm} className="space-y-4">
-        <div className="space-y-3">
-          {filteredQuestions.map((q, idx) => {
-            const userAns = answers[q.id] || '';
-            const hintLvl = hintLevelByQuestion[q.id] || 0;
-            const evalItem = gradedResult?.results?.[q.id];
-
-            return (
-              <div
-                key={q.id}
-                className="p-4 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] space-y-2.5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-xs text-[var(--comfort-text-muted)]">
-                      <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
-                        Soal {idx + 1} · {q.domain}
-                      </span>
-                      <span>·</span>
-                      <span className="font-semibold">
-                        {t('lks.weight')}: {Math.round(100 / (filteredQuestions.length || 1))} {t('lks.points')}
-                      </span>
-                    </div>
-                    <p className="text-xs font-semibold text-[var(--comfort-text)] leading-relaxed">
-                      {q.questionText}
-                    </p>
-                  </div>
-
-                  {/* Scaffolded Hint Trigger */}
-                  <button
-                    type="button"
-                    disabled={isSubmissionLocked}
-                    onClick={() => handleAdvanceHint(q.id)}
-                    className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 disabled:opacity-50 text-amber-800 dark:text-amber-300 text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer"
-                  >
-                    <Lightbulb className="w-3.5 h-3.5" />
-                    <span>
-                      {t('lks.hint')} ({hintLvl}/3)
-                    </span>
-                  </button>
-                </div>
-
-                {/* Scaffolded Hints Accordion */}
-                {hintLvl > 0 && (
-                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-[var(--comfort-text)] space-y-1">
-                    <div className="font-bold text-[11px] text-amber-800 dark:text-amber-300">
-                      {hintLvl === 1
-                        ? 'Petunjuk Tingkat 1 (Konseptual):'
-                        : hintLvl === 2
-                        ? 'Petunjuk Tingkat 2 (Rumus & Variabel):'
-                        : 'Petunjuk Tingkat 3 (Langkah Solusi):'}
-                    </div>
-                    <p className="text-[11px] leading-relaxed">
-                      {q.scaffoldedHints?.[hintLvl - 1] || q.formulaHint || q.explanation}
-                    </p>
-                  </div>
-                )}
-
-                {/* Input and Evaluation Feedback */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    disabled={isSubmissionLocked}
-                    value={userAns}
-                    onChange={(e) => {
-                      if (!isSubmissionLocked) {
-                        setAnswers({ ...answers, [q.id]: e.target.value });
-                      }
-                    }}
-                    placeholder={t('lks.answerPlaceholder')}
-                    className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] focus:outline-none focus:border-sky-500 font-mono disabled:opacity-60"
-                  />
-                  {evalItem && (
-                    <span
-                      className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
-                        evalItem.isCorrect
-                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                          : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
-                      }`}
-                    >
-                      {evalItem.isCorrect ? '✓ Benar' : '✗ Kurang Tepat'}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Submit and Grade Button */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          {gradedResult && (
-            <div className="flex items-center gap-2 text-xs">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              <span>
-                Nilai LKS: <strong className="font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">{gradedResult.totalScore}/100</strong> ({gradedResult.correctCount} dari {gradedResult.totalQuestions} Soal Benar)
-              </span>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-2 ml-auto">
-            <button
-              type="submit"
-              disabled={isSubmissionLocked}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
-            >
-              {t('lks.checkGrade')}
-            </button>
-            <button
-              type="button"
-              data-testid="bottom-pass-and-play-rotation-btn"
-              onClick={() => {
-                labSound.playClick();
-                setIsRotationModalOpen(true);
-              }}
-              title="Simpan laporan kelompok aktif dan reset meja praktikum untuk giliran kelompok berikutnya"
-              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>👥 Simpan & Ganti Giliran Kelompok</span>
-            </button>
-            <button
-              type="button"
-              data-testid="download-offline-rlab-btn"
-              onClick={handleDownloadOfflineRlab}
-              title="Unduh paket tugas luring (.rlab) terenkapsulasi anti-tamper untuk dikumpulkan via Flashdisk/Bluetooth tanpa kuota"
-              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>💾 Unduh File Tugas Luring (.rlab)</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmitReportToTeacher}
-              disabled={isSubmittingReport || isSubmissionLocked}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
-            >
-              {isSubmissionLocked ? <Lock className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
-              <span>
-                {isSubmissionLocked
-                  ? 'Laporan Terkunci'
-                  : isSubmittingReport
-                  ? t('lks.submitting')
-                  : t('lks.submitReport')}
-              </span>
-            </button>
-          </div>
-        </div>
-      </form>
-
-      {/* FITUR 3: Pass-and-Play Rotation Modal Dialog */}
       <PassAndPlayRotationModal
         isOpen={isRotationModalOpen}
         onClose={() => setIsRotationModalOpen(false)}
@@ -992,5 +793,3 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     </div>
   );
 };
-
-

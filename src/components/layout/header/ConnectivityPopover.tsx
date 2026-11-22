@@ -40,10 +40,10 @@ export const ConnectivityPopover: React.FC<ConnectivityPopoverProps> = ({
 
   const statusToneClass =
     connectivityMode === 'online-cloud'
-      ? 'text-emerald-700 dark:text-emerald-300 border-emerald-500/30 bg-emerald-500/8 hover:bg-emerald-500/15'
+      ? 'text-emerald-700 dark:text-emerald-400'
       : connectivityMode === 'lan-hotspot'
-      ? 'text-sky-700 dark:text-sky-300 border-sky-500/30 bg-sky-500/8 hover:bg-sky-500/15'
-      : 'text-amber-700 dark:text-amber-300 border-amber-500/30 bg-amber-500/8 hover:bg-amber-500/15';
+      ? 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+      : 'text-amber-700 dark:text-amber-400';
 
   const dotClass =
     connectivityMode === 'online-cloud'
@@ -63,17 +63,17 @@ export const ConnectivityPopover: React.FC<ConnectivityPopoverProps> = ({
         }}
         aria-expanded={isOpen}
         aria-label={`Status Konektivitas: ${statusLabel}`}
-        className={`h-8 px-2 xl:px-2.5 flex items-center gap-1.5 rounded-lg border text-[11px] xl:text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${statusToneClass}`}
+        className={`h-8 px-2 flex items-center gap-1.5 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-[11px] xl:text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${statusToneClass}`}
       >
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} aria-hidden="true" />
-        <span className="font-semibold">{statusLabel}</span>
+        <span className="font-medium text-[var(--comfort-text)]">{statusLabel}</span>
         <span
           data-testid="outbox-sync-status-label"
           className={`${
             outboxStatus.syncStatus === 'syncing' || outboxStatus.pendingCount > 0 || !isOnline
               ? 'hidden sm:inline'
               : 'hidden xl:inline'
-          } text-[10px] xl:text-[11px] font-mono opacity-85 tabular-nums`}
+          } text-[11px] text-[var(--comfort-text-muted)] tabular-nums`}
         >
           · {outboxStatus.label}
         </span>

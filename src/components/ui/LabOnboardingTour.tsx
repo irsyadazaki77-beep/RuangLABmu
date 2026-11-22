@@ -196,7 +196,7 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
         >
           {/* Dimmed backdrop */}
           <div
-            className="fixed inset-0 bg-slate-950/60 backdrop-blur-[2px] transition-opacity"
+            className="fixed inset-0 bg-black/50 backdrop-blur-[2px] transition-opacity"
             onClick={handleCompleteAndClose}
           />
 
@@ -212,7 +212,7 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
               }}
               transition={{ type: 'spring', stiffness: 280, damping: 28 }}
               data-testid="onboarding-spotlight-ring"
-              className="fixed z-50 rounded-2xl border-2 border-sky-400 shadow-[0_0_0_9999px_rgba(2,6,23,0.55)] ring-4 ring-sky-400/30 pointer-events-none"
+              className="fixed z-50 rounded-2xl border-2 border-sky-400 shadow-[0_0_0_9999px_rgba(2,6,23,0.48)] ring-4 ring-sky-400/30 pointer-events-none"
             />
           )}
 
@@ -223,7 +223,7 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.97 }}
             transition={{ duration: 0.18 }}
-            className="fixed bottom-6 right-6 left-6 sm:left-auto sm:w-[410px] z-50 rounded-2xl bg-slate-900/95 text-slate-100 border border-sky-500/40 shadow-2xl p-5 space-y-4"
+            className="fixed bottom-6 right-6 left-6 sm:left-auto sm:w-[410px] z-50 rounded-2xl bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-sky-500/40 shadow-2xl p-5 space-y-4"
           >
             {/* Top Bar */}
             <div className="flex items-center justify-between gap-2">
@@ -231,7 +231,7 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
                 <span className="w-7 h-7 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center">
                   {getStepIcon(currentStep.stepNumber)}
                 </span>
-                <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-sky-400">
+                <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">
                   Panduan UI · Langkah {currentStep.stepNumber} / {LAB_ONBOARDING_STEPS.length}
                 </span>
               </div>
@@ -240,7 +240,7 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
                 type="button"
                 onClick={handleCompleteAndClose}
                 aria-label="Lewati & Tutup Panduan"
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+                className="p-1.5 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -250,21 +250,21 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
             <div className="space-y-1.5">
               <h3
                 data-testid="onboarding-step-title"
-                className="text-sm sm:text-base font-bold text-white tracking-tight"
+                className="text-sm sm:text-base font-bold text-[var(--comfort-text)] tracking-tight"
               >
                 {currentStep.title}
               </h3>
               <p
                 data-testid="onboarding-step-description"
-                className="text-xs sm:text-sm text-slate-300 leading-relaxed"
+                className="text-xs sm:text-sm text-[var(--comfort-text-muted)] leading-relaxed"
               >
                 {currentStep.description}
               </p>
             </div>
 
             {/* Shortcut / Tip Callout */}
-            <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-3 py-2 text-[11px] font-mono text-sky-300 flex items-center gap-2">
-              <Compass className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+            <div className="rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-3 py-2 text-[11px] font-mono text-sky-700 dark:text-sky-300 flex items-center gap-2">
+              <Compass className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
               <span>{currentStep.shortcutHint}</span>
             </div>
 
@@ -279,10 +279,10 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
                     aria-label={`Ke langkah ${st.stepNumber}`}
                     className={`h-1.5 rounded-full transition-all cursor-pointer ${
                       idx === currentStepIdx
-                        ? 'w-6 bg-sky-400'
+                        ? 'w-6 bg-sky-500'
                         : idx < currentStepIdx
-                        ? 'w-2 bg-emerald-400'
-                        : 'w-2 bg-slate-700'
+                        ? 'w-2 bg-emerald-500'
+                        : 'w-2 bg-[var(--comfort-border)]'
                     }`}
                   />
                 ))}
@@ -294,7 +294,7 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
                     type="button"
                     onClick={handlePrev}
                     data-testid="onboarding-prev-btn"
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                    className="px-3 py-1.5 min-h-[36px] rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] hover:bg-[var(--comfort-elevated)] text-[var(--comfort-text)] text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                     <span>Sebelumnya</span>
@@ -305,7 +305,7 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
                   type="button"
                   onClick={handleNext}
                   data-testid="onboarding-next-btn"
-                  className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                  className="px-3.5 py-1.5 min-h-[36px] rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
                 >
                   {currentStepIdx === LAB_ONBOARDING_STEPS.length - 1 ? (
                     <>

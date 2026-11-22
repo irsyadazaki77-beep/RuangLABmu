@@ -5,7 +5,6 @@ import {
   Trophy,
   Award,
   ShieldCheck,
-  Sparkles,
   Camera,
   Printer,
   Lock,
@@ -342,7 +341,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                   >
                     Portofolio Sains & Radar Kompetensi STEM
                   </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  <p className="text-xs text-[var(--comfort-text-muted)] truncate">
                     Rekam jejak kemampuan eksperimental, kurva telemetri, dan sertifikasi praktikan
                   </p>
                 </div>
@@ -356,7 +355,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                   className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>🎓 Cetak Sertifikat Praktikum</span>
+                  <span>Cetak Sertifikat Praktikum</span>
                 </button>
                 <button
                   type="button"
@@ -365,7 +364,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                     onClose();
                   }}
                   aria-label="Tutup Portofolio Siswa"
-                  className="p-1.5 rounded-xl border border-[var(--comfort-border)] hover:bg-stone-200/60 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-pointer"
+                  className="p-1.5 rounded-xl border border-[var(--comfort-border)] hover:bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -393,7 +392,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                     className={`px-3.5 py-2 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
                       active
                         ? 'border-sky-600 text-sky-600 dark:text-sky-400'
-                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        : 'border-transparent text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                     }`}
                   >
                     {tab.label}
@@ -421,25 +420,25 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                           <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30">
                             {levelInfo.rankTitle}
                           </span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                          <span className="text-xs text-[var(--comfort-text-muted)]">
                             · {studentGroup}
                           </span>
                         </div>
 
                         {/* XP Progress Bar */}
                         <div className="space-y-1 pt-1">
-                          <div className="flex items-center justify-between text-xs font-mono">
+                          <div className="flex items-center justify-between text-xs font-mono tabular-nums">
                             <span className="font-bold text-amber-600 dark:text-amber-400">
                               Level {levelInfo.level} · {profile.xp} Total XP
                             </span>
-                            <span className="text-slate-500 dark:text-slate-400">
+                            <span className="text-[var(--comfort-text-muted)]">
                               {levelInfo.currentLevelXp} / {levelInfo.nextLevelXp} XP ke Level{' '}
                               {levelInfo.level + 1}
                             </span>
                           </div>
-                          <div className="w-full h-2 rounded-full bg-stone-200 dark:bg-slate-800 overflow-hidden">
+                          <div className="w-full h-2 rounded-full bg-[var(--comfort-surface-subtle)] overflow-hidden">
                             <div
-                              className="h-full rounded-full bg-gradient-to-r from-amber-500 to-sky-500 transition-all duration-300"
+                              className="h-full rounded-full bg-sky-600 transition-all duration-300"
                               style={{ width: `${Math.max(8, levelInfo.progressPct)}%` }}
                             />
                           </div>
@@ -453,7 +452,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                         <div className="font-mono text-lg font-bold text-sky-600 dark:text-sky-400 tabular-nums">
                           {completedModulesCount}
                         </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] text-[var(--comfort-text-muted)]">
                           Modul Tuntas
                         </div>
                       </div>
@@ -461,7 +460,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                         <div className="font-mono text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                           {overallStemIndex}
                         </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] text-[var(--comfort-text-muted)]">
                           Indeks STEM
                         </div>
                       </div>
@@ -469,7 +468,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                         <div className="font-mono text-lg font-bold text-amber-600 dark:text-amber-400 tabular-nums">
                           {profile.unlockedBadges.length}/{SCIENTIFIC_BADGES_CATALOG.length}
                         </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] text-[var(--comfort-text-muted)]">
                           Lencana Sains
                         </div>
                       </div>
@@ -562,7 +561,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                               {axis.score}/100 · <span className="text-slate-500 font-normal">{axis.detail}</span>
                             </span>
                           </div>
-                          <div className="w-full h-2 rounded-full bg-stone-200 dark:bg-slate-800 overflow-hidden">
+                          <div className="w-full h-2 rounded-full bg-[var(--comfort-surface-subtle)] overflow-hidden">
                             <div
                               className="h-full rounded-full bg-sky-600 transition-all duration-300"
                               style={{ width: `${axis.score}%` }}
@@ -579,7 +578,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                 <div className="space-y-5">
                   {/* Badges Grid (Unlocked vs Locked) */}
                   <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] mb-3">
                       Koleksi Lencana Saintifik (Unlocked vs Terkunci)
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -598,11 +597,11 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-xl bg-stone-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                                <div className="w-9 h-9 rounded-xl bg-[var(--comfort-surface-subtle)] flex items-center justify-center shrink-0">
                                   {isUnlocked ? (
                                     getBadgeIcon(badge.id)
                                   ) : (
-                                    <Lock className="w-4 h-4 text-slate-400" />
+                                    <Lock className="w-4 h-4 text-[var(--comfort-text-muted)]" />
                                   )}
                                 </div>
                                 <div>
@@ -616,10 +615,10 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                                 <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                               )}
                             </div>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                            <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed">
                               {badge.description}
                             </p>
-                            <div className="text-[10px] font-mono text-slate-400">
+                            <div className="text-[10px] font-mono text-[var(--comfort-text-muted)]">
                               {isUnlocked
                                 ? `Terbuka ${
                                     unlockedDate
@@ -636,12 +635,12 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
 
                   {/* 3D Snapshots Gallery */}
                   <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-1.5">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] mb-3 flex items-center gap-1.5">
                       <Camera className="w-3.5 h-3.5 text-sky-500" />
                       <span>Galeri Tangkapan Kanvas 3D ({snapshots.length})</span>
                     </h3>
                     {snapshots.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-[var(--comfort-border)] p-6 text-center text-xs text-slate-500">
+                      <div className="rounded-xl border border-dashed border-[var(--comfort-border)] p-6 text-center text-xs text-[var(--comfort-text-muted)]">
                         Belum ada tangkapan 3D. Tekan tombol <strong>Snapshot [S]</strong> pada meja
                         simulasi 3D untuk mendokumentasikan bukti eksperimen Anda.
                       </div>
@@ -655,7 +654,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                             <img
                               src={snap.dataUrl}
                               alt={snap.moduleTitle}
-                              className="w-full h-32 object-cover bg-slate-950"
+                              className="w-full h-32 object-cover bg-[var(--comfort-surface-subtle)]"
                             />
                             <div className="p-2.5 space-y-0.5">
                               <div className="text-xs font-bold truncate">{snap.moduleTitle}</div>
@@ -674,17 +673,17 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
               {activeTab === 'certificate' && (
                 <div
                   data-testid="printable-certificate-card"
-                  className="rounded-2xl border-2 border-amber-500/50 bg-gradient-to-br from-amber-500/5 via-transparent to-sky-500/5 p-6 sm:p-8 text-center space-y-4"
+                  className="rounded-2xl border-2 border-amber-500/50 bg-[var(--comfort-bg)] p-6 sm:p-8 text-center space-y-4"
                 >
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 text-xs font-mono font-bold">
-                    <Sparkles className="w-3.5 h-3.5" />
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 text-xs font-mono font-bold">
+                    <Award className="w-3.5 h-3.5" />
                     <span>SERTIFIKAT KOMPETENSI LABORATORIUM VIRTUAL RUANGLABMU</span>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs uppercase tracking-widest text-slate-500">
+                    <p className="text-xs uppercase tracking-widest text-[var(--comfort-text-muted)]">
                       Diberikan Kepada Praktikan:
                     </p>
-                    <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+                    <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--comfort-text)]">
                       {studentName}
                     </h3>
                     <p className="text-xs font-mono text-sky-600 dark:text-sky-400 font-bold">
@@ -692,29 +691,29 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                     </p>
                   </div>
 
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-xl mx-auto leading-relaxed">
+                  <p className="text-xs sm:text-sm text-[var(--comfort-text-muted)] max-w-xl mx-auto leading-relaxed comfort-prose">
                     Telah menyelesaikan rangkaian eksperimen metode ilmiah, analisis regresi linier
                     kuadrat terkecil (OLS), dan evaluasi K3 pada modul{' '}
-                    <strong>{activeModuleTitle}</strong> dengan Indeks Kompetensi STEM{' '}
-                    <strong className="font-mono">{overallStemIndex}/100</strong>.
+                    <strong className="text-[var(--comfort-text)]">{activeModuleTitle}</strong> dengan Indeks Kompetensi STEM{' '}
+                    <strong className="font-mono text-[var(--comfort-text)]">{overallStemIndex}/100</strong>.
                   </p>
 
                   <div className="pt-4 grid grid-cols-3 gap-4 max-w-lg mx-auto border-t border-[var(--comfort-border)] text-xs">
                     <div>
-                      <div className="text-slate-400 text-[10px] uppercase">Presisi Regresi</div>
+                      <div className="text-[var(--comfort-text-muted)] text-[10px] uppercase">Presisi Regresi</div>
                       <div className="font-mono font-bold">
                         {bestRSquared > 0 ? `R² = ${bestRSquared.toFixed(3)}` : 'Terverifikasi'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-slate-400 text-[10px] uppercase">Lencana Saintifik</div>
-                      <div className="font-mono font-bold">
+                      <div className="text-[var(--comfort-text-muted)] text-[10px] uppercase">Lencana Saintifik</div>
+                      <div className="font-mono font-bold tabular-nums">
                         {profile.unlockedBadges.length} Lencana
                       </div>
                     </div>
                     <div>
-                      <div className="text-slate-400 text-[10px] uppercase">Tanggal Terbit</div>
-                      <div className="font-mono font-bold">
+                      <div className="text-[var(--comfort-text-muted)] text-[10px] uppercase">Tanggal Terbit</div>
+                      <div className="font-mono font-bold tabular-nums">
                         {new Date().toLocaleDateString('id-ID')}
                       </div>
                     </div>

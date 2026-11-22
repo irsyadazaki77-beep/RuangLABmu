@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Sparkles,
+  Lightbulb,
   Send,
   AlertTriangle,
   HelpCircle,
@@ -14,6 +14,8 @@ import {
   Mic,
   MicOff,
   Trash2,
+  Sprout,
+  Zap,
 } from 'lucide-react';
 import {
   ScienceDomain,
@@ -148,16 +150,16 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
   const panelInner = (
     <>
       {/* Drawer Header & Segmented Tab Bar */}
-      <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 space-y-3 shrink-0">
+      <div className="p-4 border-b border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] space-y-3 shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-sm">
               {activeTab === 'dr-labmu' ? <MessageCircle className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5 flex-wrap">
+              <div className="text-sm font-bold text-[var(--comfort-text)] truncate flex items-center gap-1.5 flex-wrap">
                 <span>Dr. LabMu</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-sky-500/15 text-sky-600 dark:text-sky-300 font-medium">
+                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-sky-500/15 text-sky-700 dark:text-sky-300 font-medium">
                   Mentor Sokratik
                 </span>
                 {isOfflineMentorActive && (
@@ -166,16 +168,17 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                     title="Dr. LabMu beroperasi penuh dalam mode luring tanpa kuota internet dengan basis pengetahuan Sokratik lokal"
                     className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-semibold flex items-center gap-1"
                   >
-                    🌱 Mode Mentor Luring (Tanpa Kuota)
+                    <Sprout className="w-3 h-3 shrink-0" aria-hidden="true" />
+                    <span>Mode Mentor Luring (Tanpa Kuota)</span>
                   </span>
                 )}
                 {isEmbedded && (
-                  <span className="hidden sm:inline text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
+                  <span className="hidden sm:inline text-[9px] px-1.5 py-0.5 rounded bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text-muted)] font-mono">
                     Docked
                   </span>
                 )}
               </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
+              <div className="text-xs text-[var(--comfort-text-muted)] truncate">
                 {liveTelemetry.domain} · {readableTopic} · {liveTelemetry.educationLevel}
               </div>
             </div>
@@ -189,7 +192,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                 setOpen(false);
               }}
               aria-label="Tutup laci samping"
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface)] transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -200,9 +203,9 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
         {wsConnected === false && (
           <div
             role="alert"
-            className="px-3 py-2 rounded-xl bg-amber-950/70 border border-amber-600/50 text-amber-200 text-xs flex items-center gap-2 shadow-sm"
+            className="px-3 py-2 rounded-xl bg-amber-500/15 border border-amber-500/45 text-amber-800 dark:text-amber-200 text-xs flex items-center gap-2 shadow-sm"
           >
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span className="text-[11px] leading-tight">
               <strong>Lab Sync Terputus (Offline):</strong> Kolaborasi multi-user sedang mencoba menyambung ulang. Mode eksperimen lokal tetap aktif secara penuh.
             </span>
@@ -214,14 +217,14 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
           <div
             role="alert"
             data-testid="dr-labmu-rate-limit-banner"
-            className="px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/70 border border-amber-500/50 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between gap-2 shadow-sm"
+            className="px-3 py-2 rounded-xl bg-amber-500/15 border border-amber-500/45 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between gap-2 shadow-sm"
           >
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span className="text-[11px] leading-tight">{rateLimitMessage}</span>
             </div>
             {rateLimitCountdown > 0 && (
-              <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
+              <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300 shrink-0 tabular-nums">
                 {rateLimitCountdown}s
               </span>
             )}
@@ -229,7 +232,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
         )}
 
         {/* 2-Tab Switcher */}
-        <div className="grid grid-cols-2 gap-1 p-1 bg-slate-200/70 dark:bg-slate-900 rounded-xl border border-slate-300/60 dark:border-slate-800">
+        <div className="grid grid-cols-2 gap-1 p-1 bg-[var(--comfort-surface)] rounded-xl border border-[var(--comfort-border)]">
           <button
             type="button"
             onClick={() => {
@@ -238,11 +241,11 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             }}
             className={`py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'dr-labmu'
-                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] shadow-xs'
+                : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-sky-500" />
+            <Lightbulb className="w-3.5 h-3.5 text-sky-500" />
             <span>Mentor Dr. LabMu</span>
             {hasLowR2Alert && <span className="text-[10px] font-mono text-amber-500 font-bold">▲</span>}
           </button>
@@ -255,8 +258,8 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             }}
             className={`py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'notifications'
-                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] shadow-xs'
+                : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
             }`}
           >
             <Bell className="w-3.5 h-3.5 text-emerald-500" />
@@ -269,9 +272,9 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
       {activeTab === 'dr-labmu' && (
         <>
           {/* Telemetry Status Bar */}
-          <div className="px-4 py-2 bg-slate-100/80 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 shrink-0">
+          <div className="px-4 py-2 bg-[var(--comfort-surface-subtle)] border-b border-[var(--comfort-border)] flex items-center justify-between text-[11px] text-[var(--comfort-text-muted)] shrink-0">
             <span>
-              Data: <strong className="font-mono text-slate-900 dark:text-white">{records.length}</strong>
+              Data: <strong className="font-mono text-[var(--comfort-text)]">{records.length}</strong>
             </span>
             <span>·</span>
             <span>
@@ -293,7 +296,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
               className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-semibold border transition-colors flex items-center gap-1 cursor-pointer ${
                 autoSpeakEnabled
                   ? 'bg-sky-500/15 border-sky-500/40 text-sky-600 dark:text-sky-300'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'
+                  : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)]'
               }`}
             >
               <Volume2 className="w-3 h-3" />
@@ -302,7 +305,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             <button
               type="button"
               onClick={handleClearHistory}
-              className="text-slate-400 hover:text-rose-500 flex items-center gap-1 cursor-pointer"
+              className="text-[var(--comfort-text-muted)] hover:text-rose-500 flex items-center gap-1 cursor-pointer"
               title="Bersihkan riwayat diskusi"
             >
               <Trash2 className="w-3 h-3" />
@@ -326,7 +329,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             return (
               <div
                 data-testid="dr-labmu-sim-context-strip"
-                className="px-4 py-1.5 bg-sky-500/5 border-b border-slate-200/80 dark:border-slate-800/80 flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono text-slate-600 dark:text-slate-300 shrink-0"
+                className="px-4 py-1.5 bg-sky-500/5 border-b border-[var(--comfort-border)] flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono text-[var(--comfort-text-muted)] shrink-0"
               >
                 <span className="font-bold text-sky-600 dark:text-sky-400 shrink-0">
                   Konteks 3D:
@@ -334,7 +337,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                 {numericEntries.map(([key, val]) => (
                   <span
                     key={key}
-                    className="px-1.5 py-0.5 rounded bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 whitespace-nowrap tabular-nums"
+                    className="px-1.5 py-0.5 rounded bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] whitespace-nowrap tabular-nums"
                   >
                     {key}: <strong>{(val as number).toFixed(2)}</strong>
                   </span>
@@ -350,8 +353,8 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                 data-testid="dr-labmu-thinking-bubble"
                 className="flex justify-start"
               >
-                <div className="max-w-[88%] px-3.5 py-2.5 rounded-2xl rounded-tl-xs bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800/60 text-xs text-sky-800 dark:text-sky-200 flex items-center gap-2 shadow-xs">
-                  <Sparkles className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                <div className="max-w-[88%] px-3.5 py-2.5 rounded-2xl rounded-tl-xs bg-sky-500/12 border border-sky-500/35 text-xs text-sky-800 dark:text-sky-200 flex items-center gap-2 shadow-xs">
+                  <Lightbulb className="w-3.5 h-3.5 text-sky-500 shrink-0" />
                   <span className="font-semibold">Dr. LabMu sedang menganalisis telemetri 3D...</span>
                 </div>
               </div>
@@ -371,23 +374,23 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                     <img
                       src={turn.snapshotPreviewUrl}
                       alt="Tangkapan aparatus 3D"
-                      className="max-w-[240px] rounded-xl border border-slate-700 shadow-md object-cover"
+                      className="max-w-[240px] rounded-xl border border-[var(--comfort-border)] shadow-md object-cover"
                     />
                   </div>
                 )}
 
                 {/* Socratic Assistant Card */}
                 <div className="flex justify-start">
-                  <div className="max-w-[92%] p-3.5 rounded-2xl rounded-tl-xs bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-100 space-y-2.5 shadow-sm">
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/60 pb-1.5">
+                  <div className="max-w-[92%] p-3.5 rounded-2xl rounded-tl-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] space-y-2.5 shadow-sm">
+                    <div className="flex items-center justify-between text-[11px] text-[var(--comfort-text-muted)] border-b border-[var(--comfort-border)] pb-1.5">
                       <span className="font-semibold text-sky-600 dark:text-sky-400 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" /> Dr. LabMu
+                        <Lightbulb className="w-3 h-3" /> Dr. LabMu
                       </span>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleToggleSpeakAnswer(turn)}
-                          className="hover:text-sky-400 cursor-pointer p-0.5"
+                          className="hover:text-sky-500 cursor-pointer p-0.5"
                           title="Bacakan teks"
                         >
                           <Volume2 className="w-3.5 h-3.5" />
@@ -396,17 +399,17 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                       </div>
                     </div>
 
-                    <p className="leading-relaxed font-medium">{turn.response.observation}</p>
+                    <p className="leading-relaxed font-medium comfort-prose">{turn.response.observation}</p>
                     {turn.response.dataHighlight && (
-                      <div className="p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-700/60 font-mono text-[11px] text-amber-600 dark:text-amber-300">
+                      <div className="p-2.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] font-mono text-[11px] text-amber-700 dark:text-amber-300">
                         {turn.response.dataHighlight}
                       </div>
                     )}
-                    <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/50 text-sky-900 dark:text-sky-200">
-                      <span className="font-bold text-[11px] uppercase tracking-wider block text-sky-600 dark:text-sky-400 mb-0.5">
+                    <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-[var(--comfort-text)]">
+                      <span className="font-bold text-[11px] uppercase tracking-wider block text-sky-700 dark:text-sky-300 mb-0.5">
                         Pertanyaan Pemantik:
                       </span>
-                      <p className="italic leading-relaxed">{turn.response.socraticQuestion}</p>
+                      <p className="leading-relaxed comfort-prose">{turn.response.socraticQuestion}</p>
                     </div>
                     {turn.response.uiActions && turn.response.uiActions.length > 0 && (
                       <div className="pt-1 flex flex-wrap gap-1.5" data-testid="dr-labmu-action-chips">
@@ -418,7 +421,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                             onClick={() => handleTriggerUIAction(act)}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold text-[11px] transition-colors cursor-pointer"
                           >
-                            <Sparkles className="w-3 h-3 shrink-0" />
+                            <Zap className="w-3 h-3 shrink-0" />
                             <span>{formatDrLabMuActionChipLabel(act)}</span>
                           </button>
                         ))}
@@ -431,7 +434,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
           </div>
 
           {/* Quick Prompts & Input Bar */}
-          <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/90 space-y-2 shrink-0">
+          <div className="p-3 border-t border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] space-y-2 shrink-0">
             {/* Quick Socratic Suggestion Chips */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
               <button
@@ -478,7 +481,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
               type="button"
               disabled={isLoading}
               onClick={handleVisionDiagnose}
-              className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-indigo-600 via-sky-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
+              className="w-full py-2 px-3 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-colors"
             >
               <Camera className="w-4 h-4" />
               <span>Minta Dr. LabMu Periksa Alat (Gemini Vision 3D)</span>
@@ -499,7 +502,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                 className={`p-2 rounded-xl border transition-all cursor-pointer shrink-0 ${
                   isListeningVoice
                     ? 'bg-rose-600 border-rose-400 text-white'
-                    : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-sky-400'
+                    : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)] hover:text-sky-500'
                 }`}
               >
                 {isListeningVoice ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -510,7 +513,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                 value={studentQuery}
                 onChange={(e) => setStudentQuery(e.target.value)}
                 placeholder={isListeningVoice ? 'Mendengarkan suara...' : 'Tanya Dr. LabMu...'}
-                className="flex-1 px-3 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
+                className="flex-1 px-3 py-2 text-xs rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] placeholder:text-[var(--comfort-text-muted)] focus:outline-none focus:border-sky-500"
               />
               <button
                 type="submit"
@@ -529,21 +532,21 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
       {activeTab === 'notifications' && (
         <div className="flex-1 overflow-y-auto p-4 space-y-2.5 text-xs">
           {notifications.length === 0 ? (
-            <div className="py-12 text-center text-slate-500 dark:text-slate-400">
+            <div className="py-12 text-center text-[var(--comfort-text-muted)]">
               Belum ada log aktivitas atau notifikasi pada sesi ini.
             </div>
           ) : (
             notifications.map((n) => (
               <div
                 key={n.id}
-                className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 space-y-1"
+                className="p-3.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-1"
               >
-                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="flex items-center justify-between text-[11px] text-[var(--comfort-text-muted)]">
                   <span className="font-semibold text-sky-600 dark:text-sky-400">{n.domain}</span>
                   <span className="font-mono">{n.timestamp}</span>
                 </div>
-                <div className="font-bold text-slate-900 dark:text-white">{n.title}</div>
-                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">{n.message}</p>
+                <div className="font-bold text-[var(--comfort-text)]">{n.title}</div>
+                <p className="text-[var(--comfort-text-muted)] leading-relaxed comfort-prose">{n.message}</p>
                 {n.formulaHint && (
                   <div className="pt-1 font-mono text-[11px] text-emerald-600 dark:text-emerald-400">
                     Rumus: {n.formulaHint}
@@ -559,7 +562,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
 
   if (isEmbedded) {
     return (
-      <aside className="w-full h-full flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden text-slate-900 dark:text-slate-100 shadow-xl select-text">
+      <aside className="w-full h-full flex flex-col bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-2xl overflow-hidden text-[var(--comfort-text)] shadow-xl select-text">
         {panelInner}
       </aside>
     );
@@ -587,7 +590,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             role="dialog"
             aria-modal="true"
             aria-label="Laci Samping Dr. LabMu & Log Sesi"
-            className={`fixed ${isFullBleedActiveLab ? 'top-0' : 'top-14'} right-0 bottom-0 w-full max-w-[440px] z-50 flex flex-col bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl select-text`}
+            className={`fixed ${isFullBleedActiveLab ? 'top-0' : 'top-14'} right-0 bottom-0 w-full max-w-[440px] z-50 flex flex-col bg-[var(--comfort-surface)] border-l border-[var(--comfort-border)] text-[var(--comfort-text)] shadow-2xl select-text`}
           >
             {panelInner}
           </motion.aside>

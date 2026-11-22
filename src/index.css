@@ -96,25 +96,29 @@
   :root {
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-    --comfort-bg: #F4F7FB;
-    --comfort-surface: #FFFFFF;
-    --comfort-surface-subtle: #EEF2F7;
-    --comfort-elevated: #FFFFFF;
-    --comfort-header-bg: rgba(255, 255, 255, 0.90);
-    --comfort-hud-bg: rgba(255, 255, 255, 0.92);
-    --comfort-hud-surface: #F8FAFC;
-    --comfort-hud-border: rgba(203, 213, 225, 0.95);
-    --comfort-hud-text: #0F172A;
-    --comfort-hud-muted: #475569;
-    --comfort-border: #DCE4EE;
-    --comfort-text: #0F172A;
-    --comfort-muted: #475569;
-    --comfort-text-muted: #475569;
+    --comfort-bg: #F6F3EB;
+    --comfort-surface: #FCFBF7;
+    --comfort-surface-subtle: #ECE7DC;
+    --comfort-elevated: #FFFDF9;
+    --comfort-header-bg: rgba(246, 243, 235, 0.92);
+    --comfort-hud-bg: rgba(252, 251, 247, 0.90);
+    --comfort-hud-surface: #F0ECE1;
+    --comfort-hud-border: rgba(210, 202, 188, 0.92);
+    --comfort-hud-text: #1E2530;
+    --comfort-hud-muted: #525D6D;
+    --comfort-border: #DDD6C7;
+    --comfort-text: #1E2530;
+    --comfort-muted: #525D6D;
+    --comfort-text-muted: #525D6D;
     --comfort-accent: #0284C7;
     --comfort-accent-soft: rgba(2, 132, 199, 0.10);
-    --comfort-scrollbar-thumb: rgba(148, 163, 184, 0.55);
-    --comfort-scrollbar-thumb-hover: rgba(100, 116, 139, 0.8);
-    --comfort-line-height: 1.6;
+    --comfort-scrollbar-thumb: rgba(145, 136, 120, 0.50);
+    --comfort-scrollbar-thumb-hover: rgba(108, 100, 86, 0.78);
+    --comfort-line-height: 1.62;
+    --chart-primary: #0284C7;
+    --chart-secondary: #059669;
+    --chart-warning: #D97706;
+    --chart-danger: #E11D48;
   }
 
   html {
@@ -134,12 +138,42 @@
     font-size: 18px;
   }
 
+  /* Optimal Reading Measure (45-68ch ideal editorial column width) */
+  .comfort-prose {
+    max-width: 65ch;
+    text-align: left;
+  }
+
   /* Adaptive Reading Line Spacing */
   html[data-line-spacing="relaxed"] p,
   html[data-line-spacing="relaxed"] li,
   html[data-line-spacing="relaxed"] .comfort-prose {
-    line-height: 1.85 !important;
-    letter-spacing: 0.01em;
+    line-height: 1.82 !important;
+    letter-spacing: 0.012em;
+  }
+
+  /* British Dyslexia Association (BDA) Style Guide Mode */
+  html[data-dyslexia-mode="true"] body {
+    letter-spacing: 0.03em;
+    word-spacing: 0.1em;
+  }
+
+  html[data-dyslexia-mode="true"] p,
+  html[data-dyslexia-mode="true"] li,
+  html[data-dyslexia-mode="true"] .comfort-prose,
+  html[data-dyslexia-mode="true"] textarea,
+  html[data-dyslexia-mode="true"] label {
+    line-height: 1.82 !important;
+    letter-spacing: 0.035em;
+    word-spacing: 0.12em;
+    text-align: left !important;
+  }
+
+  html[data-dyslexia-mode="true"] .comfort-prose em,
+  html[data-dyslexia-mode="true"] .comfort-prose i,
+  html[data-dyslexia-mode="true"] .comfort-prose .italic {
+    font-style: normal !important;
+    font-weight: 600;
   }
 
   body {
@@ -155,26 +189,26 @@
     text-wrap: balance;
   }
 
-  /* Theme 1: Terang Hangat (Clean Lab Slate Default Light) */
+  /* Theme 1: Kertas Hangat (Low-Glare Warm Paper Default Light) */
   html[data-comfort-theme="light"] {
-    --comfort-bg: #F4F7FB;
-    --comfort-surface: #FFFFFF;
-    --comfort-surface-subtle: #EEF2F7;
-    --comfort-elevated: #FFFFFF;
-    --comfort-header-bg: rgba(255, 255, 255, 0.90);
-    --comfort-hud-bg: rgba(255, 255, 255, 0.92);
-    --comfort-hud-surface: #F8FAFC;
-    --comfort-hud-border: rgba(203, 213, 225, 0.95);
-    --comfort-hud-text: #0F172A;
-    --comfort-hud-muted: #475569;
-    --comfort-border: #DCE4EE;
-    --comfort-text: #0F172A;
-    --comfort-muted: #475569;
-    --comfort-text-muted: #475569;
+    --comfort-bg: #F6F3EB;
+    --comfort-surface: #FCFBF7;
+    --comfort-surface-subtle: #ECE7DC;
+    --comfort-elevated: #FFFDF9;
+    --comfort-header-bg: rgba(246, 243, 235, 0.92);
+    --comfort-hud-bg: rgba(252, 251, 247, 0.90);
+    --comfort-hud-surface: #F0ECE1;
+    --comfort-hud-border: rgba(210, 202, 188, 0.92);
+    --comfort-hud-text: #1E2530;
+    --comfort-hud-muted: #525D6D;
+    --comfort-border: #DDD6C7;
+    --comfort-text: #1E2530;
+    --comfort-muted: #525D6D;
+    --comfort-text-muted: #525D6D;
     --comfort-accent: #0284C7;
     --comfort-accent-soft: rgba(2, 132, 199, 0.10);
-    --comfort-scrollbar-thumb: rgba(148, 163, 184, 0.55);
-    --comfort-scrollbar-thumb-hover: rgba(100, 116, 139, 0.8);
+    --comfort-scrollbar-thumb: rgba(145, 136, 120, 0.50);
+    --comfort-scrollbar-thumb-hover: rgba(108, 100, 86, 0.78);
   }
 
   html[data-comfort-theme="light"] body {
@@ -182,25 +216,25 @@
     color: var(--comfort-text);
   }
 
-  /* Theme 2: Sepia Kertas (Eye-Care Sepia Study Mode) */
+  /* Theme 2: Sepia Buku (Warm Parchment Eye-Care Study Mode) */
   html[data-comfort-theme="sepia"] {
-    --comfort-bg: #F3EFE6;
-    --comfort-surface: #FAF6EE;
-    --comfort-surface-subtle: #EAE3D5;
-    --comfort-elevated: #FFFDF8;
-    --comfort-header-bg: rgba(250, 246, 238, 0.94);
-    --comfort-hud-bg: rgba(250, 246, 238, 0.94);
-    --comfort-hud-surface: #F2ECE0;
-    --comfort-hud-border: rgba(210, 200, 182, 0.95);
-    --comfort-hud-text: #2A241E;
-    --comfort-hud-muted: #5C5346;
-    --comfort-border: #DFD8C8;
-    --comfort-text: #2A241E;
-    --comfort-muted: #5C5346;
-    --comfort-text-muted: #5C5346;
+    --comfort-bg: #EFE7D6;
+    --comfort-surface: #F7F1E3;
+    --comfort-surface-subtle: #E5DAC3;
+    --comfort-elevated: #FAF5E8;
+    --comfort-header-bg: rgba(247, 241, 227, 0.94);
+    --comfort-hud-bg: rgba(247, 241, 227, 0.92);
+    --comfort-hud-surface: #EBE1CE;
+    --comfort-hud-border: rgba(198, 184, 158, 0.94);
+    --comfort-hud-text: #2C231A;
+    --comfort-hud-muted: #635547;
+    --comfort-border: #D8CCB6;
+    --comfort-text: #2C231A;
+    --comfort-muted: #635547;
+    --comfort-text-muted: #635547;
     --comfort-accent: #0369A1;
     --comfort-accent-soft: rgba(3, 105, 161, 0.10);
-    --comfort-scrollbar-thumb: rgba(145, 132, 112, 0.5);
+    --comfort-scrollbar-thumb: rgba(145, 132, 112, 0.50);
     --comfort-scrollbar-thumb-hover: rgba(112, 100, 82, 0.78);
   }
 
@@ -209,7 +243,7 @@
     color: var(--comfort-text);
   }
 
-  /* Back-compat surface mapping for secondary modules under Sepia */
+  /* Back-compat surface mapping for secondary modules under Sepia (guarantees zero pure #FFFFFF) */
   html[data-comfort-theme="sepia"] .bg-slate-50,
   html[data-comfort-theme="sepia"] .bg-stone-50,
   html[data-comfort-theme="sepia"] .bg-stone-50\/90 {
@@ -231,27 +265,31 @@
     border-color: var(--comfort-border);
   }
 
-  /* Theme 3: Gelap Redup (Low-Glare Observatory Dark) */
+  /* Theme 3: Observatorium Gelap (Anti-Halation Soft Dark Mode) */
   html.dark,
   html[data-comfort-theme="dark"] {
-    --comfort-bg: #080C14;
-    --comfort-surface: #111827;
-    --comfort-surface-subtle: #1A2336;
-    --comfort-elevated: #151E30;
-    --comfort-header-bg: rgba(11, 16, 27, 0.92);
-    --comfort-hud-bg: rgba(11, 16, 27, 0.92);
-    --comfort-hud-surface: #131C2E;
-    --comfort-hud-border: rgba(51, 65, 85, 0.82);
-    --comfort-hud-text: #F1F5F9;
-    --comfort-hud-muted: #A3B3C9;
-    --comfort-border: #233046;
-    --comfort-text: #F1F5F9;
-    --comfort-muted: #A3B3C9;
-    --comfort-text-muted: #A3B3C9;
+    --comfort-bg: #111620;
+    --comfort-surface: #182030;
+    --comfort-surface-subtle: #202A3D;
+    --comfort-elevated: #1D273B;
+    --comfort-header-bg: rgba(17, 22, 32, 0.92);
+    --comfort-hud-bg: rgba(24, 32, 48, 0.88);
+    --comfort-hud-surface: #1E283C;
+    --comfort-hud-border: rgba(64, 82, 112, 0.82);
+    --comfort-hud-text: #DCE4F0;
+    --comfort-hud-muted: #9AA8BD;
+    --comfort-border: #2A374F;
+    --comfort-text: #DCE4F0;
+    --comfort-muted: #9AA8BD;
+    --comfort-text-muted: #9AA8BD;
     --comfort-accent: #38BDF8;
     --comfort-accent-soft: rgba(56, 189, 248, 0.14);
-    --comfort-scrollbar-thumb: rgba(71, 85, 105, 0.72);
-    --comfort-scrollbar-thumb-hover: rgba(100, 116, 139, 0.92);
+    --comfort-scrollbar-thumb: rgba(82, 99, 128, 0.72);
+    --comfort-scrollbar-thumb-hover: rgba(114, 134, 168, 0.92);
+    --chart-primary: #38BDF8;
+    --chart-secondary: #34D399;
+    --chart-warning: #FBBF24;
+    --chart-danger: #FB7185;
     color-scheme: dark;
   }
 
@@ -259,31 +297,45 @@
   html[data-comfort-theme="dark"] body {
     background-color: var(--comfort-bg);
     color: var(--comfort-text);
-    letter-spacing: 0.005em;
+    letter-spacing: 0.01em;
   }
 
-  /* Color-Blind Safe Mode (Okabe-Ito high-distinction accents) */
+  /* Okabe-Ito Color-Blind Safe Palette */
   html[data-colorblind="true"] {
     --cb-nominal: #0072B2;
+    --cb-bluish-green: #009E73;
     --cb-warning: #E69F00;
     --cb-critical: #D55E00;
+    --chart-primary: #0072B2;
+    --chart-secondary: #009E73;
+    --chart-warning: #E69F00;
+    --chart-danger: #D55E00;
+  }
+
+  html[data-colorblind="true"][data-comfort-theme="dark"] {
+    --chart-primary: #56B4E9;
   }
 
   html[data-colorblind="true"] .text-emerald-600,
   html[data-colorblind="true"] .text-emerald-500,
   html[data-colorblind="true"] .dark\:text-emerald-400 {
-    color: #0284C7 !important;
+    color: #0072B2 !important;
   }
 
   html[data-colorblind="true"] .bg-emerald-600,
   html[data-colorblind="true"] .bg-emerald-500 {
-    background-color: #0284C7 !important;
+    background-color: #0072B2 !important;
   }
 
   html[data-colorblind="true"] .text-rose-600,
   html[data-colorblind="true"] .text-rose-500,
   html[data-colorblind="true"] .dark\:text-rose-400 {
-    color: #D97706 !important;
+    color: #D55E00 !important;
+  }
+
+  html[data-colorblind="true"] .bg-rose-600,
+  html[data-colorblind="true"] .bg-rose-500 {
+    background-color: #D55E00 !important;
   }
 
   code, pre, .font-mono {
@@ -371,27 +423,17 @@
 }
 
 .lab-glass-panel {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--comfort-hud-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--comfort-border);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
-  transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-html[data-comfort-theme="sepia"] .lab-glass-panel {
-  background: rgba(250, 246, 238, 0.94);
-  border: 1px solid var(--comfort-border);
-  box-shadow: 0 1px 3px 0 rgba(42, 36, 30, 0.06);
+  box-shadow: 0 1px 3px 0 rgba(30, 37, 48, 0.05), 0 1px 2px -1px rgba(30, 37, 48, 0.04);
   transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 html.dark .lab-glass-panel,
 html[data-comfort-theme="dark"] .lab-glass-panel {
-  background: rgba(15, 23, 42, 0.90);
-  border: 1px solid var(--comfort-border);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.35);
-  transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.32);
 }
 
 .lab-card-clean {
@@ -402,23 +444,23 @@ html[data-comfort-theme="dark"] .lab-glass-panel {
 
 .lab-grid-bg {
   background-image:
-    linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+    linear-gradient(to right, rgba(30, 37, 48, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(30, 37, 48, 0.045) 1px, transparent 1px);
   background-size: 22px 22px;
 }
 
 html[data-comfort-theme="sepia"] .lab-grid-bg {
   background-image:
-    linear-gradient(to right, rgba(92, 83, 70, 0.06) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(92, 83, 70, 0.06) 1px, transparent 1px);
+    linear-gradient(to right, rgba(99, 85, 71, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(99, 85, 71, 0.06) 1px, transparent 1px);
   background-size: 22px 22px;
 }
 
 html.dark .lab-grid-bg,
 html[data-comfort-theme="dark"] .lab-grid-bg {
   background-image:
-    linear-gradient(to right, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+    linear-gradient(to right, rgba(154, 168, 189, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(154, 168, 189, 0.05) 1px, transparent 1px);
   background-size: 22px 22px;
 }
 

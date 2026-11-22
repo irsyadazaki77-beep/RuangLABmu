@@ -1,8 +1,5 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import {
-  Camera,
-} from 'lucide-react';
-import {
   ChemistryParams,
   AcademicLevel,
   calculateChemistryMetrics,
@@ -18,7 +15,6 @@ import { labSound } from '../utils/soundEngine';
 const ChemistryScene3D = React.lazy(() => import('./ChemistryScene3D'));
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import {
-  TactileParameterControl,
   CollapsibleLabSection,
 } from './ui/LabInstruments';
 import {
@@ -34,14 +30,15 @@ import {
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
-import {
-  getChemistryParameterFeedback,
-  normalizeEducationLevel,
-} from '../utils/pedagogicalHelpers';
+import { normalizeEducationLevel } from '../utils/pedagogicalHelpers';
 import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
 import { PrecisionSlider } from './controls/PrecisionSlider';
 import { filterRecordsForModule } from '../utils/spatialHudHelpers';
+import { LabSidebarActionHeader } from './layout/LabSidebarActionHeader';
+import { LabSceneFallback } from './three/LabSceneFallback';
+import { LabHazardModal } from './three/LabHazardModal';
+import { ChemistryParameterPanel } from './labs/ChemistryParameterPanel';
 
 export interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -464,9 +461,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                   <LabErrorBoundary domain="Kimia" sceneName={`ChemistryScene3D-${side}`}>
                     <Suspense
                       fallback={
-                        <div className="w-full h-full flex items-center justify-center bg-slate-950 text-xs font-mono text-teal-300">
-                          Menyiapkan Realitas {side}...
-                        </div>
+                        <LabSceneFallback compact label={`Menyiapkan Realitas ${side}...`} />
                       }
                     >
                       <ChemistryScene3D
@@ -491,16 +486,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
       }
       canvas={
         <LabErrorBoundary domain="Kimia" sceneName="ChemistryScene3D">
-          <Suspense
-            fallback={
-              <div className="w-full h-full min-h-[320px] flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 p-6 gap-3">
-                <div className="w-9 h-9 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" />
-                <p className="text-xs font-mono font-semibold text-teal-300">
-                  Menyiapkan Ruang Laboratorium 3D...
-                </p>
-              </div>
-            }
-          >
+          <Suspense fallback={<LabSceneFallback accentColor="teal" />}>
             <ChemistryScene3D
               params={params}
               metrics={metrics}
@@ -530,96 +516,34 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
       }
       safetyModal={
         safetyHazard.isHazardous && !hazardModalDismissed ? (
-          <div className="fixed inset-0 z-50 bg-slate-950/85 flex items-center justify-center p-4">
-            <div className="max-w-lg w-full rounded-2xl bg-slate-900 border-2 border-rose-500/80 shadow-2xl p-6 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="inline-block px-2.5 py-0.5 rounded-md bg-rose-500/20 text-[11px] font-mono font-bold text-rose-300">
-                  PERINGATAN K3 — KIMIA
-                </span>
-                {safetyHazard.triggerParamSummary && (
-                  <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-amber-300 border border-amber-500/30">
-                    {safetyHazard.triggerParamSummary}
-                  </span>
-                )}
-              </div>
-              <h3 className="text-base font-extrabold text-white">{safetyHazard.title}</h3>
-              <p className="text-xs leading-relaxed text-slate-300">{safetyHazard.scientificExplanation}</p>
-              {safetyHazard.mitigationInstruction && (
-                <div className="rounded-xl bg-emerald-950/50 border border-emerald-500/40 p-3 text-xs text-emerald-200">
-                  <span className="font-bold text-emerald-300 block mb-0.5">Prosedur Mitigasi K3:</span>
-                  {safetyHazard.mitigationInstruction}
-                </div>
-              )}
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    labSound.playClick();
-                    setHazardModalDismissed(true);
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-slate-800 text-xs font-semibold text-slate-300 cursor-pointer"
-                >
-                  Saya Paham
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    labSound.playRecordSuccess();
-                    handleParamChange({
-                      initialTempC: 25,
-                      kineticsTempC: 25,
-                      gasTemperatureK: 300,
-                      gasVolumeL: 10,
-                      titrantAddedMl: 25,
-                      analyteAcidConc: 0.1,
-                      titrantBaseConc: 0.1,
-                    });
-                    setHazardModalDismissed(false);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-extrabold text-xs cursor-pointer"
-                >
-                  Pulihkan ke Parameter Aman
-                </button>
-              </div>
-            </div>
-          </div>
+          <LabHazardModal
+            domainLabel="KIMIA"
+            hazard={safetyHazard}
+            onDismiss={() => setHazardModalDismissed(true)}
+            onRestoreSafe={() => {
+              handleParamChange({
+                initialTempC: 25,
+                kineticsTempC: 25,
+                gasTemperatureK: 300,
+                gasVolumeL: 10,
+                titrantAddedMl: 25,
+                analyteAcidConc: 0.1,
+                titrantBaseConc: 0.1,
+              });
+              setHazardModalDismissed(false);
+            }}
+          />
         ) : null
       }
       sidebar={
         <>
-          {/* Action Bar */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleRecordTrial}
-              className="flex-1 px-3.5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
-            >
-              <Camera className="w-4 h-4 shrink-0" />
-              <span>
-                + Catat Data (
-                {moduleRecords.length >= 3 ? `${moduleRecords.length} Siap` : `${moduleRecords.length}/3`})
-              </span>
-            </button>
+          <LabSidebarActionHeader
+            recordsCount={moduleRecords.length}
+            accentColor="teal"
+            onRecordTrial={handleRecordTrial}
+            onProceedToAnalysis={onProceedToAnalysis}
+          />
 
-            {onProceedToAnalysis && (
-              <button
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  onProceedToAnalysis();
-                }}
-                className={`px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap ${
-                  moduleRecords.length >= 3
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)]'
-                }`}
-              >
-                Grafik &amp; LKS →
-              </button>
-            )}
-          </div>
-
-          {/* Mode Switcher */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider">
               Mode Modul Kimia:
@@ -645,284 +569,20 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
             </select>
           </div>
 
-          {/* Direct Burette Dispenser Button */}
-          {params.mode === 'acid-base-titration' && (
-            <div className="p-3 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 space-y-2">
-              <span className="font-bold text-xs text-teal-800 dark:text-teal-200 block">
-                Aliran Kran Buret 3D:
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    labSound.playClick(680);
-                    handleParamChange({
-                      titrantAddedMl: Math.min(50, Number((params.titrantAddedMl + 1.0).toFixed(1))),
-                    });
-                  }}
-                  className="flex-1 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs cursor-pointer shadow-xs"
-                >
-                  +1.0 mL Titran
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    labSound.playClick(720);
-                    handleParamChange({
-                      titrantAddedMl: Math.min(50, Number((params.titrantAddedMl + 5.0).toFixed(1))),
-                    });
-                  }}
-                  className="flex-1 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-bold text-xs cursor-pointer shadow-xs"
-                >
-                  +5.0 mL
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    labSound.playClick(440);
-                    handleParamChange({ titrantAddedMl: 0 });
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-          )}
+          <ChemistryParameterPanel
+            params={params}
+            metrics={metrics}
+            educationLevel={effectiveEducationLevel}
+            onParamChange={handleParamChange}
+          />
 
-          {/* Sliders & Parameters */}
-          <CollapsibleLabSection title="Variabel & Parameter Larutan" defaultOpen>
-            <div className="space-y-3">
-              {params.mode === 'acid-base-titration' ? (
-                <>
-                  <TactileParameterControl
-                    id="chem-titrant-ml"
-                    paramKey="titrantAddedMl"
-                    label="Volume Titran Buret (Vb)"
-                    unit="mL"
-                    value={params.titrantAddedMl}
-                    min={0}
-                    max={50}
-                    step={0.5}
-                    glossaryTerm="Titik Ekivalen"
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'titrantAddedMl', v, lvl, {
-                        equivalenceVolumeMl: metrics.equivalenceVolumeMl,
-                      })
-                    }
-                    onChange={(v) => handleParamChange({ titrantAddedMl: v })}
-                  />
-                  <TactileParameterControl
-                    paramKey="titrantBaseConc"
-                    label="Konsentrasi Titran (Mb)"
-                    unit="M"
-                    value={params.titrantBaseConc}
-                    min={0.05}
-                    max={1.0}
-                    step={0.05}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'titrantBaseConc', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ titrantBaseConc: v })}
-                  />
-                  <TactileParameterControl
-                    paramKey="analyteAcidConc"
-                    label="Konsentrasi Analit (Ma)"
-                    unit="M"
-                    value={params.analyteAcidConc}
-                    min={0.05}
-                    max={1.0}
-                    step={0.05}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'analyteAcidConc', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ analyteAcidConc: v })}
-                  />
-                </>
-              ) : params.mode === 'electrochemistry-cell' ? (
-                <>
-                  <TactileParameterControl
-                    label="Konsentrasi Ion Anoda [Mⁿ⁺]"
-                    unit="M"
-                    value={params.anodeConcM}
-                    min={0.01}
-                    max={2.0}
-                    step={0.05}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'anodeConcM', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ anodeConcM: v })}
-                  />
-                  <TactileParameterControl
-                    label="Konsentrasi Ion Katoda [Mⁿ⁺]"
-                    unit="M"
-                    value={params.cathodeConcM}
-                    min={0.01}
-                    max={2.0}
-                    step={0.05}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'cathodeConcM', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ cathodeConcM: v })}
-                  />
-                  <TactileParameterControl
-                    label="Suhu Sel Elektrokimia (T)"
-                    unit="°C"
-                    value={params.initialTempC}
-                    min={10}
-                    max={80}
-                    step={1}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'initialTempC', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ initialTempC: v })}
-                  />
-                </>
-              ) : params.mode === 'ideal-gas-boyle' ? (
-                <>
-                  <TactileParameterControl
-                    paramKey="gasVolumeL"
-                    label="Volume Silinder Gas (V)"
-                    unit="L"
-                    value={params.gasVolumeL ?? 10}
-                    min={2.0}
-                    max={25.0}
-                    step={0.5}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'gasVolumeL', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ gasVolumeL: v })}
-                  />
-                  <TactileParameterControl
-                    paramKey="gasTemperatureK"
-                    label="Suhu Mutlak Gas (T)"
-                    unit="K"
-                    value={params.gasTemperatureK ?? 300}
-                    min={250}
-                    max={700}
-                    step={10}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'gasTemperatureK', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ gasTemperatureK: v })}
-                  />
-                  <TactileParameterControl
-                    label="Jumlah Mol Gas (n)"
-                    unit="mol"
-                    value={params.gasMoles ?? 1.0}
-                    min={0.2}
-                    max={2.5}
-                    step={0.1}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'gasMoles', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ gasMoles: v })}
-                  />
-                </>
-              ) : params.mode === 'spectrophotometry-beer' ? (
-                <>
-                  <TactileParameterControl
-                    label="Panjang Gelombang Monokromator (λ)"
-                    unit="nm"
-                    value={params.spectroWavelengthNm ?? 520}
-                    min={400}
-                    max={700}
-                    step={10}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'spectroWavelengthNm', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ spectroWavelengthNm: v })}
-                  />
-                  <TactileParameterControl
-                    label="Konsentrasi Sampel Kuvet (C)"
-                    unit="mM"
-                    value={params.spectroConcMm ?? 0.1}
-                    min={0.01}
-                    max={0.25}
-                    step={0.01}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'spectroConcMm', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ spectroConcMm: v })}
-                  />
-                  <TactileParameterControl
-                    label="Tebal Kuvet (l)"
-                    unit="cm"
-                    value={params.spectroPathLengthCm ?? 1.0}
-                    min={0.5}
-                    max={2.0}
-                    step={0.1}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'spectroPathLengthCm', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ spectroPathLengthCm: v })}
-                  />
-                </>
-              ) : (
-                <>
-                  <TactileParameterControl
-                    id="chem-heater-temp"
-                    paramKey="initialTempC"
-                    label="Suhu Pemanas (T)"
-                    unit="°C"
-                    value={params.initialTempC}
-                    min={10}
-                    max={95}
-                    step={1}
-                    glossaryTerm="Denaturasi"
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'initialTempC', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ initialTempC: v, kineticsTempC: v })}
-                  />
-                  <TactileParameterControl
-                    label="Konsentrasi Reaktan"
-                    unit="M"
-                    value={params.reactantConcentration}
-                    min={0.1}
-                    max={3.0}
-                    step={0.1}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'reactantConcentration', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ reactantConcentration: v, kineticsConcA: v })}
-                  />
-                  <TactileParameterControl
-                    label="Kecepatan Pengaduk Magnetik"
-                    unit="RPM"
-                    value={params.stirringRpm}
-                    min={0}
-                    max={600}
-                    step={20}
-                    educationLevel={effectiveEducationLevel}
-                    dynamicFeedback={(v, lvl) =>
-                      getChemistryParameterFeedback(params.mode, 'stirringRpm', v, lvl)
-                    }
-                    onChange={(v) => handleParamChange({ stirringRpm: v })}
-                  />
-                </>
-              )}
-            </div>
-          </CollapsibleLabSection>
-
-          {/* Interactive Formula Card */}
           <CollapsibleLabSection title="Rumus & Kalkulator Interaktif" defaultOpen={false}>
             <InteractiveFormulaCard
-              title={params.mode === 'acid-base-titration' ? 'Persamaan Titrasi Asam-Basa' : 'Termokimia & Kinetika Reaksi'}
+              title={
+                params.mode === 'acid-base-titration'
+                  ? 'Persamaan Titrasi Asam-Basa'
+                  : 'Termokimia & Kinetika Reaksi'
+              }
               tokens={telemetryMetrics.map((tm) => ({
                 symbol: tm.label.split(' ')[0],
                 value: tm.value,

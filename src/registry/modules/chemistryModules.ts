@@ -137,7 +137,7 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
         question: 'Pada titrasi asam kuat (HCl) dengan basa kuat (NaOH), berapakah nilai pH teoretis tepat pada titik ekuivalen pada 25°C?',
         options: ['pH = 4.0', 'pH = 7.0 (netral)', 'pH = 9.0', 'pH = 12.0'],
         correctIndex: 1,
-        explanation: 'Garam NaCl yang terbentuk berasal dari asam kuat dan basa kuat sehingga tidak mengalami hidrolisis. Tepat di titik ekuivalen, konsentrasi [H+] = [OH-] = 10^-7 M sehingga pH = 7.00.',
+        explanation: 'Garam NaCl yang terbentuk berasal dari asam kuat dan basa kuat sehingga tidak mengalami hidrolisis. Tepat di titik ekuivalen, konsentrasi [H⁺] = [OH⁻] = 10⁻⁷ M sehingga pH = 7.00.',
       },
     ],
     computeStep: (params) => {
@@ -451,7 +451,7 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
         question: 'Jika suatu larutan sampel menyerap 90% dari sinar datang (hanya 10% sinar yang diteruskan, T = 0.10), berapakah nilai absorbansinya (A)?',
         options: ['A = 0.10', 'A = 1.00', 'A = 2.00', 'A = 0.90'],
         correctIndex: 1,
-        explanation: 'Absorbansi dihitung dengan rumus A = -log10(T). Karena T = 0.10 (10^-1), maka A = -log10(0.10) = 1.00.',
+        explanation: 'Absorbansi dihitung dengan rumus A = -log₁₀(T). Karena T = 0.10 (10⁻¹), maka A = -log₁₀(0.10) = 1.00.',
       },
     ],
     computeStep: (params) => {

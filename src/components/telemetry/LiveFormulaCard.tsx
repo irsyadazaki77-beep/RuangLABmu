@@ -1,6 +1,6 @@
 import React from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Calculator, Sparkles } from 'lucide-react';
+import { Calculator, Zap } from 'lucide-react';
 import { useLabStore } from '../../stores/useLabStore';
 import { formatCleanEquation } from '../../utils/spatialHudHelpers';
 import { SciFormula } from '../ui/ScientificNotation';
@@ -42,8 +42,8 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
           </span>
         </div>
         {activeAdjustedParam && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-500 text-[10px] font-mono font-bold shrink-0">
-            <Sparkles className="w-2.5 h-2.5" />
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-700 dark:text-amber-400 text-[10px] font-mono font-bold shrink-0">
+            <Zap className="w-2.5 h-2.5" />
             Aktif Diubah
           </span>
         )}

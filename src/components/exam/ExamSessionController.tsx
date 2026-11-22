@@ -167,15 +167,15 @@ export const ExamSessionController: React.FC<ExamSessionControllerProps> = ({
         <div
           role="region"
           aria-label="Pengawas Mode Ujian Praktikum Terkontrol"
-          className="shrink-0 bg-slate-900 text-white border-b border-rose-500/40 px-4 py-2 flex flex-wrap items-center justify-between gap-3 z-40"
+          className="shrink-0 bg-[var(--comfort-surface)] text-[var(--comfort-text)] border-b border-rose-500/40 px-4 py-2 flex flex-wrap items-center justify-between gap-3 z-40"
         >
           <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-wide text-rose-400">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-wide text-rose-600 dark:text-rose-400">
               <ShieldAlert className="w-4 h-4 shrink-0" />
               <span>{t('exam.bannerTitle')}</span>
             </span>
 
-            <span className="text-slate-600" aria-hidden="true">
+            <span className="text-[var(--comfort-text-muted)]" aria-hidden="true">
               ·
             </span>
 
@@ -184,10 +184,10 @@ export const ExamSessionController: React.FC<ExamSessionControllerProps> = ({
               data-testid="exam-countdown-timer"
               className={`flex items-center gap-1.5 font-mono text-xs sm:text-sm font-bold px-2.5 py-0.5 rounded-lg border tabular-nums ${
                 remainingSeconds === 0
-                  ? 'bg-rose-950/90 border-rose-500 text-rose-300'
+                  ? 'bg-rose-500/15 border-rose-500/50 text-rose-700 dark:text-rose-300'
                   : isUrgent
-                  ? 'bg-amber-950/80 border-amber-500 text-amber-300'
-                  : 'bg-slate-800 border-slate-700 text-sky-300'
+                  ? 'bg-amber-500/15 border-amber-500/50 text-amber-800 dark:text-amber-300'
+                  : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-sky-700 dark:text-sky-300'
               }`}
             >
               <Clock className="w-3.5 h-3.5 shrink-0" />
@@ -197,9 +197,15 @@ export const ExamSessionController: React.FC<ExamSessionControllerProps> = ({
             </div>
 
             {/* Tab Monitor Violation Counter */}
-            <div className="text-xs text-slate-300 font-mono tabular-nums">
+            <div className="text-xs text-[var(--comfort-text-muted)] font-mono tabular-nums">
               {t('exam.tabSwitchCount')}:{' '}
-              <strong className={tabViolationCount > 0 ? 'text-rose-400' : 'text-emerald-400'}>
+              <strong
+                className={
+                  tabViolationCount > 0
+                    ? 'text-rose-600 dark:text-rose-400'
+                    : 'text-emerald-600 dark:text-emerald-400'
+                }
+              >
                 {tabViolationCount}
               </strong>
             </div>
@@ -207,7 +213,7 @@ export const ExamSessionController: React.FC<ExamSessionControllerProps> = ({
 
           <div className="flex items-center gap-2">
             {isSubmissionLocked ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-950/80 border border-emerald-600/60 text-emerald-300 text-xs font-semibold">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
                 <Lock className="w-3.5 h-3.5" />
                 <span>{t('exam.lockedStatus')}</span>
               </span>
@@ -220,7 +226,7 @@ export const ExamSessionController: React.FC<ExamSessionControllerProps> = ({
                   onLockSubmission();
                   void onAutoSubmitExam();
                 }}
-                className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>Kumpulkan &amp; Kunci Ujian Sekarang</span>

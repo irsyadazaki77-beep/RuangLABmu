@@ -40,12 +40,12 @@ export const MobileInstrumentSheet: React.FC<MobileInstrumentSheetProps> = ({
       data-testid="mobile-lab-bottom-sheet"
       className="lg:hidden absolute left-2 right-2 bottom-2 z-30 rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
     >
-      <div className="px-2.5 py-2 flex items-center justify-between gap-2 border-b border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)]">
-        <div className="flex items-center gap-1">
+      <div className="px-2.5 py-1.5 flex items-center justify-between gap-2 border-b border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)]">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => onSelectTab('params')}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer whitespace-nowrap transition-colors ${
+            className={`min-h-[44px] px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer whitespace-nowrap transition-colors ${
               activeTab === 'params'
                 ? 'bg-sky-600 text-white'
                 : 'bg-[var(--comfort-surface)] text-[var(--comfort-text-muted)] border border-[var(--comfort-border)]'
@@ -56,7 +56,7 @@ export const MobileInstrumentSheet: React.FC<MobileInstrumentSheetProps> = ({
           <button
             type="button"
             onClick={() => onSelectTab('telemetry')}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer whitespace-nowrap transition-colors ${
+            className={`min-h-[44px] px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer whitespace-nowrap transition-colors ${
               activeTab === 'telemetry'
                 ? 'bg-emerald-600 text-white'
                 : 'bg-[var(--comfort-surface)] text-[var(--comfort-text-muted)] border border-[var(--comfort-border)]'
@@ -70,7 +70,7 @@ export const MobileInstrumentSheet: React.FC<MobileInstrumentSheetProps> = ({
           type="button"
           onClick={onToggleExpand}
           aria-label="Tutup Sheet Instrumen"
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[11px] font-semibold cursor-pointer whitespace-nowrap"
+          className="min-h-[44px] inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-[11px] font-semibold cursor-pointer whitespace-nowrap"
         >
           <span>Tutup</span>
           <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />

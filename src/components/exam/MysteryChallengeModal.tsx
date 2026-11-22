@@ -3,7 +3,6 @@ import {
   FlaskConical,
   X,
   Target,
-  Sparkles,
   ArrowRight,
   ShieldAlert,
 } from 'lucide-react';
@@ -63,20 +62,20 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
       aria-modal="true"
       aria-labelledby="mystery-modal-title"
     >
-      <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+      <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-4 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-sky-500/10 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+        <div className="px-5 py-4 bg-[var(--comfort-surface-subtle)] border-b border-[var(--comfort-border)] flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-600 dark:text-amber-300">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-700 dark:text-amber-300">
               <FlaskConical className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
                 Ujian Forensik Sains &amp; Blind Sample Verification
               </div>
               <h2
                 id="mystery-modal-title"
-                className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white"
+                className="text-base sm:text-lg font-extrabold text-[var(--comfort-text)]"
               >
                 Pilih Kasus Mystery Sample ({PRESET_MYSTERY_CHALLENGES.length} Kasus Tersedia)
               </h2>
@@ -89,7 +88,7 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
               labSound.playClick();
               onClose();
             }}
-            className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            className="p-2 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-elevated)] cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
             aria-label="Tutup modal ujian sampel misteri"
           >
             <X className="w-4 h-4" aria-hidden="true" />
@@ -97,7 +96,7 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
         </div>
 
         {/* Filter Bar */}
-        <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-950/40">
+        <div className="px-5 py-3 border-b border-[var(--comfort-border)] flex flex-wrap items-center justify-between gap-2 bg-[var(--comfort-bg)]">
           <div className="flex flex-wrap items-center gap-1.5">
             {DOMAIN_FILTERS.map((dom) => {
               const active = dom === domainFilter;
@@ -112,7 +111,7 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                     active
                       ? 'bg-amber-500 text-slate-950 shadow-xs'
-                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      : 'bg-[var(--comfort-surface)] text-[var(--comfort-text-muted)] border border-[var(--comfort-border)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)]'
                   }`}
                 >
                   {dom}
@@ -120,7 +119,7 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
               );
             })}
           </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+          <div className="text-[11px] text-[var(--comfort-text-muted)] flex items-center gap-1.5">
             <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
             <span>Simulasi membuka modul praktikum &amp; memeriksa ketepatan kalkulasi Anda</span>
           </div>
@@ -133,16 +132,16 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
             return (
               <div
                 key={ch.id}
-                className={`rounded-2xl p-4 border transition-all flex flex-col justify-between gap-3 ${
+                className={`rounded-2xl p-4 border transition-colors flex flex-col justify-between gap-3 ${
                   isActive
-                    ? 'bg-amber-50/60 dark:bg-amber-950/25 border-amber-400 shadow-md'
-                    : 'bg-slate-50/80 dark:bg-slate-950/50 border-slate-200 dark:border-slate-800 hover:border-amber-400/60'
+                    ? 'bg-amber-500/8 border-amber-500/60 shadow-sm'
+                    : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] hover:border-amber-500/50'
                 }`}
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-900 dark:bg-slate-800 text-amber-300 font-mono text-[10px] font-bold">
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/35 text-amber-800 dark:text-amber-300 font-mono text-[10px] font-bold">
                         {ch.codename}
                       </span>
                       <span className="px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-700 dark:text-sky-300 text-[10px] font-bold">
@@ -150,7 +149,7 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
                       </span>
                     </div>
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                         DIFFICULTY_BADGE_MAP[ch.difficulty]
                       }`}
                     >
@@ -158,20 +157,20 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
                     </span>
                   </div>
 
-                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white leading-snug">
+                  <h3 className="text-sm font-extrabold text-[var(--comfort-text)] leading-snug">
                     {ch.title}
                   </h3>
 
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  <p className="text-xs text-[var(--comfort-text-muted)] leading-relaxed comfort-prose">
                     {ch.storyDescription}
                   </p>
 
-                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] flex items-center justify-between gap-2">
-                    <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <div className="p-2.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[11px] flex items-center justify-between gap-2">
+                    <span className="text-[var(--comfort-text-muted)] flex items-center gap-1">
                       <Target className="w-3.5 h-3.5 text-amber-500" />
                       Target Pengukuran:
                     </span>
-                    <strong className="font-mono text-slate-900 dark:text-white">
+                    <strong className="font-mono text-[var(--comfort-text)]">
                       {ch.hiddenParamLabel} ({ch.hiddenParamUnit})
                     </strong>
                   </div>
@@ -185,7 +184,7 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
                   }}
                   className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transition-colors"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Target className="w-3.5 h-3.5" />
                   <span>
                     {isActive ? 'Lanjutkan Misi Ini di Kokpit 3D' : 'Mulai Ujian Sampel 3D'}
                   </span>

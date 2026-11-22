@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Sparkles,
+  PackageCheck,
   ChevronDown,
   ChevronUp,
   Compass,
@@ -149,10 +149,9 @@ export function getLocalWisdomForDomain(domain: string, moduleId = ''): DIYExper
     };
   }
 
-  // Default Astronomi
   return {
     title: 'Membaca Langit Malam 3T: Rasi Bintang Pari & Waluku (Orion)',
-    icon: <Moon className="w-5 h-5 text-indigo-400" />,
+    icon: <Moon className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />,
     toolsNeeded: [
       'Langit malam cerah di luar rumah (daerah 3T sangat beruntung karena minim polusi cahaya)',
       'Mata telanjang yang telah beradaptasi dengan kegelapan selama 10 menit',
@@ -182,23 +181,24 @@ export const DIYLocalWisdomCard: React.FC<DIYLocalWisdomCardProps> = ({
   return (
     <div
       data-testid="diy-local-wisdom-card"
-      className="rounded-2xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-50/70 via-stone-50/50 to-teal-50/40 dark:from-emerald-950/25 dark:via-slate-900/90 dark:to-teal-950/20 p-4 sm:p-5 shadow-xs transition-all"
+      className="rounded-2xl border border-emerald-500/35 bg-[var(--comfort-surface)] p-4 sm:p-5 shadow-xs transition-all"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-emerald-600/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/12 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
             {wisdom.icon}
           </div>
           <div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-600/15 text-emerald-700 dark:text-emerald-300">
-                🌿 Praktikum Alat Sekitar · 3T Ready
+            <div className="flex items-center gap-2 flex-wrap text-[10px] font-mono">
+              <span className="font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
+                <Leaf className="w-3 h-3" aria-hidden="true" />
+                Praktikum Alat Sekitar · 3T Ready
               </span>
-              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                Tanpa Alat Lab Mahal
+              <span className="text-[var(--comfort-text-muted)] font-sans">
+                · Tanpa Alat Lab Mahal
               </span>
             </div>
-            <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-snug mt-0.5">
+            <h4 className="text-xs sm:text-sm font-extrabold text-[var(--comfort-text)] leading-snug mt-0.5">
               {wisdom.title}
             </h4>
           </div>
@@ -212,40 +212,38 @@ export const DIYLocalWisdomCard: React.FC<DIYLocalWisdomCardProps> = ({
           }}
           aria-expanded={isExpanded}
           aria-label={isExpanded ? 'Sembunyikan Panduan Alat Sekitar' : 'Tampilkan Panduan Alat Sekitar'}
-          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-stone-200/60 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
+          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)] transition cursor-pointer shrink-0"
         >
           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
 
       {isExpanded && (
-        <div className="mt-4 pt-3.5 border-t border-emerald-500/20 space-y-3.5 text-xs">
-          {/* Tools needed */}
+        <div className="mt-4 pt-3.5 border-t border-[var(--comfort-border)] space-y-3.5 text-xs">
           <div>
-            <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mb-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Bahan & Alat Mudah Ditemukan di Rumah:</span>
+            <div className="font-bold text-[var(--comfort-text)] flex items-center gap-1.5 mb-1.5">
+              <PackageCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Bahan &amp; Alat Mudah Ditemukan di Rumah:</span>
             </div>
-            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-1 text-slate-600 dark:text-slate-300 text-[11px]">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-1 text-[var(--comfort-text-muted)] text-[11px]">
               {wisdom.toolsNeeded.map((tool, idx) => (
                 <li key={idx} className="flex items-start gap-1.5 leading-snug">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                   <span>{tool}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* Steps */}
-          <div className="p-3 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-emerald-500/20 space-y-1.5">
-            <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+          <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-1.5">
+            <div className="font-bold text-[var(--comfort-text)] flex items-center gap-1.5">
               <Compass className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
               <span>Langkah Percobaan Mandiri:</span>
             </div>
-            <ol className="space-y-1 pl-1 text-[11px] text-slate-700 dark:text-slate-300">
+            <ol className="space-y-1 pl-1 text-[11px] text-[var(--comfort-text-muted)]">
               {wisdom.steps.map((st, i) => (
                 <li key={i} className="flex items-start gap-2 leading-relaxed">
-                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 shrink-0">
                     {i + 1}.
                   </span>
                   <span>{st}</span>
@@ -254,19 +252,18 @@ export const DIYLocalWisdomCard: React.FC<DIYLocalWisdomCardProps> = ({
             </ol>
           </div>
 
-          {/* Scientific Principle & Local Culture */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-[11px]">
-            <div className="p-2.5 rounded-xl bg-sky-50/60 dark:bg-sky-950/20 border border-sky-500/20 text-slate-700 dark:text-sky-200/90 leading-relaxed">
-              <strong className="block text-sky-800 dark:text-sky-300 font-bold mb-0.5 flex items-center gap-1">
-                <Lightbulb className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+            <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/25 text-[var(--comfort-text)] leading-relaxed">
+              <strong className="text-sky-700 dark:text-sky-300 font-bold mb-0.5 flex items-center gap-1">
+                <Lightbulb className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
                 Hubungan dengan Simulasi 3D:
               </strong>
               {wisdom.scientificPrinciple}
             </div>
 
-            <div className="p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-500/20 text-slate-700 dark:text-amber-200/90 leading-relaxed">
-              <strong className="block text-amber-800 dark:text-amber-300 font-bold mb-0.5 flex items-center gap-1">
-                <TreeDeciduous className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[var(--comfort-text)] leading-relaxed">
+              <strong className="text-amber-800 dark:text-amber-300 font-bold mb-0.5 flex items-center gap-1">
+                <TreeDeciduous className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                 Kearifan Tradisional Lokal:
               </strong>
               {wisdom.localCultureNote}

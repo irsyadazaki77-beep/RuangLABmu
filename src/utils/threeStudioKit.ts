@@ -219,7 +219,8 @@ export interface LabBenchTextureSet {
 export function createLabBenchTextures(
   baseHex: string | number,
   repeatX = 3,
-  repeatY = 2
+  repeatY = 2,
+  options?: { neutralAlbedo?: boolean }
 ): LabBenchTextureSet | null {
   if (typeof document === 'undefined') return null;
   const size = 256;
@@ -241,7 +242,8 @@ export function createLabBenchTextures(
 
   if (!aCtx || !rCtx || !bCtx) return null;
 
-  const baseColor = new THREE.Color(baseHex);
+  // Neutral high-luminance mineral base avoids double color multiplication when MeshStandardMaterial.color applies theme tint
+  const baseColor = options?.neutralAlbedo ? new THREE.Color(0xf2f2f2) : new THREE.Color(baseHex);
   const rBase = Math.round(baseColor.r * 255);
   const gBase = Math.round(baseColor.g * 255);
   const bBase = Math.round(baseColor.b * 255);
@@ -291,6 +293,7 @@ export function createLabBenchTextures(
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(repeatX, repeatY);
+    tex.anisotropy = 8;
     tex.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     tex.needsUpdate = true;
     return tex;
@@ -357,6 +360,7 @@ export function createBrushedMetalTextures(): BrushedMetalTextureSet | null {
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(2, 2);
+    tex.anisotropy = 8;
     tex.colorSpace = THREE.NoColorSpace;
     tex.needsUpdate = true;
     return tex;
@@ -749,12 +753,12 @@ export function createStudioWorkbenchGroup(
   const floorY = options?.floorY ?? -0.02;
 
   const group = new THREE.Group();
-  const benchTex = createLabBenchTextures(colors.tableHex, 4, 2.5);
+  const benchTex = createLabBenchTextures(colors.tableHex, 4, 2.5, { neutralAlbedo: true });
   const metalTex = createBrushedMetalTextures();
 
   const floorGeo = new THREE.PlaneGeometry(46, 46);
   const floorMat = new THREE.MeshStandardMaterial({
-    color: 0x0f172a,
+    color: colors.floorHex ?? 0xd8e0ea,
     roughness: 0.85,
     metalness: 0.08,
   });
@@ -764,28 +768,46 @@ export function createStudioWorkbenchGroup(
   floor.receiveShadow = true;
   group.add(floor);
 
+  const gridDivisions = options?.gridDivisions ?? 28;
   const gridHelper = new THREE.GridHelper(
     options?.gridSize ?? 28,
-    options?.gridDivisions ?? 28,
-    0x334155,
-    0x1e293b
+    gridDivisions,
+    colors.gridPrimaryHex ?? 0x9aa8ba,
+    colors.gridSecondaryHex ?? 0xc7d0dc
   );
   gridHelper.position.y = floorY + 0.01;
   (gridHelper.material as THREE.Material).transparent = true;
-  (gridHelper.material as THREE.Material).opacity = 0.35;
+  (gridHelper.material as THREE.Material).opacity = 0.38;
   group.add(gridHelper);
+
+  const applyGridColors = (primaryHex?: number, secondaryHex?: number) => {
+    const colorAttr = gridHelper.geometry.getAttribute('color') as THREE.BufferAttribute | undefined;
+    if (!colorAttr) return;
+    const c1 = new THREE.Color(primaryHex ?? 0x9aa8ba);
+    const c2 = new THREE.Color(secondaryHex ?? 0xc7d0dc);
+    const halfVerts = colorAttr.count / 2;
+    const centerLineStart = Math.floor(gridDivisions / 2) * 4;
+    for (let i = 0; i < colorAttr.count; i++) {
+      const isAxisLine =
+        (i >= centerLineStart && i < centerLineStart + 4) ||
+        (i >= halfVerts + centerLineStart && i < halfVerts + centerLineStart + 4);
+      const col = isAxisLine ? c1 : c2;
+      colorAttr.setXYZ(i, col.r, col.g, col.b);
+    }
+    colorAttr.needsUpdate = true;
+  };
 
   // Beveled phenolic laboratory benchtop
   const benchGeo = new RoundedBoxGeometry(width, thickness, depth, 4, 0.04);
   const benchTopMat = new THREE.MeshStandardMaterial({
-    color: 0x1e293b,
+    color: colors.tableHex ?? 0xc2ccd8,
     map: benchTex?.map ?? null,
     roughnessMap: benchTex?.roughnessMap ?? null,
     bumpMap: benchTex?.bumpMap ?? null,
-    bumpScale: 0.008,
-    roughness: 0.65,
-    metalness: 0.12,
-    envMapIntensity: 0.35,
+    bumpScale: 0.006,
+    roughness: 0.62,
+    metalness: 0.08,
+    envMapIntensity: 0.55,
   });
   const benchMesh = new THREE.Mesh(benchGeo, benchTopMat);
   benchMesh.position.y = benchY;
@@ -796,13 +818,13 @@ export function createStudioWorkbenchGroup(
   // Anodized brushed aluminum front/perimeter trim band
   const trimGeo = new RoundedBoxGeometry(width + 0.1, thickness * 0.42, depth + 0.1, 3, 0.025);
   const trimMat = new THREE.MeshStandardMaterial({
-    color: 0x334155,
+    color: colors.trimHex ?? 0x64748b,
     roughnessMap: metalTex?.roughnessMap ?? null,
     bumpMap: metalTex?.bumpMap ?? null,
     bumpScale: 0.004,
-    metalness: 0.82,
-    roughness: 0.34,
-    envMapIntensity: 0.45,
+    metalness: 0.78,
+    roughness: 0.28,
+    envMapIntensity: 0.72,
   });
   const trimMesh = new THREE.Mesh(trimGeo, trimMat);
   trimMesh.position.y = benchY - thickness * 0.25;
@@ -810,9 +832,16 @@ export function createStudioWorkbenchGroup(
   trimMesh.receiveShadow = true;
   group.add(trimMesh);
 
+  // Subtle grounded contact-shadow AO pad centered on benchtop for apparatus seating
+  const contactPad = createContactShadowPlane(width * 0.36, depth * 0.36, 0.28);
+  contactPad.position.y = benchY + thickness * 0.5 + 0.004;
+  group.add(contactPad);
+
   const updateTheme = (nextColors: SceneThemeColors) => {
-    benchTopMat.color.setHex(nextColors.tableHex ?? 0x1e293b);
-    floorMat.color.setHex(nextColors.floorHex ?? 0x0f172a);
+    benchTopMat.color.setHex(nextColors.tableHex ?? 0xc2ccd8);
+    floorMat.color.setHex(nextColors.floorHex ?? 0xd8e0ea);
+    trimMat.color.setHex(nextColors.trimHex ?? 0x64748b);
+    applyGridColors(nextColors.gridPrimaryHex, nextColors.gridSecondaryHex);
   };
 
   const dispose = () => {
@@ -822,6 +851,10 @@ export function createStudioWorkbenchGroup(
     benchTopMat.dispose();
     trimGeo.dispose();
     trimMat.dispose();
+    contactPad.geometry.dispose();
+    const cMat = contactPad.material as THREE.MeshBasicMaterial;
+    cMat.map?.dispose();
+    cMat.dispose();
     gridHelper.dispose();
     benchTex?.dispose();
     metalTex?.dispose();
@@ -1008,7 +1041,7 @@ export function configureLabRenderer(
   renderer.toneMappingExposure = Math.max(1.0, Math.min(1.1, rawExposure));
   if (renderer.shadowMap) {
     renderer.shadowMap.enabled = options.shadowsEnabled ?? !isLite;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
   }
   return renderer;
 }
@@ -1560,4 +1593,55 @@ export function createInstancedParticlePool(
     },
   };
 }
+
+/**
+ * Creates a soft radial ambient-occlusion contact shadow disc so 3D laboratory apparatus
+ * visually seats firmly on the studio workbench even when real-time shadow maps are off (3T-Saver / Lite).
+ */
+export function createContactShadowPlane(
+  radiusX = 1.6,
+  radiusZ = 1.6,
+  opacity = 0.28
+): THREE.Mesh {
+  const geo = new THREE.PlaneGeometry(radiusX * 2, radiusZ * 2);
+  let tex: THREE.CanvasTexture | null = null;
+  if (typeof document !== 'undefined') {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createRadialGradient(
+        size / 2,
+        size / 2,
+        size * 0.08,
+        size / 2,
+        size / 2,
+        size * 0.5
+      );
+      grad.addColorStop(0, 'rgba(15, 23, 42, 0.72)');
+      grad.addColorStop(0.55, 'rgba(15, 23, 42, 0.28)');
+      grad.addColorStop(1, 'rgba(15, 23, 42, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+      tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+    }
+  }
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex,
+    color: tex ? 0xffffff : 0x0f172a,
+    transparent: true,
+    opacity: Math.max(0.08, Math.min(0.6, opacity)),
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.renderOrder = 1;
+  mesh.name = 'studio-contact-shadow';
+  return mesh;
+}
+
 

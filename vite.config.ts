@@ -179,7 +179,7 @@ export default defineConfig(() => {
       },
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'motion/react'],
+      include: ['react', 'react-dom', 'motion/react', 'qrcode'],
     },
     server: {
       allowedHosts: resolveViteAllowedHosts(),

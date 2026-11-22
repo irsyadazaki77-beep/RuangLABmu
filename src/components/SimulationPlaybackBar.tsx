@@ -74,12 +74,12 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
   return (
     <div
       aria-label="Panel Kontrol Playback Simulasi & Scrubber Waktu"
-      className="bg-slate-900/95 text-slate-100 border border-slate-700/80 rounded-xl p-3.5 shadow-md space-y-3"
+      className="bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] rounded-xl p-3.5 shadow-sm space-y-3"
     >
       {/* Top Row: Playback Buttons + Timeline Scrubber + Speed Selector + Time Display */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Playback Button Group */}
-        <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700 p-1 rounded-xl">
+        <div className="flex items-center gap-1.5 bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] p-1 rounded-xl">
           <button
             type="button"
             onClick={() => {
@@ -118,7 +118,7 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
             }}
             aria-label="Langkah Mundur 1 Frame (-1/60s)"
             title="Langkah Mundur 1 Frame (-1/60s)"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface)] rounded-lg transition-colors cursor-pointer"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -131,7 +131,7 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
             }}
             aria-label="Langkah Maju 1 Frame (+1/60s)"
             title="Langkah Maju 1 Frame (+1/60s)"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface)] rounded-lg transition-colors cursor-pointer"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -144,7 +144,7 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
             }}
             aria-label="Reset Simulasi ke Frame Awal"
             title="Reset ke Frame Awal"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-300 hover:text-rose-400 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--comfort-text-muted)] hover:text-rose-500 hover:bg-[var(--comfort-surface)] rounded-lg transition-colors cursor-pointer"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -169,18 +169,18 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
             aria-valuemax={bounds.maxFrame}
             aria-valuenow={currentIdx}
             aria-valuetext={`Frame ${currentIdx}, Waktu ${rawTime.toFixed(2)} detik`}
-            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500 hover:accent-sky-400 transition-colors"
+            className="w-full h-2 bg-[var(--comfort-border)] rounded-lg appearance-none cursor-pointer accent-sky-600 dark:accent-sky-400 transition-colors"
           />
         </div>
 
         {/* Speed Selector (0.25x, 0.5x, 1x, 2x) + Time Readout */}
         <div className="flex items-center gap-2 font-mono text-xs shrink-0">
           <div
-            className="inline-flex items-center gap-0.5 bg-slate-800/90 border border-slate-700 rounded-lg p-0.5"
+            className="inline-flex items-center gap-0.5 bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-lg p-0.5"
             role="group"
             aria-label="Kecepatan Playback Simulasi"
           >
-            <Gauge className="w-3.5 h-3.5 text-sky-400 ml-1 mr-0.5 hidden sm:inline" />
+            <Gauge className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 ml-1 mr-0.5 hidden sm:inline" />
             {SPEED_OPTIONS.map((spd) => (
               <button
                 key={spd}
@@ -190,10 +190,10 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
                   setInternalSpeed(spd);
                   onPlaybackSpeedChange?.(spd);
                 }}
-                className={`px-1.5 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                className={`px-2 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                   currentSpeed === spd
-                    ? 'bg-sky-500 text-slate-950'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-sky-600 text-white'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                 }`}
               >
                 {spd}x
@@ -201,10 +201,10 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
             ))}
           </div>
 
-          <div className="bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-slate-200">
-            <span className="text-slate-400">t = </span>
+          <div className="bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-md px-2.5 py-1 text-[var(--comfort-text)] tabular-nums">
+            <span className="text-[var(--comfort-text-muted)]">t = </span>
             {noiseEnabled ? (
-              <span className="text-amber-400 font-semibold">
+              <span className="text-amber-700 dark:text-amber-400 font-semibold">
                 {formatMeasurementWithUncertainty(
                   timeMeasurement.measuredValue,
                   timeMeasurement.uncertainty,
@@ -212,9 +212,9 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
                 )}
               </span>
             ) : (
-              <span className="text-sky-300 font-semibold">{rawTime.toFixed(2)} s</span>
+              <span className="text-sky-700 dark:text-sky-300 font-semibold">{rawTime.toFixed(2)} s</span>
             )}
-            <span className="text-slate-500 ml-1.5 text-[10px]">
+            <span className="text-[var(--comfort-text-muted)] ml-1.5 text-[10px]">
               (f: {currentIdx}/{bounds.maxFrame})
             </span>
           </div>
@@ -222,31 +222,31 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
       </div>
 
       {/* Bottom Row: Energy Conservation Readout + Realistic Instrument Noise Switch */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs pt-1 border-t border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs pt-2 border-t border-[var(--comfort-border)]">
         {/* Live Energy Conservation Telemetry */}
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="font-mono text-slate-400 flex items-center gap-1">
-            <Activity className="w-3.5 h-3.5 text-sky-400" />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-[var(--comfort-text-muted)] flex items-center gap-1">
+            <Activity className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
             Konservasi Energi:
           </span>
 
-          <span className="font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">
+          <span className="font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded tabular-nums">
             Ek: {kinetic.toFixed(2)} J
           </span>
 
-          <span className="font-mono text-sky-400 bg-sky-950/60 border border-sky-800/80 px-2 py-0.5 rounded">
+          <span className="font-mono text-sky-700 dark:text-sky-400 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded tabular-nums">
             Ep: {potential.toFixed(2)} J
           </span>
 
           {thermal > 0 && (
-            <span className="font-mono text-rose-400 bg-rose-950/60 border border-rose-800/80 px-2 py-0.5 rounded flex items-center gap-1">
+            <span className="font-mono text-rose-700 dark:text-rose-400 bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 rounded flex items-center gap-1 tabular-nums">
               <Flame className="w-3 h-3" />
               E_termal: {thermal.toFixed(2)} J
             </span>
           )}
 
-          <span className="font-mono text-amber-300 font-semibold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded flex items-center gap-1">
-            <Zap className="w-3 h-3 text-amber-400" />
+          <span className="font-mono text-amber-700 dark:text-amber-300 font-semibold bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded flex items-center gap-1 tabular-nums">
+            <Zap className="w-3 h-3 text-amber-600 dark:text-amber-400" />
             E_total: {total.toFixed(2)} J
           </span>
         </div>
@@ -254,7 +254,7 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
         {/* Realistic Lab Noise Toggle Switch & Instrument Spec */}
         <div className="flex items-center gap-2">
           {noiseEnabled && (
-            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-amber-300/90 bg-amber-950/40 border border-amber-900/60 px-2 py-0.5 rounded">
+            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded tabular-nums">
               Alat: {activeInstrument.type} (NST {activeInstrument.smallestScaleDivision} {activeInstrument.unit})
             </span>
           )}
@@ -265,21 +265,23 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
               onToggleNoise(!noiseEnabled);
             }}
             aria-pressed={noiseEnabled}
-            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+            className={`min-h-[36px] flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
               noiseEnabled
-                ? 'bg-amber-950/80 text-amber-300 border-amber-600 shadow-xs'
-                : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+                ? 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/50'
+                : 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] border-[var(--comfort-border)] hover:text-[var(--comfort-text)]'
             }`}
           >
             <ShieldAlert
               className={`w-3.5 h-3.5 ${
-                noiseEnabled ? 'text-amber-400 animate-pulse' : 'text-slate-500'
+                noiseEnabled ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--comfort-text-muted)]'
               }`}
             />
             <span>Mode Ketidakpastian Alat Ukur</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-                noiseEnabled ? 'bg-amber-600 text-slate-950 font-bold' : 'bg-slate-700 text-slate-400'
+              className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                noiseEnabled
+                  ? 'bg-amber-500 text-slate-950 font-bold'
+                  : 'bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text-muted)]'
               }`}
             >
               {noiseEnabled ? 'AKTIF (±Δx)' : 'OFF'}

@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
 import QRCode from 'qrcode';
 import { KeyRound, QrCode as QrCodeIcon, Wifi, X } from 'lucide-react';
-import { MODAL_POPOVER_VARIANTS } from '../../styles/motionPresets';
 import { labSound } from '../../utils/soundEngine';
 import { generateRandomRoomId, generateRandomRoomPin } from '../../utils/collabProtocol';
 import { UserRole } from '../../stores/useLabStore';
@@ -131,24 +129,20 @@ export const RoomCollabModal: React.FC<RoomCollabModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  if (!isOpen) return null;
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Pengaturan Meja Praktikum"
-          onClick={onClose}
-          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
-        >
-          <motion.div
-            variants={MODAL_POPOVER_VARIANTS}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            onClick={(e) => e.stopPropagation()}
-            className="max-w-md w-full rounded-xl bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
-          >
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pengaturan Meja Praktikum"
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-slate-950/75 flex items-center justify-center p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="max-w-md w-full rounded-xl bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+      >
             <div className="flex items-center justify-between border-b border-[var(--comfort-border)] pb-3">
               <div className="flex items-center gap-2">
                 <KeyRound className="w-4 h-4 text-sky-600 dark:text-sky-400" />
@@ -396,9 +390,7 @@ export const RoomCollabModal: React.FC<RoomCollabModalProps> = ({
                 </button>
               </div>
             </form>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+          </div>
+    </div>
   );
 };

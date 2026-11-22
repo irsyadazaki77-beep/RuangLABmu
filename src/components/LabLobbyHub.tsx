@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { BookOpen, Layers, Play, Sparkles } from 'lucide-react';
+import { BookOpen, Compass, Layers, Play, SearchX } from 'lucide-react';
 import { SPRING_LAYOUT_PILL, SPRING_TACTILE } from '../styles/motionPresets';
 import {
   ExperimentModule,
@@ -34,13 +34,8 @@ import {
 } from '../utils/spatialHudHelpers';
 import { chapterMatchesJenjang } from './lobby/lobbyFormatters';
 import { ChapterCatalogCard, ModuleCatalogCard } from './lobby/ModuleCatalogCard';
-
-const RoomCollabModal = React.lazy(() =>
-  import('./lobby/RoomCollabModal').then((m) => ({ default: m.RoomCollabModal }))
-);
-const ChapterDetailModal = React.lazy(() =>
-  import('./lobby/ChapterDetailModal').then((m) => ({ default: m.ChapterDetailModal }))
-);
+import { RoomCollabModal } from './lobby/RoomCollabModal';
+import { ChapterDetailModal } from './lobby/ChapterDetailModal';
 
 interface LabLobbyHubProps {
   activeTier: EducationTier;
@@ -237,56 +232,54 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-5 select-text">
-      <Suspense fallback={null}>
-        {isRoomModalOpen && (
-          <RoomCollabModal
-            isOpen={isRoomModalOpen}
-            mode={roomModalMode}
-            roomError={roomError}
-            userRole={userRole}
-            lanInfo={lanInfo}
-            onOpenMode={openRoomModal}
-            onClose={closeRoomModal}
-            onSetRoomError={setRoomError}
-            onSetUserRole={setUserRole}
-            onCreateRoom={onCreateRoom}
-            onJoinRoom={onJoinRoom}
-          />
-        )}
+      {isRoomModalOpen && (
+        <RoomCollabModal
+          isOpen={isRoomModalOpen}
+          mode={roomModalMode}
+          roomError={roomError}
+          userRole={userRole}
+          lanInfo={lanInfo}
+          onOpenMode={openRoomModal}
+          onClose={closeRoomModal}
+          onSetRoomError={setRoomError}
+          onSetUserRole={setUserRole}
+          onCreateRoom={onCreateRoom}
+          onJoinRoom={onJoinRoom}
+        />
+      )}
 
-        {detailChapter && (
-          <ChapterDetailModal
-            chapter={detailChapter}
-            modules={detailChapterModules}
-            completedModuleIds={completedModuleIds}
-            onClose={() => setDetailChapter(null)}
-            onSelectExperiment={handleSelectAndTrackExperiment}
-          />
-        )}
-      </Suspense>
+      {detailChapter && (
+        <ChapterDetailModal
+          chapter={detailChapter}
+          modules={detailChapterModules}
+          completedModuleIds={completedModuleIds}
+          onClose={() => setDetailChapter(null)}
+          onSelectExperiment={handleSelectAndTrackExperiment}
+        />
+      )}
 
       {/* Active Room Custom AI Mission Banner */}
       {activeCustomMission && (
         <div
           data-testid="active-room-custom-mission-card"
-          className="rounded-xl bg-slate-900 border border-indigo-400/50 p-4 sm:p-5 text-white space-y-3"
+          className="rounded-xl bg-[var(--comfort-surface)] border border-indigo-500/45 p-4 sm:p-5 text-[var(--comfort-text)] space-y-3 shadow-xs"
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1 max-w-3xl">
-              <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-indigo-300">
-                <span>MISI STUDI KASUS AI · ROOM {activeCustomMission.roomId}</span>
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-indigo-700 dark:text-indigo-300 font-semibold">
+                <span>Misi Studi Kasus AI · Room {activeCustomMission.roomId}</span>
                 <span aria-hidden="true">·</span>
-                <span className="text-emerald-300 tabular-nums">
+                <span className="text-emerald-700 dark:text-emerald-300 tabular-nums">
                   Target {activeCustomMission.targetVariable.variableLabel}:{' '}
                   {activeCustomMission.targetVariable.minSuccessValue}–
                   {activeCustomMission.targetVariable.maxSuccessValue}{' '}
                   {activeCustomMission.targetVariable.unit}
                 </span>
               </div>
-              <h3 className="text-base sm:text-lg font-bold text-white">
+              <h3 className="text-base sm:text-lg font-bold text-[var(--comfort-text)]">
                 {activeCustomMission.title}
               </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="text-xs text-[var(--comfort-text-muted)] leading-relaxed comfort-prose">
                 {activeCustomMission.narrative}
               </p>
             </div>
@@ -308,217 +301,221 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
         </div>
       )}
 
-      {/* Row 1: Studio Quick-Start Bar & Tabular KPI Strip */}
-      <div
-        data-testid="quick-start-hero-bar"
-        className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] shadow-xs text-xs relative overflow-hidden"
-      >
-        <div className="flex flex-wrap items-center gap-2 min-w-0 w-full lg:w-auto">
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.98 }}
-            transition={SPRING_TACTILE}
-            data-testid="quick-start-resume-btn"
-            onClick={() => {
-              labSound.playClick();
-              handleSelectAndTrackExperiment(continueTargetModule);
-            }}
-            className="max-w-full min-w-0 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-white font-semibold text-xs flex items-center gap-2 cursor-pointer transition-all shadow-xs"
-          >
-            <Play className="w-3.5 h-3.5 fill-current shrink-0" />
-            <span className="truncate">
-              {lastOpenedModule
-                ? `Lanjutkan Praktikum: ${lastOpenedModule.title}`
-                : `Mulai Praktikum: ${continueTargetModule.title}`}
-            </span>
-          </motion.button>
-
-          <button
-            type="button"
-            data-testid="daily-lab-challenge-btn"
-            onClick={handleStartDailyLabChallenge}
-            className="px-3 py-2 rounded-xl bg-[var(--comfort-surface-subtle)] hover:border-amber-500/60 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
-          >
-            <span>Tantangan Sains</span>
-            <span className="font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400 tabular-nums">
-              +250 XP
-            </span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="lobby-open-ai-mission-builder-btn"
-            onClick={() => {
-              labSound.playClick(620);
-              if (userRole !== 'pengajar') {
-                setUserRole('pengajar');
-              }
-              openModal('ai-mission-builder');
-            }}
-            className="px-3 py-2 rounded-xl bg-[var(--comfort-surface-subtle)] hover:border-indigo-500/60 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span>Misi AI Guru</span>
-          </button>
-
-          {onOpenMysteryExam && (
-            <button
+      {/* Unified Workspace Action & Filter Bar */}
+      <div className="rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] divide-y divide-[var(--comfort-border)]">
+        {/* Row 1: Studio Quick-Start Bar & Unboxed Tabular KPI Readout */}
+        <div
+          data-testid="quick-start-hero-bar"
+          className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-4 py-3 text-xs"
+        >
+          <div className="flex flex-wrap items-center gap-2 min-w-0 w-full lg:w-auto">
+            <motion.button
               type="button"
+              whileTap={{ scale: 0.98 }}
+              transition={SPRING_TACTILE}
+              data-testid="quick-start-resume-btn"
               onClick={() => {
                 labSound.playClick();
-                onOpenMysteryExam();
+                handleSelectAndTrackExperiment(continueTargetModule);
               }}
-              className="px-3 py-2 rounded-xl bg-[var(--comfort-surface-subtle)] hover:border-sky-500/60 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              className="max-w-full min-w-0 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs flex items-center gap-2 cursor-pointer transition-colors"
             >
-              <span>Ujian Sampel →</span>
-            </button>
-          )}
-        </div>
+              <Play className="w-3.5 h-3.5 fill-current shrink-0" aria-hidden="true" />
+              <span className="truncate">
+                {lastOpenedModule
+                  ? `Lanjutkan Praktikum: ${lastOpenedModule.title}`
+                  : `Mulai Praktikum: ${continueTargetModule.title}`}
+              </span>
+            </motion.button>
 
-        {/* Clean Tabular KPI Readout */}
-        <div className="flex flex-wrap items-center gap-3 shrink-0 self-start lg:self-center text-xs text-[var(--comfort-text-muted)] tabular-nums">
-          {dailyChallengeToast && (
-            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-              {dailyChallengeToast}
-            </span>
-          )}
-          <div className="flex items-center gap-2.5 font-mono px-3 py-1.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-            <span>
-              <strong className="text-[var(--comfort-text)]">{completedModuleIds.length}</strong>{' '}
-              Selesai
-            </span>
-            <span aria-hidden="true" className="opacity-40">·</span>
-            <span>
-              <strong className="text-sky-600 dark:text-sky-400">{recordsCount}</strong> Data
-            </span>
-            <span aria-hidden="true" className="opacity-40">·</span>
-            <span>
-              <strong className="text-emerald-600 dark:text-emerald-400">
-                {lobbyViewMode === 'chapters' ? filteredChapters.length : filteredModules.length}
-              </strong>{' '}
-              {lobbyViewMode === 'chapters' ? 'Bab' : 'Modul'}
-            </span>
+            <button
+              type="button"
+              data-testid="daily-lab-challenge-btn"
+              onClick={handleStartDailyLabChallenge}
+              className="px-3 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-medium text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
+            >
+              <span>Tantangan Sains</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="lobby-open-ai-mission-builder-btn"
+              onClick={() => {
+                labSound.playClick(620);
+                if (userRole !== 'pengajar') {
+                  setUserRole('pengajar');
+                }
+                openModal('ai-mission-builder');
+              }}
+              className="px-3 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-medium text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
+            >
+              <Compass className="w-3.5 h-3.5 text-[var(--comfort-text-muted)]" aria-hidden="true" />
+              <span>Misi AI Guru</span>
+            </button>
+
+            {onOpenMysteryExam && (
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  onOpenMysteryExam();
+                }}
+                className="px-3 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-medium text-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <span>Ujian Sampel →</span>
+              </button>
+            )}
+          </div>
+
+          {/* Unboxed Tabular KPI Readout */}
+          <div className="flex flex-wrap items-center gap-3 shrink-0 self-start lg:self-center text-xs text-[var(--comfort-text-muted)] tabular-nums">
+            {dailyChallengeToast && (
+              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                {dailyChallengeToast}
+              </span>
+            )}
+            <div className="flex items-center gap-2 font-mono text-[11px]">
+              <span>
+                <strong className="text-[var(--comfort-text)]">{completedModuleIds.length}</strong>{' '}
+                Selesai
+              </span>
+              <span aria-hidden="true" className="opacity-35">·</span>
+              <span>
+                <strong className="text-sky-600 dark:text-sky-400">{recordsCount}</strong> Data
+              </span>
+              <span aria-hidden="true" className="opacity-35">·</span>
+              <span>
+                <strong className="text-[var(--comfort-text)]">
+                  {lobbyViewMode === 'chapters' ? filteredChapters.length : filteredModules.length}
+                </strong>{' '}
+                {lobbyViewMode === 'chapters' ? 'Bab' : 'Modul'}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Row 2: Compact Filter Bar */}
-      <div
-        data-testid="lobby-compact-filter-bar"
-        className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 p-2 bg-[var(--comfort-surface)] rounded-2xl border border-[var(--comfort-border)] shadow-xs"
-      >
-        {/* View Mode Segmented Control */}
-        <div className="flex items-center gap-1 p-1 bg-[var(--comfort-surface-subtle)] rounded-xl border border-[var(--comfort-border)] shrink-0 overflow-x-auto no-scrollbar">
-          {(
-            [
-              { id: 'chapters', label: 'Bab Kurikulum', Icon: BookOpen },
-              { id: 'all', label: 'Semua Modul', Icon: Layers },
-            ] as const
-          ).map(({ id, label, Icon }) => {
-            const active = lobbyViewMode === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  setLobbyViewMode(id);
-                }}
-                className={`relative px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap flex-1 sm:flex-initial justify-center ${
-                  active
-                    ? 'text-white'
-                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
-                }`}
-              >
-                {active && (
-                  <motion.span
-                    layoutId="lobby-view-mode-pill"
-                    transition={SPRING_LAYOUT_PILL}
-                    className="absolute inset-0 rounded-lg bg-sky-600 shadow-xs"
-                  />
-                )}
-                <Icon className="w-3.5 h-3.5 relative z-10" />
-                <span className="relative z-10">{label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Domain Filter Tabs */}
-        <div className="flex items-center gap-1 p-1 bg-[var(--comfort-surface-subtle)] rounded-xl border border-[var(--comfort-border)] overflow-x-auto no-scrollbar">
-          {[
-            { id: 'all', label: 'Semua' },
-            { id: 'fisika', label: 'Fisika' },
-            { id: 'kimia', label: 'Kimia' },
-            { id: 'biologi', label: 'Biologi' },
-            { id: 'astronomi', label: 'Astronomi' },
-          ].map((tab) => {
-            const isSelected = lobbySelectedDomain === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  setLobbySelectedDomain(tab.id as ScienceDomain | 'all');
-                }}
-                className={`relative px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                  isSelected
-                    ? 'text-white'
-                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
-                }`}
-              >
-                {isSelected && (
-                  <motion.span
-                    layoutId="lobby-domain-active-pill"
-                    transition={SPRING_LAYOUT_PILL}
-                    className="absolute inset-0 rounded-lg bg-sky-600 shadow-xs"
-                  />
-                )}
-                <span className="relative z-10">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Jenjang Selector (Unified Active Pill Styling) */}
+        {/* Row 2: Flat Compact Filter Bar */}
         <div
-          role="group"
-          aria-label="Filter Jenjang Pendidikan"
-          className="flex items-center gap-1 p-1 bg-[var(--comfort-surface-subtle)] rounded-xl border border-[var(--comfort-border)] shrink-0 overflow-x-auto no-scrollbar"
+          data-testid="lobby-compact-filter-bar"
+          className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 px-3 py-2 bg-[var(--comfort-surface-subtle)]/50"
         >
-          {(['Semua', 'SMP', 'SMA', 'Mahasiswa'] as const).map((tierLabel) => {
-            const targetValue: 'all' | EducationTier =
-              tierLabel === 'Semua' ? 'all' : tierLabel;
-            const active = jenjangFilter === targetValue;
-            return (
-              <button
-                key={tierLabel}
-                type="button"
-                onClick={() => {
-                  labSound.playClick();
-                  setJenjangFilter(targetValue);
-                  if (targetValue !== 'all') {
-                    onTierChange(targetValue);
-                  }
-                }}
-                className={`relative px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                  active
-                    ? 'text-white'
-                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
-                }`}
-              >
-                {active && (
-                  <motion.span
-                    layoutId="lobby-tier-active-pill"
-                    transition={SPRING_LAYOUT_PILL}
-                    className="absolute inset-0 rounded-lg bg-sky-600 shadow-xs"
-                  />
-                )}
-                <span className="relative z-10">{tierLabel}</span>
-              </button>
-            );
-          })}
+          {/* View Mode Segmented Control */}
+          <div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar">
+            {(
+              [
+                { id: 'chapters', label: 'Bab Kurikulum', Icon: BookOpen },
+                { id: 'all', label: 'Semua Modul', Icon: Layers },
+              ] as const
+            ).map(({ id, label, Icon }) => {
+              const active = lobbyViewMode === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setLobbyViewMode(id);
+                  }}
+                  className={`relative px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap flex-1 sm:flex-initial justify-center ${
+                    active
+                      ? 'text-white'
+                      : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                  }`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="lobby-view-mode-pill"
+                      transition={SPRING_LAYOUT_PILL}
+                      className="absolute inset-0 rounded-lg bg-sky-600"
+                    />
+                  )}
+                  <Icon className="w-3.5 h-3.5 relative z-10" aria-hidden="true" />
+                  <span className="relative z-10">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <span className="hidden lg:block w-px h-4 bg-[var(--comfort-border)] shrink-0" aria-hidden="true" />
+
+          {/* Domain Filter Tabs */}
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+            {[
+              { id: 'all', label: 'Semua' },
+              { id: 'fisika', label: 'Fisika' },
+              { id: 'kimia', label: 'Kimia' },
+              { id: 'biologi', label: 'Biologi' },
+              { id: 'astronomi', label: 'Astronomi' },
+            ].map((tab) => {
+              const isSelected = lobbySelectedDomain === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setLobbySelectedDomain(tab.id as ScienceDomain | 'all');
+                  }}
+                  className={`relative px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    isSelected
+                      ? 'text-sky-700 dark:text-sky-300'
+                      : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                  }`}
+                >
+                  {isSelected && (
+                    <motion.span
+                      layoutId="lobby-domain-active-pill"
+                      transition={SPRING_LAYOUT_PILL}
+                      className="absolute inset-0 rounded-lg bg-sky-500/12 border border-sky-500/30"
+                    />
+                  )}
+                  <span className="relative z-10">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <span className="hidden lg:block w-px h-4 bg-[var(--comfort-border)] shrink-0" aria-hidden="true" />
+
+          {/* Jenjang Selector */}
+          <div
+            role="group"
+            aria-label="Filter Jenjang Pendidikan"
+            className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar"
+          >
+            {(['Semua', 'SMP', 'SMA', 'Mahasiswa'] as const).map((tierLabel) => {
+              const targetValue: 'all' | EducationTier =
+                tierLabel === 'Semua' ? 'all' : tierLabel;
+              const active = jenjangFilter === targetValue;
+              return (
+                <button
+                  key={tierLabel}
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setJenjangFilter(targetValue);
+                    if (targetValue !== 'all') {
+                      onTierChange(targetValue);
+                    }
+                  }}
+                  className={`relative px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    active
+                      ? 'text-sky-700 dark:text-sky-300'
+                      : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                  }`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="lobby-tier-active-pill"
+                      transition={SPRING_LAYOUT_PILL}
+                      className="absolute inset-0 rounded-lg bg-sky-500/12 border border-sky-500/30"
+                    />
+                  )}
+                  <span className="relative z-10">{tierLabel}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -529,9 +526,15 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
         <div className="space-y-5">
           {filteredChapters.length === 0 && filteredModules.length === 0 ? (
             <div className="p-10 text-center rounded-xl border border-dashed border-[var(--comfort-border)] bg-[var(--comfort-surface)] space-y-3">
-              <p className="text-sm font-semibold">
-                Tidak ada bab atau modul yang sesuai dengan filter saat ini.
-              </p>
+              <SearchX className="w-8 h-8 text-[var(--comfort-text-muted)] mx-auto" aria-hidden="true" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-[var(--comfort-text)]">
+                  Tidak ada bab atau modul yang sesuai dengan filter saat ini.
+                </p>
+                <p className="text-xs text-[var(--comfort-text-muted)]">
+                  Ubah kata kunci pencarian atau pilih domain sains lainnya di atas.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -581,9 +584,15 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
         </div>
       ) : filteredModules.length === 0 ? (
         <div className="p-10 text-center rounded-xl border border-dashed border-[var(--comfort-border)] bg-[var(--comfort-surface)] space-y-3">
-          <p className="text-sm font-semibold">
-            Tidak ada modul eksperimen yang sesuai dengan pencarian atau filter Anda.
-          </p>
+          <SearchX className="w-8 h-8 text-[var(--comfort-text-muted)] mx-auto" aria-hidden="true" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-[var(--comfort-text)]">
+              Tidak ada modul eksperimen yang sesuai dengan pencarian atau filter Anda.
+            </p>
+            <p className="text-xs text-[var(--comfort-text-muted)]">
+              Coba hapus kata kunci atau tampilkan seluruh bidang sains.
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => {

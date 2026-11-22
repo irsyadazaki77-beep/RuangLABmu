@@ -1,6 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { Maximize2, Minimize2, Link2 } from 'lucide-react';
 import { smoothCameraDamp, type CameraSyncPose } from '../utils/threeStudioKit';
 import { initThreeStudioHost, startStudioRenderLoop } from '../utils/threeStudioHost';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
@@ -29,11 +28,17 @@ import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../stores/useUIStore';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import {
-  ConceptLabelToggleButton,
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from './ui/ConceptLabelsOverlay';
 import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
+import { Scene3DControlDock } from './ui/Scene3DControlDock';
+import { Scene3DInspectorCard } from './ui/Scene3DInspectorCard';
+import {
+  getAdaptiveCameraPose,
+  resolveApparatusInspection,
+  type ApparatusInspectionInfo,
+} from '../utils/studio3DCatalog';
 import { useThreeStudioScene } from './scenes/useThreeStudioScene';
 
 interface AstronomyScene3DProps {
@@ -152,6 +157,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     onCaptureSnapshot,
   };
 
+  const [inspectedPart, setInspectedPart] = useState<ApparatusInspectionInfo | null>(null);
   const snapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -162,6 +168,10 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    setInspectedPart(null);
+  }, [params.mode]);
 
   useEffect(() => {
     cameraCtrlRef.current?.applyLiteMode?.(liteDeviceMode);
@@ -175,19 +185,25 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     const height = container.clientHeight || 380;
     const initialColors = getSceneThemeColors(activeComfortTheme, 'Astronomi');
 
+    const initialPose = getAdaptiveCameraPose(
+      'astronomy',
+      normalizeAstronomyMode(latestRef.current.params.mode),
+      'isometric'
+    );
     let camTransitionActive = false;
     const host = initThreeStudioHost({
       container,
       fallbackSize: { width: 760, height: 380 },
-      backgroundHex: 0x0b0f17,
+      backgroundHex: initialColors.backgroundHex,
       fogDensity: 0.008,
       camera: {
         fov: 45,
         near: 0.1,
         far: 400,
-        position: [0, 9.5, 14.5],
+        position: initialPose.pos,
       },
       controls: {
+        target: initialPose.target,
         autoRotateSpeed: 1.2,
         maxPolarAngle: Math.PI * 0.48,
         minDistance: 3.5,
@@ -203,8 +219,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
     const { scene, camera, renderer, controls, fpsMonitor, isSoftwareGl } = host;
 
-    const desiredCamPos = new THREE.Vector3(0, 9.5, 14.5);
-    const desiredTarget = new THREE.Vector3(0, 0, 0);
+    const desiredCamPos = new THREE.Vector3(...initialPose.pos);
+    const desiredTarget = new THREE.Vector3(...initialPose.target);
 
     cameraSyncHandleRef.current = {
       applyPose: (pose) => {
@@ -215,37 +231,9 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
     const applyCameraPreset = (presetName: CameraPreset) => {
       const canonical = normalizeAstronomyMode(latestRef.current.params.mode);
-      if (canonical === 'stellar-exoplanet') {
-        if (presetName === 'isometric') {
-          desiredCamPos.set(3.4, 3.2, 10.2);
-          desiredTarget.set(0, 0.2, 0);
-        } else if (presetName === 'ecliptic') {
-          desiredCamPos.set(0, 0.9, 10.6);
-          desiredTarget.set(0, 0.4, 0);
-        } else if (presetName === 'top') {
-          desiredCamPos.set(0, 13.0, 0.5);
-          desiredTarget.set(0, 0.5, 0);
-        } else {
-          desiredCamPos.set(0, 1.3, 8.8);
-          desiredTarget.set(0, 0.85, 0);
-        }
-        camTransitionActive = true;
-        return;
-      }
-
-      if (presetName === 'isometric') {
-        desiredCamPos.set(0, 9.5, 14.5);
-        desiredTarget.set(0, 0, 0);
-      } else if (presetName === 'ecliptic') {
-        desiredCamPos.set(0, 1.4, 15.8);
-        desiredTarget.set(0, 0, 0);
-      } else if (presetName === 'top') {
-        desiredCamPos.set(0, 19.5, 0.5);
-        desiredTarget.set(0, 0, 0);
-      } else {
-        desiredCamPos.set(2.5, 4.2, 8.6);
-        desiredTarget.set(0, 0, 0);
-      }
+      const pose = getAdaptiveCameraPose('astronomy', canonical, presetName);
+      desiredCamPos.set(...pose.pos);
+      desiredTarget.set(...pose.target);
       camTransitionActive = true;
     };
 
@@ -347,14 +335,14 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       captureCanvas: () => host.captureSnapshot(),
       applyTheme: (colors) => {
         if (scene.background instanceof THREE.Color) {
-          scene.background.setHex(0x0b0f17);
+          scene.background.setHex(colors.backgroundHex);
         } else {
-          scene.background = new THREE.Color(0x0b0f17);
+          scene.background = new THREE.Color(colors.backgroundHex);
         }
-        scene.fog = new THREE.FogExp2(0x0b0f17, 0.008);
+        scene.fog = new THREE.FogExp2(colors.fogHex, 0.008);
         ambientLight.color.setHex(colors.ambientSkyHex);
         ambientLight.groundColor.setHex(colors.ambientGroundHex);
-        ambientLight.intensity = Math.min(0.45, colors.ambientIntensity);
+        ambientLight.intensity = Math.min(0.6, colors.ambientIntensity);
       },
       applyLiteMode: (isLite) => {
         (Object.values(rigs) as AstronomyRigHandle[]).forEach((rig) => rig.onLiteChange?.(isLite || isSoftwareGl));
@@ -570,14 +558,19 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         ]}
         visible={showConceptLabels}
         onBindSlot={bindConceptSlot}
+        onSelectSlot={(slotId, labelText) => {
+          setInspectedPart(
+            resolveApparatusInspection('astronomy', normalizeAstronomyMode(params.mode), `${slotId} ${labelText}`)
+          );
+        }}
       />
 
       {/* Interactive Raycaster Drag Toast */}
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-24 lg:bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-sky-950/95 border border-sky-400/40 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-sky-200">
-          <span className="h-2 w-2 rounded-full bg-sky-400" />
+        <div className="pointer-events-none absolute bottom-[126px] lg:bottom-[92px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-sky-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
           <span>
-            Menyetel Astronomi 3D: {dragToast.label} = <b className="text-white">{dragToast.value}</b>
+            Menyetel Astronomi 3D: {dragToast.label} ={' '}
+            <b className="text-sky-700 dark:text-sky-300">{dragToast.value}</b>
           </span>
         </div>
       )}
@@ -587,8 +580,8 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         data-testid="astronomy-scale-badge"
         className={`pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-lg studio-hud-surface px-2.5 py-1 text-[10px] font-mono text-[var(--comfort-text-muted)] shadow-md max-w-[calc(100vw-24px)] ${
           isFullscreen
-            ? 'bottom-3 left-3'
-            : `bottom-28 lg:bottom-[104px] ${
+            ? 'bottom-16 left-3'
+            : `bottom-[118px] lg:bottom-[104px] ${
                 !zenMode && leftDrawerOpen && rightTelemetryOpen
                   ? 'left-3 lg:left-[336px] xl:left-[348px] lg:max-w-[calc(100%-700px)] xl:max-w-[calc(100%-732px)]'
                   : !zenMode && leftDrawerOpen
@@ -597,122 +590,59 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
               }`
         }`}
       >
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
         <span className="truncate">
           Skala Visual: Diameter benda langit diperbesar untuk keterbacaan orbit & transit · Drag objek 3D aktif
         </span>
       </div>
 
-      {/* Consolidated Top-Right Capsule Bar */}
-      <div
-        className={`pointer-events-auto absolute flex flex-wrap items-center justify-end gap-1 rounded-xl studio-hud-surface px-2 py-1 shadow-lg z-20 opacity-95 hover:opacity-100 transition-all max-w-[calc(100vw-24px)] ${
-          isFullscreen
-            ? 'top-3 right-3'
-            : `top-16 ${
-                !zenMode && rightTelemetryOpen && leftDrawerOpen
-                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-704px)] xl:max-w-[calc(100%-736px)]'
-                  : !zenMode && rightTelemetryOpen
-                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-368px)]'
-                  : !zenMode && leftDrawerOpen
-                  ? 'right-3 lg:max-w-[calc(100%-348px)]'
-                  : 'right-3'
-              }`
-        }`}
-      >
-        <button
-          type="button"
-          data-testid="snap-dock-apparatus-btn"
-          onClick={() => {
-            const { docked, transfer } = triggerDomainApparatusSnap('Astronomi');
-            if (docked) {
-              setDragToast({
-                label: `Port Docked (${docked.portType.toUpperCase()})`,
-                value: `Φ = ${(transfer?.opticalIntensityMw ?? 0).toFixed(1)} mW`,
-              });
-              if (snapToastTimerRef.current) clearTimeout(snapToastTimerRef.current);
-              snapToastTimerRef.current = setTimeout(() => {
-                snapToastTimerRef.current = null;
-                setDragToast(null);
-              }, 1800);
-            }
-          }}
-          title="Snap-to-Port: Sambung & Transfer Aparatus Teleskop 3D"
-          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-600 dark:text-emerald-300 hover:text-[var(--comfort-text)] hover:bg-emerald-500/10 flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-        >
-          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
-          <span className="hidden xl:inline">Snap</span>
-        </button>
+      <Scene3DInspectorCard
+        info={inspectedPart}
+        onClose={() => setInspectedPart(null)}
+      />
 
-        <button
-          type="button"
-          data-testid="enter-vr-lab-btn"
-          aria-label="Mode VR Spasial 3D"
-          onClick={() => {
-            labSound.playClick(700);
-            void toggleImmersiveVRSession();
-          }}
-          title="Mode VR Spasial 3D (WebXR Immersive-VR)"
-          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-        >
-          <span aria-hidden="true">🥽</span>
-        </button>
+      <Scene3DControlDock
+        accentTone="indigo"
+        activePreset={activePreset}
+        frontLabel="Depan"
+        onResetCamera={() => handleSelectCameraPreset('isometric')}
+        onSelectPreset={(preset) =>
+          handleSelectCameraPreset(preset === 'front' ? 'ecliptic' : preset)
+        }
+        isVRSupported={true}
+        onEnterVR={() => {
+          labSound.playClick(700);
+          void toggleImmersiveVRSession();
+        }}
+        onSnapApparatus={() => {
+          const { docked, transfer } = triggerDomainApparatusSnap('Astronomi');
+          if (docked) {
+            setDragToast({
+              label: `Port Docked (${docked.portType.toUpperCase()})`,
+              value: `Φ = ${(transfer?.opticalIntensityMw ?? 0).toFixed(1)} mW`,
+            });
+            if (snapToastTimerRef.current) clearTimeout(snapToastTimerRef.current);
+            snapToastTimerRef.current = setTimeout(() => {
+              snapToastTimerRef.current = null;
+              setDragToast(null);
+            }, 1800);
+          }
+        }}
+        onOpenInspector={() =>
+          setInspectedPart((prev) =>
+            prev
+              ? null
+              : resolveApparatusInspection(
+                  'astronomy',
+                  normalizeAstronomyMode(params.mode),
+                  hoveredPartLabel ?? undefined
+                )
+          )
+        }
+        inspectorActive={Boolean(inspectedPart)}
+        onToggleFullscreen={handleToggleFullscreen}
+        isFullscreen={isFullscreen}
+      />
 
-        <span className="mx-0.5 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
-
-        <div className="hidden md:flex items-center gap-0.5">
-          <button
-            type="button"
-            data-testid="camera-reset-btn"
-            aria-label="Reset View Kamera 3D"
-            onClick={() => handleSelectCameraPreset('isometric')}
-            title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 text-[11px] font-medium rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-          >
-            Reset
-          </button>
-          {(
-            [
-              { id: 'isometric', label: '3D' },
-              { id: 'ecliptic', label: 'Depan' },
-              { id: 'top', label: 'Atas' },
-              { id: 'focus', label: 'Fokus' },
-            ] as const
-          ).map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              title={`Sudut Kamera ${p.label}`}
-              aria-pressed={activePreset === p.id}
-              onClick={() => handleSelectCameraPreset(p.id)}
-              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
-                activePreset === p.id
-                  ? 'bg-sky-500 text-slate-950 font-bold'
-                  : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-          <span className="mx-1 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
-        </div>
-
-        <ConceptLabelToggleButton accentClass="bg-sky-500 text-slate-950 font-bold" />
-
-        <button
-          type="button"
-          onClick={handleToggleFullscreen}
-          aria-label={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
-          aria-pressed={isFullscreen}
-          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-sky-500/10 text-[11px] font-medium text-[var(--comfort-text)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
-        >
-          {isFullscreen ? (
-            <Minimize2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" aria-hidden="true" />
-          ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" aria-hidden="true" />
-          )}
-        </button>
-      </div>
       <Scene3DHoverBadge hoveredLabel={dragToast ? null : hoveredPartLabel} accent="violet" />
     </div>
   );

@@ -1,6 +1,9 @@
 import React from 'react';
 import { motion } from 'motion/react';
+import { useShallow } from 'zustand/react/shallow';
 import { SPRING_TACTILE } from '../../styles/motionPresets';
+import { useUIStore } from '../../stores/useUIStore';
+import { getComfortChartPalette } from '../ui/VisualComfortToolbar';
 
 export type TelemetryStatusSeverity = 'nominal' | 'warning' | 'critical';
 
@@ -29,32 +32,28 @@ export function resolveGaugeSeverity(
   return 'nominal';
 }
 
-const SEVERITY_STYLES: Record<
+const SEVERITY_META: Record<
   TelemetryStatusSeverity,
   {
-    stroke: string;
-    badgeBg: string;
-    badgeText: string;
+    symbol: string;
     statusText: string;
+    badgeBg: string;
   }
 > = {
   nominal: {
-    stroke: '#10b981', // emerald-500
-    badgeBg: 'bg-emerald-500/15 border-emerald-500/40',
-    badgeText: 'text-emerald-700 dark:text-emerald-400',
+    symbol: '●',
     statusText: 'NOMINAL',
+    badgeBg: 'bg-emerald-500/12 border-emerald-500/35',
   },
   warning: {
-    stroke: '#f59e0b', // amber-500
-    badgeBg: 'bg-amber-500/15 border-amber-500/40',
-    badgeText: 'text-amber-700 dark:text-amber-400',
+    symbol: '▲',
     statusText: 'PERINGATAN',
+    badgeBg: 'bg-amber-500/12 border-amber-500/35',
   },
   critical: {
-    stroke: '#f43f5e', // rose-500
-    badgeBg: 'bg-rose-500/15 border-rose-500/40',
-    badgeText: 'text-rose-700 dark:text-rose-400',
+    symbol: '◆',
     statusText: 'KRITIS',
+    badgeBg: 'bg-rose-500/12 border-rose-500/35',
   },
 };
 
@@ -69,61 +68,83 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({
   decimals = 2,
   subtitle,
 }) => {
+  const { theme, colorBlindSafe } = useUIStore(
+    useShallow((s) => ({
+      theme: s.comfortPrefs.theme,
+      colorBlindSafe: s.comfortPrefs.colorBlindSafe,
+    }))
+  );
+  const palette = getComfortChartPalette(theme, colorBlindSafe);
+
   const safeVal = Number.isFinite(value) ? value : min;
   const span = Math.max(1e-9, max - min);
   const normalized = Math.min(1, Math.max(0, (safeVal - min) / span));
 
   const severity = resolveGaugeSeverity(safeVal, max, warningThreshold, criticalThreshold);
-  const style = SEVERITY_STYLES[severity];
+  const meta = SEVERITY_META[severity];
+  const strokeColor =
+    severity === 'critical'
+      ? palette.critical
+      : severity === 'warning'
+      ? palette.warning
+      : palette.secondary;
 
-  // Semi-circular radial meter geometry (180 deg arc from -90 deg to +90 deg)
+  // Semi-circular radial meter geometry (180 deg arc from left 180° through top 270° to right 360°)
   const radius = 38;
   const circumference = Math.PI * radius;
   const strokeDashoffset = circumference * (1 - normalized);
-  const needleAngleDeg = -90 + normalized * 180;
+  const needleRad = Math.PI + normalized * Math.PI;
+  const needleLen = 30;
+  const needleTipX = 50 + Math.cos(needleRad) * needleLen;
+  const needleTipY = 48 + Math.sin(needleRad) * needleLen;
 
   return (
     <div
       data-testid="telemetry-svg-gauge"
       className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-3 flex flex-col justify-between gap-2 shadow-xs"
     >
-      <div className="flex items-start justify-between gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-1">
         <span
           title={label}
-          className="text-[10px] font-bold uppercase tracking-normal text-[var(--comfort-text-muted)] leading-tight line-clamp-2"
+          className="text-[10px] font-bold uppercase tracking-normal text-[var(--comfort-text-muted)] leading-tight"
         >
           {label}
         </span>
         <span
-          className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border shrink-0 ${style.badgeBg} ${style.badgeText}`}
+          style={{
+            color: strokeColor,
+            borderColor: colorBlindSafe ? strokeColor : undefined,
+          }}
+          className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border shrink-0 ${
+            colorBlindSafe ? 'bg-[var(--comfort-surface-subtle)]' : meta.badgeBg
+          }`}
         >
-          {style.statusText}
+          {colorBlindSafe ? `${meta.symbol} ${meta.statusText}` : meta.statusText}
         </span>
       </div>
 
-      {/* Crisp SVG Radial Arc + Animated Needle */}
+      {/* Crisp SVG Radial Arc + Exact Semicircular Needle */}
       <div className="relative flex items-center justify-center pt-1">
         <svg
-          viewBox="0 0 100 58"
-          className="w-full max-w-[132px] h-[68px] overflow-visible"
+          viewBox="0 0 100 56"
+          className="w-full max-w-[132px] h-[68px]"
           role="img"
-          aria-label={`Gauge ${label}: ${safeVal.toFixed(decimals)} ${unit} (${style.statusText})`}
+          aria-label={`Gauge ${label}: ${safeVal.toFixed(decimals)} ${unit} (${meta.statusText})`}
         >
           {/* Background Track Arc */}
           <path
             d="M 12 48 A 38 38 0 0 1 88 48"
             fill="none"
-            stroke="currentColor"
-            className="text-slate-300 dark:text-slate-800"
+            stroke={palette.gridStroke}
             strokeWidth="7"
             strokeLinecap="round"
           />
 
-          {/* Threshold Tick Marks */}
+          {/* Threshold Arc */}
           <path
             d="M 12 48 A 38 38 0 0 1 88 48"
             fill="none"
-            stroke={style.stroke}
+            stroke={strokeColor}
             strokeWidth="7"
             strokeLinecap="round"
             strokeDasharray={circumference}
@@ -131,24 +152,19 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({
             style={{ transition: 'stroke-dashoffset 180ms ease-out, stroke 200ms ease' }}
           />
 
-          {/* Animated Needle */}
-          <motion.g
+          {/* Animated Needle locked strictly to semicircle pivot (50, 48) */}
+          <motion.line
             initial={false}
-            animate={{ rotate: needleAngleDeg }}
+            animate={{ x2: needleTipX, y2: needleTipY }}
             transition={SPRING_TACTILE}
-            style={{ originX: '50px', originY: '48px', transformOrigin: '50px 48px' }}
-          >
-            <line
-              x1="50"
-              y1="48"
-              x2="50"
-              y2="16"
-              stroke={style.stroke}
-              strokeWidth="2.2"
-              strokeLinecap="round"
-            />
-            <circle cx="50" cy="48" r="3.5" fill={style.stroke} />
-          </motion.g>
+            x1="50"
+            y1="48"
+            stroke={strokeColor}
+            strokeWidth="2.4"
+            strokeLinecap="round"
+          />
+          <circle cx="50" cy="48" r="3.6" fill={strokeColor} />
+          <circle cx="50" cy="48" r="1.4" fill="var(--comfort-surface)" />
         </svg>
       </div>
 

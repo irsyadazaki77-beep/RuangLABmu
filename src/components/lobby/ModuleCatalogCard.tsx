@@ -37,13 +37,8 @@ export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
         labSound.playClick();
         onSelect(exp);
       }}
-      className="relative bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] hover:border-sky-500/60 hover:shadow-lg hover:-translate-y-0.5 rounded-2xl overflow-hidden transition-all duration-200 flex flex-col justify-between group cursor-pointer"
+      className="relative bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] hover:border-sky-500/50 hover:shadow-md rounded-xl overflow-hidden transition-all duration-200 flex flex-col justify-between group cursor-pointer"
     >
-      <div
-        className="h-0.5 w-full opacity-80"
-        style={{ backgroundColor: accentColor }}
-        aria-hidden="true"
-      />
       <div>
         <div className="relative h-[108px] w-full overflow-hidden border-b border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] lab-grid-bg flex items-center justify-center px-3">
           <ModuleSchematicIllustration
@@ -117,7 +112,7 @@ export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
             labSound.playClick();
             onSelect(exp);
           }}
-          className="px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition-colors cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+          className="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-sky-700 dark:text-sky-300 hover:bg-sky-500/10 group-hover:text-sky-600 dark:group-hover:text-sky-200 transition-colors cursor-pointer whitespace-nowrap shrink-0"
         >
           Mulai Praktikum →
         </button>
@@ -145,13 +140,8 @@ export const ChapterCatalogCard: React.FC<ChapterCatalogCardProps> = ({
         labSound.playClick();
         onOpenChapter(chapter);
       }}
-      className="relative rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] overflow-hidden flex flex-col justify-between hover:border-sky-500/60 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group"
+      className="relative rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] overflow-hidden flex flex-col justify-between hover:border-sky-500/50 hover:shadow-md transition-all duration-200 cursor-pointer group"
     >
-      <div
-        className="h-1 w-full opacity-85"
-        style={{ backgroundColor: domainColor }}
-        aria-hidden="true"
-      />
       <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
         <div className="space-y-2">
           {/* Clean unboxed typographic metadata */}
@@ -195,10 +185,10 @@ export const ChapterCatalogCard: React.FC<ChapterCatalogCardProps> = ({
               labSound.playClick();
               onOpenChapter(chapter);
             }}
-            className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shadow-2xs"
+            className="px-2.5 py-1 rounded-lg text-sky-700 dark:text-sky-300 hover:bg-sky-500/10 font-semibold text-xs inline-flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap"
           >
             <span>Buka Bab</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
           </button>
         </div>
       </div>

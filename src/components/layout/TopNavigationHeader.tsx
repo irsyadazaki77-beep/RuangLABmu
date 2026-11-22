@@ -23,6 +23,7 @@ import { useOfflineOutboxStatus } from '../../utils/offlineOutbox';
 import { ConnectivityPopover, ConnectivityMode } from './header/ConnectivityPopover';
 import { CollabRoomPopover } from './header/CollabRoomPopover';
 import { UserSettingsPopover } from './header/UserSettingsPopover';
+import { ModalLoadingFallback } from '../common/ModalLoadingFallback';
 
 const TeacherGradebookHub = React.lazy(() => import('../teacher/TeacherGradebookHub'));
 const StudentPortfolioModal = React.lazy(() => import('../portfolio/StudentPortfolioModal'));
@@ -279,24 +280,6 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     }, 2800);
   };
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const root = document.documentElement;
-    root.setAttribute('data-comfort-theme', comfortPrefs.theme);
-    root.setAttribute('data-font-scale', comfortPrefs.fontScale);
-    root.setAttribute('data-line-spacing', comfortPrefs.lineSpacing);
-    root.setAttribute('data-colorblind', comfortPrefs.colorBlindSafe ? 'true' : 'false');
-    if (comfortPrefs.theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-  }, [
-    comfortPrefs.theme,
-    comfortPrefs.fontScale,
-    comfortPrefs.lineSpacing,
-    comfortPrefs.colorBlindSafe,
-  ]);
 
   const handleThemeSwitch = (theme: ComfortThemeMode) => {
     labSound.playClick();
@@ -336,7 +319,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
               aria-label="Kembali ke RuangLABmu Lobby"
               className="flex items-center gap-2 shrink-0 cursor-pointer hover:opacity-85 transition-opacity rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 whitespace-nowrap"
             >
-              <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-sky-500 to-sky-700 shadow-xs flex items-center justify-center shrink-0">
+              <span className="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center shrink-0">
                 <Atom className="w-4 h-4 text-white" aria-hidden="true" />
               </span>
               <span className="font-bold text-sm sm:text-base tracking-tight whitespace-nowrap">
@@ -496,7 +479,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
       )}
 
       {isGradebookOpen && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<ModalLoadingFallback label="Membuka Buku Nilai Guru..." />}>
           <TeacherGradebookHub
             isOpen={isGradebookOpen}
             onClose={() => {
@@ -509,7 +492,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
       )}
 
       {activeModal === 'portfolio' && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<ModalLoadingFallback label="Membuka Portofolio Siswa..." />}>
           <StudentPortfolioModal
             isOpen={activeModal === 'portfolio'}
             onClose={closeModal}
@@ -545,7 +528,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         <div
           role="status"
           data-testid="lite-mode-notification-toast"
-          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-amber-500 text-slate-950 font-semibold text-xs shadow-lg flex items-center gap-2 border border-amber-400 cursor-pointer"
+          className="fixed bottom-[120px] lg:bottom-[106px] left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-amber-500 text-slate-950 font-semibold text-xs shadow-lg flex items-center gap-2 border border-amber-400 cursor-pointer max-w-[calc(100vw-24px)]"
           onClick={() => setLiteModeNotification(null)}
         >
           <Zap className="w-4 h-4 fill-slate-950 shrink-0" />

@@ -1,7 +1,5 @@
 import React, { useEffect } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
 import { CheckCircle2, Clock, X } from 'lucide-react';
-import { MODAL_POPOVER_VARIANTS } from '../../styles/motionPresets';
 import { CurriculumChapter } from '../../registry/curriculumChapters';
 import { ExperimentModule } from '../../registry/experimentRegistry';
 import { labSound } from '../../utils/soundEngine';
@@ -30,25 +28,21 @@ export const ChapterDetailModal: React.FC<ChapterDetailModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [chapter, onClose]);
 
+  if (!chapter) return null;
+
   return (
-    <AnimatePresence>
-      {chapter && (
-        <div
-          data-testid="chapter-detail-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Detail ${chapter.title}`}
-          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
-          onClick={onClose}
-        >
-          <motion.div
-            variants={MODAL_POPOVER_VARIANTS}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            onClick={(e) => e.stopPropagation()}
-            className="max-w-3xl w-full rounded-xl bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] shadow-2xl p-5 sm:p-6 space-y-5 max-h-[88vh] overflow-y-auto"
-          >
+    <div
+      data-testid="chapter-detail-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Detail ${chapter.title}`}
+      className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="max-w-3xl w-full rounded-xl bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] shadow-2xl p-5 sm:p-6 space-y-5 max-h-[88vh] overflow-y-auto"
+      >
             <div className="flex items-start justify-between gap-3 border-b border-[var(--comfort-border)] pb-3.5">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--comfort-text-muted)]">
@@ -153,9 +147,7 @@ export const ChapterDetailModal: React.FC<ChapterDetailModalProps> = ({
                 })}
               </div>
             </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+          </div>
+    </div>
   );
 };

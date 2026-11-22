@@ -242,7 +242,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleClose}
-            className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/55 backdrop-blur-sm"
           />
 
           {/* Palette Dialog Window */}
@@ -251,11 +251,11 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -10 }}
             transition={{ duration: 0.16, ease: 'easeOut' }}
-            className="relative w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[80vh] z-10"
+            className="relative w-full max-w-2xl rounded-2xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] shadow-2xl overflow-hidden flex flex-col max-h-[80vh] z-10"
           >
             {/* Search Input Bar */}
-            <div className="flex items-center px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 gap-3 bg-slate-50/50 dark:bg-slate-950/50">
-              <Search className="w-5 h-5 text-sky-500 shrink-0" />
+            <div className="flex items-center px-4 py-3.5 border-b border-[var(--comfort-border)] gap-3 bg-[var(--comfort-surface-subtle)]">
+              <Search className="w-5 h-5 text-sky-600 dark:text-sky-400 shrink-0" />
               <input
                 ref={inputRef}
                 type="text"
@@ -266,12 +266,13 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder="Ketik nama modul sains atau perintah (cth: 'Newton', 'Titrasi', 'Kepler', 'Cetak')..."
-                className="w-full text-sm bg-transparent text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none font-medium"
+                className="w-full text-sm bg-transparent text-[var(--comfort-text)] placeholder-[var(--comfort-text-muted)] focus:outline-none font-medium"
               />
               <button
                 type="button"
                 onClick={handleClose}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                aria-label="Tutup pencarian cepat"
+                className="p-1.5 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -279,10 +280,9 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
 
             {/* Content List */}
             <div className="flex-1 overflow-y-auto p-2 space-y-4 text-xs">
-              {/* Category 1: Lompat ke Modul */}
               {filteredModules.length > 0 && (
                 <div className="space-y-1">
-                  <div className="px-3 py-1 font-mono text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                  <div className="px-3 py-1 font-mono text-[10px] uppercase font-bold tracking-wider text-[var(--comfort-text-muted)]">
                     Lompat ke Modul Praktikum Sains
                   </div>
                   {filteredModules.map((m, idx) => {
@@ -297,8 +297,8 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                         onMouseEnter={() => setSelectedIndex(idx)}
                         className={`w-full text-left px-3 py-2.5 rounded-xl transition-all flex items-center justify-between gap-3 cursor-pointer ${
                           isSelected
-                            ? 'bg-sky-50 dark:bg-sky-950/60 border border-sky-300 dark:border-sky-800 text-sky-950 dark:text-sky-100'
-                            : 'hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300'
+                            ? 'bg-sky-500/12 border border-sky-500/40 text-[var(--comfort-text)]'
+                            : 'hover:bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] border border-transparent'
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -306,26 +306,26 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                             className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                               isSelected
                                 ? 'bg-sky-600 text-white'
-                                : 'bg-slate-100 dark:bg-slate-800 text-sky-600 dark:text-sky-400'
+                                : 'bg-[var(--comfort-surface-subtle)] text-sky-600 dark:text-sky-400'
                             }`}
                           >
                             <DomainIcon className="w-4 h-4" />
                           </span>
                           <div className="min-w-0">
-                            <div className="font-bold text-xs truncate text-slate-900 dark:text-white">
+                            <div className="font-bold text-xs truncate text-[var(--comfort-text)]">
                               {m.title}
                             </div>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            <div className="text-[11px] text-[var(--comfort-text-muted)] truncate">
                               {m.domain.toUpperCase()} · {m.subCategory}
                             </div>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
+                          <span className="font-mono text-[10px] text-[var(--comfort-text-muted)]">
                             {m.supportedTiers.join(', ')}
                           </span>
-                          {isSelected && <CornerDownLeft className="w-3.5 h-3.5 text-sky-500" />}
+                          {isSelected && <CornerDownLeft className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />}
                         </div>
                       </button>
                     );
@@ -333,10 +333,9 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                 </div>
               )}
 
-              {/* Category 2: Aksi Cepat & Navigasi */}
               {filteredActions.length > 0 && (
                 <div className="space-y-1">
-                  <div className="px-3 py-1 font-mono text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                  <div className="px-3 py-1 font-mono text-[10px] uppercase font-bold tracking-wider text-[var(--comfort-text-muted)]">
                     Aksi Cepat &amp; Tampilan
                   </div>
                   {filteredActions.map((a, aIdx) => {
@@ -352,8 +351,8 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                         onMouseEnter={() => setSelectedIndex(itemGlobalIdx)}
                         className={`w-full text-left px-3 py-2.5 rounded-xl transition-all flex items-center justify-between gap-3 cursor-pointer ${
                           isSelected
-                            ? 'bg-sky-50 dark:bg-sky-950/60 border border-sky-300 dark:border-sky-800 text-sky-950 dark:text-sky-100'
-                            : 'hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300'
+                            ? 'bg-sky-500/12 border border-sky-500/40 text-[var(--comfort-text)]'
+                            : 'hover:bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] border border-transparent'
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -361,22 +360,22 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                             className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                               isSelected
                                 ? 'bg-sky-600 text-white'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                                : 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)]'
                             }`}
                           >
                             <ActionIcon className="w-4 h-4" />
                           </span>
                           <div className="min-w-0">
-                            <div className="font-bold text-xs truncate text-slate-900 dark:text-white">
+                            <div className="font-bold text-xs truncate text-[var(--comfort-text)]">
                               {a.title}
                             </div>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            <div className="text-[11px] text-[var(--comfort-text-muted)] truncate">
                               {a.subtitle}
                             </div>
                           </div>
                         </div>
 
-                        {isSelected && <CornerDownLeft className="w-3.5 h-3.5 text-sky-500 shrink-0" />}
+                        {isSelected && <CornerDownLeft className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />}
                       </button>
                     );
                   })}
@@ -384,28 +383,28 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
               )}
 
               {filteredModules.length === 0 && filteredActions.length === 0 && (
-                <div className="py-12 text-center text-slate-400 space-y-1">
-                  <p className="font-bold">Tidak ada perintah atau modul yang cocok.</p>
-                  <p className="text-[11px] text-slate-500">Coba kata kunci lain seperti "Newton", "Titrasi", atau "LKS".</p>
+                <div className="py-12 text-center text-[var(--comfort-text-muted)] space-y-1">
+                  <p className="font-bold text-[var(--comfort-text)]">Tidak ada perintah atau modul yang cocok.</p>
+                  <p className="text-[11px]">Coba kata kunci lain seperti &ldquo;Newton&rdquo;, &ldquo;Titrasi&rdquo;, atau &ldquo;LKS&rdquo;.</p>
                 </div>
               )}
             </div>
 
             {/* Footer Shortcut Hints */}
-            <div className="px-4 py-2.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+            <div className="px-4 py-2.5 border-t border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[11px] text-[var(--comfort-text-muted)] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className="flex items-center gap-1 font-mono">
-                  <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">↑</kbd>
-                  <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">↓</kbd> Navigasi
+                  <kbd className="px-1.5 py-0.5 rounded bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] font-bold">↑</kbd>
+                  <kbd className="px-1.5 py-0.5 rounded bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] font-bold">↓</kbd> Navigasi
                 </span>
                 <span className="flex items-center gap-1 font-mono">
-                  <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">Enter</kbd> Pilih
+                  <kbd className="px-1.5 py-0.5 rounded bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] font-bold">Enter</kbd> Pilih
                 </span>
                 <span className="flex items-center gap-1 font-mono">
-                  <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">Esc</kbd> Tutup
+                  <kbd className="px-1.5 py-0.5 rounded bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] font-bold">Esc</kbd> Tutup
                 </span>
               </div>
-              <div className="font-mono text-[10px] text-sky-600 dark:text-sky-400 font-bold">
+              <div className="font-mono text-[10px] text-sky-700 dark:text-sky-400 font-bold">
                 Ctrl + K / ⌘K
               </div>
             </div>

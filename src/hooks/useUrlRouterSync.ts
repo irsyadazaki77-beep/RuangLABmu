@@ -23,13 +23,29 @@ export interface ParsedDeepLinkState {
 export function resolveStepFromParam(stepRaw: string | null | undefined): WorkflowStep {
   if (!stepRaw) return 2;
   const cleaned = stepRaw.toLowerCase().trim();
-  if (cleaned === '1' || cleaned === 'briefing' || cleaned === 'k3' || cleaned === 'prelab') {
+  if (
+    cleaned === '1' ||
+    cleaned === 'briefing' ||
+    cleaned === 'intro' ||
+    cleaned === 'materi' ||
+    cleaned === 'hipotesis' ||
+    cleaned === 'k3' ||
+    cleaned === 'prelab'
+  ) {
     return 1;
   }
   if (cleaned === '2' || cleaned === 'simulation' || cleaned === 'simulasi' || cleaned === '3d') {
     return 2;
   }
-  if (cleaned === '3' || cleaned === 'analysis' || cleaned === 'worksheet' || cleaned === 'lks' || cleaned === 'grafik') {
+  if (
+    cleaned === '3' ||
+    cleaned === 'analysis' ||
+    cleaned === 'analytics' ||
+    cleaned === 'analisis' ||
+    cleaned === 'worksheet' ||
+    cleaned === 'lks' ||
+    cleaned === 'grafik'
+  ) {
     return 3;
   }
   if (cleaned === '4' || cleaned === 'report' || cleaned === 'laporan') {

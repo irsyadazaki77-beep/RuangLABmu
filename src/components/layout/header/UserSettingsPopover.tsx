@@ -1,30 +1,30 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  BookOpen,
   GraduationCap,
   HelpCircle,
   Link2,
   MessageCircle,
   Monitor,
-  Moon,
   Printer,
   Search,
   SlidersHorizontal,
-  Sparkles,
-  Sun,
   Trophy,
   UserCircle2,
+  Wand2,
   Zap,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { MODAL_POPOVER_VARIANTS, SPRING_TACTILE } from '../../../styles/motionPresets';
-import { ComfortThemeMode, VisualComfortPreferences } from '../../ui/VisualComfortToolbar';
+import {
+  ComfortThemeMode,
+  VisualComfortPreferences,
+} from '../../ui/VisualComfortToolbar';
 import { labSound } from '../../../utils/soundEngine';
 import { GamificationProfile } from '../../../services/gamificationEngine';
 import { ExperimentModule } from '../../../registry/experimentRegistry';
 import { UserRole } from '../../../stores/useLabStore';
 import { ActiveModal, DrawerTab } from '../../../stores/useUIStore';
+import { EyeComfortSettingsSection } from './EyeComfortSettingsSection';
 
 export interface UserSettingsPopoverProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -64,7 +64,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
   setUserRole,
   activeProfile,
   gamificationProfile,
-  hasLowR2Alert,
+  hasLowR2Alert: _hasLowR2Alert,
   notificationsCount,
   drawerOpen,
   toggleDrawer,
@@ -83,8 +83,6 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
   openModal,
   setOnboardingTourOpen,
 }) => {
-  const { t } = useTranslation();
-
   return (
     <div ref={containerRef} className="relative">
       <motion.button
@@ -116,20 +114,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
         <span className="hidden sm:inline font-semibold">
           {userRole === 'pengajar' ? 'Guru' : activeProfile?.name?.split(' ')[0] || 'Siswa'}
         </span>
-        <span
-          className={`font-mono text-[11px] font-semibold tabular-nums ${
-            isOpen ? 'text-white/90' : 'text-[var(--comfort-text-muted)]'
-          }`}
-        >
-          Lv.{gamificationProfile.level}
-        </span>
-        <SlidersHorizontal className="w-3 h-3 opacity-70 shrink-0" />
-        {hasLowR2Alert && (
-          <span
-            className="w-2 h-2 rounded-full bg-amber-400 absolute -top-0.5 -right-0.5"
-            title="Deviasi Data Terdeteksi!"
-          />
-        )}
+        <SlidersHorizontal className="w-3 h-3 opacity-70 shrink-0" aria-hidden="true" />
       </motion.button>
 
       <AnimatePresence>
@@ -140,7 +125,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
             animate="visible"
             exit="exit"
             data-testid="settings-popover-menu"
-            className="absolute right-0 mt-2 w-80 rounded-xl bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] shadow-xl p-3.5 space-y-3 z-50 text-xs max-h-[82vh] overflow-y-auto"
+            className="absolute right-0 mt-2 w-80 sm:w-[376px] rounded-xl bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] shadow-xl p-3.5 space-y-3 z-50 text-xs max-h-[84vh] overflow-y-auto"
           >
             {/* Profile & Quick Actions */}
             <div className="space-y-2 pb-2.5 border-b border-[var(--comfort-border)]">
@@ -215,41 +200,16 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
               </div>
             </div>
 
-            {/* Theme Selector */}
-            <div className="space-y-1.5">
-              <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
-                Tema Tampilan
-              </span>
-              <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-                {(
-                  [
-                    { id: 'light' as ComfortThemeMode, label: t('nav.themeLight'), Icon: Sun },
-                    { id: 'sepia' as ComfortThemeMode, label: t('nav.themeSepia'), Icon: BookOpen },
-                    { id: 'dark' as ComfortThemeMode, label: t('nav.themeDark'), Icon: Moon },
-                  ] as const
-                ).map(({ id, label, Icon }) => {
-                  const active = comfortPrefs.theme === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => onThemeSwitch(id)}
-                      className={`py-1.5 px-1 rounded-md font-semibold flex items-center justify-center gap-1 cursor-pointer transition-colors ${
-                        active
-                          ? 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-xs'
-                          : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
-                      }`}
-                    >
-                      <Icon className="w-3 h-3 text-amber-500 dark:text-sky-400 shrink-0" />
-                      <span>{label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {/* Eye-Comfort Studio Section + Live Mini Reading & Chart Preview */}
+            <EyeComfortSettingsSection
+              comfortPrefs={comfortPrefs}
+              projectorMode={projectorMode}
+              onThemeSwitch={onThemeSwitch}
+              onClosePopover={onClose}
+            />
 
             {/* Language & Role */}
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--comfort-border)]">
+            <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
                   Bahasa
@@ -445,7 +405,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                 }}
                 className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-indigo-700 dark:text-indigo-300 text-xs font-medium cursor-pointer transition-colors"
               >
-                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                <Wand2 className="w-3.5 h-3.5 shrink-0" />
                 <span>Buat Misi Praktikum AI (Guru)</span>
               </button>
             </div>

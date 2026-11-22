@@ -7,7 +7,7 @@ import {
 import { createMeasurementRuler3D } from '../utils/threeMeasurementTools';
 import { initThreeStudioHost, startStudioRenderLoop } from '../utils/threeStudioHost';
 import { ThreeInteractionManager } from '../utils/threeInteractionHelper';
-import { Maximize2, Minimize2, Focus, Link2, Ruler } from 'lucide-react';
+import { Focus, Ruler } from 'lucide-react';
 import { SpatialCursorPayload } from '../utils/collabProtocol';
 import { SpatialCursorManager, attachTeacherCollabBridge } from '../utils/spatialCursorGroup';
 import { labSound } from '../utils/soundEngine';
@@ -17,11 +17,17 @@ import { ComfortThemeMode, getSceneThemeColors } from './ui/VisualComfortToolbar
 import { AnatomySubScene3D, AnatomyModuleId } from './scenes/AnatomySubScene3D';
 import { buildBiologyCoreStage, CoreBiologyStageMode } from './scenes/biologyCoreStage';
 import {
-  ConceptLabelToggleButton,
   ConceptLabelsLayer,
   updateProjectedConceptLabels,
 } from './ui/ConceptLabelsOverlay';
 import { Scene3DHoverBadge } from './ui/Scene3DHoverBadge';
+import { Scene3DControlDock } from './ui/Scene3DControlDock';
+import { Scene3DInspectorCard } from './ui/Scene3DInspectorCard';
+import {
+  getAdaptiveCameraPose,
+  resolveApparatusInspection,
+  type ApparatusInspectionInfo,
+} from '../utils/studio3DCatalog';
 import { useThreeStudioScene } from './scenes/useThreeStudioScene';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../stores/useUIStore';
@@ -108,20 +114,20 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
   const externalSimTimeRef = useRef(simTimeRef);
   externalSimTimeRef.current = simTimeRef;
 
-  const { leftDrawerOpen, rightTelemetryOpen, zenMode } = useUIStore(
+  const { leftDrawerOpen, zenMode } = useUIStore(
     useShallow((s) => ({
       leftDrawerOpen: s.leftDrawerOpen,
-      rightTelemetryOpen: s.rightTelemetryOpen,
       zenMode: s.zenMode,
     }))
   );
 
-  const [clickedBadge, setClickedBadge] = useState<string | null>(null);
+  const [inspectedPart, setInspectedPart] = useState<ApparatusInspectionInfo | null>(null);
   const [snapToast, setSnapToast] = useState<string | null>(null);
   const [showRuler3D, setShowRuler3D] = useState<boolean>(false);
   const showRuler3DRef = useRef<boolean>(false);
   showRuler3DRef.current = showRuler3D;
   const [rulerReadout, setRulerReadout] = useState<string | null>(null);
+  const [showFocusLens, setShowFocusLens] = useState<boolean>(false);
   const [lensFocus, setLensFocus] = useState<number>(75);
   const lensFocusRef = useRef<number>(75);
   lensFocusRef.current = lensFocus;
@@ -137,6 +143,10 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    setInspectedPart(null);
+  }, [mode]);
 
   useEffect(() => {
     syncConceptLabelsRef.current?.();
@@ -156,21 +166,22 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     const height = container.clientHeight || 450;
     const initialColors = getSceneThemeColors(activeComfortTheme, 'Biologi');
 
+    const initialPose = getAdaptiveCameraPose('biology', mode, 'isometric');
     let camTransitionActive = false;
     const host = initThreeStudioHost({
       container,
       fallbackSize: { width: 600, height: 450 },
-      backgroundHex: 0x0b0f17,
+      backgroundHex: initialColors.backgroundHex,
       fogDensity: 0.02,
       camera: {
         fov: 45,
         near: 0.1,
         far: 100,
-        position: [2.8, 3.8, 7.2],
-        lookAt: [0, 1.2, 0],
+        position: initialPose.pos,
+        lookAt: initialPose.target,
       },
       controls: {
-        target: [0, 1.3, 0],
+        target: initialPose.target,
         maxPolarAngle: Math.PI * 0.48,
         minDistance: 2.0,
         maxDistance: 18,
@@ -186,9 +197,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
 
     const { scene, camera, renderer, controls, fpsMonitor, isSoftwareGl } = host;
 
-    const baseCamPos = new THREE.Vector3(2.8, 3.8, 7.2);
-    const desiredCamPos = new THREE.Vector3(2.8, 3.8, 7.2);
-    const desiredTarget = new THREE.Vector3(0, 1.3, 0);
+    const baseCamPos = new THREE.Vector3(...initialPose.pos);
+    const desiredCamPos = new THREE.Vector3(...initialPose.pos);
+    const desiredTarget = new THREE.Vector3(...initialPose.target);
 
     cameraSyncHandleRef.current = {
       applyPose: (pose) => {
@@ -198,19 +209,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     };
 
     const applyCameraPreset = (preset: BioCameraPreset) => {
-      if (preset === 'isometric') {
-        baseCamPos.set(2.8, 3.8, 7.2);
-        desiredTarget.set(0, 1.3, 0);
-      } else if (preset === 'front') {
-        baseCamPos.set(0, 2.0, 7.8);
-        desiredTarget.set(0, 1.4, 0);
-      } else if (preset === 'top') {
-        baseCamPos.set(0, 10.5, 0.5);
-        desiredTarget.set(0, 0, 0);
-      } else {
-        baseCamPos.set(1.2, 2.1, 4.2);
-        desiredTarget.set(0, 1.3, 0);
-      }
+      const pose = getAdaptiveCameraPose('biology', mode, preset);
+      baseCamPos.set(...pose.pos);
+      desiredTarget.set(...pose.target);
       desiredCamPos.copy(baseCamPos);
       camTransitionActive = true;
     };
@@ -287,7 +288,6 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     };
 
     let dragToastTimer: ReturnType<typeof setTimeout> | null = null;
-    let clickedBadgeTimer: ReturnType<typeof setTimeout> | null = null;
     const cachedRulerHandles = rulerHandle.getInteractiveHandles();
     const interactiveScratch: THREE.Object3D[] = [];
 
@@ -347,11 +347,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         dragToastTimer = setTimeout(() => setDragToast(null), 1600);
       },
       onClick: (obj) => {
-        const name = obj.name || 'Organel Sel Tumbuhan';
-        setClickedBadge(name);
+        const name = obj.userData?.label || obj.name || 'Spesimen Biologi 3D';
+        setInspectedPart(resolveApparatusInspection('biology', mode, name));
         labSound.playClick(680);
-        if (clickedBadgeTimer) clearTimeout(clickedBadgeTimer);
-        clickedBadgeTimer = setTimeout(() => setClickedBadge(null), 3500);
       },
       onCursorMove3D: (pos, normal, hoveredName) => {
         if (onEmitCursorRef.current) {
@@ -452,7 +450,6 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
     return () => {
       loopHandle.stop();
       if (dragToastTimer) clearTimeout(dragToastTimer);
-      if (clickedBadgeTimer) clearTimeout(clickedBadgeTimer);
       interactionManager.dispose();
       rulerHandle.dispose();
       coreStage.dispose();
@@ -513,6 +510,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         ]}
         visible={showConceptLabels}
         onBindSlot={bindConceptSlot}
+        onSelectSlot={(slotId, labelText) => {
+          setInspectedPart(resolveApparatusInspection('biology', mode, `${slotId} ${labelText}`));
+        }}
       />
 
       {activePreset === 'focus' && (
@@ -596,209 +596,140 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
 
       {showRuler3D && (
         <div
-          className={`pointer-events-none absolute flex items-center gap-2 rounded-xl bg-slate-950/92 border border-emerald-400/40 px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
+          className={`pointer-events-none absolute flex items-center gap-2 rounded-xl studio-hud-surface border px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
             isFullscreen
-              ? 'bottom-4 left-4'
-              : `bottom-24 lg:bottom-20 ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
+              ? 'bottom-16 left-4'
+              : `bottom-[118px] lg:bottom-[104px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
           }`}
         >
-          <Ruler className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="text-slate-400">Mistar 3D:</span>
-          <span className="font-bold text-emerald-300">{rulerReadout ?? '23.00 ± 0.05 cm'}</span>
+          <Ruler className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+          <span className="text-[var(--comfort-hud-muted)]">Mistar 3D:</span>
+          <span className="font-bold text-emerald-700 dark:text-emerald-300">
+            {rulerReadout ?? '23.00 ± 0.05 cm'}
+          </span>
         </div>
       )}
 
       {dragToast && (
-        <div className="pointer-events-none absolute top-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-slate-950/92 border border-emerald-400/50 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-emerald-200">
-          <span className="h-2 w-2 rounded-full bg-emerald-400" />
-          <span className="text-slate-300">{dragToast.label}:</span>
-          <span className="font-bold text-emerald-300">{dragToast.value}</span>
+        <div className="pointer-events-none absolute bottom-[118px] lg:bottom-[104px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-emerald-500/45 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
+          <span className="text-[var(--comfort-hud-muted)]">{dragToast.label}:</span>
+          <span className="font-bold text-emerald-700 dark:text-emerald-300">{dragToast.value}</span>
         </div>
       )}
 
       {snapToast && (
-        <div className="pointer-events-none absolute bottom-24 lg:bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-emerald-950/95 border border-emerald-400/50 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-emerald-200">
-          <span className="h-2 w-2 rounded-full bg-emerald-400" />
+        <div className="pointer-events-none absolute bottom-[118px] lg:bottom-[104px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-emerald-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
           <span>{snapToast}</span>
         </div>
       )}
 
-      <div
-        className={`pointer-events-auto absolute flex flex-wrap items-center justify-end gap-1 rounded-xl studio-hud-surface px-2 py-1 shadow-lg z-20 opacity-95 hover:opacity-100 transition-all max-w-[calc(100vw-24px)] ${
-          isFullscreen
-            ? 'top-3 right-3'
-            : `top-16 ${
-                !zenMode && rightTelemetryOpen && leftDrawerOpen
-                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-704px)] xl:max-w-[calc(100%-736px)]'
-                  : !zenMode && rightTelemetryOpen
-                  ? 'right-3 lg:right-[352px] xl:right-[364px] lg:max-w-[calc(100%-368px)]'
-                  : !zenMode && leftDrawerOpen
-                  ? 'right-3 lg:max-w-[calc(100%-348px)]'
-                  : 'right-3'
-              }`
-        }`}
-      >
-        <button
-          type="button"
-          data-testid="toggle-3d-ruler-btn"
-          aria-pressed={showRuler3D}
-          onClick={() => {
-            labSound.playClick(700);
-            setShowRuler3D((prev) => !prev);
-          }}
-          title="Tampilkan / Sembunyikan Mistar Kaliper 3D di Meja Spesimen"
-          className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
-            showRuler3D
-              ? 'bg-emerald-500 text-slate-950 font-bold'
-              : 'text-emerald-600 dark:text-emerald-300 hover:text-[var(--comfort-text)] hover:bg-emerald-500/10'
-          }`}
-        >
-          <Ruler className="w-3.5 h-3.5" aria-hidden="true" />
-          <span className="hidden xl:inline">Ukur 3D</span>
-        </button>
-
-        <button
-          type="button"
-          data-testid="snap-dock-apparatus-btn"
-          onClick={() => {
-            const { docked, transfer } = triggerDomainApparatusSnap('Biologi');
-            if (docked) {
-              setSnapToast(
-                `Port Docked (${docked.portType.toUpperCase()}): Φ = ${(transfer?.opticalIntensityMw ?? 0).toFixed(1)} mW`
-              );
-              if (snapToastTimerRef.current) clearTimeout(snapToastTimerRef.current);
-              snapToastTimerRef.current = setTimeout(() => {
-                snapToastTimerRef.current = null;
-                setSnapToast(null);
-              }, 2000);
-            }
-          }}
-          title="Snap-to-Port: Sambung & Transfer Spesimen Biologi 3D"
-          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-600 dark:text-emerald-300 hover:text-[var(--comfort-text)] hover:bg-emerald-500/10 flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-        >
-          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
-          <span className="hidden xl:inline">Snap</span>
-        </button>
-
-        <button
-          type="button"
-          data-testid="enter-vr-lab-btn"
-          aria-label="Mode VR Spasial 3D"
-          onClick={() => {
-            labSound.playClick(700);
-            void toggleImmersiveVRSession();
-          }}
-          title="Mode VR Spasial 3D (WebXR Immersive-VR)"
-          className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-emerald-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-        >
-          <span aria-hidden="true">🥽</span>
-        </button>
-
-        <span className="mx-0.5 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
-
-        <div className="hidden md:flex items-center gap-0.5">
-          <button
-            type="button"
-            data-testid="camera-reset-btn"
-            aria-label="Reset View Kamera 3D"
-            onClick={() => {
-              labSound.playClick();
-              setActivePreset('isometric');
-              cameraCtrlRef.current?.setPreset('isometric');
-            }}
-            title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 text-[11px] font-medium rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-emerald-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-          >
-            Reset
-          </button>
-          {(
-            [
-              { id: 'isometric', label: '3D' },
-              { id: 'front', label: 'Depan' },
-              { id: 'top', label: 'Atas' },
-              { id: 'focus', label: 'Fokus' },
-            ] as const
-          ).map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              title={`Sudut Kamera ${preset.label}`}
-              aria-pressed={activePreset === preset.id}
-              onClick={() => {
-                labSound.playClick();
-                setActivePreset(preset.id);
-                cameraCtrlRef.current?.setPreset(preset.id);
-              }}
-              className={`px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
-                activePreset === preset.id
-                  ? 'bg-emerald-500 text-slate-950 font-bold'
-                  : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-emerald-500/10'
-              }`}
-            >
-              {preset.label}
-            </button>
-          ))}
-          <span className="mx-1 h-3.5 w-px bg-[var(--comfort-border)]" aria-hidden="true" />
-        </div>
-
-        <ConceptLabelToggleButton accentClass="bg-emerald-500 text-slate-950 font-bold" />
-
-        <button
-          type="button"
-          onClick={handleToggleFullscreen}
-          aria-label={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
-          aria-pressed={isFullscreen}
-          className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-emerald-500/10 text-[11px] font-medium text-[var(--comfort-text)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-          title={isFullscreen ? 'Keluar dari Mode Layar Penuh 3D' : 'Mode Layar Penuh 3D'}
-        >
-          {isFullscreen ? (
-            <Minimize2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-          ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-          )}
-        </button>
-      </div>
-
-      <div
-        className={`pointer-events-auto absolute w-56 sm:w-64 rounded-xl studio-hud-surface p-1.5 shadow-lg z-20 ${
-          isFullscreen
-            ? 'top-3 left-3'
-            : `top-[146px] xl:top-[110px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
-        }`}
-      >
-        <div className="flex items-center gap-1.5 px-1 pb-0.5 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold">
-          <Focus className="w-3 h-3 shrink-0" />
-          <span>Fokus Lensa Mikroskop</span>
-        </div>
-        <PrecisionSlider
-          compact
-          accentColor="emerald"
-          label="Fokus Lensa"
-          min={0}
-          max={100}
-          step={1}
-          unit="%"
-          defaultValue={75}
-          value={lensFocus}
-          onChange={(nextFocus) => {
-            setLensFocus(nextFocus);
-            cameraCtrlRef.current?.setPreset(activePreset);
-          }}
-        />
-      </div>
-
-      {clickedBadge && (
+      {showFocusLens && (
         <div
-          className={`absolute z-30 px-3 py-1 rounded-xl bg-emerald-950/92 border border-emerald-500/40 text-emerald-200 text-xs font-medium shadow-lg flex items-center gap-2 pointer-events-none ${
+          className={`pointer-events-auto absolute w-52 sm:w-56 rounded-xl studio-hud-surface p-2 shadow-xl z-20 ${
             isFullscreen
-              ? 'top-20 left-3'
-              : `top-[204px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
+              ? 'bottom-16 left-4'
+              : `${showRuler3D ? 'bottom-[162px] lg:bottom-[148px]' : 'bottom-[118px] lg:bottom-[104px]'} ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
           }`}
         >
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          <span>{clickedBadge}</span>
+          <div className="flex items-center justify-between gap-1.5 px-1 pb-0.5 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold">
+            <span className="flex items-center gap-1.5">
+              <Focus className="w-3 h-3 shrink-0" />
+              <span>Fokus Lensa Mikroskop</span>
+            </span>
+          </div>
+          <PrecisionSlider
+            compact
+            accentColor="emerald"
+            label="Fokus Lensa"
+            min={0}
+            max={100}
+            step={1}
+            unit="%"
+            defaultValue={75}
+            value={lensFocus}
+            onChange={(nextFocus) => {
+              setLensFocus(nextFocus);
+              cameraCtrlRef.current?.setPreset(activePreset);
+            }}
+          />
         </div>
       )}
+
+      <Scene3DInspectorCard
+        info={inspectedPart}
+        onClose={() => setInspectedPart(null)}
+      />
+
+      <Scene3DControlDock
+        accentTone="emerald"
+        activePreset={activePreset}
+        onResetCamera={() => {
+          setActivePreset('isometric');
+          setShowFocusLens(false);
+          setLensFocus(75);
+          cameraCtrlRef.current?.setPreset('isometric');
+        }}
+        onSelectPreset={(preset) => {
+          setActivePreset(preset);
+          if (preset === 'focus') {
+            setShowFocusLens(true);
+          }
+          cameraCtrlRef.current?.setPreset(preset);
+        }}
+        isVRSupported={true}
+        onEnterVR={() => {
+          labSound.playClick(700);
+          void toggleImmersiveVRSession();
+        }}
+        onSnapApparatus={() => {
+          const { docked, transfer } = triggerDomainApparatusSnap('Biologi');
+          if (docked) {
+            setSnapToast(
+              `Port Docked (${docked.portType.toUpperCase()}): Φ = ${(transfer?.opticalIntensityMw ?? 0).toFixed(1)} mW`
+            );
+            if (snapToastTimerRef.current) clearTimeout(snapToastTimerRef.current);
+            snapToastTimerRef.current = setTimeout(() => {
+              snapToastTimerRef.current = null;
+              setSnapToast(null);
+            }, 2000);
+          }
+        }}
+        tools={[
+          {
+            id: 'focus-lens',
+            testId: 'toggle-focus-lens-btn',
+            label: 'Lensa',
+            title: 'Buka / Tutup Pengatur Fokus Lensa Mikroskop',
+            active: showFocusLens,
+            icon: <Focus className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />,
+            onClick: () => {
+              labSound.playClick(700);
+              setShowFocusLens((prev) => !prev);
+            },
+          },
+          {
+            id: 'ruler-3d',
+            testId: 'toggle-3d-ruler-btn',
+            label: 'Ukur',
+            title: 'Tampilkan / Sembunyikan Mistar Kaliper 3D di Meja Spesimen',
+            active: showRuler3D,
+            icon: <Ruler className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />,
+            onClick: () => {
+              labSound.playClick(700);
+              setShowRuler3D((prev) => !prev);
+            },
+          },
+        ]}
+        onOpenInspector={() =>
+          setInspectedPart((prev) =>
+            prev ? null : resolveApparatusInspection('biology', mode, hoveredPartLabel ?? undefined)
+          )
+        }
+        inspectorActive={Boolean(inspectedPart)}
+        onToggleFullscreen={handleToggleFullscreen}
+        isFullscreen={isFullscreen}
+      />
+
       <Scene3DHoverBadge hoveredLabel={dragToast ? null : hoveredPartLabel} accent="emerald" />
     </div>
   );

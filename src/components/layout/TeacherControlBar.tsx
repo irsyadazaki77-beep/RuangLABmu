@@ -4,7 +4,7 @@ import {
   FlaskConical,
   LayoutDashboard,
   Lock,
-  Sparkles,
+  Wand2,
   Unlock,
   Users,
   Video,
@@ -61,9 +61,9 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
   onToggleTeacherFreeze,
 }) => {
   return (
-    <div className="shrink-0 bg-slate-900 border-b border-slate-800 px-4 py-2 flex flex-wrap items-center justify-between gap-3 z-30 text-slate-100">
+    <div className="shrink-0 bg-[var(--comfort-surface)] border-b border-[var(--comfort-border)] px-4 py-2 flex flex-wrap items-center justify-between gap-3 z-30 text-[var(--comfort-text)]">
       <div className="flex flex-wrap items-center gap-3 text-xs">
-        <span className="inline-flex items-center gap-1.5 font-mono font-semibold text-amber-300 tabular-nums">
+        <span className="inline-flex items-center gap-1.5 font-mono font-semibold text-amber-700 dark:text-amber-300 tabular-nums">
           <Users className="w-3.5 h-3.5 shrink-0" />
           <span>
             {activeRoomId
@@ -73,28 +73,34 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
         </span>
 
         {lanInfo && (
-          <span
-            data-testid="teacher-bar-lan-badge"
-            title="Tips Daerah 3T: Nyalakan Hotspot Wi-Fi di laptop Guru agar siswa dapat membuka IP ini tanpa kuota internet!"
-            className="hidden lg:inline-flex items-center gap-1.5 text-xs font-mono text-slate-300 pl-3 border-l border-slate-800"
-          >
-            <Wifi className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span>
-              LAN: <strong className="text-white select-all">{lanInfo.localUrl}</strong>
+          <>
+            <span className="hidden lg:inline-block w-px h-4 bg-[var(--comfort-border)]" aria-hidden="true" />
+            <span
+              data-testid="teacher-bar-lan-badge"
+              title="Tips Daerah 3T: Nyalakan Hotspot Wi-Fi di laptop Guru agar siswa dapat membuka IP ini tanpa kuota internet!"
+              className="hidden lg:inline-flex items-center gap-1.5 text-xs font-mono text-[var(--comfort-text-muted)]"
+            >
+              <Wifi className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>
+                LAN: <strong className="text-[var(--comfort-text)] select-all">{lanInfo.localUrl}</strong>
+              </span>
             </span>
-          </span>
+          </>
         )}
 
         {liveStudentTelemetries.length > 0 && (
-          <div className="hidden xl:flex items-center gap-2 text-xs text-slate-300 font-mono pl-3 border-l border-slate-800 tabular-nums">
-            <span className="text-slate-400">Telemetri:</span>
-            {liveStudentTelemetries.slice(0, 2).map((st, i) => (
-              <span key={st.studentName} className="text-sky-300">
-                {i > 0 && <span className="text-slate-600 mr-2">·</span>}
-                {st.studentName}: {st.moduleTitle} ({st.recordsCount})
-              </span>
-            ))}
-          </div>
+          <>
+            <span className="hidden xl:inline-block w-px h-4 bg-[var(--comfort-border)]" aria-hidden="true" />
+            <div className="hidden xl:flex items-center gap-2 text-xs text-[var(--comfort-text-muted)] font-mono tabular-nums">
+              <span>Telemetri:</span>
+              {liveStudentTelemetries.slice(0, 2).map((st, i) => (
+                <span key={st.studentName} className="text-sky-600 dark:text-sky-300">
+                  {i > 0 && <span className="text-[var(--comfort-text-muted)] mr-2">·</span>}
+                  {st.studentName}: {st.moduleTitle} ({st.recordsCount})
+                </span>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -110,7 +116,7 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
           className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 border transition-colors cursor-pointer whitespace-nowrap ${
             teacherViewMode === 'lab3d' && !isLobbyMode
               ? 'bg-sky-600 text-white border-sky-500'
-              : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              : 'bg-[var(--comfort-surface-subtle)] hover:bg-[var(--comfort-elevated)] text-[var(--comfort-text)] border-[var(--comfort-border)]'
           }`}
           title="Beralih antara Dashboard Monitoring Kelas dan Ruang Lab 3D Demonstrasi Guru"
         >
@@ -121,7 +127,7 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
             </>
           ) : (
             <>
-              <FlaskConical className="w-3.5 h-3.5 text-sky-400" />
+              <FlaskConical className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
               <span>Lab 3D Guru</span>
             </>
           )}
@@ -142,7 +148,7 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
           className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 border transition-colors cursor-pointer whitespace-nowrap ${
             teacherLaserActive
               ? 'bg-rose-600 text-white border-rose-500'
-              : 'bg-slate-800 hover:bg-slate-700 text-rose-300 border-slate-700'
+              : 'bg-[var(--comfort-surface-subtle)] hover:bg-[var(--comfort-elevated)] text-rose-700 dark:text-rose-300 border-[var(--comfort-border)]'
           }`}
           title="Arahkan kursor pada objek 3D untuk memancarkan sinar Laser Pointer merah real-time ke seluruh layar murid"
         >
@@ -165,7 +171,7 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
           className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 border transition-colors cursor-pointer whitespace-nowrap ${
             teacherCameraSyncEnabled
               ? 'bg-indigo-600 text-white border-indigo-500'
-              : 'bg-slate-800 hover:bg-slate-700 text-indigo-300 border-slate-700'
+              : 'bg-[var(--comfort-surface-subtle)] hover:bg-[var(--comfort-elevated)] text-indigo-700 dark:text-indigo-300 border-[var(--comfort-border)]'
           }`}
           title="Sinkronkan sudut pandang kamera 3D murid mengikuti rotasi kamera Guru secara langsung"
         >
@@ -186,7 +192,7 @@ export const TeacherControlBar: React.FC<TeacherControlBarProps> = ({
           }}
           className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
         >
-          <Sparkles className="w-3.5 h-3.5" />
+          <Wand2 className="w-3.5 h-3.5" />
           <span>Buat Misi Praktikum AI</span>
         </button>
 

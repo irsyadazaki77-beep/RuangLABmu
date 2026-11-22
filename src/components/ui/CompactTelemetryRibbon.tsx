@@ -110,14 +110,14 @@ export const LabWorkflowStagePill: React.FC<LabWorkflowStagePillProps> = ({
       role="tablist"
       aria-label="Tahapan Alur Kerja Laboratorium"
       data-testid="workflow-stage-stepper"
-      className="lab-glass-panel rounded-2xl px-2.5 py-1.5 flex flex-wrap items-center justify-between gap-2 transition-all"
+      className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-2xl px-2.5 py-1.5 flex flex-wrap items-center justify-between gap-2 transition-all"
     >
-      <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 px-1.5">
+      <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-[var(--comfort-text-muted)] px-1.5">
         <span
           className="w-2 h-2 rounded-full shrink-0"
           style={{ backgroundColor: domainColor }}
         />
-        <span className="font-bold text-slate-700 dark:text-slate-200">
+        <span className="font-bold text-[var(--comfort-text)]">
           Alur Praktikum:
         </span>
       </div>
@@ -145,23 +145,23 @@ export const LabWorkflowStagePill: React.FC<LabWorkflowStagePillProps> = ({
                     }
                   : undefined
               }
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+              className={`px-3 py-1.5 min-h-[38px] rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
                 isActive
-                  ? 'text-slate-950 shadow-sm scale-[1.01]'
-                  : 'bg-slate-100/85 dark:bg-slate-900/80 border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'
+                  ? 'text-white shadow-sm'
+                  : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
               }`}
             >
               {st.icon}
-              <span>[{st.fullLabel}]</span>
+              <span>{st.fullLabel}</span>
               {st.badge && (
                 <span
-                  className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold tabular-nums ${
+                  className={`text-[10px] font-mono font-bold tabular-nums ${
                     isActive
-                      ? 'bg-slate-950/20 text-slate-950'
-                      : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                      ? 'text-white/90'
+                      : 'text-emerald-700 dark:text-emerald-400'
                   }`}
                 >
-                  {st.badge}
+                  · {st.badge}
                 </span>
               )}
             </button>
@@ -288,7 +288,6 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
       {/* Horizontal Telemetry Bar */}
       <div className="h-full px-3 flex items-center justify-between gap-2 overflow-hidden">
         <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto no-scrollbar">
-          {/* Active Mission Badge */}
           <button
             type="button"
             data-testid="telemetry-mission-badge"
@@ -297,27 +296,23 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
               setExpandedId((prev) => (prev === 'mission' ? null : 'mission'));
             }}
             className={`rounded-xl border font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
-              projectorMode ? 'h-11 sm:h-12 px-3 text-xs sm:text-sm' : 'h-8 px-2 text-xs'
+              projectorMode ? 'h-11 sm:h-12 px-3 text-xs sm:text-sm' : 'h-8 px-2.5 text-xs'
             } ${
               expandedId === 'mission'
-                ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-md ring-1 ring-amber-400'
+                ? 'bg-amber-500/20 border-amber-500 text-amber-800 dark:text-amber-300 ring-1 ring-amber-400'
                 : isMissionComplete
-                ? 'bg-emerald-500/20 border-emerald-400/80 text-emerald-300 hover:bg-emerald-500/30'
+                ? 'bg-emerald-500/15 border-emerald-500/45 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25'
                 : projectorMode
                 ? 'bg-amber-950/80 border-amber-400 text-amber-200 hover:bg-amber-900/80'
                 : 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20'
             }`}
             title="Klik untuk melihat detail Misi Praktikum & progres pengumpulan data"
           >
-            <span aria-hidden="true" className={projectorMode ? 'text-base' : ''}>🎯</span>
+            <Target className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
             <span className={projectorMode ? 'font-black' : ''}>Misi Aktif</span>
             <span
-              className={`px-1.5 py-0.2 rounded font-mono font-bold tabular-nums ${
+              className={`font-mono font-bold tabular-nums ${
                 projectorMode ? 'text-xs' : 'text-[10px]'
-              } ${
-                isMissionComplete
-                  ? 'bg-emerald-500/30 text-emerald-200'
-                  : 'bg-amber-500/30 text-amber-200'
               }`}
             >
               {Math.min(3, recordsCount)}/3
@@ -331,12 +326,11 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
             aria-hidden="true"
           />
 
-          {/* Telemetry Metrics with 1.5x Scaling in Projector Mode */}
           {metrics.map((m) => {
             const isSelected = expandedId === m.id;
             const precision = m.precision ?? (Math.abs(m.value) >= 100 ? 1 : 2);
             const safeVal = Number.isFinite(m.value) ? m.value : 0;
-            const strokeColor = m.color || (projectorMode ? '#38bdf8' : '#0ea5e9');
+            const strokeColor = m.color || (projectorMode ? '#38bdf8' : '#0284c7');
             const isWarn =
               m.warningThreshold !== undefined && safeVal >= m.warningThreshold;
 
@@ -353,18 +347,18 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                 className={`rounded-xl border text-left transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
                   projectorMode
                     ? 'h-11 sm:h-14 px-3.5 border-2 border-slate-700 bg-slate-900/90 shadow-md hover:border-amber-400'
-                    : 'h-8 px-2 rounded-lg'
+                    : 'h-8 px-2.5 rounded-lg'
                 } ${
                   isSelected
                     ? projectorMode
                       ? 'bg-sky-950 border-sky-400 ring-2 ring-sky-400/50 shadow-md'
-                      : 'bg-sky-500/20 border-sky-400 text-slate-900 dark:text-white shadow-xs'
+                      : 'bg-sky-500/15 border-sky-500 text-[var(--comfort-text)] shadow-xs'
                     : isWarn
                     ? projectorMode
                       ? 'bg-amber-950/80 border-amber-400 text-amber-200'
                       : 'bg-amber-500/15 border-amber-500/50 text-amber-800 dark:text-amber-200'
                     : !projectorMode
-                    ? 'bg-slate-900/5 dark:bg-slate-900/70 border-slate-300/70 dark:border-slate-700/80 hover:border-sky-400/70 text-slate-800 dark:text-slate-100'
+                    ? 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] hover:border-sky-500/60 text-[var(--comfort-text)]'
                     : ''
                 }`}
               >
@@ -372,8 +366,8 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                   <span
                     className={`truncate ${
                       projectorMode
-                        ? 'text-xs sm:text-sm font-extrabold text-amber-300 dark:text-amber-300 max-w-[170px] uppercase tracking-wide'
-                        : 'text-[10px] font-semibold text-slate-500 dark:text-slate-400 max-w-[100px]'
+                        ? 'text-xs sm:text-sm font-extrabold text-amber-300 max-w-[170px] uppercase tracking-wide'
+                        : 'text-[10px] font-semibold text-[var(--comfort-text-muted)] max-w-[100px]'
                     }`}
                   >
                     <SciFormula text={m.label} />
@@ -383,9 +377,9 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                       className={`font-black tracking-tight ${
                         projectorMode
                           ? 'text-lg sm:text-2xl text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]'
-                          : 'text-xs font-bold text-slate-900 dark:text-white'
+                          : 'text-xs font-bold text-[var(--comfort-text)]'
                       }`}
-                      style={{ color: isWarn ? '#fbbf24' : undefined }}
+                      style={{ color: isWarn ? '#d97706' : undefined }}
                     >
                       {safeVal.toFixed(precision)}
                     </span>
@@ -393,7 +387,7 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                       className={
                         projectorMode
                           ? 'text-xs sm:text-sm font-bold text-slate-300'
-                          : 'text-[10px] text-slate-500 dark:text-slate-400'
+                          : 'text-[10px] text-[var(--comfort-text-muted)]'
                       }
                     >
                       <SciFormula text={m.unit} />
@@ -404,14 +398,14 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                 <svg
                   width={projectorMode ? 60 : 36}
                   height={projectorMode ? 20 : 14}
-                  viewBox={projectorMode ? "0 0 64 22" : "0 0 44 16"}
+                  viewBox={projectorMode ? '0 0 64 22' : '0 0 44 16'}
                   className="overflow-visible shrink-0 hidden xl:block"
                   aria-hidden="true"
                 >
                   <polyline
                     fill="none"
-                    stroke={isWarn ? '#fbbf24' : strokeColor}
-                    strokeWidth={projectorMode ? "2.6" : "1.6"}
+                    stroke={isWarn ? '#f59e0b' : strokeColor}
+                    strokeWidth={projectorMode ? '2.6' : '1.6'}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     points={buildSparklinePoints(m)}
@@ -422,20 +416,23 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
           })}
         </div>
 
-        {/* Right Side: Click-to-Expand Oscilloscope Trigger & Optional Domain Badge */}
         <div className="flex items-center gap-1.5 shrink-0">
           {projectorMode && (
-            <span className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 text-xs font-black uppercase tracking-wider shadow-sm animate-pulse">
-              📽️ Mode Proyektor Kelas
+            <span className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 text-xs font-black uppercase tracking-wider shadow-sm">
+              Mode Proyektor Kelas
             </span>
           )}
           {extraBadge}
           {ribbonGlossaryEntry && (
             <ScienceGlossaryTerm
               term={ribbonGlossaryEntry.term}
-              displayLabel={<span>📖 {ribbonGlossaryEntry.term}</span>}
+              displayLabel={<span>{ribbonGlossaryEntry.term}</span>}
               themeMode={projectorMode ? 'dark' : 'auto'}
-              className="h-8 px-2 rounded-lg border border-[var(--comfort-border)] bg-slate-900/5 dark:bg-slate-900/80 text-[11px] font-medium shrink-0 hidden sm:inline-flex"
+              className={`h-8 px-2 rounded-lg border text-[11px] font-medium shrink-0 hidden sm:inline-flex ${
+                projectorMode
+                  ? 'border-slate-700 bg-slate-900 text-slate-100'
+                  : 'border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)]'
+              }`}
             />
           )}
           <button
@@ -449,13 +446,15 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
             }}
             className={`h-8 px-2.5 rounded-lg border text-[11px] font-mono font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
               expandedId === 'oscilloscope'
-                ? 'bg-sky-500 text-slate-950 border-sky-400 font-bold'
-                : 'bg-slate-900/5 dark:bg-slate-900/80 text-sky-700 dark:text-sky-300 border-slate-300/80 dark:border-slate-700 hover:border-sky-400/60'
+                ? 'bg-sky-600 text-white border-sky-500 font-bold'
+                : projectorMode
+                ? 'bg-slate-900 text-sky-300 border-slate-700 hover:border-sky-400'
+                : 'bg-[var(--comfort-surface-subtle)] text-sky-700 dark:text-sky-300 border-[var(--comfort-border)] hover:border-sky-500/60'
             }`}
             title="Klik untuk membuka Osiloskop Telemetri & Gauge Meter lengkap"
           >
             <Activity className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Osiloskop & Gauge</span>
+            <span className="hidden md:inline">Osiloskop &amp; Gauge</span>
             <ChevronDown
               className={`w-3 h-3 transition-transform ${
                 expandedId === 'oscilloscope' ? 'rotate-180' : ''
@@ -465,7 +464,6 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
         </div>
       </div>
 
-      {/* Click-to-Expand Popover Panel (Mission Details OR Gauge Meters + LiveTelemetryOscilloscope) */}
       <AnimatePresence>
         {expandedId !== null && (
           <>
@@ -480,19 +478,19 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
                 transition={{ duration: 0.16 }}
                 data-testid="telemetry-mission-popover"
-                className="absolute left-3 top-13 z-40 w-80 sm:w-96 lab-glass-panel rounded-2xl p-4 shadow-2xl border border-slate-300/80 dark:border-slate-700/80 space-y-3"
+                className="absolute left-3 top-13 z-40 w-80 sm:w-96 bg-[var(--comfort-surface)] text-[var(--comfort-text)] rounded-2xl p-4 shadow-2xl border border-[var(--comfort-border)] space-y-3"
               >
-                <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800 pb-2">
+                <div className="flex items-center justify-between border-b border-[var(--comfort-border)] pb-2">
                   <div className="flex items-center gap-2">
                     <Target className="w-4 h-4 text-amber-500" />
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                    <span className="text-xs font-bold text-[var(--comfort-text)]">
                       Misi Praktikum Aktif ({domain})
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setExpandedId(null)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-800 cursor-pointer"
+                    className="p-1.5 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)] cursor-pointer"
                     title="Tutup Detail Misi"
                   >
                     <X className="w-4 h-4" />
@@ -500,25 +498,25 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                  <div className="text-xs font-bold text-[var(--comfort-text)]">
                     {effectiveMissionTitle}
                   </div>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                  <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed">
                     {effectiveMissionObj}
                   </p>
                   <div className="pt-1 space-y-1.5">
                     <div className="flex items-center justify-between text-[11px] font-mono">
-                      <span className="text-slate-600 dark:text-slate-400">
+                      <span className="text-[var(--comfort-text-muted)]">
                         Progres Rekam Data:
                       </span>
-                      <span className="font-bold text-slate-900 dark:text-white tabular-nums flex items-center gap-1">
+                      <span className="font-bold text-[var(--comfort-text)] tabular-nums flex items-center gap-1">
                         {isMissionComplete && (
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                         )}
                         {recordsCount} / 3 Titik Data
                       </span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                    <div className="w-full h-2 rounded-full bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] overflow-hidden">
                       <div
                         className={`h-full transition-all duration-300 ${
                           isMissionComplete ? 'bg-emerald-500' : 'bg-amber-500'
@@ -538,23 +536,23 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
                 transition={{ duration: 0.16 }}
                 data-testid="telemetry-expanded-popover"
-                className="absolute left-3 right-3 top-13 z-40 lab-glass-panel rounded-2xl p-4 shadow-2xl border border-slate-300/80 dark:border-slate-700/80 space-y-3"
+                className="absolute left-3 right-3 top-13 z-40 bg-[var(--comfort-surface)] text-[var(--comfort-text)] rounded-2xl p-4 shadow-2xl border border-[var(--comfort-border)] space-y-3"
               >
-                <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800 pb-2">
-                  <div className="flex items-center gap-2">
-                    <Gauge className="w-4 h-4 text-sky-500 dark:text-sky-400" />
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">
-                      Instrumen Telemetri Presisi & Osiloskop ({domain})
+                <div className="flex items-center justify-between border-b border-[var(--comfort-border)] pb-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Gauge className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                    <span className="text-xs font-bold text-[var(--comfort-text)]">
+                      Instrumen Telemetri Presisi &amp; Osiloskop ({domain})
                     </span>
                     {activeMetric && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-sky-500/15 text-sky-600 dark:text-sky-300 border border-sky-500/30">
-                        Fokus: {activeMetric.label}
+                      <span className="text-[11px] font-mono font-semibold text-sky-700 dark:text-sky-300">
+                        · Fokus: {activeMetric.label}
                       </span>
                     )}
                     {activeMetricGlossary && (
                       <ScienceGlossaryTerm
                         term={activeMetricGlossary.term}
-                        displayLabel={<span>📖 Arti {activeMetricGlossary.term}</span>}
+                        displayLabel={<span>Arti {activeMetricGlossary.term}</span>}
                         className="text-[11px]"
                       />
                     )}
@@ -562,7 +560,7 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                   <button
                     type="button"
                     onClick={() => setExpandedId(null)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-800 cursor-pointer"
+                    className="p-1.5 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)] cursor-pointer"
                     title="Tutup Popover Telemetri"
                   >
                     <X className="w-4 h-4" />
@@ -570,7 +568,6 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
-                  {/* Circular Gauge Meters */}
                   <div className="lg:col-span-5 grid grid-cols-3 gap-2">
                     {metrics.map((m) => (
                       <CircularGaugeMeter
@@ -580,7 +577,7 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                         min={m.min}
                         max={m.max}
                         unit={m.unit}
-                        color={m.color || '#0ea5e9'}
+                        color={m.color || '#0284c7'}
                         warningThreshold={m.warningThreshold}
                         precision={m.precision ?? 2}
                         badgeText={m.badgeText}
@@ -589,7 +586,6 @@ export const CompactTelemetryRibbon: React.FC<CompactTelemetryRibbonProps> = ({
                     ))}
                   </div>
 
-                  {/* Full LiveTelemetryOscilloscope */}
                   <div className="lg:col-span-7">
                     <LiveTelemetryOscilloscope
                       domain={domain}

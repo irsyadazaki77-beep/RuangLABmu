@@ -2,7 +2,9 @@ import React, { useMemo } from 'react';
 import { Activity } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useLabStore } from '../../stores/useLabStore';
+import { useUIStore } from '../../stores/useUIStore';
 import { computeCursorChartPosition } from '../../utils/spatialHudHelpers';
+import { getComfortChartPalette } from '../ui/VisualComfortToolbar';
 
 export interface LiveTimeSeriesChartProps {
   primaryLabel?: string;
@@ -26,6 +28,14 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
   secondaryLabel,
   secondaryUnit = '',
 }) => {
+  const { theme, colorBlindSafe } = useUIStore(
+    useShallow((s) => ({
+      theme: s.comfortPrefs.theme,
+      colorBlindSafe: s.comfortPrefs.colorBlindSafe,
+    }))
+  );
+  const palette = getComfortChartPalette(theme, colorBlindSafe);
+
   const {
     liveTelemetrySeries,
     timelineMinTime,
@@ -150,6 +160,8 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
     seekTimelineCursor(closest.cursorIndex);
   };
 
+  const playheadColor = isTimeTraveling ? palette.warning : palette.primary;
+
   return (
     <div
       data-testid="live-timeseries-chart"
@@ -157,15 +169,21 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
     >
       <div className="flex items-center justify-between gap-2 text-[11px]">
         <div className="flex items-center gap-1.5 font-bold text-[var(--comfort-text)] truncate">
-          <Activity className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+          <Activity className="w-3.5 h-3.5 shrink-0" style={{ color: palette.primary }} />
           <span className="truncate">Grafik Deret Waktu Real-Time</span>
         </div>
-        <span className="font-mono text-[10px] font-bold text-sky-500 tabular-nums shrink-0">
+        <span
+          className="font-mono text-[10px] font-bold tabular-nums shrink-0"
+          style={{ color: palette.primary }}
+        >
           t = {timelineCurrentTime.toFixed(2)}s
         </span>
       </div>
 
-      <div className="rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] overflow-hidden">
+      <div
+        className="rounded-lg border border-[var(--comfort-border)] overflow-hidden"
+        style={{ backgroundColor: palette.canvasBg }}
+      >
         {liveTelemetrySeries.length < 2 ? (
           <div className="h-[96px] flex items-center justify-center text-[11px] font-mono text-[var(--comfort-text-muted)] px-3 text-center">
             Menunggu aliran sampel simulasi 3D...
@@ -189,15 +207,14 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
                     y1={gy}
                     x2={SVG_W - PAD_R}
                     y2={gy}
-                    stroke="currentColor"
-                    className="text-slate-300 dark:text-slate-800"
+                    stroke={palette.gridStroke}
                     strokeWidth="1"
                     strokeDasharray="3 3"
                   />
                   <text
                     x={PAD_L - 4}
                     y={gy + 3}
-                    fill="#64748b"
+                    fill={palette.labelFill}
                     fontSize="8.5"
                     fontFamily="monospace"
                     textAnchor="end"
@@ -212,7 +229,7 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
             <text
               x={PAD_L}
               y={SVG_H - 4}
-              fill="#64748b"
+              fill={palette.labelFill}
               fontSize="8.5"
               fontFamily="monospace"
               textAnchor="start"
@@ -222,7 +239,7 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
             <text
               x={SVG_W - PAD_R}
               y={SVG_H - 4}
-              fill="#64748b"
+              fill={palette.labelFill}
               fontSize="8.5"
               fontFamily="monospace"
               textAnchor="end"
@@ -235,11 +252,12 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
               <path
                 d={secondaryPath}
                 fill="none"
-                stroke="#10b981"
-                strokeWidth="1.6"
+                stroke={palette.secondary}
+                strokeWidth="1.8"
+                strokeDasharray={colorBlindSafe ? '4 2' : undefined}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                opacity={0.85}
+                opacity={0.9}
               />
             )}
 
@@ -248,7 +266,7 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
               <path
                 d={primaryPath}
                 fill="none"
-                stroke="#38bdf8"
+                stroke={palette.primary}
                 strokeWidth="2.1"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -261,16 +279,11 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
               y1={PAD_T}
               x2={cursorX}
               y2={PAD_T + PLOT_H}
-              stroke={isTimeTraveling ? '#f59e0b' : '#38bdf8'}
+              stroke={playheadColor}
               strokeWidth="1.5"
               strokeDasharray={isTimeTraveling ? undefined : '3 2'}
             />
-            <circle
-              cx={cursorX}
-              cy={PAD_T + 3}
-              r="3"
-              fill={isTimeTraveling ? '#f59e0b' : '#38bdf8'}
-            />
+            <circle cx={cursorX} cy={PAD_T + 3} r="3" fill={playheadColor} />
           </svg>
         )}
       </div>
@@ -279,7 +292,10 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-[var(--comfort-text-muted)]">
         <div className="flex items-center gap-2.5 min-w-0">
           <span className="inline-flex items-center gap-1 truncate">
-            <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: palette.primary }}
+            />
             <span className="truncate">{primaryLabel}:</span>
             <strong className="text-[var(--comfort-text)] tabular-nums">
               {latestPoint ? latestPoint.primary.toFixed(2) : '0.00'}
@@ -288,7 +304,10 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
           </span>
           {secondaryPath && secondaryLabel && (
             <span className="inline-flex items-center gap-1 truncate">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: palette.secondary }}
+              />
               <span className="truncate">{secondaryLabel}:</span>
               <strong className="text-[var(--comfort-text)] tabular-nums">
                 {typeof latestPoint?.secondary === 'number'

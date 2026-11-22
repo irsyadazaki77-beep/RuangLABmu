@@ -1,19 +1,19 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
+  ArrowRight,
+  Check,
   CheckCircle2,
   ChevronDown,
   Compass,
-  FileSpreadsheet,
   Lightbulb,
   Pin,
-  ArrowLeftRight,
-  Sparkles,
-  Check,
+  Target,
   X,
 } from 'lucide-react';
 import { ExperimentRecord, ScienceDomain } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
+export { ExperimentTrialComparePanel } from './TrialComparePanel';
 
 export interface HypothesisNote {
   moduleId?: string;
@@ -46,7 +46,7 @@ interface ContextualMicroGuideHUDProps {
 
 /**
  * 1. Panduan Langkah Mikro Kontekstual di Layar 3D
- * Mengurangi Split-Attention Effect (Sweller) sehingga siswa tidak perlu bolak-balik ke halaman teori.
+ * Menggunakan .studio-hud-surface agar adaptif di mode Light/Sepia/Dark.
  */
 export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = ({
   moduleTitle,
@@ -103,23 +103,26 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
           labSound.playClick();
           setCollapsed(false);
         }}
-        className="pointer-events-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full lab-glass-panel border border-slate-300/80 dark:border-slate-700/80 text-xs font-bold text-slate-800 dark:text-slate-100 shadow-lg hover:scale-[1.02] transition-all cursor-pointer"
+        className="pointer-events-auto inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[38px] rounded-xl studio-hud-surface text-xs font-bold shadow-md hover:opacity-95 transition-all cursor-pointer"
         title="Buka Panduan Praktikum 3D"
       >
-        <span aria-hidden="true">🧭</span>
+        <Compass className="w-3.5 h-3.5 text-sky-500 shrink-0" />
         <span>Panduan ({completedCount}/3)</span>
       </button>
     );
   }
 
   return (
-    <div className="pointer-events-auto max-w-xs sm:max-w-sm rounded-2xl bg-slate-950/90 backdrop-blur-md border border-slate-800/90 text-xs text-slate-100 shadow-2xl overflow-hidden transition-all">
-      <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 border-b border-slate-800/80">
+    <div className="pointer-events-auto max-w-xs sm:max-w-sm rounded-2xl studio-hud-surface text-xs shadow-xl overflow-hidden transition-all">
+      <div
+        className="px-3.5 py-2.5 flex items-center justify-between gap-3 border-b"
+        style={{ borderColor: 'var(--comfort-hud-border)' }}
+      >
         <div className="flex items-center gap-2 min-w-0">
-          <Compass className="w-4 h-4 text-sky-400 shrink-0" />
+          <Compass className="w-4 h-4 text-sky-500 shrink-0" />
           <div className="truncate">
-            <span className="font-bold text-white">Panduan Praktikum 3D</span>
-            <span className="ml-1.5 font-mono text-[10px] text-emerald-400 tabular-nums">
+            <span className="font-bold">Panduan Praktikum 3D</span>
+            <span className="ml-1.5 font-mono text-[10px] text-emerald-500 tabular-nums">
               ({completedCount}/3 Selesai)
             </span>
           </div>
@@ -130,7 +133,7 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
             labSound.playClick();
             setCollapsed(true);
           }}
-          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer shrink-0"
+          className="p-1.5 rounded-lg text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] cursor-pointer shrink-0"
           title="Ringkas Panduan"
         >
           <ChevronDown className="w-3.5 h-3.5" />
@@ -146,12 +149,12 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
             transition={{ duration: 0.16 }}
             className="p-3 space-y-2.5"
           >
-            <div className="text-[11px] text-slate-300 truncate" title={moduleTitle}>
-              Modul: <strong className="text-white">{moduleTitle}</strong>
+            <div className="text-[11px] text-[var(--comfort-hud-muted)] truncate" title={moduleTitle}>
+              Modul: <strong className="text-[var(--comfort-hud-text)]">{moduleTitle}</strong>
             </div>
 
             {keyEquation && (
-              <div className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 font-mono text-[11px] text-sky-300 truncate">
+              <div className="px-2.5 py-1.5 rounded-lg studio-hud-subcard font-mono text-[11px] text-sky-500 truncate">
                 {keyEquation}
               </div>
             )}
@@ -160,19 +163,22 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
               {steps.map((st) => (
                 <li
                   key={st.id}
-                  className="flex items-center justify-between gap-2 text-[11px] py-1 px-2 rounded-lg bg-slate-900/70 border border-slate-800/70"
+                  className="flex items-center justify-between gap-2 text-[11px] py-1.5 px-2 rounded-lg studio-hud-subcard"
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     {st.done ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                     ) : (
-                      <span className="w-3.5 h-3.5 rounded-full border border-slate-600 text-[9px] font-mono flex items-center justify-center text-slate-400 shrink-0">
+                      <span
+                        className="w-3.5 h-3.5 rounded-full border text-[9px] font-mono flex items-center justify-center text-[var(--comfort-hud-muted)] shrink-0"
+                        style={{ borderColor: 'var(--comfort-hud-border)' }}
+                      >
                         {st.id}
                       </span>
                     )}
                     <span
                       className={`truncate ${
-                        st.done ? 'text-slate-300' : 'text-white font-medium'
+                        st.done ? 'text-[var(--comfort-hud-muted)]' : 'font-medium'
                       }`}
                     >
                       {st.label}
@@ -185,7 +191,7 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
                         labSound.playClick();
                         st.onAction?.();
                       }}
-                      className="px-2 py-0.5 rounded bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/40 text-sky-300 font-semibold text-[10px] whitespace-nowrap cursor-pointer shrink-0"
+                      className="px-2 py-0.5 rounded bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/35 text-sky-600 dark:text-sky-300 font-semibold text-[10px] whitespace-nowrap cursor-pointer shrink-0"
                     >
                       {st.actionLabel}
                     </button>
@@ -201,10 +207,10 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
                   labSound.playRecordSuccess();
                   onProceedToAnalysis();
                 }}
-                className="w-full py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Data Cukup! Lanjut ke Grafik & LKS →</span>
+                <span>Data Cukup! Lanjut ke Grafik & LKS</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
           </motion.div>
@@ -291,7 +297,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
           </div>
           <div>
             <h3 className="font-bold text-[var(--comfort-text)] text-xs leading-tight">
-              Buku Catatan Hipotesis & Refleksi Ilmiah
+              Buku Catatan Hipotesis &amp; Refleksi Ilmiah
             </h3>
             <p className="text-[11px] text-[var(--comfort-text-muted)] truncate max-w-[260px]">
               {moduleTitle} · Tersimpan otomatis ke Laporan Resmi
@@ -309,7 +315,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
+              className="p-1.5 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
               title="Tutup Panel Hipotesis"
             >
               <X className="w-4 h-4" />
@@ -327,9 +333,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
           <input
             type="text"
             value={note.independentVar}
-            onChange={(e) =>
-              onChangeNote({ ...note, independentVar: e.target.value })
-            }
+            onChange={(e) => onChangeNote({ ...note, independentVar: e.target.value })}
             placeholder={defaultIndependentVar}
             className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs focus:outline-none focus:border-sky-500"
           />
@@ -341,9 +345,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
           <input
             type="text"
             value={note.dependentVar}
-            onChange={(e) =>
-              onChangeNote({ ...note, dependentVar: e.target.value })
-            }
+            onChange={(e) => onChangeNote({ ...note, dependentVar: e.target.value })}
             placeholder={defaultDependentVar}
             className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] text-xs focus:outline-none focus:border-sky-500"
           />
@@ -402,8 +404,8 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
       {/* POE Quantitative Prediction Box */}
       <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[11px] font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+          <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+            <Target className="w-3.5 h-3.5 text-amber-500" />
             <span>Tantangan Prediksi Kuantitatif (Metode POE: Predict–Observe–Explain)</span>
           </div>
           <span className="text-[10px] font-mono text-amber-700 dark:text-amber-400">
@@ -486,7 +488,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
           Refleksi Hasil Pengamatan vs Hipotesis:
         </label>
         <textarea
-          rows={compact ? 2 : 2}
+          rows={2}
           value={note.reflectionText}
           onChange={(e) =>
             onChangeNote({
@@ -536,295 +538,6 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-interface ExperimentTrialComparePanelProps {
-  records: ExperimentRecord[];
-  domainFilter?: string;
-  onClose?: () => void;
-}
-
-/**
- * 3. Perbandingan Rekaman Eksperimen Berdampingan (Diff / Compare 2 Percobaan)
- */
-export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelProps> = ({
-  records: rawRecords,
-  domainFilter,
-  onClose,
-}) => {
-  const records = useMemo(() => {
-    if (!domainFilter) return rawRecords;
-    const filtered = rawRecords.filter(
-      (r) => r.domain.toLowerCase() === domainFilter.toLowerCase()
-    );
-    return filtered.length >= 2 ? filtered : rawRecords;
-  }, [rawRecords, domainFilter]);
-
-  const [trialAId, setTrialAId] = useState<string>(() => records[1]?.id || records[0]?.id || '');
-  const [trialBId, setTrialBId] = useState<string>(() => records[0]?.id || '');
-
-  const recordA = useMemo(
-    () => records.find((r) => r.id === trialAId) || records[1] || records[0],
-    [records, trialAId]
-  );
-  const recordB = useMemo(
-    () => records.find((r) => r.id === trialBId) || records[0],
-    [records, trialBId]
-  );
-
-  if (records.length < 2 || !recordA || !recordB) {
-    return (
-      <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4 text-xs space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="font-bold text-[var(--comfort-text)] flex items-center gap-2">
-            <ArrowLeftRight className="w-4 h-4 text-sky-500" />
-            <span>Komparator 2 Rekaman Eksperimen Berdampingan (Diff)</span>
-          </div>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-        <p className="text-[var(--comfort-text-muted)]">
-          Rekam minimal <strong>2 titik data eksperimen</strong> di simulasi 3D untuk membandingkan perubahan parameter (ΔX) dan respons terukur (ΔY) secara berdampingan.
-        </p>
-      </div>
-    );
-  }
-
-  const dx =
-    recordA.numericX !== undefined && recordB.numericX !== undefined
-      ? Number((recordB.numericX - recordA.numericX).toFixed(3))
-      : null;
-  const dy1 =
-    recordA.numericY1 !== undefined && recordB.numericY1 !== undefined
-      ? Number((recordB.numericY1 - recordA.numericY1).toFixed(3))
-      : null;
-  const dy2 =
-    recordA.numericY2 !== undefined && recordB.numericY2 !== undefined
-      ? Number((recordB.numericY2 - recordA.numericY2).toFixed(3))
-      : null;
-
-  const pctChangeY1 =
-    dy1 !== null && recordA.numericY1 && Math.abs(recordA.numericY1) > 1e-6
-      ? Number(((dy1 / Math.abs(recordA.numericY1)) * 100).toFixed(1))
-      : null;
-
-  // All metric keys across both records
-  const allMetricKeys = Array.from(
-    new Set([
-      ...Object.keys(recordA.keyMetrics),
-      ...Object.keys(recordB.keyMetrics),
-    ])
-  );
-
-  return (
-    <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4 sm:p-5 space-y-4 text-xs shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--comfort-border)] pb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
-            <ArrowLeftRight className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="font-bold text-[var(--comfort-text)] text-xs sm:text-sm">
-              Perbandingan 2 Eksperimen Berdampingan (Side-by-Side Diff)
-            </h3>
-            <p className="text-[11px] text-[var(--comfort-text-muted)]">
-              Analisis kausalitas perubahan parameter input terhadap metrik output terukur
-            </p>
-          </div>
-        </div>
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-
-      {/* Selector Row: Percobaan A vs Percobaan B */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-1.5">
-          <label className="text-[11px] font-mono font-bold text-sky-600 dark:text-sky-400 block">
-            PERCOBAAN ACUAN (A)
-          </label>
-          <select
-            value={recordA.id}
-            onChange={(e) => {
-              labSound.playClick();
-              setTrialAId(e.target.value);
-            }}
-            className="w-full bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--comfort-text)] focus:outline-none focus:border-sky-500 cursor-pointer"
-          >
-            {records.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.id} ({r.timestamp}) — {r.experimentTitle}
-              </option>
-            ))}
-          </select>
-          <div className="font-mono text-[11px] text-[var(--comfort-text-muted)]">
-            Parameter: {recordA.parametersSummary}
-          </div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-1.5">
-          <label className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 block">
-            PERCOBAAN PEMBANDING (B)
-          </label>
-          <select
-            value={recordB.id}
-            onChange={(e) => {
-              labSound.playClick();
-              setTrialBId(e.target.value);
-            }}
-            className="w-full bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--comfort-text)] focus:outline-none focus:border-emerald-500 cursor-pointer"
-          >
-            {records.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.id} ({r.timestamp}) — {r.experimentTitle}
-              </option>
-            ))}
-          </select>
-          <div className="font-mono text-[11px] text-[var(--comfort-text-muted)]">
-            Parameter: {recordB.parametersSummary}
-          </div>
-        </div>
-      </div>
-
-      {/* Quantitative Delta KPI Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-          <div className="text-[11px] text-[var(--comfort-text-muted)]">
-            Perubahan Variabel Bebas (ΔX = X_B - X_A)
-          </div>
-          <div className="mt-1 font-mono font-bold text-base text-[var(--comfort-text)] tabular-nums">
-            {dx !== null ? (
-              <>
-                {dx > 0 ? `+${dx}` : dx}{' '}
-                <span className="text-xs font-normal text-[var(--comfort-text-muted)]">
-                  ({recordA.numericX} → {recordB.numericX})
-                </span>
-              </>
-            ) : (
-              'N/A'
-            )}
-          </div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-          <div className="text-[11px] text-[var(--comfort-text-muted)]">
-            Selisih Respons Utama (ΔY₁ = Y₁_B - Y₁_A)
-          </div>
-          <div className="mt-1 font-mono font-bold text-base text-sky-600 dark:text-sky-400 tabular-nums">
-            {dy1 !== null ? (
-              <>
-                {dy1 > 0 ? `▲ +${dy1}` : dy1 < 0 ? `▼ ${dy1}` : '● 0'}{' '}
-                {pctChangeY1 !== null && (
-                  <span className="text-xs text-emerald-600 dark:text-emerald-400">
-                    ({pctChangeY1 > 0 ? `+${pctChangeY1}%` : `${pctChangeY1}%`})
-                  </span>
-                )}
-              </>
-            ) : (
-              'N/A'
-            )}
-          </div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-          <div className="text-[11px] text-[var(--comfort-text-muted)]">
-            Selisih Respons Sekunder (ΔY₂)
-          </div>
-          <div className="mt-1 font-mono font-bold text-base text-amber-600 dark:text-amber-400 tabular-nums">
-            {dy2 !== null ? (
-              <>
-                {dy2 > 0 ? `▲ +${dy2}` : dy2 < 0 ? `▼ ${dy2}` : '● 0'}{' '}
-                <span className="text-xs font-normal text-[var(--comfort-text-muted)]">
-                  ({recordA.numericY2 ?? 0} → {recordB.numericY2 ?? 0})
-                </span>
-              </>
-            ) : (
-              'N/A'
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Detailed Side-by-Side Metrics Comparison Table */}
-      <div className="overflow-x-auto rounded-xl border border-[var(--comfort-border)]">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] font-mono text-[11px]">
-              <th className="py-2 px-3">Besaran Terukur</th>
-              <th className="py-2 px-3">Percobaan A ({recordA.id})</th>
-              <th className="py-2 px-3">Percobaan B ({recordB.id})</th>
-              <th className="py-2 px-3">Perubahan (Δ)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--comfort-border)] font-mono tabular-nums">
-            {allMetricKeys.map((key) => {
-              const valA = String(recordA.keyMetrics[key] ?? '-');
-              const valB = String(recordB.keyMetrics[key] ?? '-');
-              const numA = parseFloat(valA.replace(/[^\d.-]/g, ''));
-              const numB = parseFloat(valB.replace(/[^\d.-]/g, ''));
-              const hasNumericDelta = !Number.isNaN(numA) && !Number.isNaN(numB);
-              const diff = hasNumericDelta ? Number((numB - numA).toFixed(3)) : 0;
-
-              return (
-                <tr key={key} className="text-[var(--comfort-text)]">
-                  <td className="py-2 px-3 font-sans font-semibold">{key}</td>
-                  <td className="py-2 px-3">{valA}</td>
-                  <td className="py-2 px-3 font-semibold">{valB}</td>
-                  <td className="py-2 px-3">
-                    {hasNumericDelta ? (
-                      <span
-                        className={
-                          diff > 0
-                            ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-                            : diff < 0
-                            ? 'text-amber-600 dark:text-amber-400 font-semibold'
-                            : 'text-[var(--comfort-text-muted)]'
-                        }
-                      >
-                        {diff > 0 ? `↑ +${diff}` : diff < 0 ? `↓ ${diff}` : '= 0 (Tetap)'}
-                      </span>
-                    ) : valA === valB ? (
-                      <span className="text-[var(--comfort-text-muted)]">= Sama</span>
-                    ) : (
-                      <span className="text-sky-600 dark:text-sky-400">Berubah</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Automatic Causal Interpretation Footer */}
-      <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/25 text-xs text-[var(--comfort-text)] flex items-start gap-2">
-        <FileSpreadsheet className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
-        <div>
-          <strong>Sintesis Kausalitas:</strong> Ketika parameter diubah dari{' '}
-          <span className="font-mono">{recordA.id}</span> ke{' '}
-          <span className="font-mono">{recordB.id}</span> (ΔX ={' '}
-          <span className="font-mono">{dx ?? 0}</span>), respons utama Y₁ mengalami perubahan sebesar{' '}
-          <span className="font-mono font-bold">
-            {dy1 ?? 0} ({pctChangeY1 !== null ? `${pctChangeY1}%` : '0%'})
-          </span>
-          . Gunakan temuan ini untuk menjawab LKS dan menyusun kesimpulan laporan!
-        </div>
-      </div>
     </div>
   );
 };

@@ -35,11 +35,15 @@ function createOrganelleTexture(
 }
 
 export interface BiologyThemeColorsInput {
+  backgroundHex?: number;
+  fogHex?: number;
   ambientSkyHex: number;
   ambientGroundHex: number;
   ambientIntensity: number;
   tableHex?: number;
   floorHex?: number;
+  gridPrimaryHex?: number;
+  gridSecondaryHex?: number;
 }
 
 export interface BiologyCoreStageHandle {
@@ -71,12 +75,12 @@ export function buildBiologyCoreStage(
   const hemiLight = new THREE.HemisphereLight(
     initialColors.ambientSkyHex,
     initialColors.ambientGroundHex,
-    0.45
+    Math.min(0.75, initialColors.ambientIntensity ?? 0.65)
   );
   scene.add(hemiLight);
 
   const bioShadowSize = isSoftwareGl ? 512 : 1024;
-  const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.1);
+  const dirLight = new THREE.DirectionalLight(0xfffaf2, 1.15);
   dirLight.position.set(5, 8, 4);
   dirLight.castShadow = true;
   dirLight.shadow.mapSize.width = bioShadowSize;
@@ -88,18 +92,22 @@ export function buildBiologyCoreStage(
   dirLight.shadow.camera.right = shadowBound;
   dirLight.shadow.camera.top = shadowBound;
   dirLight.shadow.camera.bottom = -shadowBound;
-  dirLight.shadow.bias = -0.0001;
+  dirLight.shadow.bias = -0.0004;
   dirLight.shadow.normalBias = 0.02;
   scene.add(dirLight);
 
-  // Stage condenser spotlight from below glass slide
+  const rimLight = new THREE.DirectionalLight(0xbae6fd, 0.45);
+  rimLight.position.set(-6, 5, -5);
+  scene.add(rimLight);
+
+  // Stage condenser spotlight from below glass slide (non-shadow-casting to stay within 1-shadow-light budget)
   const condenserTarget = new THREE.Object3D();
   condenserTarget.position.set(0, 1.5, 0);
   scene.add(condenserTarget);
 
   const stageCondenserLight = new THREE.SpotLight(
     0x38bdf8,
-    4.2,
+    3.6,
     12,
     Math.PI / 5,
     0.65,
@@ -107,16 +115,13 @@ export function buildBiologyCoreStage(
   );
   stageCondenserLight.position.set(0, -1.2, 0);
   stageCondenserLight.target = condenserTarget;
-  stageCondenserLight.castShadow = true;
-  stageCondenserLight.shadow.mapSize.width = 512;
-  stageCondenserLight.shadow.mapSize.height = 512;
-  stageCondenserLight.shadow.bias = -0.0001;
+  stageCondenserLight.castShadow = false;
   scene.add(stageCondenserLight);
 
   // Laboratory Floor & Table Surface with Phenolic PBR Texture & Optical Condenser Collar
   const floorGeo = new THREE.PlaneGeometry(36, 36);
   const floorMat = new THREE.MeshStandardMaterial({
-    color: 0x0f172a,
+    color: initialColors.floorHex ?? 0xd8e0ea,
     roughness: 0.85,
     metalness: 0.08,
   });
@@ -126,18 +131,21 @@ export function buildBiologyCoreStage(
   floorMesh.receiveShadow = true;
   scene.add(floorMesh);
 
-  const bioBenchTex = createLabBenchTextures(0x1e293b, 3, 3);
+  const bioBenchTex = createLabBenchTextures(initialColors.tableHex ?? 0xc2ccd8, 3, 3, {
+    neutralAlbedo: true,
+  });
   const bioMetalTex = createBrushedMetalTextures();
   const tableGeo = new THREE.RingGeometry(0.95, 5.2, 48);
   tableGeo.rotateX(-Math.PI / 2);
   const tableMat = new THREE.MeshStandardMaterial({
-    color: 0x1e293b,
+    color: initialColors.tableHex ?? 0xc2ccd8,
     map: bioBenchTex?.map ?? null,
     roughnessMap: bioBenchTex?.roughnessMap ?? null,
     bumpMap: bioBenchTex?.bumpMap ?? null,
-    bumpScale: 0.008,
-    roughness: 0.65,
-    metalness: 0.12,
+    bumpScale: 0.006,
+    roughness: 0.62,
+    metalness: 0.08,
+    envMapIntensity: 0.55,
     side: THREE.DoubleSide,
   });
   const tableMesh = new THREE.Mesh(tableGeo, tableMat);
@@ -190,11 +198,34 @@ export function buildBiologyCoreStage(
   microscopeSlide.name = 'Kaca Preparat Mikroskop Optik';
   scene.add(microscopeSlide);
 
-  const grid = new THREE.GridHelper(9, 18, 0x334155, 0x1e293b);
+  const bioGridDivisions = 18;
+  const grid = new THREE.GridHelper(
+    9,
+    bioGridDivisions,
+    initialColors.gridPrimaryHex ?? 0x9aa8ba,
+    initialColors.gridSecondaryHex ?? 0xc7d0dc
+  );
   grid.position.y = 0.01;
   (grid.material as THREE.Material).transparent = true;
   (grid.material as THREE.Material).opacity = 0.35;
   scene.add(grid);
+
+  const applyBioGridColors = (primaryHex?: number, secondaryHex?: number) => {
+    const colorAttr = grid.geometry.getAttribute('color') as THREE.BufferAttribute | undefined;
+    if (!colorAttr) return;
+    const c1 = new THREE.Color(primaryHex ?? 0x9aa8ba);
+    const c2 = new THREE.Color(secondaryHex ?? 0xc7d0dc);
+    const halfVerts = colorAttr.count / 2;
+    const centerLineStart = Math.floor(bioGridDivisions / 2) * 4;
+    for (let i = 0; i < colorAttr.count; i++) {
+      const isAxisLine =
+        (i >= centerLineStart && i < centerLineStart + 4) ||
+        (i >= halfVerts + centerLineStart && i < halfVerts + centerLineStart + 4);
+      const col = isAxisLine ? c1 : c2;
+      colorAttr.setXYZ(i, col.r, col.g, col.b);
+    }
+    colorAttr.needsUpdate = true;
+  };
 
   const apparatusGroup = new THREE.Group();
   scene.add(apparatusGroup);
@@ -322,17 +353,23 @@ export function buildBiologyCoreStage(
     apparatusGroup,
     keyLight: dirLight,
     applyTheme: (colors) => {
+      const bgHex = colors.backgroundHex ?? 0xe6ecf3;
+      const fogHex = colors.fogHex ?? bgHex;
       if (scene.background instanceof THREE.Color) {
-        scene.background.setHex(0x0b0f17);
+        scene.background.setHex(bgHex);
       } else {
-        scene.background = new THREE.Color(0x0b0f17);
+        scene.background = new THREE.Color(bgHex);
       }
-      scene.fog = new THREE.FogExp2(0x0b0f17, 0.02);
-      tableMat.color.setHex(colors.tableHex ?? 0x1e293b);
-      floorMat.color.setHex(colors.floorHex ?? 0x0f172a);
+      scene.fog = new THREE.FogExp2(fogHex, 0.02);
+      const bgCol = new THREE.Color(bgHex);
+      const isDarkScene = bgCol.r * 0.299 + bgCol.g * 0.587 + bgCol.b * 0.114 < 0.35;
+      scene.environmentIntensity = isDarkScene ? 0.46 : 0.6;
+      tableMat.color.setHex(colors.tableHex ?? 0xc2ccd8);
+      floorMat.color.setHex(colors.floorHex ?? 0xd8e0ea);
+      applyBioGridColors(colors.gridPrimaryHex, colors.gridSecondaryHex);
       hemiLight.color.setHex(colors.ambientSkyHex);
       hemiLight.groundColor.setHex(colors.ambientGroundHex);
-      hemiLight.intensity = Math.min(0.45, colors.ambientIntensity);
+      hemiLight.intensity = Math.min(0.78, colors.ambientIntensity);
     },
     update: (
       simTime,
@@ -362,9 +399,10 @@ export function buildBiologyCoreStage(
         mat.opacity = 0.45 + sharpnessFactor * 0.53;
         mat.emissiveIntensity = (0.3 + sharpnessFactor * 0.95) * (idx === 2 ? 1.1 : 0.9);
       });
-      stageCondenserLight.intensity = 2.2 + sharpnessFactor * 3.6;
+      stageCondenserLight.intensity = 2.0 + sharpnessFactor * 3.0;
 
-      const zoomFactor = 1.28 - focusNormalized * 0.46;
+      // Keep default lensFocus (75%) at exact 1.0x framing so studio3DCatalog poses stay accurate
+      const zoomFactor = 1.0 + (0.75 - focusNormalized) * 0.44;
       desiredCamPos.copy(baseCamPos).multiplyScalar(zoomFactor);
 
       apparatusGroup.rotation.y = Math.sin(simTime * 0.15) * 0.25;
