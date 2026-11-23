@@ -44,6 +44,65 @@ export function auToSceneRadius(semiMajorAxisAu: number): number {
   return Math.min(8.6, Math.max(1.55, 2.0 + Math.log10(Math.max(0.2, safeAu)) * 3.5));
 }
 
+export interface KeplerOrbitSample {
+  ox: number;
+  oy: number;
+  oz: number;
+  b: number;
+  tangentX: number;
+  tangentY: number;
+  tangentZ: number;
+}
+
+/**
+ * Solves Kepler's Equation M = E - e * sin(E) for eccentric anomaly E (radians)
+ * using 4 Newton-Raphson iterations so planets accelerate at perihelion and slow at aphelion.
+ */
+export function solveKeplerEccentricAnomaly(meanAnomalyRad: number, eccentricity: number): number {
+  const safeM = Number.isFinite(meanAnomalyRad) ? meanAnomalyRad : 0;
+  const e = Number.isFinite(eccentricity) ? Math.max(0, Math.min(0.95, eccentricity)) : 0;
+  if (e < 1e-5) return safeM;
+
+  let E = safeM + e * Math.sin(safeM);
+  for (let iter = 0; iter < 4; iter++) {
+    const f = E - e * Math.sin(E) - safeM;
+    const fp = 1 - e * Math.cos(E);
+    E -= f / Math.max(1e-4, fp);
+  }
+  return E;
+}
+
+/**
+ * Evaluates a 3D point and orbital tangent vector along an inclined Keplerian ellipse
+ * with the central star fixed at the primary focus (origin).
+ */
+export function evaluateKeplerOrbitPoint(
+  eccentricAnomalyRad: number,
+  semiMajorAxisAu: number,
+  eccentricity: number,
+  scaledRadius: number,
+  inclinationRad: number
+): KeplerOrbitSample {
+  const a = Number.isFinite(semiMajorAxisAu) && semiMajorAxisAu > 0 ? semiMajorAxisAu : 1.0;
+  const e = Number.isFinite(eccentricity) ? Math.max(0, Math.min(0.95, eccentricity)) : 0;
+  const bRatio = Math.sqrt(Math.max(0.01, 1 - e * e));
+  const b = a * bRatio;
+  const cosE = Math.cos(eccentricAnomalyRad);
+  const sinE = Math.sin(eccentricAnomalyRad);
+  const sinInc = Math.sin(inclinationRad);
+
+  const ox = (cosE - e) * scaledRadius;
+  const oy = sinE * scaledRadius * sinInc;
+  const oz = bRatio * sinE * scaledRadius;
+
+  // Derivative with respect to eccentric anomaly E points strictly along orbital velocity
+  const tangentX = -sinE * scaledRadius;
+  const tangentY = cosE * scaledRadius * sinInc;
+  const tangentZ = bRatio * cosE * scaledRadius;
+
+  return { ox, oy, oz, b, tangentX, tangentY, tangentZ };
+}
+
 /**
  * Evaluates normalized stellar flux with linear limb darkening during an exoplanet transit.
  * Phase 0.5 corresponds to mid-transit directly on the observer (+Z) line of sight.

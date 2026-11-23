@@ -470,21 +470,21 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
     moduleId: 'thermo-calorimetry',
     title: 'Intuisi Kalorimetri & Termokimia',
     outcomeSymbol: 'q',
-    outcomeLabel: 'Energi Kalor Reaksi',
+    outcomeLabel: 'Energi Kalor Larutan',
     outcomeUnit: 'kJ',
     variables: [
       {
-        key: 'M',
-        symbol: '[M]',
-        label: 'Konsentrasi Molar Reaktan',
-        unit: 'mol/L',
-        min: 0.2,
-        max: 3.0,
-        step: 0.2,
-        defaultValue: 1.0,
+        key: 'm',
+        symbol: 'm',
+        label: 'Massa Larutan Air',
+        unit: 'g',
+        min: 100,
+        max: 500,
+        step: 50,
+        defaultValue: 200,
         role: 'independent',
         colorClass: 'text-teal-600 dark:text-teal-400 border-teal-500/40 bg-teal-500/10',
-        paramKey: 'reactantConcentration',
+        paramKey: 'solutionVolumeMl',
       },
       {
         key: 'dT',
@@ -492,17 +492,16 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
         label: 'Kenaikan Suhu Larutan',
         unit: '°C',
         min: 2,
-        max: 45,
+        max: 30,
         step: 1,
-        defaultValue: 15,
+        defaultValue: 10,
         role: 'independent',
         colorClass: 'text-amber-600 dark:text-amber-400 border-amber-500/40 bg-amber-500/10',
-        paramKey: 'initialTempC',
       },
     ],
-    computeOutcome: (v) => Number((v.M * v.dT * 1.045).toFixed(2)),
+    computeOutcome: (v) => Number(((v.m * 4.184 * v.dT) / 1000).toFixed(2)),
     buildIntuitiveSentence: (_activeVar, v, outcome) =>
-      `Jika konsentrasi [M] = ${v.M} mol/L menghasilkan perubahan suhu ΔT = ${v.dT} °C, kalor reaksi q yang dipertukarkan setara dengan ${outcome} kJ.`,
+      `Memanaskan m = ${v.m} g larutan air (c = 4,184 J/g·°C) sebesar ΔT = ${v.dT} °C menyerap kalor reaksi q = m·c·ΔT = ${outcome} kJ.`,
   },
 
   'acid-base-titration': {
@@ -661,11 +660,11 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
     ],
     computeOutcome: (v) => {
       const tK = v.T + 273.15;
-      const k = 1e7 * Math.exp((-v.Ea * 1000) / (8.314 * tK));
+      const k = 1e8 * Math.exp((-v.Ea * 1000) / (8.314 * tK));
       return Number((k * 1000).toFixed(2));
     },
     buildIntuitiveSentence: (_activeVar, v, outcome) =>
-      `Pada suhu ${v.T} °C dan energi aktivasi Eₐ = ${v.Ea} kJ/mol, konstanta laju mencapai ${outcome} ×10⁻³ s⁻¹; menurunkan Eₐ dengan katalis langsung mempercepat reaksi secara eksponensial.`,
+      `Pada suhu ${v.T} °C dan energi aktivasi Eₐ = ${v.Ea} kJ/mol (A = 10⁸ s⁻¹), konstanta laju mencapai ${outcome} ×10⁻³ s⁻¹; menurunkan Eₐ dengan katalis langsung mempercepat reaksi secara eksponensial.`,
   },
 
   'spectrophotometry-beer': {
@@ -673,7 +672,7 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
     title: 'Intuisi Hukum Lambert-Beer',
     outcomeSymbol: 'A',
     outcomeLabel: 'Absorbansi Optik',
-    outcomeUnit: 'AU',
+    outcomeUnit: '',
     variables: [
       {
         key: 'c',
@@ -681,9 +680,9 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
         label: 'Konsentrasi Analit',
         unit: 'mM',
         min: 0.02,
-        max: 0.3,
+        max: 0.25,
         step: 0.02,
-        defaultValue: 0.1,
+        defaultValue: 0.08,
         role: 'independent',
         colorClass: 'text-teal-600 dark:text-teal-400 border-teal-500/40 bg-teal-500/10',
         paramKey: 'concentrationMm',
@@ -702,10 +701,10 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
         paramKey: 'pathLengthCm',
       },
     ],
-    computeOutcome: (v) => Number((5000 * v.b * (v.c / 1000)).toFixed(3)),
+    computeOutcome: (v) => Number((9500 * v.b * (v.c / 1000)).toFixed(3)),
     buildIntuitiveSentence: (_activeVar, v, outcome) => {
       const pctT = Number((Math.pow(10, -outcome) * 100).toFixed(1));
-      return `Pada c = ${v.c} mM dan tebal kuvet b = ${v.b} cm (ε = 5000), absorbansi naik linear ke A = ${outcome} sehingga hanya ${pctT}% cahaya yang lolos ke detektor.`;
+      return `Pada c = ${v.c} mM dan tebal kuvet b = ${v.b} cm (ε = 9500 L/(mol·cm)), absorbansi tak berdimensi naik linear ke A = ${outcome} sehingga hanya ${pctT}% cahaya yang lolos ke detektor.`;
     },
   },
 
@@ -756,17 +755,17 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
     title: 'Intuisi Kinetika Enzim Katalase',
     outcomeSymbol: 'v',
     outcomeLabel: 'Laju Penguraian H₂O₂',
-    outcomeUnit: 'mM/s',
+    outcomeUnit: 'μmol/(L·s)',
     variables: [
       {
         key: 'S',
         symbol: '[S]',
         label: 'Konsentrasi Substrat H₂O₂',
         unit: 'mM',
-        min: 2,
-        max: 50,
-        step: 2,
-        defaultValue: 10,
+        min: 1,
+        max: 25,
+        step: 0.5,
+        defaultValue: 4.5,
         role: 'independent',
         colorClass: 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
         paramKey: 'substrateConcMm',
@@ -786,15 +785,15 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
       },
     ],
     computeOutcome: (v) => {
-      const mm = (120 * v.S) / (10 + v.S);
+      const mm = (120 * v.S) / (4.5 + v.S);
       const thermal = v.T > 60 ? 0.04 : Math.exp(-Math.pow((v.T - 37) / 14, 2));
       return Number((mm * thermal).toFixed(1));
     },
     buildIntuitiveSentence: (_activeVar, v, outcome) => {
       if (v.T >= 60) {
-        return `Pada suhu ${v.T} °C, struktur tersier katalase mengalami denaturasi permanen sehingga laju reaksi merosot drastis ke ${outcome} mM/s meskipun substrat melimpah.`;
+        return `Pada suhu ${v.T} °C, struktur tersier katalase mengalami denaturasi permanen sehingga laju reaksi merosot drastis ke ${outcome} μmol/(L·s) meskipun substrat melimpah.`;
       }
-      return `Pada substrat [H₂O₂] = ${v.S} mM dan suhu ${v.T} °C, katalase bekerja pada kecepatan ${outcome} mM/s (memuncak di suhu tubuh optimum 37 °C).`;
+      return `Pada substrat [H₂O₂] = ${v.S} mM (Kₘ = 4,5 mM) dan suhu ${v.T} °C, katalase bekerja pada kecepatan ${outcome} μmol/(L·s) dan memuncak di suhu tubuh optimum 37 °C.`;
     },
   },
 
@@ -1153,7 +1152,16 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
     ],
     computeOutcome: (v) => Math.round(2897772 / Math.max(1000, v.T)),
     buildIntuitiveSentence: (_activeVar, v, outcome) => {
-      const band = outcome < 380 ? 'ultraviolet (bintang biru super panas)' : outcome <= 520 ? 'biru-hijau (putih panas)' : outcome <= 700 ? 'kuning-merah (tipe Matahari/oranye)' : 'inframerah (bintang kerdil merah dingin)';
+      const band =
+        outcome < 380
+          ? 'ultraviolet (bintang biru sangat panas kelas O/B)'
+          : outcome <= 470
+          ? 'ungu-biru (bintang putih-biru kelas A/F)'
+          : outcome <= 560
+          ? 'hijau-kuning (bintang putih kekuningan setipe Matahari, kelas G)'
+          : outcome <= 750
+          ? 'jingga-merah (bintang dingin kelas K)'
+          : 'inframerah dekat (bintang kerdil/raksasa merah kelas M)';
       return `Pada suhu fotosfer T = ${v.T} K, puncak pancaran benda hitam bergeser ke λ maks = ${outcome} nm di spektrum ${band}.`;
     },
   },

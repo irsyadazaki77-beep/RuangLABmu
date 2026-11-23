@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Atom, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Atom, CheckCircle2, Star } from 'lucide-react';
 import { EducationTier, ExperimentModule, ScienceDomain } from '../../registry/experimentRegistry';
 import { CurriculumChapter } from '../../registry/curriculumChapters';
 import { ModuleSchematicIllustration } from '../ui/ModuleSchematicIllustration';
@@ -15,6 +15,8 @@ import {
 export interface ModuleCatalogCardProps {
   exp: ExperimentModule;
   isCompleted: boolean;
+  isBookmarked?: boolean;
+  onToggleBookmark?: (moduleId: string) => void;
   tierLabel: EducationTier;
   onSelect: (exp: ExperimentModule) => void;
 }
@@ -22,6 +24,8 @@ export interface ModuleCatalogCardProps {
 export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
   exp,
   isCompleted,
+  isBookmarked = false,
+  onToggleBookmark,
   tierLabel,
   onSelect,
 }) => {
@@ -30,6 +34,8 @@ export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
   const conciseDesc =
     exp.theorySummary.split('.')[0]?.trim() + '.' || exp.theorySummary;
   const primaryEquation = formatCleanCardEquation(exp.keyEquations[0] || '');
+  const difficultyLabel =
+    exp.difficulty === 1 ? 'Dasar' : exp.difficulty === 2 ? 'Menengah' : 'Lanjut';
 
   return (
     <article
@@ -48,6 +54,27 @@ export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
             subCategory={exp.subCategory}
             className="transition-transform duration-200 group-hover:scale-[1.03]"
           />
+          {onToggleBookmark && (
+            <button
+              type="button"
+              data-testid={`bookmark-module-${exp.id}`}
+              aria-label={isBookmarked ? `Hapus ${exp.title} dari favorit` : `Tandai ${exp.title} sebagai favorit`}
+              aria-pressed={isBookmarked}
+              onClick={(e) => {
+                e.stopPropagation();
+                labSound.playClick();
+                onToggleBookmark(exp.id);
+              }}
+              className={`absolute top-2 right-2 p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                isBookmarked
+                  ? 'bg-amber-500/15 border-amber-500/45 text-amber-500'
+                  : 'bg-[var(--comfort-surface)]/90 border-[var(--comfort-border)] text-[var(--comfort-text-muted)] hover:text-amber-500'
+              }`}
+              title={isBookmarked ? 'Hapus dari Favorit' : 'Simpan ke Favorit'}
+            >
+              <Star className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-amber-400 text-amber-500' : ''}`} />
+            </button>
+          )}
         </div>
 
         <div className="p-4 pb-3 space-y-2">
@@ -71,6 +98,8 @@ export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
             </div>
 
             <div className="flex items-center gap-1.5 font-mono text-[11px] shrink-0 tabular-nums">
+              <span>{difficultyLabel}</span>
+              <span aria-hidden="true">·</span>
               <span>{tierLabel}</span>
               <span aria-hidden="true">·</span>
               <span>{exp.estimatedMinutes}m</span>

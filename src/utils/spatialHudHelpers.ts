@@ -220,6 +220,7 @@ export function formatCleanEquation(rawEquation: string): string {
     .replace(/\\xrightarrow\{[^}]*\}/g, ' → ')
     .replace(/\\rightarrow/g, ' → ')
     .replace(/\\implies/g, ' ⟹ ')
+    .replace(/\\Leftrightarrow/g, ' ⇔ ')
     .replace(/\\uparrow/g, '↑')
     .replace(/\\downarrow/g, '↓')
     .replace(/\\%/g, '%')
@@ -265,7 +266,9 @@ export function formatCleanEquation(rawEquation: string): string {
     .replace(/\\ge(?![A-Za-z])/g, ' ≥ ')
     .replace(/\\infty/g, '∞')
     .replace(/\\quad/g, ' ')
+    .replace(/_\\(max|min)\b/g, '_$1')
     .replace(/\\(arcsin|arccos|arctan|sin|cos|tan|log|ln|max|min|exp)\b/g, ' $1')
+    .replace(/_\s+/g, '_')
     .replace(/_\*/g, '_*')
     .replace(/\\/g, '')
     // Normalize binary operator spacing while keeping charges/exponents like H^+, OH^-, 10^-14 intact
@@ -370,3 +373,18 @@ export function filterRecordsForModule(
     return !inferred || inferred === moduleId;
   });
 }
+
+/**
+ * Extracts the first complete sentence from an explanation string without
+ * truncating inside decimal numbers like "7.0", "9.81", or "0.082".
+ */
+export function extractConceptHint(explanation: string): string {
+  const trimmed = (explanation || '').trim();
+  if (!trimmed) return '';
+  const match = trimmed.match(/^(.*?(?<!\d)\.(?!\d))(?:\s|$)/);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return trimmed.endsWith('.') ? trimmed : `${trimmed}.`;
+}
+

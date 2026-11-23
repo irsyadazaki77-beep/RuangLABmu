@@ -67,18 +67,18 @@ export const BIOLOGY_PEDAGOGY: Record<string, ModulePedagogyBundle> = {
       { symbol: '[S]', name: 'Konsentrasi substrat H₂O₂', unit: 'mM', role: 'bebas', explanation: 'Meningkatkan laju reaksi hingga seluruh molekul enzim jenuh.' },
       { symbol: 'T', name: 'Suhu inkubasi', unit: '°C', role: 'bebas', explanation: 'Optimum di suhu tubuh ~37°C; di atas 55°C denaturasi merusak aktivitas.' },
       { symbol: 'pH', name: 'Keasaman larutan', unit: '1–14', role: 'bebas', explanation: 'Mengubah muatan gugus asam amino sisi aktif; optimum di pH ~7,0.' },
-      { symbol: 'v', name: 'Laju reaksi enzimatik', unit: 'mM/s', role: 'terikat', explanation: 'Kecepatan penguraian H₂O₂ yang terlihat sebagai tinggi kolom busa O₂.' },
+      { symbol: 'v', name: 'Laju reaksi enzimatik', unit: 'μmol/(L·s)', role: 'terikat', explanation: 'Kecepatan penguraian H₂O₂ yang terlihat sebagai tinggi kolom busa O₂.' },
     ],
     workedExample: {
       question:
-        'Pada suhu 37°C dan pH 7,0, enzim katalase memiliki Vₘₐₖₛ = 120 mM/s dan Kₘ = 10 mM. Berapa laju reaksi saat konsentrasi substrat H₂O₂ adalah 10 mM dan saat 30 mM?',
-      given: ['Vₘₐₖₛ = 120 mM/s', 'Kₘ = 10 mM', '[S]₁ = 10 mM; [S]₂ = 30 mM'],
+        'Pada suhu 37°C dan pH 7,0, enzim katalase memiliki Vₘₐₖₛ = 120 μmol/(L·s) dan Kₘ = 4,5 mM. Berapa laju reaksi saat konsentrasi substrat H₂O₂ adalah 4,5 mM dan saat 13,5 mM?',
+      given: ['Vₘₐₖₛ = 120 μmol/(L·s)', 'Kₘ = 4,5 mM', '[S]₁ = 4,5 mM; [S]₂ = 13,5 mM'],
       steps: [
         'Gunakan Persamaan Michaelis-Menten: v = (Vₘₐₖₛ · [S]) / (Kₘ + [S]).',
-        'Saat [S] = 10 mM: v₁ = (120 × 10) / (10 + 10) = 1200 / 20 = 60 mM/s (tepat setengah Vₘₐₖₛ).',
-        'Saat [S] = 30 mM: v₂ = (120 × 30) / (10 + 30) = 3600 / 40 = 90 mM/s.',
+        'Saat [S] = 4,5 mM: v₁ = (120 × 4,5) / (4,5 + 4,5) = 540 / 9 = 60 μmol/(L·s) (tepat setengah Vₘₐₖₛ).',
+        'Saat [S] = 13,5 mM: v₂ = (120 × 13,5) / (4,5 + 13,5) = 1620 / 18 = 90 μmol/(L·s).',
       ],
-      answer: 'v₁ = 60 mM/s dan v₂ = 90 mM/s',
+      answer: 'v₁ = 60 μmol/(L·s) dan v₂ = 90 μmol/(L·s)',
       physicalMeaning:
         'Konstanta Kₘ selalu setara dengan konsentrasi substrat yang menghasilkan tepat ½ Vₘₐₖₛ; makin kecil Kₘ, makin tinggi afinitas enzim terhadap substratnya.',
     },

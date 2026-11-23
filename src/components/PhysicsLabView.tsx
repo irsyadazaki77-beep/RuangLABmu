@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   PhysicsParams,
   AcademicLevel,
@@ -40,6 +40,11 @@ import { LabSidebarActionHeader } from './layout/LabSidebarActionHeader';
 import { LabSceneFallback } from './three/LabSceneFallback';
 import { LabHazardModal } from './three/LabHazardModal';
 import { PhysicsParameterPanel } from './labs/PhysicsParameterPanel';
+import { LabPresetAndSweepBar } from './labs/LabPresetAndSweepBar';
+import {
+  generateAutoSweepSeries,
+  getPhysicsPresetsForMode,
+} from '../utils/labScenarioPresets';
 
 export interface PhysicsLabViewProps {
   params: PhysicsParams;
@@ -318,7 +323,19 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
   };
   const moduleRecords = filterRecordsForModule(records, 'Fisika', modeToCatalogId[params.mode]);
 
-  const handleRecordTrial = () => {
+  const scenarioPresets = useMemo(
+    () => getPhysicsPresetsForMode(params.mode),
+    [params.mode]
+  );
+  const sweepSteps = useMemo(
+    () => generateAutoSweepSeries('Fisika', params.mode, 5),
+    [params.mode]
+  );
+
+  const handleRecordTrial = (overrideParams?: PhysicsParams, noteOverride?: string) => {
+    const p = overrideParams ?? params;
+    const m = overrideParams ? calculatePhysicsMetrics(overrideParams) : metrics;
+    const inst = overrideParams ? evaluateKinematicsAtTime(overrideParams, Math.max(1, simTime)) : instant;
     labSound.playRecordSuccess();
     const titleMap: Record<string, string> = {
       'newton-incline': 'Uji Bidang Miring Newton',
@@ -332,60 +349,60 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       'photoelectric-planck': 'Uji Efek Fotolistrik Planck',
       'orbital-gravity': 'Uji Gravitasi Universal Newton',
     };
-    const title = titleMap[params.mode] || 'Uji Eksperimen Fisika';
+    const title = titleMap[p.mode] || 'Uji Eksperimen Fisika';
 
-    let pSum = `m=${params.mass}kg, F=${params.appliedForce}N, θ=${params.inclineAngle}°`;
-    let numX = params.appliedForce;
-    let numY1 = metrics.acceleration;
+    let pSum = `m=${p.mass}kg, F=${p.appliedForce}N, θ=${p.inclineAngle}°`;
+    let numX = p.appliedForce;
+    let numY1 = m.acceleration;
 
-    if (metrics.mode === 'projectile-gravity') {
-      pSum = `v₀=${params.initialVelocity}m/s, θ=${params.launchAngle}°, g=${params.gravity}m/s²`;
-      numX = params.initialVelocity;
-      numY1 = metrics.projectileRange;
-    } else if (metrics.mode === 'spring-hooke') {
-      pSum = `k=${params.springConstantK}N/m, Δx=${params.springDisplacement}m, m=${params.mass}kg`;
-      numX = params.springDisplacement;
-      numY1 = Math.abs(metrics.springRestoringForce);
-    } else if (metrics.mode === 'pendulum-harmonic') {
-      pSum = `L=${params.pendulumLength ?? 1.2}m, θ₀=${params.pendulumAngle ?? 25}°, g=${params.gravity}m/s²`;
-      numX = params.pendulumLength ?? 1.2;
-      numY1 = metrics.pendulumPeriod;
-    } else if (metrics.mode === 'collision-momentum') {
-      pSum = `m₁=${params.mass}kg, v₁=${params.initialVelocity}m/s, m₂=${params.collisionMass2}kg, e=${params.restitutionCoeff}`;
-      numX = params.initialVelocity;
-      numY1 = metrics.v1Final;
-    } else if (metrics.mode === 'stokes-viscosity') {
-      pSum = `η=${params.fluidViscosity ?? 0.8}Pa·s, r=${params.sphereRadius ?? 5}mm`;
-      numX = params.sphereRadius ?? 5;
-      numY1 = metrics.stokesTerminalVelocity;
-    } else if (metrics.mode === 'ohm-wheatstone') {
-      pSum = `V=${params.circuitVoltage ?? 12}V, Rx=${params.resistorRx ?? 100}Ω`;
-      numX = params.resistorRx ?? 100;
-      numY1 = metrics.galvanometerCurrent;
-    } else if (metrics.mode === 'optics-young-slit') {
-      pSum = `λ=${params.lightWavelength ?? 532}nm, d=${params.slitDistance ?? 0.25}mm, L=${params.screenDistance ?? 1.5}m`;
-      numX = params.lightWavelength ?? 532;
-      numY1 = metrics.fringeSpacingMm;
-    } else if (metrics.mode === 'photoelectric-planck') {
-      pSum = `λ=${params.lightWavelength ?? 400}nm, W=${params.targetMetalWorkFunction ?? 2.3}eV`;
-      numX = params.lightWavelength ?? 400;
-      numY1 = metrics.photoelectricMaxKe;
-    } else if (metrics.mode === 'orbital-gravity') {
-      pSum = `M₁=${params.mass}kg, M₂=${params.secondaryMass}kg, r=${params.separationDistance}m`;
-      numX = params.separationDistance;
-      numY1 = metrics.universalGravityForce;
+    if (m.mode === 'projectile-gravity') {
+      pSum = `v₀=${p.initialVelocity}m/s, θ=${p.launchAngle}°, g=${p.gravity}m/s²`;
+      numX = p.initialVelocity;
+      numY1 = m.projectileRange;
+    } else if (m.mode === 'spring-hooke') {
+      pSum = `k=${p.springConstantK}N/m, Δx=${p.springDisplacement}m, m=${p.mass}kg`;
+      numX = p.springDisplacement;
+      numY1 = Math.abs(m.springRestoringForce);
+    } else if (m.mode === 'pendulum-harmonic') {
+      pSum = `L=${p.pendulumLength ?? 1.2}m, θ₀=${p.pendulumAngle ?? 25}°, g=${p.gravity}m/s²`;
+      numX = p.pendulumLength ?? 1.2;
+      numY1 = m.pendulumPeriod;
+    } else if (m.mode === 'collision-momentum') {
+      pSum = `m₁=${p.mass}kg, v₁=${p.initialVelocity}m/s, m₂=${p.collisionMass2}kg, e=${p.restitutionCoeff}`;
+      numX = p.initialVelocity;
+      numY1 = m.v1Final;
+    } else if (m.mode === 'stokes-viscosity') {
+      pSum = `η=${p.fluidViscosity ?? 0.8}Pa·s, r=${p.sphereRadius ?? 5}mm`;
+      numX = p.sphereRadius ?? 5;
+      numY1 = m.stokesTerminalVelocity;
+    } else if (m.mode === 'ohm-wheatstone') {
+      pSum = `V=${p.circuitVoltage ?? 12}V, Rx=${p.resistorRx ?? 100}Ω`;
+      numX = p.resistorRx ?? 100;
+      numY1 = m.galvanometerCurrent;
+    } else if (m.mode === 'optics-young-slit') {
+      pSum = `λ=${p.lightWavelength ?? 532}nm, d=${p.slitDistance ?? 0.25}mm, L=${p.screenDistance ?? 1.5}m`;
+      numX = p.lightWavelength ?? 532;
+      numY1 = m.fringeSpacingMm;
+    } else if (m.mode === 'photoelectric-planck') {
+      pSum = `λ=${p.lightWavelength ?? 400}nm, W=${p.targetMetalWorkFunction ?? 2.3}eV`;
+      numX = p.lightWavelength ?? 400;
+      numY1 = m.photoelectricMaxKe;
+    } else if (m.mode === 'orbital-gravity') {
+      pSum = `M₁=${p.mass}kg, M₂=${p.secondaryMass}kg, r=${p.separationDistance}m`;
+      numX = p.separationDistance;
+      numY1 = m.universalGravityForce;
     }
 
     onRecordExperiment(
       title,
       pSum,
       {
-        'Percepatan (a)': `${metrics.acceleration} m/s²`,
-        'Kecepatan v(t)': `${instant.speed} m/s`,
-        'Jangkauan (R)': metrics.mode === 'projectile-gravity' ? `${metrics.projectileRange} m` : '0 m',
+        'Percepatan (a)': `${m.acceleration} m/s²`,
+        'Kecepatan v(t)': `${inst.speed} m/s`,
+        'Jangkauan (R)': m.mode === 'projectile-gravity' ? `${m.projectileRange} m` : '0 m',
       },
-      hypothesisNote?.hypothesisText || '',
-      { x: numX, y1: numY1, y2: instant.speed }
+      noteOverride ?? (hypothesisNote?.hypothesisText || ''),
+      { x: numX, y1: numY1, y2: inst.speed }
     );
   };
 
@@ -492,6 +509,10 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               realityBSummary={primaryVar.summaryB}
               deltaSummary={primaryVar.delta}
               onResetBToMatchA={() => setRealityBParams({ ...params })}
+              onRecordComparison={() => {
+                handleRecordTrial(params, '[Komparasi A · Kontrol]');
+                handleRecordTrial(realityBParams, '[Komparasi B · Uji Variabel]');
+              }}
               onClose={() => setIsDualRealityMode(false)}
               realityBControls={
                 <div className="w-full min-w-[240px]">
@@ -622,6 +643,18 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               <option value="orbital-gravity">Gravitasi Universal &amp; Orbit Satelit</option>
             </select>
           </div>
+
+          <LabPresetAndSweepBar
+            presets={scenarioPresets}
+            sweepSteps={sweepSteps}
+            accentColor="sky"
+            onApplyPreset={(preset) => handleParamUpdate(preset.patch)}
+            onSweepStep={(step) => {
+              const nextParams = { ...params, ...(step.patch as Partial<PhysicsParams>) };
+              onChangeParams(nextParams);
+              handleRecordTrial(nextParams, step.label);
+            }}
+          />
 
           <PhysicsParameterPanel
             params={params}

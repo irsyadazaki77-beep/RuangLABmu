@@ -9,6 +9,7 @@ import {
   validateCreateSubmissionPayload,
   validateGradebookQuery,
   validateGradeSubmissionPayload,
+  validateBatchGradeSubmissionsPayload,
 } from './routePayloadValidators';
 
 describe('Backend Route Payload Validators', () => {
@@ -218,5 +219,30 @@ describe('Backend Route Payload Validators', () => {
 
     assert.equal(validateGradebookQuery({ roomPin: ['a', 'b'] }).ok, false);
     assert.equal(validateGradebookQuery({ roomPin: 'x'.repeat(65) }).ok, false);
+  });
+
+  it('validates POST /api/submissions/batch-grade payloads strictly', () => {
+    assert.equal(validateBatchGradeSubmissionsPayload('bad').ok, false);
+    assert.equal(validateBatchGradeSubmissionsPayload({ onlyUngraded: 'yes' }).ok, false);
+    assert.equal(validateBatchGradeSubmissionsPayload({ submissionIds: [''] }).ok, false);
+
+    const defaultOk = validateBatchGradeSubmissionsPayload({});
+    assert.equal(defaultOk.ok, true);
+    if (defaultOk.ok) {
+      assert.equal(defaultOk.data.onlyUngraded, true);
+      assert.equal(defaultOk.data.submissionIds, undefined);
+    }
+
+    const explicitOk = validateBatchGradeSubmissionsPayload({
+      submissionIds: ['SUB-2026-001'],
+      onlyUngraded: false,
+      feedbackPrefix: 'Dinilai Massal',
+    });
+    assert.equal(explicitOk.ok, true);
+    if (explicitOk.ok) {
+      assert.equal(explicitOk.data.onlyUngraded, false);
+      assert.deepEqual(explicitOk.data.submissionIds, ['SUB-2026-001']);
+      assert.equal(explicitOk.data.feedbackPrefix, 'Dinilai Massal');
+    }
   });
 });

@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import {
   auToSceneRadius,
   computeTransitLightCurveSample,
+  evaluateKeplerOrbitPoint,
   normalizeAstronomyMode,
   redshiftToGalaxyColorHex,
+  solveKeplerEccentricAnomaly,
 } from './astronomyVisualHelpers';
 
 test('normalizeAstronomyMode maps catalog IDs and aliases consistently', () => {
@@ -49,3 +51,40 @@ test('redshiftToGalaxyColorHex shifts blue-white galaxies toward crimson at high
   assert.ok(lowBlue > highBlue, 'Higher redshift should have lower blue channel');
   assert.ok(highRed > 200, 'Higher redshift should shift strongly toward red');
 });
+
+test('solveKeplerEccentricAnomaly satisfies Kepler equation M = E - e*sin(E) and accelerates near perihelion', () => {
+  const e = 0.55;
+  for (const M of [0.2, 0.9, 1.8, 3.14, 4.7, 5.9]) {
+    const E = solveKeplerEccentricAnomaly(M, e);
+    const residual = Math.abs(E - e * Math.sin(E) - M);
+    assert.ok(residual < 1e-6, `Expected residual < 1e-6 for M=${M}, got ${residual}`);
+  }
+
+  // Equal mean-anomaly delta sweeps larger eccentric-anomaly arc near perihelion (M=0) than aphelion (M=π)
+  const deltaM = 0.25;
+  const dEPeri = solveKeplerEccentricAnomaly(deltaM, e) - solveKeplerEccentricAnomaly(0, e);
+  const dEAph = solveKeplerEccentricAnomaly(Math.PI + deltaM, e) - solveKeplerEccentricAnomaly(Math.PI, e);
+  assert.ok(dEPeri > dEAph * 2.5, 'Orbital angular speed must be faster near perihelion than aphelion');
+});
+
+test('evaluateKeplerOrbitPoint preserves true elliptical semi-minor compression and focus offset', () => {
+  const a = 2.5;
+  const e = 0.6;
+  const scaledR = 4.0;
+  const incRad = 0;
+
+  const peri = evaluateKeplerOrbitPoint(0, a, e, scaledR, incRad);
+  const aph = evaluateKeplerOrbitPoint(Math.PI, a, e, scaledR, incRad);
+  const quad = evaluateKeplerOrbitPoint(Math.PI / 2, a, e, scaledR, incRad);
+
+  assert.ok(Math.abs(peri.ox - (1 - e) * scaledR) < 1e-6, 'Perihelion must lie at (1 - e) * scaledR');
+  assert.ok(Math.abs(aph.ox + (1 + e) * scaledR) < 1e-6, 'Aphelion must lie at -(1 + e) * scaledR');
+  const expectedSemiMinor = Math.sqrt(1 - e * e) * scaledR; // 0.8 * 4.0 = 3.2
+  assert.ok(
+    Math.abs(quad.oz - expectedSemiMinor) < 1e-6,
+    `Semi-minor oz must equal sqrt(1-e^2)*scaledR (${expectedSemiMinor}), got ${quad.oz}`
+  );
+  assert.ok(quad.oz < scaledR, 'Eccentric ellipse must be visibly compressed along semi-minor axis');
+  assert.ok(peri.tangentZ > 0 && Math.abs(peri.tangentX) < 1e-6, 'Perihelion velocity tangent should point along +Z');
+});
+

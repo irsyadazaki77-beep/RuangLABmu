@@ -7,10 +7,13 @@ import {
   createBorosilicateGlassMaterial,
   createBrushedMetalTextures,
   createBuretteClampAssembly,
+  createContactShadowPlane,
   createErlenmeyerProfilePoints,
   createFunnelProfilePoints,
   createGraduatedScaleTexture,
   createInstancedParticlePool,
+  createInstrumentPanelTexture,
+  updateInstrumentPanelTexture,
 } from '../../utils/threeStudioKit';
 import {
   ChemistryParams,
@@ -29,11 +32,11 @@ export function createLiquidWobbleMaterial(initialHex: number, initialOpacity = 
   return new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uWobbleAmp: { value: 0.025 },
+      uWobbleAmp: { value: 0.007 },
       uColor: { value: new THREE.Color(initialHex) },
       uRimColor: { value: new THREE.Color(0xffffff) },
       uOpacity: { value: initialOpacity },
-      uMeniscusStrength: { value: 0.045 },
+      uMeniscusStrength: { value: 0.016 },
     },
     vertexShader: `
       uniform float uTime;
@@ -48,12 +51,13 @@ export function createLiquidWobbleMaterial(initialHex: number, initialOpacity = 
         vUv = uv;
         vec3 pos = position;
 
-        float topFactor = smoothstep(-0.1, 0.45, pos.y);
+        float topFactor = smoothstep(-0.1, 0.48, pos.y);
         float radialDist = length(pos.xz);
-        float wave1 = sin(pos.x * 6.5 + uTime * 4.2) * cos(pos.z * 6.5 + uTime * 3.6);
-        float wave2 = sin(radialDist * 10.0 - uTime * 5.5) * 0.5;
+        // Smooth low-frequency swell avoids jagged radial triangle-fan distortion on CylinderGeometry caps
+        float wave1 = sin(pos.x * 2.4 + uTime * 2.2) * cos(pos.z * 2.4 + uTime * 1.8);
+        float wave2 = sin(radialDist * 3.8 - uTime * 2.6) * 0.35;
         float ripple = (wave1 + wave2) * uWobbleAmp * topFactor;
-        float meniscus = pow(radialDist, 2.0) * uMeniscusStrength * topFactor;
+        float meniscus = pow(radialDist, 2.2) * uMeniscusStrength * topFactor;
 
         pos.y += ripple + meniscus;
         vWaveHeight = ripple + meniscus;
@@ -76,17 +80,24 @@ export function createLiquidWobbleMaterial(initialHex: number, initialOpacity = 
       void main() {
         vec3 normal = normalize(vNormal);
         vec3 viewDir = normalize(vViewPos);
-        float fresnel = pow(1.0 - abs(dot(viewDir, normal)), 2.2);
+        float ndotv = abs(dot(viewDir, normal));
+        float fresnel = pow(1.0 - ndotv, 2.6);
+        float topSheen = smoothstep(0.65, 0.99, normal.y) * 0.16;
 
-        vec3 deepColor = uColor * (0.78 + 0.25 * vUv.y);
-        vec3 surfaceHighlight = mix(deepColor, uRimColor, fresnel * 0.42 + clamp(vWaveHeight * 4.5, 0.0, 0.25));
+        // Subtle Beer-Lambert vertical optical depth + clean capillary surface sheen
+        vec3 deepColor = uColor * (0.76 + 0.28 * vUv.y);
+        vec3 surfaceHighlight = mix(
+          deepColor,
+          uRimColor,
+          clamp(fresnel * 0.36 + topSheen + clamp(vWaveHeight * 1.6, 0.0, 0.1), 0.0, 0.62)
+        );
 
-        gl_FragColor = vec4(surfaceHighlight, uOpacity);
+        gl_FragColor = vec4(surfaceHighlight, clamp(uOpacity + fresnel * 0.1, 0.0, 0.92));
       }
     `,
     transparent: true,
     depthWrite: false,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
   });
 }
 
@@ -232,6 +243,21 @@ export function buildChemistryCoreStage(
   calLid.castShadow = true;
   thermoGroup.add(calLid);
 
+  const calLidKnob = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.14, 0.22, 18),
+    darkFrameMat
+  );
+  calLidKnob.position.set(-0.45, 3.04, 0);
+  thermoGroup.add(calLidKnob);
+
+  const calStirBar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.055, 0.055, 0.62, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })
+  );
+  calStirBar.rotation.z = Math.PI / 2;
+  calStirBar.position.set(0, 0.42, 0);
+  thermoGroup.add(calStirBar);
+
   const calGrommet = new THREE.Mesh(
     new THREE.TorusGeometry(0.11, 0.035, 12, 24),
     darkFrameMat
@@ -240,20 +266,35 @@ export function buildChemistryCoreStage(
   calGrommet.position.set(0.6, 2.95, 0);
   thermoGroup.add(calGrommet);
 
-  const calThermometer = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.055, 0.055, 2.75, 16),
-    new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      metalness: 0.2,
-      roughness: 0.2,
-      emissive: 0xef4444,
-      emissiveIntensity: 0.35,
-    })
+  // Composite Laboratory Glass Thermometer with dynamic red alcohol column
+  const calThermometerGroup = new THREE.Group();
+  calThermometerGroup.position.set(0.6, 1.55, 0);
+  const calThermGlass = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.068, 0.068, 3.25, 18),
+    glassMat
   );
-  calThermometer.position.set(0.6, 3.2, 0);
-  calThermometer.castShadow = true;
-  calThermometer.userData = { draggableParam: 'initialTempC', min: 10, max: 90, step: 1, label: 'Suhu Awal T₀' };
-  thermoGroup.add(calThermometer);
+  calThermGlass.position.set(0, 1.45, 0);
+  calThermGlass.userData = { draggableParam: 'initialTempC', min: 10, max: 90, step: 1, label: 'Suhu Awal T₀' };
+  const calThermBulb = new THREE.Mesh(
+    new THREE.SphereGeometry(0.11, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xdc2626, emissiveIntensity: 0.45, roughness: 0.18 })
+  );
+  calThermBulb.position.set(0, -0.18, 0);
+  const calThermColumnGeo = new THREE.CylinderGeometry(0.026, 0.026, 2.7, 12);
+  calThermColumnGeo.translate(0, 1.35, 0);
+  const calThermColumn = new THREE.Mesh(
+    calThermColumnGeo,
+    new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.4, roughness: 0.2 })
+  );
+  calThermColumn.position.set(0, -0.12, 0);
+  calThermColumn.scale.y = 0.45;
+  const calThermTopCap = new THREE.Mesh(
+    new THREE.TorusGeometry(0.065, 0.018, 10, 18),
+    brassMat
+  );
+  calThermTopCap.position.set(0, 3.12, 0);
+  calThermometerGroup.add(calThermGlass, calThermBulb, calThermColumn, calThermTopCap);
+  thermoGroup.add(calThermometerGroup);
 
   // 2. Acid-Base Titration 3D Group
   const titrationGroup = new THREE.Group();
@@ -265,13 +306,79 @@ export function buildChemistryCoreStage(
   retBase.receiveShadow = true;
   titrationGroup.add(retBase);
 
-  const porcelainTile = new THREE.Mesh(
-    new RoundedBoxGeometry(2.2, 0.06, 2.2, 2, 0.02),
-    new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.28, metalness: 0.02 })
+  const retContactShadow = createContactShadowPlane(1.65, 1.9, 0.34);
+  retContactShadow.position.set(-1.35, 0.296, 0);
+  titrationGroup.add(retContactShadow);
+
+  // Grounded Compact Magnetic Stirrer Base + Sloped Digital Control Bezel + Ceramic Top Plate
+  const stirrerChassis = new THREE.Mesh(
+    new RoundedBoxGeometry(2.38, 0.26, 2.38, 3, 0.04),
+    darkFrameMat
   );
-  porcelainTile.position.set(0, 0.53, 0);
+  stirrerChassis.position.set(0, 0.42, 0);
+  stirrerChassis.castShadow = true;
+  stirrerChassis.receiveShadow = true;
+
+  const stirrerContactShadow = createContactShadowPlane(1.52, 1.52, 0.36);
+  stirrerContactShadow.position.set(0, 0.297, 0);
+  titrationGroup.add(stirrerContactShadow);
+
+  const stirrerFrontBezel = new THREE.Mesh(
+    new RoundedBoxGeometry(2.2, 0.22, 0.32, 2, 0.03),
+    darkFrameMat
+  );
+  stirrerFrontBezel.position.set(0, 0.39, 1.24);
+  stirrerFrontBezel.rotation.x = -0.35;
+
+  const stirrerOledTex = createInstrumentPanelTexture({
+    title: 'STIRRER PRO',
+    primaryText: '420 RPM',
+    secondaryText: '25.0 °C · STABIL',
+    accentHex: '#2dd4bf',
+    width: 256,
+    height: 112,
+  });
+  const stirrerOledScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.96, 0.19),
+    new THREE.MeshBasicMaterial({ map: stirrerOledTex })
+  );
+  stirrerOledScreen.position.set(-0.34, 0, 0.158);
+  stirrerFrontBezel.add(stirrerOledScreen);
+
+  const stirrerKnob = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.085, 0.095, 0.12, 18),
+    brassMat
+  );
+  stirrerKnob.rotation.x = Math.PI / 2 - 0.35;
+  stirrerKnob.position.set(0.48, 0.43, 1.4);
+
+  const stirrerKnob2 = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.085, 0.095, 0.12, 18),
+    brushedSteelMat
+  );
+  stirrerKnob2.rotation.x = Math.PI / 2 - 0.35;
+  stirrerKnob2.position.set(0.8, 0.43, 1.4);
+
+  const porcelainTile = new THREE.Mesh(
+    new RoundedBoxGeometry(2.12, 0.06, 2.12, 2, 0.02),
+    new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.22, metalness: 0.02, envMapIntensity: 0.85 })
+  );
+  porcelainTile.position.set(0, 0.56, 0);
   porcelainTile.receiveShadow = true;
-  titrationGroup.add(porcelainTile);
+  const titrationStirBar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 0.52, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })
+  );
+  titrationStirBar.rotation.z = Math.PI / 2;
+  titrationStirBar.position.set(0, 0.68, 0);
+  titrationGroup.add(
+    stirrerChassis,
+    stirrerFrontBezel,
+    stirrerKnob,
+    stirrerKnob2,
+    porcelainTile,
+    titrationStirBar
+  );
 
   const rodCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.16, 20), brushedSteelMat);
   rodCollar.position.set(-2.2, 0.57, 0);
@@ -348,11 +455,16 @@ export function buildChemistryCoreStage(
   stopcockBody.position.set(0, 2.26, 0);
   titrationGroup.add(stopcockBody);
 
-  const stopcock = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.78, 16), brassMat);
-  stopcock.rotation.z = Math.PI / 2;
+  const stopcock = new THREE.Group();
   stopcock.position.set(0, 2.26, 0);
-  stopcock.castShadow = true;
-  stopcock.userData = { draggableParam: 'titrantAddedMl', min: 0, max: 50, step: 0.5, label: 'Volume Titran Vb' };
+  const stopcockAxle = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.72, 16), brassMat);
+  stopcockAxle.rotation.z = Math.PI / 2;
+  stopcockAxle.castShadow = true;
+  stopcockAxle.userData = { draggableParam: 'titrantAddedMl', min: 0, max: 50, step: 0.5, label: 'Volume Titran Vb' };
+  const stopcockWing = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.36, 0.06, 2, 0.015), darkFrameMat);
+  stopcockWing.position.set(0.38, 0, 0);
+  stopcockWing.userData = { draggableParam: 'titrantAddedMl', min: 0, max: 50, step: 0.5, label: 'Volume Titran Vb' };
+  stopcock.add(stopcockAxle, stopcockWing);
   titrationGroup.add(stopcock);
 
   const buretSoundEmitter = labSound.createPositionalSoundEmitter(camera, 'titration-drop');
@@ -464,39 +576,117 @@ export function buildChemistryCoreStage(
   titrationGroup.add(rippleRing2);
 
   const phScaleCanvas = document.createElement('canvas');
-  phScaleCanvas.width = 96;
+  phScaleCanvas.width = 128;
   phScaleCanvas.height = 512;
   const phCtx = phScaleCanvas.getContext('2d');
   if (phCtx) {
-    const grad = phCtx.createLinearGradient(0, 512, 0, 0);
+    phCtx.fillStyle = '#0f172a';
+    phCtx.fillRect(0, 0, 128, 512);
+    const grad = phCtx.createLinearGradient(0, 494, 0, 18);
     grad.addColorStop(0.0, '#ef4444');
     grad.addColorStop(0.25, '#f59e0b');
-    grad.addColorStop(0.5, '#22c55e');
+    grad.addColorStop(0.5, '#10b981');
     grad.addColorStop(0.75, '#0ea5e9');
     grad.addColorStop(1.0, '#8b5cf6');
     phCtx.fillStyle = grad;
-    phCtx.fillRect(0, 0, 96, 512);
-    phCtx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    phCtx.font = 'bold 20px monospace';
-    phCtx.fillText('14', 60, 26);
-    phCtx.fillText('7', 68, 262);
-    phCtx.fillText('0', 68, 502);
+    phCtx.fillRect(14, 18, 42, 476);
+
+    phCtx.strokeStyle = 'rgba(226, 232, 240, 0.8)';
+    phCtx.fillStyle = '#e2e8f0';
+    phCtx.font = 'bold 20px "IBM Plex Mono", monospace';
+    phCtx.textBaseline = 'middle';
+    for (let phVal = 0; phVal <= 14; phVal += 1) {
+      const y = 494 - (phVal / 14) * 476;
+      const isMajor = phVal % 2 === 0 || phVal === 7;
+      phCtx.lineWidth = isMajor ? 2.2 : 1.2;
+      phCtx.beginPath();
+      phCtx.moveTo(58, y);
+      phCtx.lineTo(isMajor ? 74 : 66, y);
+      phCtx.stroke();
+      if (isMajor) {
+        phCtx.fillText(`${phVal}`, 80, y);
+      }
+    }
   }
   const phScaleTex = new THREE.CanvasTexture(phScaleCanvas);
   phScaleTex.colorSpace = THREE.SRGBColorSpace;
+  phScaleTex.anisotropy = 4;
+
+  const phMeterOledTex = createInstrumentPanelTexture({
+    title: 'DIGITAL pH METER',
+    primaryText: 'pH 7.00',
+    secondaryText: 'NETRAL · 25.0 °C',
+    accentHex: '#34d399',
+    width: 256,
+    height: 128,
+  });
+  let lastPhOledRounded = -1;
+
   const phScaleGroup = new THREE.Group();
-  phScaleGroup.position.set(2.05, 1.9, 0);
+  phScaleGroup.position.set(2.35, 0.29, 0.12);
+  phScaleGroup.rotation.y = -0.22;
+
+  const phContactShadow = createContactShadowPlane(0.95, 0.72, 0.34);
+  phContactShadow.position.set(0, 0.008, 0);
+
+  // Sloped benchtop Digital pH Meter console + upright colorimetric comparator tower
+  const phStandFoot = new THREE.Mesh(
+    new RoundedBoxGeometry(1.26, 0.26, 0.92, 3, 0.04),
+    darkFrameMat
+  );
+  phStandFoot.position.set(0, 0.13, 0.08);
+  phStandFoot.castShadow = true;
+  phStandFoot.receiveShadow = true;
+
+  const phConsoleSlope = new THREE.Mesh(
+    new RoundedBoxGeometry(1.18, 0.48, 0.64, 3, 0.03),
+    darkFrameMat
+  );
+  phConsoleSlope.position.set(0, 0.36, 0.14);
+  phConsoleSlope.rotation.x = -0.52;
+  phConsoleSlope.castShadow = true;
+
+  const phOledScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.04, 0.41),
+    new THREE.MeshBasicMaterial({ map: phMeterOledTex })
+  );
+  phOledScreen.position.set(0, 0, 0.328);
+  phConsoleSlope.add(phOledScreen);
+
+  const phBackHousing = new THREE.Mesh(
+    new RoundedBoxGeometry(0.62, 2.32, 0.12, 3, 0.025),
+    darkFrameMat
+  );
+  phBackHousing.position.set(0, 1.56, -0.2);
+  phBackHousing.castShadow = true;
+
+  const phTrimBezel = new THREE.Mesh(
+    new RoundedBoxGeometry(0.66, 0.05, 0.15, 2, 0.01),
+    brushedSteelMat
+  );
+  phTrimBezel.position.set(0, 2.72, -0.2);
+
   const phScalePlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.36, 2.4),
+    new THREE.PlaneGeometry(0.5, 2.18),
     new THREE.MeshBasicMaterial({ map: phScaleTex, side: THREE.DoubleSide })
   );
+  phScalePlane.position.set(0, 1.56, -0.135);
+
   const phPointerMesh = new THREE.Mesh(
-    new THREE.ConeGeometry(0.11, 0.24, 12),
-    new THREE.MeshBasicMaterial({ color: 0xffffff })
+    new THREE.ConeGeometry(0.085, 0.2, 14),
+    brassMat
   );
   phPointerMesh.rotation.z = -Math.PI / 2;
-  phPointerMesh.position.set(-0.28, 0, 0.02);
-  phScaleGroup.add(phScalePlane, phPointerMesh);
+  phPointerMesh.position.set(-0.37, 1.56, -0.12);
+  phScaleGroup.add(
+    phContactShadow,
+    phStandFoot,
+    phConsoleSlope,
+    phBackHousing,
+    phTrimBezel,
+    phScalePlane,
+    phPointerMesh
+  );
   titrationGroup.add(phScaleGroup);
 
   // 3-6. Special Chemistry Rigs
@@ -607,7 +797,6 @@ export function buildChemistryCoreStage(
       particleScale = isLite ? 0.5 : 1,
       reacting,
       isSimTimeAdvancing,
-      showConceptLabels,
     } = input;
 
     applyBorosilicateLiteMode(glassMat, isLite);
@@ -708,9 +897,36 @@ export function buildChemistryCoreStage(
         radialColorDiscMat.opacity = 0.32;
       }
 
-      phScaleGroup.visible = showConceptLabels;
-      const phFrac = Math.min(1, Math.max(0, (m.currentPh ?? 7) / 14));
-      phPointerMesh.position.y = -1.15 + phFrac * 2.3;
+      phScaleGroup.visible = true;
+      const currentPhVal = m.currentPh ?? 7;
+      const phFrac = Math.min(1, Math.max(0, currentPhVal / 14));
+      phPointerMesh.position.y = 0.54 + phFrac * 2.04;
+      const roundedPhKey = Math.round(currentPhVal * 50);
+      if (roundedPhKey !== lastPhOledRounded) {
+        lastPhOledRounded = roundedPhKey;
+        const zoneLabel =
+          currentPhVal < 6.4 ? 'ZONA ASAM' : currentPhVal > 7.6 ? 'ZONA BASA' : 'EKUIVALEN';
+        const accentHex =
+          currentPhVal < 6.4 ? '#fb923c' : currentPhVal > 7.6 ? '#c084fc' : '#34d399';
+        updateInstrumentPanelTexture(phMeterOledTex, {
+          title: 'DIGITAL pH METER',
+          primaryText: `pH ${currentPhVal.toFixed(2)}`,
+          secondaryText: `${zoneLabel} · 25.0 °C`,
+          accentHex,
+        });
+      }
+      // Rotate PTFE stir bar & visibly open/close stopcock valve when dripping
+      titrationStirBar.rotation.y = t * (reacting || wobbleBoost > 0.01 ? 9.5 : 3.2);
+      stopcockWing.rotation.x = THREE.MathUtils.lerp(
+        stopcockWing.rotation.x,
+        dropRate > 0 && vb < 50 ? 0 : Math.PI / 2,
+        0.18
+      );
+    } else if (p.mode === 'thermo-calorimetry') {
+      const liveTempC = m.finalTempC ?? p.initialTempC ?? 25;
+      const tempFrac = Math.max(0.12, Math.min(1.0, (liveTempC - 5) / 90));
+      calThermColumn.scale.y = THREE.MathUtils.lerp(calThermColumn.scale.y, tempFrac, 0.15);
+      calStirBar.rotation.y = t * (reacting ? 8.0 : 2.8);
     }
 
     specialRigs.update({
@@ -826,12 +1042,12 @@ export function buildChemistryCoreStage(
       reusableConceptEntries[2].text = `Kalor Q = ${(m.heatReleasedJoules ?? 0).toFixed(0)} J`;
       reusableConceptEntries[2].active = true;
     } else if (isRedox) {
-      reusableConceptPos[0].set(-1.8, 2.55, 0);
-      reusableConceptEntries[0].text = 'Anoda (-) Oksidasi';
+      reusableConceptPos[0].set(-2.18, 2.74, 0.08);
+      reusableConceptEntries[0].text = 'Anoda (-) Zn · Oksidasi';
       reusableConceptEntries[0].active = true;
 
-      reusableConceptPos[2].set(1.8, 2.55, 0);
-      reusableConceptEntries[2].text = `Katoda (+) Reduksi · E = ${(m.nernstCellPotentialE ?? 1.1).toFixed(2)} V`;
+      reusableConceptPos[2].set(2.18, 2.74, 0.08);
+      reusableConceptEntries[2].text = `Katoda (+) Cu · E = ${(m.nernstCellPotentialE ?? 1.1).toFixed(2)} V`;
       reusableConceptEntries[2].active = true;
     } else if (p.mode === 'ideal-gas-boyle') {
       reusableConceptPos[0].set(0, pistonHead.position.y + 0.55, 0);

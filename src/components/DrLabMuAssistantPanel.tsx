@@ -16,6 +16,9 @@ import {
   Trash2,
   Sprout,
   Zap,
+  BookmarkPlus,
+  Check,
+  FileCheck2,
 } from 'lucide-react';
 import {
   ScienceDomain,
@@ -53,6 +56,10 @@ export interface DrLabMuAssistantPanelProps {
   externalPromptRequest?: { id: number; prompt: string } | null;
   isEmbedded?: boolean;
   wsConnected?: boolean;
+  onSaveSummaryToNotes?: (text: string) => void;
+  rSquared?: number;
+  activeModuleTitle?: string;
+  hypothesisText?: string;
 }
 
 export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
@@ -72,9 +79,14 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
   externalPromptRequest,
   isEmbedded = false,
   wsConnected,
+  onSaveSummaryToNotes,
+  rSquared,
+  activeModuleTitle,
+  hypothesisText,
 }) => {
   const [internalOpen, setInternalOpen] = useState<boolean>(false);
   const [internalTab, setInternalTab] = useState<DrawerTabMode>('dr-labmu');
+  const [savedTurnIds, setSavedTurnIds] = useState<Record<string, boolean>>({});
 
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalOpen;
   const activeTab = controlledTab !== undefined ? controlledTab : internalTab;
@@ -132,8 +144,12 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
     ((userRole === 'siswa' && workflowStep === 2) ||
       (userRole === 'pengajar' && teacherViewMode === 'lab3d'));
 
+  const effectiveR2 =
+    typeof rSquared === 'number' && Number.isFinite(rSquared)
+      ? rSquared
+      : liveTelemetry.analytics.rSquared;
   const hasLowR2Alert =
-    liveTelemetry.analytics.rSquared < 0.85 && liveTelemetry.recordedData.length >= 3;
+    effectiveR2 < 0.85 && liveTelemetry.recordedData.length >= 3;
 
   useEffect(() => {
     if (isEmbedded || !isOpen) return;
@@ -284,7 +300,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                   hasLowR2Alert ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'
                 }`}
               >
-                {liveTelemetry.analytics.rSquared.toFixed(3)}
+                {effectiveR2.toFixed(3)}
               </strong>
             </span>
             <button
@@ -342,6 +358,40 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                     {key}: <strong>{(val as number).toFixed(2)}</strong>
                   </span>
                 ))}
+              </div>
+            );
+          })()}
+
+          {/* Contextual Next-Step Guidance Strip */}
+          {(() => {
+            let stepGuidance: string;
+            let toneClass =
+              'bg-sky-500/8 border-sky-500/25 text-[var(--comfort-text)]';
+            if (records.length === 0) {
+              stepGuidance =
+                'Langkah berikutnya: Catat titik data pertama di meja 3D atau jalankan Auto-Sweep 5 Titik.';
+            } else if (records.length < 3) {
+              stepGuidance = `Langkah berikutnya: Baru ${records.length}/3 titik tercatat. Tambahkan minimal ${
+                3 - records.length
+              } variasi lagi agar analisis regresi & residual dapat dihitung.`;
+              toneClass = 'bg-amber-500/10 border-amber-500/30 text-[var(--comfort-text)]';
+            } else if (effectiveR2 < 0.85) {
+              stepGuidance = `Perhatian kurva: R² = ${effectiveR2.toFixed(
+                3
+              )} (< 0.85). Aktifkan Plot Residual di Tahap 3 untuk memeriksa outlier atau ulangi variasi parameter.`;
+              toneClass = 'bg-amber-500/10 border-amber-500/30 text-[var(--comfort-text)]';
+            } else {
+              stepGuidance = `Data konsisten (R² = ${effectiveR2.toFixed(
+                3
+              )}, ${records.length} titik). Anda siap melengkapi LKS dinamis & meninjau draf kesimpulan.`;
+              toneClass = 'bg-emerald-500/10 border-emerald-500/30 text-[var(--comfort-text)]';
+            }
+            return (
+              <div
+                data-testid="dr-labmu-next-step-strip"
+                className={`mx-4 mt-3 px-3 py-2 rounded-xl border text-[11px] leading-snug shrink-0 ${toneClass}`}
+              >
+                <span className="font-semibold">{stepGuidance}</span>
               </div>
             );
           })()}
@@ -427,6 +477,38 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                         ))}
                       </div>
                     )}
+                    {onSaveSummaryToNotes && (
+                      <div className="pt-1 border-t border-[var(--comfort-border)] flex justify-end">
+                        <button
+                          type="button"
+                          data-testid="dr-labmu-save-note-btn"
+                          onClick={() => {
+                            labSound.playSuccessChime();
+                            const summaryText = `[Dr. LabMu · ${activeModuleTitle || readableTopic}] ${turn.response.observation} — Refleksi: ${turn.response.socraticQuestion}`;
+                            onSaveSummaryToNotes(summaryText);
+                            setSavedTurnIds((prev) => ({ ...prev, [turn.id]: true }));
+                            window.setTimeout(() => {
+                              setSavedTurnIds((prev) => ({ ...prev, [turn.id]: false }));
+                            }, 3000);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[var(--comfort-surface)] hover:border-sky-500/50 border border-[var(--comfort-border)] text-[var(--comfort-text)] transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          {savedTurnIds[turn.id] ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-500" aria-hidden="true" />
+                              <span className="text-emerald-600 dark:text-emerald-400">
+                                Tersimpan di Catatan Laporan
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <BookmarkPlus className="w-3 h-3 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+                              <span>Salin ke Catatan Laporan</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -472,7 +554,24 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold cursor-pointer whitespace-nowrap"
               >
                 <HelpCircle className="w-3 h-3" />
-                <span>Korelasi & Rumus</span>
+                <span>Korelasi &amp; Rumus</span>
+              </button>
+              <button
+                type="button"
+                data-testid="dr-labmu-review-lks-chip"
+                onClick={() =>
+                  handleAskDrLabMu(
+                    `Tolong tinjau kesiapan draf LKS saya untuk modul ${
+                      activeModuleTitle || readableTopic
+                    }. Saat ini ada ${records.length} titik data${
+                      hypothesisText ? ` dengan hipotesis: "${hypothesisText}"` : ''
+                    }. Apa yang perlu saya perkuat dalam kesimpulan ilmiah tanpa memberi jawaban langsung?`
+                  )
+                }
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-700 dark:text-teal-300 font-semibold cursor-pointer whitespace-nowrap"
+              >
+                <FileCheck2 className="w-3 h-3" />
+                <span>Tinjau Draf LKS</span>
               </button>
             </div>
 

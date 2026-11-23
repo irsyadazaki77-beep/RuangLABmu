@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChemistryParams,
   AcademicLevel,
@@ -39,6 +39,11 @@ import { LabSidebarActionHeader } from './layout/LabSidebarActionHeader';
 import { LabSceneFallback } from './three/LabSceneFallback';
 import { LabHazardModal } from './three/LabHazardModal';
 import { ChemistryParameterPanel } from './labs/ChemistryParameterPanel';
+import { LabPresetAndSweepBar } from './labs/LabPresetAndSweepBar';
+import {
+  generateAutoSweepSeries,
+  getChemistryPresetsForMode,
+} from '../utils/labScenarioPresets';
 
 export interface ChemistryLabViewProps {
   params: ChemistryParams;
@@ -266,64 +271,75 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   };
   const moduleRecords = filterRecordsForModule(records, 'Kimia', modeToCatalogId[params.mode]);
 
-  const handleRecordTrial = () => {
+  const scenarioPresets = useMemo(
+    () => getChemistryPresetsForMode(params.mode),
+    [params.mode]
+  );
+  const sweepSteps = useMemo(
+    () => generateAutoSweepSeries('Kimia', params.mode, 5),
+    [params.mode]
+  );
+
+  const handleRecordTrial = (overrideParams?: ChemistryParams, noteOverride?: string) => {
+    const p = overrideParams ?? params;
+    const m = overrideParams ? calculateChemistryMetrics(overrideParams) : metrics;
     labSound.playRecordSuccess();
     const title =
-      params.mode === 'acid-base-titration'
+      p.mode === 'acid-base-titration'
         ? 'Uji Titrasi Asam-Basa'
-        : params.mode === 'electrochemistry-cell'
+        : p.mode === 'electrochemistry-cell'
         ? 'Uji Sel Galvani Volta'
-        : params.mode === 'ideal-gas-boyle'
+        : p.mode === 'ideal-gas-boyle'
         ? 'Uji Kompresi Gas Boyle'
-        : params.mode === 'reaction-kinetics-arrhenius'
+        : p.mode === 'reaction-kinetics-arrhenius'
         ? 'Uji Kinetika Reaksi Arrhenius'
-        : params.mode === 'spectrophotometry-beer'
+        : p.mode === 'spectrophotometry-beer'
         ? 'Uji Spektrofotometri Beer-Lambert'
         : 'Uji Termokimia & Reaksi';
 
     const pSum =
-      params.mode === 'acid-base-titration'
-        ? `Vb=${params.titrantAddedMl}mL, Mb=${params.titrantBaseConc}M, Ma=${params.analyteAcidConc}M`
-        : params.mode === 'electrochemistry-cell'
-        ? `[Anoda]=${params.anodeConcM}M, [Katoda]=${params.cathodeConcM}M`
-        : params.mode === 'ideal-gas-boyle'
-        ? `V=${params.gasVolumeL ?? 10}L, T=${params.gasTemperatureK ?? 300}K`
-        : params.mode === 'spectrophotometry-beer'
-        ? `λ=${params.spectroWavelengthNm ?? 520}nm, C=${params.spectroConcMm ?? 0.1}mM`
-        : `T=${params.initialTempC}°C, [M]=${params.reactantConcentration}M`;
+      p.mode === 'acid-base-titration'
+        ? `Vb=${p.titrantAddedMl}mL, Mb=${p.titrantBaseConc}M, Ma=${p.analyteAcidConc}M`
+        : p.mode === 'electrochemistry-cell'
+        ? `[Anoda]=${p.anodeConcM}M, [Katoda]=${p.cathodeConcM}M`
+        : p.mode === 'ideal-gas-boyle'
+        ? `V=${p.gasVolumeL ?? 10}L, T=${p.gasTemperatureK ?? 300}K`
+        : p.mode === 'spectrophotometry-beer'
+        ? `λ=${p.spectroWavelengthNm ?? 520}nm, C=${p.spectroConcMm ?? 0.1}mM`
+        : `T=${p.initialTempC}°C, [M]=${p.reactantConcentration}M`;
 
     const numX =
-      params.mode === 'acid-base-titration'
-        ? params.titrantAddedMl
-        : params.mode === 'ideal-gas-boyle'
-        ? params.gasVolumeL ?? 10
-        : params.mode === 'electrochemistry-cell'
-        ? params.anodeConcM
-        : params.mode === 'spectrophotometry-beer'
-        ? params.spectroConcMm ?? 0.1
-        : params.initialTempC;
+      p.mode === 'acid-base-titration'
+        ? p.titrantAddedMl
+        : p.mode === 'ideal-gas-boyle'
+        ? p.gasVolumeL ?? 10
+        : p.mode === 'electrochemistry-cell'
+        ? p.cathodeConcM
+        : p.mode === 'spectrophotometry-beer'
+        ? p.spectroConcMm ?? 0.1
+        : p.initialTempC;
 
     const numY1 =
-      params.mode === 'acid-base-titration'
-        ? metrics.currentPh
-        : params.mode === 'ideal-gas-boyle'
-        ? metrics.gasPressureAtm ?? 1.0
-        : params.mode === 'electrochemistry-cell'
-        ? metrics.nernstCellPotentialE
-        : params.mode === 'spectrophotometry-beer'
-        ? metrics.spectroAbsorbance ?? metrics.absorbanceA ?? 0.4
-        : metrics.deltaTempC;
+      p.mode === 'acid-base-titration'
+        ? m.currentPh
+        : p.mode === 'ideal-gas-boyle'
+        ? m.gasPressureAtm ?? 1.0
+        : p.mode === 'electrochemistry-cell'
+        ? m.nernstCellPotentialE
+        : p.mode === 'spectrophotometry-beer'
+        ? m.spectroAbsorbance ?? m.absorbanceA ?? 0.4
+        : m.deltaTempC;
 
     onRecordExperiment(
       title,
       pSum,
       {
-        'pH Larutan': metrics.currentPh,
-        'Volume Titran (mL)': params.titrantAddedMl,
-        'E_sel Potensial': `${metrics.nernstCellPotentialE ?? 1.1} V`,
+        'pH Larutan': m.currentPh,
+        'Volume Titran (mL)': p.titrantAddedMl,
+        'E_sel Potensial': `${m.nernstCellPotentialE ?? 1.1} V`,
       },
-      hypothesisNote?.hypothesisText || '',
-      { x: numX ?? 0, y1: numY1 ?? 0, y2: metrics.currentPh }
+      noteOverride ?? (hypothesisNote?.hypothesisText || ''),
+      { x: numX ?? 0, y1: numY1 ?? 0, y2: m.currentPh }
     );
   };
 
@@ -422,6 +438,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               realityBSummary={chemVar.summaryB}
               deltaSummary={chemVar.delta}
               onResetBToMatchA={() => setRealityBParams({ ...params })}
+              onRecordComparison={() => {
+                handleRecordTrial(params, '[Komparasi A · Kontrol]');
+                handleRecordTrial(realityBParams, '[Komparasi B · Uji Variabel]');
+              }}
               onClose={() => setIsDualRealityMode(false)}
               realityBControls={
                 <div className="w-full min-w-[240px]">
@@ -568,6 +588,18 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               <option value="spectrophotometry-beer">Spektrofotometri UV-Vis Beer-Lambert</option>
             </select>
           </div>
+
+          <LabPresetAndSweepBar
+            presets={scenarioPresets}
+            sweepSteps={sweepSteps}
+            accentColor="teal"
+            onApplyPreset={(preset) => handleParamChange(preset.patch)}
+            onSweepStep={(step) => {
+              const nextParams = { ...params, ...(step.patch as Partial<ChemistryParams>) };
+              onChangeParams(nextParams);
+              handleRecordTrial(nextParams, step.label);
+            }}
+          />
 
           <ChemistryParameterPanel
             params={params}

@@ -1,5 +1,10 @@
 import { create } from 'zustand';
 import { VisualComfortPreferences } from '../components/ui/VisualComfortToolbar';
+import {
+  clampPostProcessingSettings,
+  DEFAULT_POST_PROCESSING_SETTINGS,
+  type PostProcessingSettings,
+} from '../utils/threePostProcessing';
 
 export type DrawerTab = 'variables' | 'worksheet' | 'analytics' | 'ai';
 export type ActiveModal =
@@ -78,6 +83,7 @@ export interface UIState {
   projectorMode: boolean;
   liteDeviceMode: boolean;
   qualityMode: QualityModePreference;
+  postProcessing: PostProcessingSettings;
   prefer2DFallback: boolean;
   liteModeNotification: string | null;
   showConceptLabels: boolean;
@@ -110,6 +116,8 @@ export interface UIState {
   setLiteDeviceMode: (enabled: boolean) => void;
   toggleLiteDeviceMode: () => void;
   setQualityMode: (mode: QualityModePreference) => void;
+  setPostProcessing: (patch: Partial<PostProcessingSettings>) => void;
+  resetPostProcessing: () => void;
   setPrefer2DFallback: (enabled: boolean) => void;
   setLiteModeNotification: (msg: string | null) => void;
   setProjectorMode: (enabled: boolean) => void;
@@ -173,6 +181,18 @@ function loadInitialProjectorMode(): boolean {
   return false;
 }
 
+function loadInitialPostProcessing(): PostProcessingSettings {
+  try {
+    const saved = window.localStorage.getItem('simulab-postfx-prefs');
+    if (saved) {
+      return clampPostProcessingSettings(JSON.parse(saved));
+    }
+  } catch {
+    // Ignore storage parse error
+  }
+  return { ...DEFAULT_POST_PROCESSING_SETTINGS };
+}
+
 export const useUIStore = create<UIState>((set) => ({
   zenMode: false,
   drawerOpen: false,
@@ -185,6 +205,7 @@ export const useUIStore = create<UIState>((set) => ({
   projectorMode: loadInitialProjectorMode(),
   liteDeviceMode: loadInitialLiteMode(),
   qualityMode: loadInitialQualityMode(),
+  postProcessing: loadInitialPostProcessing(),
   prefer2DFallback: false,
   liteModeNotification: null,
   showConceptLabels: true,
@@ -299,6 +320,31 @@ export const useUIStore = create<UIState>((set) => ({
         qualityTier: qualityMode === '3t-saver' ? '3t-saver' : qualityMode === 'high' ? 'high' : state.livePerfStats.qualityTier,
       },
     }));
+  },
+
+  setPostProcessing: (patch: Partial<PostProcessingSettings>) => {
+    set((state) => {
+      const next = clampPostProcessingSettings({
+        ...state.postProcessing,
+        ...patch,
+      });
+      try {
+        window.localStorage.setItem('simulab-postfx-prefs', JSON.stringify(next));
+      } catch {
+        // Ignore storage error
+      }
+      return { postProcessing: next };
+    });
+  },
+
+  resetPostProcessing: () => {
+    const defaults = { ...DEFAULT_POST_PROCESSING_SETTINGS };
+    try {
+      window.localStorage.setItem('simulab-postfx-prefs', JSON.stringify(defaults));
+    } catch {
+      // Ignore storage error
+    }
+    set({ postProcessing: defaults });
   },
 
   setPrefer2DFallback: (prefer2DFallback: boolean) => set({ prefer2DFallback }),

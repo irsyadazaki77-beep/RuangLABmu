@@ -13,6 +13,8 @@ import {
   Compass,
   FlaskConical,
   Dna,
+  FileText,
+  RefreshCw,
 } from 'lucide-react';
 import {
   GamificationProfile,
@@ -24,6 +26,7 @@ import { ExperimentRecord } from '../../utils/scienceEngine';
 import { Lab3DSnapshot } from '../ui/ScientificEnhancementSuite';
 import { resolveStudentStep } from '../../utils/telemetryRadar';
 import { labSound } from '../../utils/soundEngine';
+import type { LabSubmission } from '../../types/submissionTypes';
 
 export interface StemRadarAxisScore {
   id: 'regression' | 'k3' | 'exploration' | 'lks' | 'speed';
@@ -58,61 +61,65 @@ export function computeStemRadarScores(input: StemRadarInput): StemRadarAxisScor
     snapshotsCount,
   } = input;
 
-  // 1. Akurasi Regresi (R²)
+  // 1. Akurasi Regresi (R²) — jujur berdasarkan data riil (tanpa lantai inflasi)
   const hasPrecisionBadge = profile.unlockedBadges.includes('Precision Analyst');
   const rawR2Score =
     bestRSquared > 0
       ? Math.round(Math.min(1, bestRSquared) * 100)
       : hasPrecisionBadge
       ? 96
-      : Math.min(85, 50 + recordsCount * 10);
-  const regressionScore = Math.max(35, Math.min(100, rawR2Score));
+      : recordsCount > 0
+      ? Math.min(70, recordsCount * 15)
+      : 0;
+  const regressionScore = Math.max(0, Math.min(100, rawR2Score));
 
-  // 2. Kepatuhan K3
+  // 2. Kepatuhan K3 — berdasarkan verifikasi K3 aktual
   const hasK3Badge = profile.unlockedBadges.includes('K3 Guardian');
   const k3ActionsCount = profile.completedActionKeys.filter((k) => k.startsWith('k3:')).length;
   const k3Score = hasK3Badge
     ? Math.min(100, 88 + k3ActionsCount * 4)
-    : Math.max(45, 55 + k3ActionsCount * 15);
+    : Math.min(85, k3ActionsCount * 25 + (recordsCount > 0 ? 20 : 0));
 
-  // 3. Eksplorasi Variabel
+  // 3. Eksplorasi Variabel — jujur dari jumlah observasi, snapshot, dan modul
   const explorationRaw =
-    40 +
-    Math.min(35, recordsCount * 9) +
-    Math.min(15, snapshotsCount * 5) +
-    Math.min(10, completedModulesCount * 5);
-  const explorationScore = Math.max(35, Math.min(100, explorationRaw));
+    Math.min(55, recordsCount * 11) +
+    Math.min(20, snapshotsCount * 10) +
+    Math.min(25, completedModulesCount * 8);
+  const explorationScore = Math.max(0, Math.min(100, explorationRaw));
 
-  // 4. Ketuntasan LKS
+  // 4. Ketuntasan LKS — skor kuis/LKS aktual
   const lksPerfectCount = profile.completedActionKeys.filter((k) =>
     k.startsWith('lks_perfect:')
   ).length;
   const lksScore =
     latestLksScore > 0
-      ? Math.max(50, Math.min(100, latestLksScore))
+      ? Math.max(0, Math.min(100, latestLksScore))
       : lksGraded || lksPerfectCount > 0
-      ? 95
-      : Math.max(40, Math.min(85, 45 + recordsCount * 12));
+      ? 90
+      : Math.min(50, recordsCount * 10);
 
-  // 5. Kecepatan Analisis (derived via telemetryRadar step progression & XP history)
-  const inferredStep = resolveStudentStep({
-    id: 'self',
-    name: 'Praktikan',
-    groupId: 'Kelompok A',
-    activeDomain: 'Fisika',
-    currentActivity: 'Praktikum',
-    completionPct: lksGraded ? 95 : Math.min(90, recordsCount * 25),
-    trialsRecorded: recordsCount,
-    tasksCompleted: completedModulesCount,
-    totalTasks: 4,
-    quizScore: latestLksScore || undefined,
-    lastActive: 'Baru saja',
-    status: lksGraded ? 'Selesai' : 'Nominal',
-  });
-  const speedScore = Math.max(
-    45,
-    Math.min(100, 45 + inferredStep * 12 + Math.min(15, profile.level * 3))
-  );
+  // 5. Kecepatan Analisis — progres tahap & level aktual
+  const inferredStep =
+    recordsCount === 0 && !lksGraded && completedModulesCount === 0
+      ? 0
+      : resolveStudentStep({
+          id: 'self',
+          name: 'Praktikan',
+          groupId: 'Kelompok A',
+          activeDomain: 'Fisika',
+          currentActivity: 'Praktikum',
+          completionPct: lksGraded ? 95 : Math.min(90, recordsCount * 25),
+          trialsRecorded: recordsCount,
+          tasksCompleted: completedModulesCount,
+          totalTasks: 4,
+          quizScore: latestLksScore || undefined,
+          lastActive: 'Baru saja',
+          status: lksGraded ? 'Selesai' : 'Nominal',
+        });
+  const speedScore =
+    inferredStep === 0 && profile.xp === 0
+      ? 0
+      : Math.max(0, Math.min(100, inferredStep * 20 + Math.min(20, Math.floor(profile.xp / 150) * 5)));
 
   return [
     {
@@ -120,14 +127,19 @@ export function computeStemRadarScores(input: StemRadarInput): StemRadarAxisScor
       label: 'Akurasi Regresi (R²)',
       shortLabel: 'Akurasi R²',
       score: regressionScore,
-      detail: bestRSquared > 0 ? `R² = ${bestRSquared.toFixed(3)}` : `${regressionScore}/100`,
+      detail:
+        bestRSquared > 0
+          ? `R² = ${bestRSquared.toFixed(3)}`
+          : recordsCount === 0
+          ? 'Belum ada data'
+          : `${regressionScore}/100`,
     },
     {
       id: 'k3',
       label: 'Kepatuhan K3',
       shortLabel: 'Kepatuhan K3',
       score: k3Score,
-      detail: hasK3Badge ? 'K3 Terverifikasi' : 'Standar Lab',
+      detail: hasK3Badge ? 'K3 Terverifikasi' : k3ActionsCount > 0 ? `${k3ActionsCount} Cek K3` : 'Belum dicek',
     },
     {
       id: 'exploration',
@@ -141,14 +153,14 @@ export function computeStemRadarScores(input: StemRadarInput): StemRadarAxisScor
       label: 'Ketuntasan LKS',
       shortLabel: 'Ketuntasan LKS',
       score: lksScore,
-      detail: `${lksScore}/100 Poin`,
+      detail: lksScore > 0 ? `${lksScore}/100 Poin` : 'Belum dikumpulkan',
     },
     {
       id: 'speed',
       label: 'Kecepatan Analisis',
       shortLabel: 'Kecepatan',
       score: speedScore,
-      detail: `Tahap ${inferredStep}/4`,
+      detail: inferredStep > 0 ? `Tahap ${inferredStep}/4` : 'Belum mulai',
     },
   ];
 }
@@ -198,7 +210,41 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
   latestLksScore,
   activeModuleTitle,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'badges' | 'certificate'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'badges' | 'history' | 'certificate'>('overview');
+  const [gradeHistory, setGradeHistory] = useState<LabSubmission[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showAllClassSubmissions, setShowAllClassSubmissions] = useState(false);
+
+  const fetchGradeHistory = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const res = await fetch('/api/submissions');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.submissions)) {
+          setGradeHistory(data.submissions);
+        }
+      }
+    } catch {
+      // Offline fallback: leave existing list
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'history') {
+      fetchGradeHistory();
+    }
+  }, [isOpen, activeTab]);
+
+  const personalSubmissions = useMemo(() => {
+    const query = studentName.trim().toLowerCase();
+    if (!query) return gradeHistory;
+    return gradeHistory.filter((s) => s.studentName.toLowerCase().includes(query));
+  }, [gradeHistory, studentName]);
+
+  const displayedSubmissions = showAllClassSubmissions ? gradeHistory : personalSubmissions;
 
   const levelInfo = useMemo(() => getLevelProgress(profile.xp), [profile.xp]);
 
@@ -209,7 +255,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
       if (parts[1]) uniqueMods.add(parts[1]);
     });
     records.forEach((r) => uniqueMods.add(r.experimentTitle));
-    return Math.max(1, uniqueMods.size);
+    return uniqueMods.size;
   }, [profile.completedActionKeys, records]);
 
   const radarAxes = useMemo(
@@ -264,7 +310,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
     );
 
     const dataVertices = radarAxes.map((axis, i) => {
-      const ratio = Math.max(0.15, Math.min(1, axis.score / 100));
+      const ratio = Math.max(0.06, Math.min(1, axis.score / 100));
       const p = pointAt(i, ratio);
       const labelPos = pointAt(i, 1.24);
       const axisEnd = pointAt(i, 1.0);
@@ -372,12 +418,13 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
             </div>
 
             {/* Navigation Tabs */}
-            <div className="px-5 pt-3 border-b border-[var(--comfort-border)] flex items-center gap-2 shrink-0 bg-[var(--comfort-surface)]">
+            <div className="px-5 pt-3 border-b border-[var(--comfort-border)] flex items-center gap-2 shrink-0 bg-[var(--comfort-surface)] overflow-x-auto no-scrollbar">
               {(
                 [
-                  { id: 'overview', label: 'Identitas & Radar STEM (5 Sumbu)' },
-                  { id: 'badges', label: `Koleksi Lencana & Snapshot (${profile.unlockedBadges.length}/${SCIENTIFIC_BADGES_CATALOG.length})` },
-                  { id: 'certificate', label: 'Pratinjau Sertifikat Praktikum' },
+                  { id: 'overview', label: 'Identitas & Radar STEM' },
+                  { id: 'badges', label: `Lencana & Snapshot (${profile.unlockedBadges.length}/${SCIENTIFIC_BADGES_CATALOG.length})` },
+                  { id: 'history', label: 'Riwayat Nilai & Umpan Balik Guru' },
+                  { id: 'certificate', label: 'Sertifikat Praktikum' },
                 ] as const
               ).map((tab) => {
                 const active = activeTab === tab.id;
@@ -385,11 +432,12 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                   <button
                     key={tab.id}
                     type="button"
+                    data-testid={`portfolio-tab-${tab.id}`}
                     onClick={() => {
                       labSound.playClick();
                       setActiveTab(tab.id);
                     }}
-                    className={`px-3.5 py-2 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                    className={`px-3.5 py-2 text-xs font-bold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
                       active
                         ? 'border-sky-600 text-sky-600 dark:text-sky-400'
                         : 'border-transparent text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -667,6 +715,145 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {activeTab === 'history' && (
+                <div data-testid="portfolio-grade-history-panel" className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-[var(--comfort-text)] flex items-center gap-1.5">
+                        <FileText className="w-4 h-4 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+                        <span>Riwayat Nilai Laporan &amp; Umpan Balik Guru</span>
+                      </h3>
+                      <p className="text-xs text-[var(--comfort-text-muted)]">
+                        Menampilkan laporan milik <strong className="text-[var(--comfort-text)]">{studentName}</strong>
+                        {showAllClassSubmissions ? ' (dan seluruh laporan kelas)' : ''}.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          labSound.playClick();
+                          setShowAllClassSubmissions((prev) => !prev);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap ${
+                          showAllClassSubmissions
+                            ? 'bg-sky-600 text-white border-sky-600'
+                            : 'bg-[var(--comfort-bg)] text-[var(--comfort-text)] border-[var(--comfort-border)] hover:border-sky-500/50'
+                        }`}
+                      >
+                        {showAllClassSubmissions ? 'Hanya Milik Saya' : `Lihat Semua Kelas (${gradeHistory.length})`}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={fetchGradeHistory}
+                        disabled={isLoadingHistory}
+                        aria-label="Muat ulang riwayat nilai"
+                        className="p-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-bg)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {isLoadingHistory ? (
+                    <div className="py-10 text-center text-xs text-[var(--comfort-text-muted)]">
+                      Memuat riwayat laporan dan umpan balik guru...
+                    </div>
+                  ) : displayedSubmissions.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-[var(--comfort-border)] bg-[var(--comfort-bg)] p-6 text-center space-y-2.5">
+                      <p className="text-xs font-semibold text-[var(--comfort-text)]">
+                        Belum ada laporan yang terkumpul atas nama &ldquo;{studentName}&rdquo;.
+                      </p>
+                      <p className="text-xs text-[var(--comfort-text-muted)]">
+                        Selesaikan praktikum di Tahap 3 &amp; kirim laporan ke guru untuk melihat nilai rubrik dan komentar resmi di sini.
+                      </p>
+                      {gradeHistory.length > 0 && !showAllClassSubmissions && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllClassSubmissions(true)}
+                          className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer"
+                        >
+                          Lihat {gradeHistory.length} Laporan Kelas Lainnya
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {displayedSubmissions.map((sub) => {
+                        const finalScore = sub.teacherGrade?.score ?? sub.autoRubric?.score ?? sub.quizScore;
+                        const isGraded = Boolean(sub.teacherGrade);
+                        return (
+                          <div
+                            key={sub.id}
+                            className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-bg)] p-4 space-y-2.5"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="space-y-0.5">
+                                <div className="flex flex-wrap items-center gap-2 text-xs">
+                                  <span className="font-bold text-[var(--comfort-text)]">
+                                    {sub.moduleId}
+                                  </span>
+                                  <span className="text-[var(--comfort-text-muted)]">·</span>
+                                  <span className="text-[var(--comfort-text-muted)]">{sub.domain}</span>
+                                  <span className="text-[var(--comfort-text-muted)]">·</span>
+                                  <span className="font-mono text-[11px] text-[var(--comfort-text-muted)]">
+                                    {sub.studentName}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] font-mono text-[var(--comfort-text-muted)] tabular-nums">
+                                  Tiket {sub.id} ·{' '}
+                                  {Number.isFinite(Date.parse(sub.submittedAt))
+                                    ? new Date(sub.submittedAt).toLocaleString('id-ID')
+                                    : sub.submittedAt}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span
+                                  className={`px-2.5 py-1 rounded-lg font-mono text-xs font-bold tabular-nums border ${
+                                    finalScore >= 75
+                                      ? 'bg-emerald-500/12 border-emerald-500/35 text-emerald-700 dark:text-emerald-300'
+                                      : 'bg-amber-500/12 border-amber-500/35 text-amber-700 dark:text-amber-300'
+                                  }`}
+                                >
+                                  Skor {finalScore}/100
+                                </span>
+                                <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
+                                  {isGraded ? 'Dinilai Guru' : 'Rubrik Otomatis'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {sub.teacherGrade?.feedback ? (
+                              <div className="p-3 rounded-lg bg-sky-500/8 border border-sky-500/25 text-xs text-[var(--comfort-text)]">
+                                <div className="text-[10px] font-mono uppercase tracking-wider font-bold text-sky-700 dark:text-sky-300 mb-1">
+                                  Umpan Balik Guru
+                                </div>
+                                <p className="leading-relaxed">{sub.teacherGrade.feedback}</p>
+                              </div>
+                            ) : sub.autoRubric?.summaryFeedback ? (
+                              <div className="p-3 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs text-[var(--comfort-text-muted)]">
+                                {sub.autoRubric.summaryFeedback}
+                              </div>
+                            ) : null}
+
+                            {sub.regressionMetrics && (
+                              <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-[var(--comfort-text-muted)] tabular-nums pt-1 border-t border-[var(--comfort-border)]">
+                                <span>R² = {Number(sub.regressionMetrics.rSquared ?? 0).toFixed(3)}</span>
+                                <span>·</span>
+                                <span>Persamaan: {sub.regressionMetrics.equation || '-'}</span>
+                                <span>·</span>
+                                <span>Kuis LKS: {sub.quizScore}/100</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 

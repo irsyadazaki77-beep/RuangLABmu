@@ -1,12 +1,16 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { EXPERIMENT_CATALOG } from '../experimentRegistry';
+import { EXPERIMENT_CATALOG, getExperimentById } from '../experimentRegistry';
 import { FORMULA_PRIMER_MODELS } from './formulaPrimerModels';
 import {
   getAdaptiveCameraPose,
   resolveApparatusInspection,
   type StudioDomain,
 } from '../../utils/studio3DCatalog';
+import { calculatePhysicsMetrics } from '../../utils/engines/physicsEngine';
+import { calculateChemistryMetrics } from '../../utils/engines/chemistryEngine';
+import { calculateEnzymeKinetics } from '../../utils/engines/biologyEngine';
+import { extractConceptHint, formatCleanEquation } from '../../utils/spatialHudHelpers';
 
 const RAW_LATEX_PATTERN = /\\frac|\\sqrt|\\sum|\\in\b|10\^[0-9-]/;
 const ASCII_UNDERSCORE_VAR_PATTERN = /\b[A-Za-z]+_[A-Za-z0-9]+\b/;
@@ -175,3 +179,173 @@ describe('3D Studio Adaptive Camera Catalog & Apparatus Inspector', () => {
     }
   });
 });
+
+describe('Scientific Accuracy & Cross-Layer Consistency Across All 28 Modules', () => {
+  it('validates all preLabQuiz items have valid correctIndex and non-empty explanations', () => {
+    for (const mod of EXPERIMENT_CATALOG) {
+      assert.ok(mod.preLabQuiz.length >= 2, `${mod.id} needs >= 2 preLabQuiz items`);
+      for (const q of mod.preLabQuiz) {
+        assert.ok(q.question.trim().length > 8, `${mod.id}:${q.id} question too short`);
+        assert.ok(q.options.length >= 2, `${mod.id}:${q.id} needs >= 2 options`);
+        assert.ok(
+          Number.isInteger(q.correctIndex) &&
+            q.correctIndex >= 0 &&
+            q.correctIndex < q.options.length,
+          `${mod.id}:${q.id} invalid correctIndex ${q.correctIndex}`
+        );
+        assert.ok(q.explanation.trim().length > 10, `${mod.id}:${q.id} explanation too short`);
+      }
+    }
+  });
+
+  it('keeps thermo-calorimetry primer aligned with q = m · c · ΔT', () => {
+    const primer = FORMULA_PRIMER_MODELS['thermo-calorimetry'];
+    assert.ok(primer);
+    assert.equal(primer.computeOutcome({ m: 200, dT: 10 }), 8.37);
+    assert.equal(primer.computeOutcome({ m: 500, dT: 20 }), 41.84);
+  });
+
+  it('keeps ohm-wheatstone unified on R1·Rx = R2·R3 across module, engine, and primer', () => {
+    const mod = getExperimentById('ohm-wheatstone')!;
+    const balanced = mod.computeStep(
+      { sourceVoltage: 12, resistor1: 100, resistor2: 200, resistor3: 150, unknownRx: 300 },
+      0
+    );
+    assert.equal(balanced.bridgeVoltage, 0);
+    assert.equal(balanced.calculatedRx, 300);
+
+    const engineBalanced = calculatePhysicsMetrics({
+      mass: 5,
+      appliedForce: 0,
+      inclineAngle: 0,
+      frictionCoeffStatic: 0.2,
+      frictionCoeffKinetic: 0.1,
+      gravity: 9.81,
+      initialVelocity: 0,
+      launchAngle: 0,
+      initialHeight: 0,
+      secondaryMass: 100,
+      separationDistance: 5,
+      collisionMass2: 2,
+      velocity2Initial: 0,
+      restitutionCoeff: 1,
+      springConstantK: 100,
+      springDisplacement: 0,
+      dampingCoeff: 0,
+      mode: 'ohm-wheatstone',
+      circuitVoltage: 12,
+      resistorR1: 100,
+      resistorR2: 200,
+      resistorR3: 150,
+      resistorRx: 300,
+    });
+    assert.equal(engineBalanced.mode, 'ohm-wheatstone');
+    if (engineBalanced.mode === 'ohm-wheatstone') {
+      assert.equal(engineBalanced.galvanometerCurrent, 0);
+      assert.equal(engineBalanced.bridgeBalanced, true);
+    }
+
+    const primer = FORMULA_PRIMER_MODELS['ohm-wheatstone'];
+    assert.equal(primer.computeOutcome({ R3: 150, R2: 200, R1: 100 }), 300);
+  });
+
+  it('computes astrophysically accurate Milky Way halo mass and solar B-V color index', () => {
+    const mw = getExperimentById('milky-way-rotation')!;
+    const out = mw.computeStep(
+      { galactocentricRadiusKpc: 8.2, darkMatterHaloFraction: 1.0, bulgeDiskMassFactor: 1.0 },
+      0
+    );
+    assert.ok(
+      out.darkMatterMassEnclosed >= 2 && out.darkMatterMassEnclosed <= 15,
+      `Expected realistic halo mass 2-15 ×10^10 Msun at 8.2 kpc, got ${out.darkMatterMassEnclosed}`
+    );
+
+    const wien = getExperimentById('stellar-wien-spectrum')!;
+    const sun = wien.computeStep({ starEffectiveTempK: 5778, starRadiusSolar: 1.0 }, 0);
+    assert.ok(
+      sun.colorIndexBMinusV >= 0.6 && sun.colorIndexBMinusV <= 0.7,
+      `Expected Sun B-V near +0.65, got ${sun.colorIndexBMinusV}`
+    );
+  });
+
+  it('aligns enzyme-catalase Km = 4.5 mM and unit μmol/(L·s) across module, engine, and primer', () => {
+    const mod = getExperimentById('enzyme-catalase')!;
+    const out = mod.computeStep({ substrateConcMm: 4.5, temperatureC: 37, solutionPH: 7.0, enzymeVolumeMl: 1.0 }, 0);
+    assert.equal(out.reactionRateV, 60);
+
+    const eng = calculateEnzymeKinetics({
+      substrateConcMm: 4.5,
+      vMaxBase: 120,
+      kmConstantMm: 4.5,
+      temperatureC: 37,
+      solutionPh: 7.0,
+    });
+    assert.equal(eng.reactionVelocityV, 60);
+
+    const primer = FORMULA_PRIMER_MODELS['enzyme-catalase'];
+    assert.equal(primer.outcomeUnit, 'μmol/(L·s)');
+    assert.equal(primer.computeOutcome({ S: 4.5, T: 37 }), 60);
+  });
+
+  it('keeps photosynthesis-ingenhousz O2 multiplier consistent and limitingFactorCode dynamic', () => {
+    const mod = getExperimentById('photosynthesis-ingenhousz')!;
+    const lowLight = mod.computeStep(
+      { lightIntensityLux: 100, wavelengthNm: 660, bicarbonateConc: 2.5, waterTempC: 28 },
+      0
+    );
+    assert.equal(lowLight.limitingFactorCode, 1);
+    assert.ok(Math.abs(lowLight.o2VolumeProducedMl - lowLight.bubbleRatePerMin * 0.045) < 0.01);
+
+    const lowCo2 = mod.computeStep(
+      { lightIntensityLux: 3500, wavelengthNm: 660, bicarbonateConc: 0.1, waterTempC: 28 },
+      0
+    );
+    assert.equal(lowCo2.limitingFactorCode, 2);
+
+    const highTemp = mod.computeStep(
+      { lightIntensityLux: 3500, wavelengthNm: 660, bicarbonateConc: 2.5, waterTempC: 44 },
+      0
+    );
+    assert.equal(highTemp.limitingFactorCode, 3);
+  });
+
+  it('models diatomic ideal-gas adiabatic compression consistently and Ag+ Nernst stoichiometry', () => {
+    const gas = getExperimentById('ideal-gas-boyle')!;
+    const iso = gas.computeStep({ moles: 1.0, temperatureK: 300, volumeL: 5.0, isAdiabatic: 0 }, 0);
+    const adia = gas.computeStep({ moles: 1.0, temperatureK: 300, volumeL: 5.0, isAdiabatic: 1 }, 0);
+    assert.ok(adia.pressureAtm > iso.pressureAtm);
+    assert.ok(adia.internalEnergyJ > iso.internalEnergyJ);
+
+    const agCell = calculateChemistryMetrics({
+      mode: 'electrochemistry-cell',
+      reactionId: 'neutralization-hcl-naoh',
+      initialTempC: 25,
+      reactantConcentration: 1.0,
+      solutionVolumeMl: 200,
+      pressureAtm: 1.0,
+      useCatalyst: false,
+      stirringRpm: 200,
+      analyteAcidConc: 0.2,
+      analyteVolumeMl: 25,
+      titrantBaseConc: 0.25,
+      titrantAddedMl: 20,
+      acidPka: 1.0,
+      indicatorType: 'fenolftalein',
+      redoxPairId: 'mg-ag-high',
+      anodeConcM: 1.0,
+      cathodeConcM: 0.5,
+    });
+    assert.equal(agCell.reactionQuotientQ, 4);
+  });
+
+  it('extractConceptHint preserves decimal numbers and formatCleanEquation converts Leftrightarrow', () => {
+    assert.equal(
+      extractConceptHint('Pada pH = 7.0 dan g = 9.81 m/s², sistem berada pada kondisi setimbang. Kalimat kedua.'),
+      'Pada pH = 7.0 dan g = 9.81 m/s², sistem berada pada kondisi setimbang.'
+    );
+    assert.ok(
+      formatCleanEquation('T^2 / a^3 = 1/M_* \\Leftrightarrow T^2 = \\frac{4\\pi^2}{GM_*}a^3').includes('⇔')
+    );
+  });
+});
+

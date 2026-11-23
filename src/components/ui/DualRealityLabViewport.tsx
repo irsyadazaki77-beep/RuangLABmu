@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Scale, RotateCcw, X, Camera } from 'lucide-react';
+import { Scale, RotateCcw, X, Camera, ClipboardPlus, Check } from 'lucide-react';
 import { CameraSyncPose } from '../../utils/threeStudioKit';
 import { useUIStore } from '../../stores/useUIStore';
 import { labSound } from '../../utils/soundEngine';
@@ -21,6 +21,7 @@ export interface DualRealityLabViewportProps {
   deltaSummary?: string;
   realityBControls?: React.ReactNode;
   onResetBToMatchA: () => void;
+  onRecordComparison?: () => void;
   onClose: () => void;
   renderViewport: (side: 'A' | 'B', syncProps: DualViewportSyncProps) => React.ReactNode;
 }
@@ -33,9 +34,11 @@ export const DualRealityLabViewport: React.FC<DualRealityLabViewportProps> = ({
   deltaSummary,
   realityBControls,
   onResetBToMatchA,
+  onRecordComparison,
   onClose,
   renderViewport,
 }) => {
+  const [justRecordedPair, setJustRecordedPair] = useState(false);
   const prevLiteModeRef = useRef<boolean | null>(null);
   const seqRef = useRef<number>(0);
   const lastEmitAtRef = useRef<number>(0);
@@ -110,6 +113,36 @@ export const DualRealityLabViewport: React.FC<DualRealityLabViewportProps> = ({
             >
               {deltaSummary}
             </span>
+          )}
+          {onRecordComparison && (
+            <button
+              type="button"
+              data-testid="record-dual-comparison-btn"
+              onClick={() => {
+                labSound.playRecordSuccess();
+                onRecordComparison();
+                setJustRecordedPair(true);
+                window.setTimeout(() => setJustRecordedPair(false), 1800);
+              }}
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                justRecordedPair
+                  ? 'bg-emerald-600'
+                  : 'bg-sky-600 hover:bg-sky-500'
+              }`}
+              title="Catat kedua kondisi Realitas A dan Realitas B sekaligus ke Tabel Pengamatan"
+            >
+              {justRecordedPair ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Tercatat (A &amp; B)</span>
+                </>
+              ) : (
+                <>
+                  <ClipboardPlus className="w-3.5 h-3.5" />
+                  <span>Catat A vs B</span>
+                </>
+              )}
+            </button>
           )}
           <button
             type="button"

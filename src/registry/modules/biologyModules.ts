@@ -97,11 +97,18 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
       }
 
       const maxBubbleRate = 95.0;
-      const bubbleRatePerMin = maxBubbleRate * lightFactor * chlorophyllEfficiency * co2Factor * tempFactor;
+      const effectiveLightFactor = lightFactor * chlorophyllEfficiency;
+      const bubbleRatePerMin = maxBubbleRate * effectiveLightFactor * co2Factor * tempFactor;
       const chlorophyllEfficiencyPct = chlorophyllEfficiency * 100;
-      const o2VolumeProducedMl = bubbleRatePerMin * 0.042;
+      const o2VolumeProducedMl = bubbleRatePerMin * 0.045;
+      const limitingFactorCode =
+        effectiveLightFactor <= co2Factor && effectiveLightFactor <= tempFactor
+          ? 1
+          : co2Factor <= tempFactor
+          ? 2
+          : 3;
 
-      return { bubbleRatePerMin, chlorophyllEfficiencyPct, o2VolumeProducedMl, limitingFactorCode: 1 };
+      return { bubbleRatePerMin, chlorophyllEfficiencyPct, o2VolumeProducedMl, limitingFactorCode };
     },
   },
 
@@ -315,7 +322,7 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
       'Satu set cawan petri kaca dan pisau pelubang gabus silinder kentang (cork borer)',
       'Timbangan analitik digital ketelitian 0.001 gram',
       'Larutan sukrosa murni konsentrasi 0.0 M (aquades), 0.2 M, 0.4 M, 0.6 M, 0.8 M, dan 1.0 M',
-      'Mikroskop cahaya biokuler dan preparat sayatan epidermis bawah daun Rhoeo discolor',
+      'Mikroskop cahaya binokuler dan preparat sayatan epidermis bawah daun Rhoeo discolor',
     ],
     safetyNotes: [
       'Hati-hati saat menggunakan pisau pemotong atau pembuat silinder kentang agar tidak melukai jari.',

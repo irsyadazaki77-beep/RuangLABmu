@@ -12,6 +12,9 @@ import {
   Upload,
   Printer,
   ArrowUpDown,
+  BarChart3,
+  ListChecks,
+  Sparkles,
 } from 'lucide-react';
 import { LabSubmission } from '../../types/submissionTypes';
 import {
@@ -27,9 +30,11 @@ import {
   convertPacketToSubmission,
 } from '../../utils/offlinePacketProtocol';
 import { printBlankStudentWorksheet } from '../../utils/academicReportExporter';
-import { EXPERIMENT_CATALOG } from '../../registry/experimentRegistry';
+import { EXPERIMENT_CATALOG, type EducationTier } from '../../registry/experimentRegistry';
+import { computeClassGradebookAnalytics } from '../../utils/classAnalyticsEngine';
 import { GradebookSubmissionsList } from './GradebookSubmissionsList';
 import { GradebookSubmissionReview } from './GradebookSubmissionReview';
+import { GradebookClassAnalyticsPanel } from './GradebookClassAnalyticsPanel';
 
 export interface TeacherGradebookHubProps {
   isOpen: boolean;
@@ -78,9 +83,18 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
   const [gradingScore, setGradingScore] = useState<number>(85);
   const [gradingFeedback, setGradingFeedback] = useState<string>('');
   const [isSubmittingGrade, setIsSubmittingGrade] = useState(false);
+  const [isBatchGrading, setIsBatchGrading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [viewMode, setViewMode] = useState<'review' | 'analytics'>('review');
+  const [kkmThreshold, setKkmThreshold] = useState<number>(75);
+  const [showBlankLksPicker, setShowBlankLksPicker] = useState(false);
+  const [blankLksModuleId, setBlankLksModuleId] = useState<string>(
+    EXPERIMENT_CATALOG[0]?.id || 'newton-incline'
+  );
+  const [blankLksTier, setBlankLksTier] = useState<EducationTier>('SMA');
 
   const [importSummary, setImportSummary] = useState<{
     totalFiles: number;
@@ -324,6 +338,63 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
     }
   };
 
+  const handleBatchGradeRubric = async (targetIds: string[], onlyUngraded: boolean) => {
+    if (targetIds.length === 0) return;
+    setIsBatchGrading(true);
+    try {
+      const res = await fetch('/api/submissions/batch-grade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          submissionIds: targetIds,
+          onlyUngraded,
+          feedbackPrefix: 'Penilaian Rubrik Massal',
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const updatedList: LabSubmission[] = Array.isArray(data.submissions)
+          ? data.submissions.map((s: LabSubmission) => ({
+              ...s,
+              autoRubric: resolveSubmissionRubric(s),
+            }))
+          : [];
+        const updatedMap = new Map(updatedList.map((s) => [s.id, s]));
+        setSubmissions((prev) => prev.map((s) => updatedMap.get(s.id) ?? s));
+        if (selectedSubmission && updatedMap.has(selectedSubmission.id)) {
+          const nextSelected = updatedMap.get(selectedSubmission.id)!;
+          setSelectedSubmission(nextSelected);
+          setGradingScore(nextSelected.teacherGrade?.score ?? gradingScore);
+          setGradingFeedback(nextSelected.teacherGrade?.feedback ?? gradingFeedback);
+        }
+        labSound.playSuccessChime();
+        setToastMessage(
+          `Penilaian rubrik massal selesai: ${data.gradedCount ?? updatedList.length} laporan diperbarui.`
+        );
+        setTimeout(() => setToastMessage(null), 4000);
+      } else {
+        setToastMessage('Gagal menjalankan penilaian rubrik massal.');
+        setTimeout(() => setToastMessage(null), 3500);
+      }
+    } catch {
+      setToastMessage('Gagal terhubung ke server untuk penilaian massal.');
+      setTimeout(() => setToastMessage(null), 3500);
+    } finally {
+      setIsBatchGrading(false);
+    }
+  };
+
+  const handlePrintSelectedBlankLks = () => {
+    const selectedMod =
+      EXPERIMENT_CATALOG.find((m) => m.id === blankLksModuleId) || EXPERIMENT_CATALOG[0];
+    if (!selectedMod) return;
+    labSound.playClick();
+    printBlankStudentWorksheet(selectedMod, blankLksTier);
+    setShowBlankLksPicker(false);
+    setToastMessage(`LKS Kosong "${selectedMod.title}" (${blankLksTier}) siap dicetak.`);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
   const availableModules = useMemo(() => {
     const set = new Set<string>();
     submissions.forEach((s) => {
@@ -378,6 +449,11 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
   const gradedCount = submissions.filter((s) => s.teacherGrade).length;
   const pendingCount = submissions.length - gradedCount;
   const selectedRubric = selectedSubmission ? resolveSubmissionRubric(selectedSubmission) : null;
+  const classAnalytics = computeClassGradebookAnalytics(filteredSubmissions, kkmThreshold);
+  const filteredPendingIds = filteredSubmissions.filter((s) => !s.teacherGrade).map((s) => s.id);
+  const batchTargetIds =
+    filteredPendingIds.length > 0 ? filteredPendingIds : filteredSubmissions.map((s) => s.id);
+  const batchOnlyUngraded = filteredPendingIds.length > 0;
 
   return createPortal(
     <div
@@ -450,17 +526,34 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
 
             <button
               type="button"
+              data-testid="teacher-batch-grade-btn"
+              disabled={isBatchGrading || batchTargetIds.length === 0}
+              onClick={() => handleBatchGradeRubric(batchTargetIds, batchOnlyUngraded)}
+              title="Terapkan nilai rubrik otomatis secara massal ke laporan terfilter"
+              className="px-3.5 py-2 min-h-[38px] rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                {isBatchGrading
+                  ? 'Menilai Massal...'
+                  : batchOnlyUngraded
+                  ? `Terapkan Rubrik Massal (${batchTargetIds.length})`
+                  : `Sinkron Rubrik Massal (${batchTargetIds.length})`}
+              </span>
+            </button>
+
+            <button
+              type="button"
               data-testid="teacher-print-blank-worksheet-btn"
               onClick={() => {
                 labSound.playClick();
-                const defaultMod = EXPERIMENT_CATALOG[0];
-                printBlankStudentWorksheet(defaultMod, 'SMA');
+                setShowBlankLksPicker((prev) => !prev);
               }}
-              title="Cetak format LKS kosong hemat tinta untuk difotokopi bagi siswa kelas 3T"
+              title="Pilih modul & jenjang untuk mencetak format LKS kosong hemat tinta kelas 3T"
               className="px-3.5 py-2 min-h-[38px] rounded-xl bg-[var(--comfort-surface)] hover:opacity-90 text-[var(--comfort-text)] border border-[var(--comfort-border)] text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
             >
               <Printer className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] shrink-0" />
-              <span>Cetak LKS Kosong (Untuk Fotokopi Kelas)</span>
+              <span>Cetak LKS Kosong</span>
             </button>
 
             <button
@@ -471,7 +564,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               className="px-3.5 py-2 min-h-[38px] rounded-xl bg-[var(--comfort-surface)] hover:border-sky-500/50 text-[var(--comfort-text)] border border-[var(--comfort-border)] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
               <FolderOpen className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" aria-hidden="true" />
-              <span>Impor File Tugas (.rlab)</span>
+              <span>Impor .rlab</span>
             </button>
 
             <button
@@ -480,7 +573,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               className="px-3.5 py-2 min-h-[38px] rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
               <Download className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-              <span>Ekspor Rekap LMS / CSV</span>
+              <span>Ekspor CSV</span>
             </button>
 
             <button
@@ -502,6 +595,86 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Blank LKS Module & Tier Selector Bar */}
+        {showBlankLksPicker && (
+          <div
+            data-testid="blank-lks-picker-panel"
+            className="px-4 sm:px-6 py-3 bg-[var(--comfort-surface)] border-b border-[var(--comfort-border)] flex flex-wrap items-center justify-between gap-3 text-xs animate-fade-in"
+          >
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="font-bold text-[var(--comfort-text)] flex items-center gap-1.5">
+                <Printer className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+                <span>Pilih Modul &amp; Jenjang LKS Kosong:</span>
+              </span>
+              <select
+                data-testid="blank-lks-module-select"
+                aria-label="Pilih Modul LKS Kosong"
+                value={blankLksModuleId}
+                onChange={(e) => setBlankLksModuleId(e.target.value)}
+                className="px-2.5 py-1.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-xs font-semibold text-[var(--comfort-text)] max-w-xs"
+              >
+                {(['fisika', 'kimia', 'biologi', 'astronomi'] as const).map((dom) => (
+                  <optgroup
+                    key={dom}
+                    label={dom.charAt(0).toUpperCase() + dom.slice(1)}
+                  >
+                    {EXPERIMENT_CATALOG.filter((m) => m.domain === dom).map((mod) => (
+                      <option key={mod.id} value={mod.id}>
+                        {mod.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+
+              <select
+                data-testid="blank-lks-tier-select"
+                aria-label="Pilih Jenjang Pendidikan LKS"
+                value={blankLksTier}
+                onChange={(e) => setBlankLksTier(e.target.value as EducationTier)}
+                className="px-2.5 py-1.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-xs font-semibold text-[var(--comfort-text)]"
+              >
+                <option value="SMP">Jenjang SMP</option>
+                <option value="SMA">Jenjang SMA</option>
+                <option value="Mahasiswa">Jenjang Mahasiswa</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                data-testid="blank-lks-confirm-print-btn"
+                onClick={handlePrintSelectedBlankLks}
+                className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold cursor-pointer whitespace-nowrap"
+              >
+                Cetak LKS Sekarang
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBlankLksPicker(false)}
+                className="px-2.5 py-1.5 rounded-xl border border-[var(--comfort-border)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Global Toast Feedback Banner when in Analytics mode or top-level actions */}
+        {toastMessage && viewMode === 'analytics' && (
+          <div className="px-4 sm:px-6 py-2 bg-emerald-500/12 border-b border-emerald-500/30 text-xs font-semibold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+            <span>{toastMessage}</span>
+            <button
+              type="button"
+              onClick={() => setToastMessage(null)}
+              className="p-0.5 hover:opacity-80 cursor-pointer"
+              aria-label="Tutup notifikasi"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Bulk .rlab Import Summary Banner */}
         {importSummary && (
@@ -562,22 +735,65 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
           </div>
         )}
 
-        {/* Status Counters, Search, Module Filter & Sortable Column Controls */}
+        {/* Status Counters, View Switcher, Search, Module Filter & Sortable Column Controls */}
         <div className="p-4 border-b border-[var(--comfort-border)] flex flex-wrap items-center justify-between gap-3 bg-[var(--comfort-surface)] text-xs">
           <div className="flex flex-wrap items-center gap-3 tabular-nums text-[var(--comfort-text-muted)]">
+            <div
+              role="tablist"
+              aria-label="Mode Tampilan Buku Nilai"
+              className="inline-flex items-center gap-1 bg-[var(--comfort-surface-subtle)] p-0.5 rounded-xl border border-[var(--comfort-border)]"
+            >
+              <button
+                type="button"
+                role="tab"
+                data-testid="gradebook-tab-review"
+                aria-selected={viewMode === 'review'}
+                onClick={() => {
+                  labSound.playClick();
+                  setViewMode('review');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap ${
+                  viewMode === 'review'
+                    ? 'bg-sky-600 text-white'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                }`}
+              >
+                <ListChecks className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Daftar &amp; Penilaian</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                data-testid="gradebook-tab-analytics"
+                aria-selected={viewMode === 'analytics'}
+                onClick={() => {
+                  labSound.playClick();
+                  setViewMode('analytics');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap ${
+                  viewMode === 'analytics'
+                    ? 'bg-sky-600 text-white'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Analitik Kelas</span>
+              </button>
+            </div>
+
             <span className="font-medium text-[var(--comfort-text)]">
-              Total Laporan:{' '}
+              Total:{' '}
               <strong className="font-mono">{submissions.length}</strong>
             </span>
             <span aria-hidden="true" className="opacity-35">·</span>
             <span className="text-amber-700 dark:text-amber-400 font-medium inline-flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Belum Dinilai: <strong className="font-mono">{pendingCount}</strong></span>
+              <span>Belum: <strong className="font-mono">{pendingCount}</strong></span>
             </span>
             <span aria-hidden="true" className="opacity-35">·</span>
             <span className="text-emerald-700 dark:text-emerald-400 font-medium inline-flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Selesai Dinilai: <strong className="font-mono">{gradedCount}</strong></span>
+              <span>Dinilai: <strong className="font-mono">{gradedCount}</strong></span>
             </span>
 
             <div className="inline-flex items-center gap-1 bg-[var(--comfort-surface-subtle)] p-0.5 rounded-xl border border-[var(--comfort-border)]">
@@ -680,32 +896,40 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
           </div>
         </div>
 
-        {/* Main Content Area: Split View */}
-        <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
-          <GradebookSubmissionsList
-            submissions={filteredSubmissions}
-            isLoading={isLoading}
-            selectedSubmissionId={selectedSubmission?.id}
-            resolveSubmissionRubric={resolveSubmissionRubric}
-            onSelectSubmission={handleSelectSubmission}
-            onOpenReplay={setReplaySubmission}
+        {/* Main Content Area: Split View or Class Analytics */}
+        {viewMode === 'analytics' ? (
+          <GradebookClassAnalyticsPanel
+            analytics={classAnalytics}
+            kkmThreshold={kkmThreshold}
+            onChangeKkm={setKkmThreshold}
           />
+        ) : (
+          <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
+            <GradebookSubmissionsList
+              submissions={filteredSubmissions}
+              isLoading={isLoading}
+              selectedSubmissionId={selectedSubmission?.id}
+              resolveSubmissionRubric={resolveSubmissionRubric}
+              onSelectSubmission={handleSelectSubmission}
+              onOpenReplay={setReplaySubmission}
+            />
 
-          <GradebookSubmissionReview
-            selectedSubmission={selectedSubmission}
-            selectedRubric={selectedRubric}
-            expandedRubricOpen={expandedRubricOpen}
-            onToggleRubricOpen={() => setExpandedRubricOpen((prev) => !prev)}
-            onOpenReplay={setReplaySubmission}
-            gradingScore={gradingScore}
-            onChangeGradingScore={setGradingScore}
-            gradingFeedback={gradingFeedback}
-            onChangeGradingFeedback={setGradingFeedback}
-            isSubmittingGrade={isSubmittingGrade}
-            toastMessage={toastMessage}
-            onSaveGrade={handleSaveGrade}
-          />
-        </div>
+            <GradebookSubmissionReview
+              selectedSubmission={selectedSubmission}
+              selectedRubric={selectedRubric}
+              expandedRubricOpen={expandedRubricOpen}
+              onToggleRubricOpen={() => setExpandedRubricOpen((prev) => !prev)}
+              onOpenReplay={setReplaySubmission}
+              gradingScore={gradingScore}
+              onChangeGradingScore={setGradingScore}
+              gradingFeedback={gradingFeedback}
+              onChangeGradingFeedback={setGradingFeedback}
+              isSubmittingGrade={isSubmittingGrade}
+              toastMessage={toastMessage}
+              onSaveGrade={handleSaveGrade}
+            />
+          </div>
+        )}
       </div>
 
       <SessionReplayPlayer

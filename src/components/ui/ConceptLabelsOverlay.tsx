@@ -116,30 +116,32 @@ const ConceptLabelSlotItem: React.FC<ConceptLabelSlotItemProps> = React.memo(
               type="button"
               onClick={handleClick}
               title="Klik untuk inspeksi konsep & rumus terkait"
-              className="pointer-events-auto cursor-pointer px-2 py-0.5 rounded-md studio-hud-surface hover:border-sky-500/70 text-[10px] font-mono font-semibold text-[var(--comfort-hud-text)] whitespace-nowrap shadow-md flex items-center gap-1.5 transition-colors"
+              className="pointer-events-auto cursor-pointer pl-2 pr-2.5 py-1 rounded-md studio-hud-surface hover:border-sky-500/70 text-[10px] font-mono font-semibold tabular-nums text-[var(--comfort-hud-text)] whitespace-nowrap shadow-md flex items-center gap-1.5 transition-colors"
             >
               <span
-                className="w-2 h-2 rounded-full shrink-0"
+                aria-hidden="true"
+                className="w-[2.5px] h-3 rounded-xs shrink-0"
                 style={{ backgroundColor: slot.accentHex || '#38bdf8' }}
               />
               <span data-concept-text />
             </button>
           ) : (
-            <div className="px-2 py-0.5 rounded-md studio-hud-surface text-[10px] font-mono font-semibold text-[var(--comfort-hud-text)] whitespace-nowrap shadow-md flex items-center gap-1.5">
+            <div className="pl-2 pr-2.5 py-1 rounded-md studio-hud-surface text-[10px] font-mono font-semibold tabular-nums text-[var(--comfort-hud-text)] whitespace-nowrap shadow-md flex items-center gap-1.5">
               <span
-                className="w-2 h-2 rounded-full shrink-0"
+                aria-hidden="true"
+                className="w-[2.5px] h-3 rounded-xs shrink-0"
                 style={{ backgroundColor: slot.accentHex || '#38bdf8' }}
               />
               <span data-concept-text />
             </div>
           )}
           <div
-            className="w-px h-2.5"
+            className="w-px h-3 opacity-80"
             style={{ backgroundColor: slot.accentHex || '#38bdf8' }}
           />
           <span
-            className="w-1.5 h-1.5 rounded-full border border-[var(--comfort-border)]"
-            style={{ backgroundColor: slot.accentHex || '#38bdf8' }}
+            className="w-2 h-2 rounded-full border-[1.5px] bg-transparent"
+            style={{ borderColor: slot.accentHex || '#38bdf8' }}
           />
         </div>
       </div>

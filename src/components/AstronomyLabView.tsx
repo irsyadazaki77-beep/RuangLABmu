@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AstronomyParams,
   AcademicLevel,
@@ -35,6 +35,11 @@ import { filterRecordsForModule } from '../utils/spatialHudHelpers';
 import { LabSidebarActionHeader } from './layout/LabSidebarActionHeader';
 import { LabSceneFallback } from './three/LabSceneFallback';
 import { AstronomyParameterPanel } from './labs/AstronomyParameterPanel';
+import { LabPresetAndSweepBar } from './labs/LabPresetAndSweepBar';
+import {
+  generateAutoSweepSeries,
+  getAstronomyPresetsForMode,
+} from '../utils/labScenarioPresets';
 
 export interface AstronomyLabViewProps {
   params: AstronomyParams;
@@ -240,51 +245,62 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   };
   const moduleRecords = filterRecordsForModule(records, 'Astronomi', modeToCatalogId[params.mode]);
 
-  const handleRecordTrial = () => {
+  const scenarioPresets = useMemo(
+    () => getAstronomyPresetsForMode(params.mode),
+    [params.mode]
+  );
+  const sweepSteps = useMemo(
+    () => generateAutoSweepSeries('Astronomi', params.mode, 5),
+    [params.mode]
+  );
+
+  const handleRecordTrial = (overrideParams?: AstronomyParams, noteOverride?: string) => {
+    const p = overrideParams ?? params;
+    const m = overrideParams ? calculateAstronomyMetrics(overrideParams) : metrics;
     labSound.playRecordSuccess();
     const title =
-      params.mode === 'solar-kepler'
-        ? `Orbit Kepler: ${params.selectedPlanetId || 'Planet'}`
-        : params.mode === 'milkyway-galaxy'
+      p.mode === 'solar-kepler'
+        ? `Orbit Kepler: ${p.selectedPlanetId || 'Planet'}`
+        : p.mode === 'milkyway-galaxy'
         ? 'Rotasi Galaksi Bima Sakti'
-        : params.mode === 'stellar-exoplanet'
+        : p.mode === 'stellar-exoplanet'
         ? 'Transit Eksoplanet & Kurva Cahaya'
-        : params.mode === 'stellar-wien-spectrum'
+        : p.mode === 'stellar-wien-spectrum'
         ? 'Spektrum Benda Hitam & Hukum Wien'
         : 'Ekspansi Kosmik & Hukum Hubble';
 
-    let pSum = `a=${params.customSemiMajorAxisAu} AU, e=${params.customEccentricity}, T=${metrics.orbitalPeriodYears} thn`;
-    let numX = Number(Math.pow(params.customSemiMajorAxisAu, 3).toFixed(3));
-    let numY1 = Number(Math.pow(metrics.orbitalPeriodYears, 2).toFixed(3));
+    let pSum = `a=${p.customSemiMajorAxisAu} AU, e=${p.customEccentricity}, T=${m.orbitalPeriodYears} thn`;
+    let numX = Number(Math.pow(p.customSemiMajorAxisAu, 3).toFixed(3));
+    let numY1 = Number(Math.pow(m.orbitalPeriodYears, 2).toFixed(3));
 
-    if (params.mode === 'milkyway-galaxy') {
-      pSum = `R=${params.galactocentricRadiusKpc} kpc, DM=${params.darkMatterHaloFraction}`;
-      numX = params.galactocentricRadiusKpc;
-      numY1 = metrics.observedDarkMatterVelocityKms;
-    } else if (params.mode === 'stellar-exoplanet') {
-      pSum = `Rp=${params.exoplanetRadiusEarth} R⊕, R*=${params.starRadiusSolar} R☉`;
-      numX = params.exoplanetRadiusEarth;
-      numY1 = metrics.transitDepthPct;
-    } else if (params.mode === 'stellar-wien-spectrum') {
-      pSum = `T*=${params.starEffectiveTempK} K, Kelas=${metrics.spectralClass}`;
-      numX = params.starEffectiveTempK;
-      numY1 = metrics.wienPeakWavelengthNm ?? metrics.peakWavelengthNm ?? 500;
-    } else if (params.mode === 'hubble-expansion') {
-      pSum = `d=${params.galaxyDistanceMpc ?? 120} Mpc, H₀=${params.hubbleConstantH0 ?? 70} km/s/Mpc`;
-      numX = params.galaxyDistanceMpc ?? 120;
-      numY1 = metrics.hubbleRecessionVelocityKmS ?? metrics.recessionVelocityKms ?? 8400;
+    if (p.mode === 'milkyway-galaxy') {
+      pSum = `R=${p.galactocentricRadiusKpc} kpc, DM=${p.darkMatterHaloFraction}`;
+      numX = p.galactocentricRadiusKpc;
+      numY1 = m.observedDarkMatterVelocityKms;
+    } else if (p.mode === 'stellar-exoplanet') {
+      pSum = `Rp=${p.exoplanetRadiusEarth} R⊕, R*=${p.starRadiusSolar} R☉`;
+      numX = p.exoplanetRadiusEarth;
+      numY1 = m.transitDepthPct;
+    } else if (p.mode === 'stellar-wien-spectrum') {
+      pSum = `T*=${p.starEffectiveTempK} K, Kelas=${m.spectralClass}`;
+      numX = p.starEffectiveTempK;
+      numY1 = m.wienPeakWavelengthNm ?? m.peakWavelengthNm ?? 500;
+    } else if (p.mode === 'hubble-expansion') {
+      pSum = `d=${p.galaxyDistanceMpc ?? 120} Mpc, H₀=${p.hubbleConstantH0 ?? 70} km/s/Mpc`;
+      numX = p.galaxyDistanceMpc ?? 120;
+      numY1 = m.hubbleRecessionVelocityKmS ?? m.recessionVelocityKms ?? 8400;
     }
 
     onRecordExperiment(
       title,
       pSum,
       {
-        'Periode Orbit (T)': `${metrics.orbitalPeriodYears} Tahun`,
-        'Kecepatan Orbit': `${metrics.meanOrbitalVelocityKms} km/s`,
-        'Rasio Kepler a³/T²': metrics.keplerRatioT2OverA3,
+        'Periode Orbit (T)': `${m.orbitalPeriodYears} Tahun`,
+        'Kecepatan Orbit': `${m.meanOrbitalVelocityKms} km/s`,
+        'Rasio Kepler a³/T²': m.keplerRatioT2OverA3,
       },
-      hypothesisNote?.hypothesisText || '',
-      { x: numX, y1: numY1, y2: metrics.meanOrbitalVelocityKms }
+      noteOverride ?? (hypothesisNote?.hypothesisText || ''),
+      { x: numX, y1: numY1, y2: m.meanOrbitalVelocityKms }
     );
   };
 
@@ -395,6 +411,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               realityBSummary={astroVar.summaryB}
               deltaSummary={astroVar.delta}
               onResetBToMatchA={() => setRealityBParams({ ...params })}
+              onRecordComparison={() => {
+                handleRecordTrial(params, '[Komparasi A · Kontrol]');
+                handleRecordTrial(realityBParams, '[Komparasi B · Uji Variabel]');
+              }}
               onClose={() => setIsDualRealityMode(false)}
               realityBControls={
                 <div className="w-full min-w-[240px]">
@@ -519,6 +539,18 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               <option value="hubble-expansion">Ekspansi Alam Semesta &amp; Hukum Hubble</option>
             </select>
           </div>
+
+          <LabPresetAndSweepBar
+            presets={scenarioPresets}
+            sweepSteps={sweepSteps}
+            accentColor="sky"
+            onApplyPreset={(preset) => handleParamPatch(preset.patch)}
+            onSweepStep={(step) => {
+              const nextParams = { ...params, ...(step.patch as Partial<AstronomyParams>) };
+              onChangeParams(nextParams);
+              handleRecordTrial(nextParams, step.label);
+            }}
+          />
 
           <AstronomyParameterPanel
             params={params}

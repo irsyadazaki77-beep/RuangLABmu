@@ -17,6 +17,10 @@ import {
   type AdaptiveQualityController,
   type QualityTier,
 } from '../hooks/useAdaptiveQuality';
+import {
+  enhanceSceneTextureAnisotropy,
+  type PostProcessingDomainPreset,
+} from './threePostProcessing';
 import { useUIStore } from '../stores/useUIStore';
 
 export interface ThreeStudioHostOptions {
@@ -24,6 +28,7 @@ export interface ThreeStudioHostOptions {
   fallbackSize?: { width: number; height: number };
   backgroundHex?: number;
   fogDensity?: number;
+  domainPreset?: PostProcessingDomainPreset;
   camera: {
     fov?: number;
     near?: number;
@@ -87,10 +92,28 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   const width = container.clientWidth || fallbackW;
   const height = container.clientHeight || fallbackH;
 
+  // Probe software WebGL (SwiftShader/llvmpipe) before constructing the main WebGLRenderer
+  // so antialias and damping are configured optimally without creating an MSAA backbuffer on CPU rasterizers.
+  let probedSoftwareGl = false;
+  if (typeof document !== 'undefined') {
+    try {
+      const probeCanvas = document.createElement('canvas');
+      const probeGl = (probeCanvas.getContext('webgl2') ||
+        probeCanvas.getContext('webgl')) as WebGLRenderingContext | null;
+      const probeDbg = probeGl?.getExtension?.('WEBGL_debug_renderer_info');
+      const probeName =
+        probeDbg && probeGl ? String(probeGl.getParameter(probeDbg.UNMASKED_RENDERER_WEBGL)) : '';
+      probedSoftwareGl = /swiftshader|llvmpipe|softpipe|software/i.test(probeName);
+      probeGl?.getExtension?.('WEBGL_lose_context')?.loseContext();
+    } catch {
+      probedSoftwareGl = false;
+    }
+  }
+
   let renderer: THREE.WebGLRenderer;
   try {
     renderer = new THREE.WebGLRenderer({
-      antialias: true,
+      antialias: !probedSoftwareGl,
       alpha: options.alpha ?? false,
       powerPreference: 'high-performance',
       // Disabled intentionally to preserve GPU swap-buffer performance on mobile/3T devices;
@@ -104,7 +127,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   const gl = renderer.getContext() as WebGL2RenderingContext | null;
   const dbg = gl?.getExtension?.('WEBGL_debug_renderer_info');
   const glRenderer = dbg && gl ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
-  const isSoftwareGl = /swiftshader|llvmpipe|softpipe|software/i.test(glRenderer);
+  const isSoftwareGl = probedSoftwareGl || /swiftshader|llvmpipe|softpipe|software/i.test(glRenderer);
 
   const uiState = useUIStore.getState();
   const initialLite = uiState.liteDeviceMode || uiState.qualityMode === '3t-saver';
@@ -231,29 +254,62 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   const bgHex = options.backgroundHex ?? 0x0b0f17;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(bgHex);
-  if ((options.fogDensity ?? 0.015) > 0) {
-    scene.fog = new THREE.FogExp2(bgHex, options.fogDensity ?? 0.015);
+  const requestedFogDensity = options.fogDensity ?? 0.015;
+  if (requestedFogDensity > 0) {
+    // Use linear horizon fog starting behind the workbench (24..58) for studio labs so apparatus
+    // at 5..18 units has 0% milky haze; keep FogExp2 only for deep-space / ultra-low density scenes.
+    scene.fog =
+      requestedFogDensity <= 0.01
+        ? new THREE.FogExp2(bgHex, requestedFogDensity)
+        : new THREE.Fog(bgHex, 24, 58);
   }
 
   let envTexture: THREE.Texture;
   if (isSoftwareGl) {
-    // Fast procedural studio softbox equirectangular reflection map (<0.2ms) for crisp chrome/glass speculars on SwiftShader
-    const w = 32;
-    const h = 16;
+    // High-contrast 128x64 architectural studio softbox equirectangular reflection map (<1ms)
+    // Gives brushed steel, brass, ceramic, and borosilicate glass crisp specular reflections on SwiftShader/3T devices.
+    const w = 128;
+    const h = 64;
     const data = new Uint8Array(w * h * 4);
     for (let y = 0; y < h; y++) {
-      const v = y / (h - 1);
+      const v = y / (h - 1); // 0 = floor, 1 = zenith
       for (let x = 0; x < w; x++) {
         const u = x / (w - 1);
         const idx = (y * w + x) * 4;
-        const sky = Math.pow(v, 1.15);
-        // Overhead studio softbox + subtle warm key / cool rim horizon panels
-        const overheadSoftbox = v > 0.76 ? 48 : 0;
-        const keyPanel = v > 0.35 && v < 0.72 && u > 0.12 && u < 0.36 ? 34 : 0;
-        const rimPanel = v > 0.32 && v < 0.68 && u > 0.64 && u < 0.88 ? 28 : 0;
-        data[idx] = Math.min(255, Math.round(44 + sky * 172 + overheadSoftbox + keyPanel));
-        data[idx + 1] = Math.min(255, Math.round(52 + sky * 174 + overheadSoftbox + keyPanel * 0.9 + rimPanel * 0.85));
-        data[idx + 2] = Math.min(255, Math.round(66 + sky * 172 + overheadSoftbox + keyPanel * 0.75 + rimPanel * 1.15));
+
+        // Smooth laboratory room ambient gradient (grounded dark bench bounce below horizon, bright studio ceiling above)
+        const horizonBand = Math.exp(-Math.pow((v - 0.48) / 0.12, 2));
+        const upperSky = Math.max(0, (v - 0.46) / 0.54);
+        const floorBounce = Math.max(0, (0.48 - v) / 0.48);
+
+        let r = 34 + upperSky * 126 + horizonBand * 42 - floorBounce * 12;
+        let g = 40 + upperSky * 130 + horizonBand * 44 - floorBounce * 10;
+        let b = 52 + upperSky * 138 + horizonBand * 46 - floorBounce * 6;
+
+        // Twin overhead laboratory LED diffuser strips
+        const strip1 = Math.exp(-Math.pow((v - 0.84) / 0.055, 2)) * (u > 0.16 && u < 0.44 ? 1 : 0);
+        const strip2 = Math.exp(-Math.pow((v - 0.84) / 0.055, 2)) * (u > 0.56 && u < 0.84 ? 1 : 0);
+        const overhead = (strip1 + strip2) * 118;
+
+        // Warm studio key softbox (upper right)
+        const keyBox =
+          Math.exp(-Math.pow((u - 0.24) / 0.1, 2)) *
+          Math.exp(-Math.pow((v - 0.64) / 0.11, 2)) *
+          96;
+
+        // Cool laboratory window rim softbox (opposite flank)
+        const rimBox =
+          Math.exp(-Math.pow((u - 0.76) / 0.12, 2)) *
+          Math.exp(-Math.pow((v - 0.58) / 0.12, 2)) *
+          78;
+
+        r += overhead + keyBox * 1.08 + rimBox * 0.72;
+        g += overhead * 0.99 + keyBox * 0.98 + rimBox * 0.94;
+        b += overhead * 0.97 + keyBox * 0.84 + rimBox * 1.18;
+
+        data[idx] = Math.min(255, Math.max(0, Math.round(r)));
+        data[idx + 1] = Math.min(255, Math.max(0, Math.round(g)));
+        data[idx + 2] = Math.min(255, Math.max(0, Math.round(b)));
         data[idx + 3] = 255;
       }
     }
@@ -270,7 +326,9 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     pmrem.dispose();
   }
   scene.environment = envTexture;
-  scene.environmentIntensity = options.environmentIntensity ?? 0.58;
+  scene.userData.isSoftwareGl = isSoftwareGl;
+  // Calibrate RoomEnvironment (much brighter on real GPUs) vs procedural softbox DataTexture parity
+  scene.environmentIntensity = options.environmentIntensity ?? (isSoftwareGl ? 0.68 : 0.42);
 
   const baseFov = options.camera.fov ?? 45;
   const computePortraitSafeFov = (aspect: number) => {
@@ -290,6 +348,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     camera.lookAt(...options.camera.lookAt);
   }
 
+  const initialPostProcessing = useUIStore.getState().postProcessing;
   const studioComposer = createStudioComposer(
     renderer,
     scene,
@@ -297,11 +356,21 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
     width,
     height,
     isSoftwareGl,
-    options.bloom ?? { strength: 0.14, radius: 0.25, threshold: 1.15 }
+    options.bloom,
+    {
+      domainPreset: options.domainPreset ?? 'benchtop',
+      initialSettings: initialPostProcessing,
+      initialQualityTier: qualityController.getTier(),
+    }
   );
 
+  let lastAppliedPostFxRef = initialPostProcessing;
+  let lastAppliedPostTier = qualityController.getTier();
+  let lastAppliedLiteMode = useUIStore.getState().liteDeviceMode;
+  let anisotropyApplied = false;
+
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
+  controls.enableDamping = !isSoftwareGl;
   controls.dampingFactor = options.controls?.dampingFactor ?? 0.08;
   if (options.controls?.autoRotateSpeed !== undefined) {
     controls.autoRotateSpeed = options.controls.autoRotateSpeed;
@@ -334,12 +403,31 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
 
   const renderFrame = (dt = 0.016) => {
     if (disposed || isContextLost) return;
+    if (!anisotropyApplied) {
+      anisotropyApplied = true;
+      enhanceSceneTextureAnisotropy(
+        scene,
+        isSoftwareGl ? 1 : renderer.capabilities?.getMaxAnisotropy?.() ?? 4
+      );
+    }
     if (!isSoftwareGl && dt > 0) {
       qualityController.recordFrameDelta(dt, renderer);
     }
     const spec = qualityController.getSpec();
+    const uiState = useUIStore.getState();
+    const postFx = uiState.postProcessing;
+    if (
+      postFx !== lastAppliedPostFxRef ||
+      spec.tier !== lastAppliedPostTier ||
+      uiState.liteDeviceMode !== lastAppliedLiteMode
+    ) {
+      lastAppliedPostFxRef = postFx;
+      lastAppliedPostTier = spec.tier;
+      lastAppliedLiteMode = uiState.liteDeviceMode;
+      studioComposer.applySettings(postFx, spec.tier, uiState.liteDeviceMode);
+    }
     const bypassComposer =
-      useUIStore.getState().liteDeviceMode || !spec.postProcessingEnabled;
+      uiState.liteDeviceMode || !spec.postProcessingEnabled || !postFx.enabled;
     studioComposer.render(bypassComposer, dt);
 
     const nowPerf = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -477,13 +565,13 @@ export function createStudioThreePointLighting(
   const hemiLight = new THREE.HemisphereLight(
     initialColors.ambientSkyHex,
     initialColors.ambientGroundHex,
-    Math.min(0.75, initialColors.ambientIntensity ?? 0.65)
+    Math.min(0.62, initialColors.ambientIntensity ?? 0.48)
   );
   scene.add(hemiLight);
 
   const keyPos = options?.keyPosition ?? [6, 12, 8];
   const shadowSize = options?.shadowMapSize ?? 1024;
-  const keyLight = new THREE.DirectionalLight(0xfffaf2, 1.15);
+  const keyLight = new THREE.DirectionalLight(0xfff7ea, 1.12);
   keyLight.position.set(keyPos[0], keyPos[1], keyPos[2]);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.width = shadowSize;
@@ -499,6 +587,11 @@ export function createStudioThreePointLighting(
   keyLight.shadow.normalBias = 0.02;
   scene.add(keyLight);
 
+  // Soft cool front-side fill light to sculpt brushed metal and ceramic contours without washing shadows
+  const fillLight = new THREE.DirectionalLight(0xe0f2fe, 0.26);
+  fillLight.position.set(-keyPos[0] * 0.85, keyPos[1] * 0.55, keyPos[2] * 0.7);
+  scene.add(fillLight);
+
   const rimPos = options?.rimPosition ?? [-7, 5, -6];
   const rimLight = new THREE.DirectionalLight(0xbae6fd, 0.48);
   rimLight.position.set(rimPos[0], rimPos[1], rimPos[2]);
@@ -509,21 +602,31 @@ export function createStudioThreePointLighting(
     keyLight,
     rimLight,
     applyTheme: (colors, targetScene, fogDensity = 0.015, workbench) => {
-      const bgHex = colors.backgroundHex ?? 0xe6ecf3;
+      const bgHex = colors.backgroundHex ?? 0xdbe3ec;
       const fogHex = colors.fogHex ?? bgHex;
       if (targetScene.background instanceof THREE.Color) {
         targetScene.background.setHex(bgHex);
       } else {
         targetScene.background = new THREE.Color(bgHex);
       }
-      targetScene.fog = new THREE.FogExp2(fogHex, fogDensity);
+      targetScene.fog =
+        fogDensity <= 0.01
+          ? new THREE.FogExp2(fogHex, fogDensity)
+          : new THREE.Fog(fogHex, 24, 58);
       const bgCol = new THREE.Color(bgHex);
       const isDarkScene = bgCol.r * 0.299 + bgCol.g * 0.587 + bgCol.b * 0.114 < 0.35;
-      targetScene.environmentIntensity = isDarkScene ? 0.46 : 0.6;
+      const isSw = Boolean(targetScene.userData?.isSoftwareGl);
+      targetScene.environmentIntensity = isSw
+        ? isDarkScene
+          ? 0.56
+          : 0.68
+        : isDarkScene
+        ? 0.36
+        : 0.42;
       workbench?.updateTheme(colors);
       hemiLight.color.setHex(colors.ambientSkyHex);
       hemiLight.groundColor.setHex(colors.ambientGroundHex);
-      hemiLight.intensity = Math.min(0.78, colors.ambientIntensity);
+      hemiLight.intensity = Math.min(0.62, colors.ambientIntensity);
     },
   };
 }

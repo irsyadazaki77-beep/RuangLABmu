@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
   createBrushedMetalTextures,
+  createContactShadowPlane,
   createGraduatedScaleTexture,
   createInstancedParticlePool,
   createVectorArrowGroup as createArrowGroup,
@@ -217,15 +218,33 @@ export function buildPhysicsCoreStage(
   scene.add(inclineGroup);
 
   const basePedestal = new THREE.Mesh(
-    new RoundedBoxGeometry(10.6, 0.24, 2.7, 3, 0.04),
+    new RoundedBoxGeometry(10.6, 0.22, 2.7, 3, 0.04),
     darkFrameMat
   );
-  basePedestal.position.set(0, 0.12, 0);
+  basePedestal.position.set(0, 0.15, 0);
+  basePedestal.castShadow = true;
   basePedestal.receiveShadow = true;
   inclineGroup.add(basePedestal);
 
+  // Rubberized anti-vibration leveling feet + baked AO contact shadow beneath pedestal
+  const footMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.88, metalness: 0.05 });
+  const footGeo = new THREE.CylinderGeometry(0.16, 0.2, 0.06, 16);
+  [
+    [-4.85, -1.05],
+    [-4.85, 1.05],
+    [4.85, -1.05],
+    [4.85, 1.05],
+  ].forEach(([fx, fz]) => {
+    const foot = new THREE.Mesh(footGeo, footMat);
+    foot.position.set(fx, 0.03, fz);
+    inclineGroup.add(foot);
+  });
+  const inclineContactShadow = createContactShadowPlane(5.55, 1.65, 0.34);
+  inclineContactShadow.position.set(0, 0.008, 0);
+  inclineGroup.add(inclineContactShadow);
+
   const pivotGroup = new THREE.Group();
-  pivotGroup.position.set(-4.6, 0.24, 0);
+  pivotGroup.position.set(-4.6, 0.26, 0);
   inclineGroup.add(pivotGroup);
 
   const hingeAxle = new THREE.Mesh(
@@ -234,6 +253,35 @@ export function buildPhysicsCoreStage(
   );
   hingeAxle.rotation.x = Math.PI / 2;
   pivotGroup.add(hingeAxle);
+
+  // Hinge clevis cheeks & calibrated brass angle quadrant at pivot
+  const clevisGeo = new RoundedBoxGeometry(0.36, 0.34, 0.12, 2, 0.02);
+  const clevisFront = new THREE.Mesh(clevisGeo, darkFrameMat);
+  clevisFront.position.set(-4.6, 0.32, 1.12);
+  const clevisBack = new THREE.Mesh(clevisGeo, darkFrameMat);
+  clevisBack.position.set(-4.6, 0.32, -1.12);
+  inclineGroup.add(clevisFront, clevisBack);
+
+  const inclineProtractorArc = new THREE.Mesh(
+    new THREE.RingGeometry(1.18, 1.32, 28, 1, 0, Math.PI / 3),
+    new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      metalness: 0.82,
+      roughness: 0.26,
+      transparent: true,
+      opacity: 0.88,
+      side: THREE.DoubleSide,
+    })
+  );
+  inclineProtractorArc.position.set(-4.6, 0.24, 1.14);
+  inclineGroup.add(inclineProtractorArc);
+
+  const inclineAnglePointer = new THREE.Mesh(
+    new THREE.BoxGeometry(1.34, 0.032, 0.032),
+    brassMat
+  );
+  inclineAnglePointer.position.set(0.67, 0, 1.155);
+  pivotGroup.add(inclineAnglePointer);
 
   const rampBoard = new THREE.Mesh(
     new RoundedBoxGeometry(9.2, 0.22, 2.1, 3, 0.03),
@@ -244,6 +292,15 @@ export function buildPhysicsCoreStage(
   rampBoard.receiveShadow = true;
   rampBoard.userData = { draggableParam: 'inclineAngle', min: 0, max: 60, step: 1, label: 'Kemiringan θ' };
   pivotGroup.add(rampBoard);
+
+  // Rubberized top bumper end-stop on incline track
+  const rampEndStop = new THREE.Mesh(
+    new RoundedBoxGeometry(0.18, 0.42, 2.04, 2, 0.03),
+    darkFrameMat
+  );
+  rampEndStop.position.set(9.12, 0.18, 0);
+  rampEndStop.castShadow = true;
+  pivotGroup.add(rampEndStop);
 
   if (rampScaleTex) {
     const rampScaleStrip = new THREE.Mesh(
@@ -266,21 +323,51 @@ export function buildPhysicsCoreStage(
   const blockGroup = new THREE.Group();
   pivotGroup.add(blockGroup);
 
+  // Composite machined laboratory dynamics block (anodized body + aluminum weight plate + PTFE glide runners + brass load collar)
   const massBox = new THREE.Mesh(
-    new RoundedBoxGeometry(1.18, 0.76, 1.18, 4, 0.06),
+    new RoundedBoxGeometry(1.18, 0.68, 1.16, 4, 0.05),
     primaryMassMat
   );
-  massBox.position.set(0, 0.39, 0);
+  massBox.position.set(0, 0.41, 0);
   massBox.castShadow = true;
   massBox.receiveShadow = true;
   massBox.userData = { draggableParam: 'appliedForce', min: -100, max: 200, step: 5, label: 'Gaya Dorong F' };
   blockGroup.add(massBox);
 
-  const blockCapRing = new THREE.Mesh(
-    new THREE.TorusGeometry(0.14, 0.032, 12, 24),
+  const blockTopPlate = new THREE.Mesh(
+    new RoundedBoxGeometry(1.06, 0.055, 1.04, 2, 0.015),
+    brushedSteelMat
+  );
+  blockTopPlate.position.set(0, 0.77, 0);
+  blockTopPlate.castShadow = true;
+  blockGroup.add(blockTopPlate);
+
+  const blockSideBand = new THREE.Mesh(
+    new RoundedBoxGeometry(1.205, 0.08, 1.185, 2, 0.01),
+    brushedSteelMat
+  );
+  blockSideBand.position.set(0, 0.41, 0);
+  blockGroup.add(blockSideBand);
+
+  const runnerGeo = new RoundedBoxGeometry(1.12, 0.075, 0.16, 2, 0.02);
+  const runnerFront = new THREE.Mesh(runnerGeo, darkFrameMat);
+  runnerFront.position.set(0, 0.038, 0.42);
+  const runnerBack = new THREE.Mesh(runnerGeo, darkFrameMat);
+  runnerBack.position.set(0, 0.038, -0.42);
+  blockGroup.add(runnerFront, runnerBack);
+
+  const blockCollarBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.17, 0.06, 18),
     brassMat
   );
-  blockCapRing.position.set(0, 0.82, 0);
+  blockCollarBase.position.set(0, 0.82, 0);
+  blockGroup.add(blockCollarBase);
+
+  const blockCapRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.13, 0.03, 12, 24),
+    brassMat
+  );
+  blockCapRing.position.set(0, 0.92, 0);
   blockCapRing.castShadow = true;
   blockGroup.add(blockCapRing);
 
@@ -290,33 +377,67 @@ export function buildPhysicsCoreStage(
   const arrowWeight = createArrowGroup(0xf43f5e);
   blockGroup.add(arrowApplied, arrowFriction, arrowNormal, arrowWeight);
 
+  const supportBaseFlange = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.34, 0.4, 0.14, 24),
+    darkFrameMat
+  );
+  supportBaseFlange.position.set(3.2, 0.33, 0);
+  inclineGroup.add(supportBaseFlange);
+
   const supportPillar = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.14, 0.18, 1, 16),
+    new THREE.CylinderGeometry(0.13, 0.16, 1, 20),
     brushedSteelMat
   );
   supportPillar.position.set(3.2, 0.5, 0);
   supportPillar.castShadow = true;
   inclineGroup.add(supportPillar);
 
+  const supportCollar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.22, 0.22, 0.16, 20),
+    brassMat
+  );
+  supportCollar.position.set(3.2, 0.5, 0);
+  inclineGroup.add(supportCollar);
+
   // 2. Projectile Gravity 3D Group + Motion Trail
   const projectileGroup = new THREE.Group();
   scene.add(projectileGroup);
 
   const launchTower = new THREE.Mesh(
-    new RoundedBoxGeometry(1.24, 1, 1.24, 3, 0.05),
+    new RoundedBoxGeometry(1.36, 0.86, 1.36, 3, 0.05),
     darkFrameMat
   );
-  launchTower.position.set(-5.2, 0.5, 0);
+  launchTower.position.set(-5.2, 0.43, 0);
   launchTower.castShadow = true;
   launchTower.receiveShadow = true;
   projectileGroup.add(launchTower);
+
+  // Trunnion yoke cheeks + elevation quadrant behind cannon
+  const yokeCheekGeo = new RoundedBoxGeometry(0.36, 0.54, 0.1, 2, 0.02);
+  const yokeFront = new THREE.Mesh(yokeCheekGeo, brushedSteelMat);
+  yokeFront.position.set(-5.2, 1.0, 0.44);
+  const yokeBack = new THREE.Mesh(yokeCheekGeo, brushedSteelMat);
+  yokeBack.position.set(-5.2, 1.0, -0.44);
+  const cannonQuadrant = new THREE.Mesh(
+    new THREE.RingGeometry(0.68, 0.86, 28, 1, 0, Math.PI / 2),
+    brassMat
+  );
+  cannonQuadrant.position.set(-5.2, 1.0, -0.48);
+  projectileGroup.add(yokeFront, yokeBack, cannonQuadrant);
 
   const cannonPivot = new THREE.Group();
   cannonPivot.position.set(-5.2, 1.0, 0);
   projectileGroup.add(cannonPivot);
 
+  const cannonTrunnion = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.11, 0.98, 16),
+    brassMat
+  );
+  cannonTrunnion.rotation.x = Math.PI / 2;
+  cannonPivot.add(cannonTrunnion);
+
   const cannonBarrel = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.24, 0.32, 1.6, 18),
+    new THREE.CylinderGeometry(0.21, 0.29, 1.65, 22),
     brushedSteelMat
   );
   cannonBarrel.rotation.z = -Math.PI / 2;
@@ -324,6 +445,25 @@ export function buildPhysicsCoreStage(
   cannonBarrel.castShadow = true;
   cannonBarrel.userData = { draggableParam: 'launchAngle', min: 10, max: 85, step: 1, label: 'Sudut Elevasi θ' };
   cannonPivot.add(cannonBarrel);
+
+  const cannonBreechCap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 18, 18),
+    darkFrameMat
+  );
+  cannonBreechCap.position.set(-0.04, 0, 0);
+  const cannonMuzzleRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.23, 0.045, 12, 24),
+    brassMat
+  );
+  cannonMuzzleRing.rotation.y = Math.PI / 2;
+  cannonMuzzleRing.position.set(1.62, 0, 0);
+  const cannonMidCollar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.275, 0.275, 0.18, 20),
+    darkFrameMat
+  );
+  cannonMidCollar.rotation.z = Math.PI / 2;
+  cannonMidCollar.position.set(0.55, 0, 0);
+  cannonPivot.add(cannonBreechCap, cannonMuzzleRing, cannonMidCollar);
 
   const cannonSoundEmitter = labSound.createPositionalSoundEmitter(camera, 'collision-thud');
   cannonBarrel.add(cannonSoundEmitter.sound);
@@ -382,22 +522,46 @@ export function buildPhysicsCoreStage(
   springTrackBed.receiveShadow = true;
   springGroup.add(springTrackBed);
 
-  const COIL_POINTS = 96;
-  const coilPositions = new Float32Array(COIL_POINTS * 3);
-  const coilGeo = new THREE.BufferGeometry();
-  coilGeo.setAttribute('position', new THREE.BufferAttribute(coilPositions, 3));
-  const coilLine = new THREE.Line(coilGeo, new THREE.LineBasicMaterial({ color: 0xe2e8f0 }));
-  springGroup.add(coilLine);
-
-  const springRings: THREE.Mesh[] = [];
-  const springRingGeo = new THREE.TorusGeometry(0.38, 0.055, 10, 20);
-  springRingGeo.rotateY(Math.PI / 2);
-  for (let i = 0; i < 12; i++) {
-    const rMesh = new THREE.Mesh(springRingGeo, brushedSteelMat);
-    rMesh.castShadow = true;
-    springRings.push(rMesh);
-    springGroup.add(rMesh);
+  if (rampScaleTex) {
+    const springScaleStrip = new THREE.Mesh(
+      new THREE.PlaneGeometry(9.6, 0.48),
+      new THREE.MeshBasicMaterial({ map: rampScaleTex, transparent: true, opacity: 0.82, depthWrite: false })
+    );
+    springScaleStrip.rotation.x = -Math.PI / 2;
+    springScaleStrip.rotation.z = -Math.PI / 2;
+    springScaleStrip.position.set(0.2, 0.216, 0.78);
+    springGroup.add(springScaleStrip);
   }
+
+  // Wall anchor plate & equilibrium zero marker on track
+  const wallAnchorPlate = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.24, 0.28, 0.12, 20),
+    brassMat
+  );
+  wallAnchorPlate.rotation.z = Math.PI / 2;
+  wallAnchorPlate.position.set(-4.98, 0.87, 0);
+  const eqMarker = new THREE.Mesh(
+    new THREE.BoxGeometry(0.05, 0.03, 1.9),
+    new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+  );
+  eqMarker.position.set(0.5, 0.22, 0);
+  springGroup.add(wallAnchorPlate, eqMarker);
+
+  // Continuous 3D Helical Steel Coil built via zero-allocation InstancedMesh segments
+  const HELIX_SEGMENTS = 108;
+  const helixSegGeo = new THREE.CylinderGeometry(0.046, 0.046, 1.0, 8, 1);
+  const helixInstanced = new THREE.InstancedMesh(helixSegGeo, brushedSteelMat, HELIX_SEGMENTS);
+  helixInstanced.castShadow = true;
+  helixInstanced.frustumCulled = false;
+  springGroup.add(helixInstanced);
+  const _hxP0 = new THREE.Vector3();
+  const _hxP1 = new THREE.Vector3();
+  const _hxMid = new THREE.Vector3();
+  const _hxDir = new THREE.Vector3();
+  const _hxQuat = new THREE.Quaternion();
+  const _hxScale = new THREE.Vector3();
+  const _hxMat4 = new THREE.Matrix4();
+  const _hxYAxis = new THREE.Vector3(0, 1, 0);
 
   const springMassBlock = new THREE.Mesh(
     new RoundedBoxGeometry(1.32, 1.32, 1.32, 4, 0.07),
@@ -405,6 +569,12 @@ export function buildPhysicsCoreStage(
   );
   springMassBlock.castShadow = true;
   springMassBlock.userData = { draggableParam: 'springDisplacement', min: -2.0, max: 2.0, step: 0.1, label: 'Simpangan x' };
+  const springBlockHook = new THREE.Mesh(
+    new THREE.TorusGeometry(0.14, 0.035, 10, 20),
+    brassMat
+  );
+  springBlockHook.position.set(-0.72, 0, 0);
+  springMassBlock.add(springBlockHook);
   springGroup.add(springMassBlock);
 
   const springForceArrow = createArrowGroup(0x10b981);
@@ -414,18 +584,41 @@ export function buildPhysicsCoreStage(
   const pendulumGroup = new THREE.Group();
   scene.add(pendulumGroup);
 
-  const pendStandBase = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.2, 2.4), darkFrameMat);
-  pendStandBase.position.set(0, 0.1, 0);
+  const pendStandBase = new THREE.Mesh(
+    new RoundedBoxGeometry(2.6, 0.22, 2.4, 3, 0.04),
+    darkFrameMat
+  );
+  pendStandBase.position.set(0, 0.11, 0);
   pendStandBase.receiveShadow = true;
   pendulumGroup.add(pendStandBase);
 
+  const pendBaseFlange = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.22, 0.26, 0.12, 20),
+    brassMat
+  );
+  pendBaseFlange.position.set(-0.8, 0.28, 0);
+  pendulumGroup.add(pendBaseFlange);
+
   const pendVerticalPillar = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.08, 0.08, 4.2, 16),
+    new THREE.CylinderGeometry(0.08, 0.08, 4.2, 18),
     brushedSteelMat
   );
-  pendVerticalPillar.position.set(-0.8, 2.2, 0);
+  pendVerticalPillar.position.set(-0.8, 2.25, 0);
   pendVerticalPillar.castShadow = true;
   pendulumGroup.add(pendVerticalPillar);
+
+  const pendBosshead = new THREE.Mesh(
+    new RoundedBoxGeometry(0.28, 0.26, 0.24, 2, 0.03),
+    darkFrameMat
+  );
+  pendBosshead.position.set(-0.8, 4.2, 0);
+  const pendBossKnob = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 0.18, 14),
+    brassMat
+  );
+  pendBossKnob.rotation.z = Math.PI / 2;
+  pendBossKnob.position.set(-0.98, 4.2, 0);
+  pendulumGroup.add(pendBosshead, pendBossKnob);
 
   const pendHorizontalArm = new THREE.Mesh(
     new THREE.CylinderGeometry(0.06, 0.06, 1.8, 16),
@@ -434,6 +627,14 @@ export function buildPhysicsCoreStage(
   pendHorizontalArm.rotation.z = Math.PI / 2;
   pendHorizontalArm.position.set(0, 4.2, 0);
   pendulumGroup.add(pendHorizontalArm);
+
+  const pendPivotCollar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.11, 0.18, 16),
+    brassMat
+  );
+  pendPivotCollar.rotation.x = Math.PI / 2;
+  pendPivotCollar.position.set(0.6, 4.2, 0);
+  pendulumGroup.add(pendPivotCollar);
 
   const pendPivotGroup = new THREE.Group();
   pendPivotGroup.position.set(0.6, 4.2, 0);
@@ -450,6 +651,12 @@ export function buildPhysicsCoreStage(
   pendBob.position.set(0, -1.0, 0);
   pendBob.castShadow = true;
   pendBob.userData = { draggableParam: 'pendulumAngle', min: 5, max: 75, step: 1, label: 'Sudut Awal θ₀' };
+  const pendBobEyelet = new THREE.Mesh(
+    new THREE.TorusGeometry(0.08, 0.022, 10, 18),
+    brushedSteelMat
+  );
+  pendBobEyelet.position.set(0, 0.4, 0);
+  pendBob.add(pendBobEyelet);
   pendPivotGroup.add(pendBob);
 
   const pendulumMotionTrail = createMotionTrailSystem(48, 0xf59e0b);
@@ -459,19 +666,23 @@ export function buildPhysicsCoreStage(
   const pendGravityArrow = createArrowGroup(0xf43f5e);
   pendulumGroup.add(pendRestoringArrow, pendGravityArrow);
 
-  const protractorGeo = new THREE.RingGeometry(0.5, 0.7, 32, 1, 0, Math.PI);
+  const protractorGeo = new THREE.RingGeometry(0.52, 0.74, 36, 1, 0, Math.PI);
   protractorGeo.rotateZ(Math.PI);
   const protractor = new THREE.Mesh(
     protractorGeo,
-    new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.4 })
+    new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.45 })
   );
   protractor.position.set(0.6, 4.2, 0.05);
   pendulumGroup.add(protractor);
 
+  const ARC_SAMPLES = 41;
   const arcGeo = new THREE.BufferGeometry();
-  const arcPositions = new Float32Array(41 * 3);
+  const arcPositions = new Float32Array(ARC_SAMPLES * 3);
   arcGeo.setAttribute('position', new THREE.BufferAttribute(arcPositions, 3));
-  const arcLine = new THREE.Line(arcGeo, new THREE.LineDashedMaterial({ color: 0x64748b, dashSize: 0.1, gapSize: 0.05 }));
+  const arcLine = new THREE.Line(
+    arcGeo,
+    new THREE.LineDashedMaterial({ color: 0x38bdf8, dashSize: 0.14, gapSize: 0.08, transparent: true, opacity: 0.72 })
+  );
   pendulumGroup.add(arcLine);
 
   // 5-8c. Special Physics Rigs
@@ -608,6 +819,7 @@ export function buildPhysicsCoreStage(
       const strutH = Math.max(0.15, 7.8 * Math.tan(thetaRad));
       supportPillar.scale.set(1, strutH, 1);
       supportPillar.position.set(3.2, 0.24 + strutH / 2, 0);
+      supportCollar.position.set(3.2, 0.24 + strutH - 0.1, 0);
 
       const cycleT = t % 3.2;
       const rawDisp = p.initialVelocity * cycleT + 0.5 * m.acceleration * cycleT * cycleT;
@@ -689,10 +901,33 @@ export function buildPhysicsCoreStage(
       const liveX = amp * damp * Math.cos(omega * t);
       const massX = 0.5 + liveX * 2.1;
       springMassBlock.position.set(massX, 0.87, 0);
-      const span = Math.max(0.8, massX - 0.65 - -4.95);
-      springRings.forEach((ring, idx) => {
-        ring.position.set(-4.95 + ((idx + 0.5) / springRings.length) * span, 0.87, 0);
-      });
+
+      // Update continuous 3D helical spring wire segments between wall anchor (-4.92) and block hook
+      const startX = -4.92;
+      const endX = massX - 0.72;
+      const span = Math.max(0.6, endX - startX);
+      const turns = 11.0;
+      const coilR = 0.34;
+      for (let i = 0; i < HELIX_SEGMENTS; i++) {
+        const u0 = i / HELIX_SEGMENTS;
+        const u1 = (i + 1) / HELIX_SEGMENTS;
+        const taper0 = Math.min(1, u0 * 14, (1 - u0) * 14);
+        const taper1 = Math.min(1, u1 * 14, (1 - u1) * 14);
+        const a0 = u0 * turns * Math.PI * 2;
+        const a1 = u1 * turns * Math.PI * 2;
+        _hxP0.set(startX + u0 * span, 0.87 + Math.sin(a0) * coilR * taper0, Math.cos(a0) * coilR * taper0);
+        _hxP1.set(startX + u1 * span, 0.87 + Math.sin(a1) * coilR * taper1, Math.cos(a1) * coilR * taper1);
+        _hxMid.addVectors(_hxP0, _hxP1).multiplyScalar(0.5);
+        _hxDir.subVectors(_hxP1, _hxP0);
+        const segLen = Math.max(0.01, _hxDir.length());
+        _hxDir.multiplyScalar(1 / segLen);
+        _hxQuat.setFromUnitVectors(_hxYAxis, _hxDir);
+        _hxScale.set(1, segLen * 1.06, 1);
+        _hxMat4.compose(_hxMid, _hxQuat, _hxScale);
+        helixInstanced.setMatrixAt(i, _hxMat4);
+      }
+      helixInstanced.instanceMatrix.needsUpdate = true;
+
       if (showVec) {
         const fSpring = -p.springConstantK * liveX;
         _arrowOrigin.set(massX, 1.85, 0);
@@ -708,15 +943,26 @@ export function buildPhysicsCoreStage(
       }
     } else if (p.mode === 'pendulum-harmonic') {
       const L = Math.max(0.3, p.pendulumLength ?? 1.2);
+      const visualLen = L * 1.5;
       const omegaP = Math.sqrt(Math.max(1.0, p.gravity) / L);
       const maxAngleRad = ((p.pendulumAngle ?? 25) * Math.PI) / 180;
       const thetaRad = maxAngleRad * Math.cos(omegaP * t);
       pendPivotGroup.rotation.z = thetaRad;
-      pendRod.scale.set(1, L * 1.5, 1);
-      pendRod.position.set(0, -L * 0.75, 0);
-      pendBob.position.set(0, -L * 1.5, 0);
+      pendRod.scale.set(1, visualLen, 1);
+      pendRod.position.set(0, -visualLen * 0.5, 0);
+      pendBob.position.set(0, -visualLen, 0);
       pendBob.getWorldPosition(pendBobWorldPos);
       pendulumMotionTrail.pushSample(pendBobWorldPos);
+
+      // Update dashed swing sweep arc across [-maxAngleRad, +maxAngleRad]
+      const arcAttr = arcGeo.getAttribute('position') as THREE.BufferAttribute;
+      for (let i = 0; i < ARC_SAMPLES; i++) {
+        const u = i / (ARC_SAMPLES - 1);
+        const a = -maxAngleRad + u * maxAngleRad * 2;
+        arcAttr.setXYZ(i, 0.6 + Math.sin(a) * visualLen, 4.2 - Math.cos(a) * visualLen, 0);
+      }
+      arcAttr.needsUpdate = true;
+      arcLine.computeLineDistances();
 
       if (showVec) {
         orientAndScaleArrow(

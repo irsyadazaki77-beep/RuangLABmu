@@ -138,9 +138,12 @@ export function useLabParamsSync({
     const astronomyModeMap: Record<string, typeof astronomyParams.mode> = {
       'solar-kepler': 'solar-kepler',
       'milky-way-rotation': 'milkyway-galaxy',
+      'milkyway-galaxy': 'milkyway-galaxy',
       'exoplanet-transit': 'stellar-exoplanet',
+      'stellar-exoplanet': 'stellar-exoplanet',
       'stellar-wien-spectrum': 'stellar-wien-spectrum',
       'hubble-expansion': 'hubble-expansion',
+      'hubble-expansion-universe': 'hubble-expansion',
     };
 
     if (physicsModeMap[activeModuleId]) {

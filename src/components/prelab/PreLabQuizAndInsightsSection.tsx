@@ -19,7 +19,7 @@ import {
   LabSafetyLicense,
   MIN_PASSING_PRELAB_SCORE,
 } from '../../services/labLicenseEngine';
-import { formatCleanEquation } from '../../utils/spatialHudHelpers';
+import { extractConceptHint, formatCleanEquation } from '../../utils/spatialHudHelpers';
 import { labSound } from '../../utils/soundEngine';
 import { DIYLocalWisdomCard } from '../ui/DIYLocalWisdomCard';
 import { InteractiveFormulaPrimer } from '../ui/InteractiveFormulaPrimer';
@@ -410,7 +410,7 @@ export const PreLabQuizCard: React.FC<PreLabQuizCardProps> = ({
 
               {hintOpen && (
                 <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-[var(--comfort-text)] leading-relaxed">
-                  <strong>Petunjuk Konsep:</strong> {q.explanation.split('.')[0]}.
+                  <strong>Petunjuk Konsep:</strong> {extractConceptHint(q.explanation)}
                 </div>
               )}
 

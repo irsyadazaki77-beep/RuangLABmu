@@ -309,7 +309,7 @@ export function calculateLinearRegression(
   };
 }
 
-export type CurveModelType = 'linear' | 'quadratic' | 'exponential';
+export type CurveModelType = 'linear' | 'quadratic' | 'exponential' | 'power';
 
 export interface CurveFitResult {
   modelType: CurveModelType;
@@ -323,6 +323,8 @@ export interface CurveFitResult {
   quadC?: number;
   expA?: number;
   expB?: number;
+  powerA?: number;
+  powerB?: number;
   meanX: number;
   meanY: number;
   stdDevY: number;
@@ -354,6 +356,50 @@ export function calculateCurveFitting(
   const n = points.length;
   const meanY = lin.meanY;
   const ssTot = points.reduce((acc, p) => acc + Math.pow(p.y - meanY, 2), 0);
+
+  if (modelType === 'power') {
+    const minX = Math.min(...points.map((p) => p.x));
+    const minY = Math.min(...points.map((p) => p.y));
+    const shiftX = minX <= 0.01 ? Math.abs(minX) + 1.0 : 0;
+    const shiftY = minY <= 0.01 ? Math.abs(minY) + 1.0 : 0;
+    const logLogPoints = points.map((p) => ({
+      x: Math.log(Math.max(1e-4, p.x + shiftX)),
+      y: Math.log(Math.max(1e-4, p.y + shiftY)),
+    }));
+    const logFit = calculateLinearRegression(logLogPoints);
+    const powerB = logFit.slopeM;
+    const powerA = Math.exp(logFit.interceptC);
+    const evaluateAt = (x: number) => {
+      const safeX = Math.max(1e-4, x + shiftX);
+      const raw = powerA * Math.pow(safeX, powerB) - shiftY;
+      return Number.isFinite(raw) ? raw : meanY;
+    };
+
+    const ssRes = points.reduce((acc, p) => acc + Math.pow(p.y - evaluateAt(p.x), 2), 0);
+    const rSquared = ssTot > 1e-9 ? Math.max(0, Math.min(1, 1 - ssRes / ssTot)) : 1;
+    const sortedByX = [...points].sort((a, b) => a.x - b.x);
+    const predictedPoints = sortedByX.map((p) => ({
+      x: p.x,
+      yPred: Number(evaluateAt(p.x).toFixed(3)),
+    }));
+    const shiftYStr = shiftY > 0 ? ` - ${shiftY.toFixed(2)}` : '';
+    const xExpr = shiftX > 0 ? `(x + ${shiftX.toFixed(1)})` : 'x';
+    return {
+      modelType: 'power',
+      modelLabel: 'Hukum Pangkat (Power Law)',
+      equationString: `y = ${powerA.toFixed(3)}·${xExpr}^(${powerB.toFixed(3)})${shiftYStr}`,
+      rSquared: Number(rSquared.toFixed(4)),
+      slopeM: Number(powerB.toFixed(4)),
+      interceptC: Number((powerA - shiftY).toFixed(4)),
+      powerA: Number(powerA.toFixed(4)),
+      powerB: Number(powerB.toFixed(4)),
+      meanX: lin.meanX,
+      meanY: lin.meanY,
+      stdDevY: lin.stdDevY,
+      predictedPoints,
+      evaluateAt,
+    };
+  }
 
   if (modelType === 'exponential') {
     const minY = Math.min(...points.map((p) => p.y));
@@ -2050,10 +2096,10 @@ export function evaluateSafetyHazard(
         title: 'Peringatan Keselamatan: Reaksi Eksotermik di Luar Kendali!',
         headlineAlert:
           'Peringatan Keselamatan: Reaksi eksotermik di luar kendali! Amati mengapa hal ini berbahaya di laboratorium riil.',
-        scientificExplanation: `Anda mencampurkan reaktan berkonsentrasi tinggi ([M] = ${conc.toFixed(2)} mol/L) pada suhu awal ekstrem (${temp}°C > 85°C) tanpa katalis pengendali/pendingin. Menurut persamaan Arrhenius k = A·exp(-Ea/RT), laju pelepasan kalor meningkat secara eksponensial melampaui kapasitas disipasi kalorimeter, yang di laboratorium nyata dapat memicu pendidihan eksplosif (thermal runaway), percikan asam korosif, dan pecahnya wadah kaca borosilikat.`,
+        scientificExplanation: `Anda mencampurkan reaktan berkonsentrasi tinggi ([M] = ${conc.toFixed(2)} mol/L) pada suhu awal ekstrem (${temp}°C > 85°C) tanpa sistem pendinginan dan pengendalian laju reaksi. Menurut persamaan Arrhenius k = A·exp(-Ea/RT), laju pelepasan kalor meningkat secara eksponensial melampaui kapasitas disipasi kalorimeter, yang di laboratorium nyata dapat memicu pendidihan eksplosif (thermal runaway), percikan asam korosif, dan pecahnya wadah kaca borosilikat.`,
         mitigationInstruction:
-          'Turunkan suhu awal larutan di bawah 80°C, kurangi konsentrasi molar reaktan (< 1.8 M), atau aktifkan Katalis Pengendali pada panel variabel.',
-        triggerParamSummary: `T₀ = ${temp}°C (> 85°C), [M] = ${conc.toFixed(2)} M, Katalis = Nonaktif`,
+          'Turunkan suhu awal larutan di bawah 80°C, kurangi konsentrasi molar reaktan (< 1,8 M), atau gunakan sistem pendingin/penambahan reaktan bertahap untuk mengendalikan laju pelepasan kalor.',
+        triggerParamSummary: `T₀ = ${temp}°C (> 85°C), [M] = ${conc.toFixed(2)} M, Pengendali Laju = Nonaktif`,
       };
     }
 

@@ -26,7 +26,7 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
     theorySummary:
       'Johannes Kepler merumuskan tiga hukum gerak planet. Hukum I: orbit planet berbentuk elips dengan Matahari di salah satu fokus. Hukum II: garis hubung planet-Matahari menyapu luasan yang sama dalam selang waktu yang sama (kekekalan momentum sudut). Hukum III: rasio kuadrat periode revolusi terhadap pangkat tiga sumbu semi-mayor bernilai konstan: T² / a³ = 4π² / [G(M + m)].',
     keyEquations: [
-      '\\frac{T^2}{a^3} = \\frac{4\\pi^2}{G(M_* + m)} \\approx 1.000 \\quad (\\text{dalam satuan tahun & AU})',
+      '\\frac{T^2}{a^3} = \\frac{1}{M_*} \\quad (T\\text{ thn},\\ a\\text{ AU},\\ M_*\\ M_\\odot) \\;\\;\\Leftrightarrow\\;\\; T^2 = \\frac{4\\pi^2}{G(M_* + m)} a^3',
       'v_{\\text{peri}} = \\sqrt{\\frac{G M_*}{a} \\frac{1+e}{1-e}}',
       'v_{\\text{aph}} = \\sqrt{\\frac{G M_*}{a} \\frac{1-e}{1+e}}',
       'r(\\theta) = \\frac{a(1 - e^2)}{1 + e \\cos\\theta}',
@@ -144,7 +144,8 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
 
       const observedVelocityKmS = Math.sqrt(vBaryon * vBaryon + vHalo * vHalo);
       const keplerianExpectedKmS = vBaryon;
-      const darkMatterMassEnclosed = (vHalo * vHalo * r) / (4.3e-3 * 1e5); // approximate enclosed halo mass in 10^10 M☉
+      // G = 4.301e-6 kpc·(km/s)²/M☉ -> M(<r) dalam satuan 10^10 M☉ = v²·r / (4.301e-6 * 1e10)
+      const darkMatterMassEnclosed = (vHalo * vHalo * r) / (4.301e-6 * 1e10);
 
       return { observedVelocityKmS, keplerianExpectedKmS, darkMatterMassEnclosed };
     },
@@ -253,7 +254,7 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
       '\\lambda_{\\max} \\cdot T = b = 2.898 \\times 10^{-3} \\text{ m}\\cdot\\text{K} = 2.898 \\times 10^6 \\text{ nm}\\cdot\\text{K}',
       'L = 4\\pi R_*^2 \\sigma T^4 = L_\\odot \\left( \\frac{R_*}{R_\\odot} \\right)^2 \\left( \\frac{T}{T_\\odot} \\right)^4',
       'F = \\frac{L}{4\\pi d^2}',
-      'B - V \\approx \\frac{7201}{T} - 0.25',
+      'B - V \\approx \\frac{7000}{T} - 0.56',
     ],
     apparatusList: [
       'Spektrograf kisi transmisi presisi optik tinggi terpasang pada teleskop',
@@ -290,7 +291,7 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
       const peakWavelengthNm = bWien / T;
       const tSun = 5778;
       const luminositySolar = Math.pow(starRadiusSolar, 2) * Math.pow(T / tSun, 4);
-      const colorIndexBMinusV = 7201 / T - 0.25;
+      const colorIndexBMinusV = 7000 / T - 0.56;
       return { peakWavelengthNm, luminositySolar, colorIndexBMinusV };
     },
   },

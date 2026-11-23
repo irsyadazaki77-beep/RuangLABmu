@@ -16,8 +16,6 @@ import { useSimulationSync } from './useSimulationSync';
 import { useGradebookSubmit } from './useGradebookSubmit';
 import { shouldShowConceptLabelsByDefault } from '../utils/pedagogicalHelpers';
 
-const EMPTY_LKS_ANSWERS: Record<string, string> = {};
-
 export function useLabSession() {
   const {
     activeDomain,
@@ -56,6 +54,7 @@ export function useLabSession() {
 
   const [selectedProfileIdx, setSelectedProfileIdx] = useState<number>(0);
   const currentProfile = STUDENT_PROFILES[selectedProfileIdx] ?? STUDENT_PROFILES[0];
+  const [lksAnswers, setLksAnswers] = useState<Record<string, string>>({});
 
   const paramsSync = useLabParamsSync({
     activeDomain,
@@ -180,7 +179,7 @@ export function useLabSession() {
     activeModuleId,
     activeWorkflowStep: workflowStep,
     recordedTrials: collabBridge.records,
-    lksAnswers: EMPTY_LKS_ANSWERS,
+    lksAnswers,
     safetyPledgeAgreed: workflowStep > 1,
     physicsParams: paramsSync.physicsParams,
     chemistryParams: paramsSync.chemistryParams,
@@ -252,8 +251,12 @@ export function useLabSession() {
     externalDrLabMuPrompt: paramsSync.externalDrLabMuPrompt,
     setExternalDrLabMuPrompt: paramsSync.setExternalDrLabMuPrompt,
     reportData: telemetry.reportData,
+    addRecord: collabBridge.addRecord,
+    updateRecord: collabBridge.updateRecord,
     deleteRecord: collabBridge.deleteRecord,
     clearRecords: collabBridge.clearRecords,
+    lksAnswers,
+    setLksAnswers,
     handleRotateGroup,
     exportRecordsToCSV,
     submitQuizScore: telemetry.submitQuizScore,

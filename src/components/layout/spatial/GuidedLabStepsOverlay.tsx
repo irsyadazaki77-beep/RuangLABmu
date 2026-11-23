@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronUp, Compass } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, Compass, X } from 'lucide-react';
 import { labSound } from '../../../utils/soundEngine';
 
 export interface GuidedLabStepsOverlayProps {
@@ -11,7 +11,7 @@ export interface GuidedLabStepsOverlayProps {
 
 /**
  * Compact collapsible guided lab steps overlay inside the 3D cockpit.
- * Defaults to a minimal single-line toggle so the 3D viewport remains wide open.
+ * Defaults to a minimal single-line toggle with quick dismiss for unobstructed 3D focus.
  */
 export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
   steps,
@@ -20,8 +20,9 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
   isRightVisible,
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
-  if (!steps || steps.length === 0) return null;
+  if (!steps || steps.length === 0 || dismissed) return null;
 
   const activeStepIdx = Math.min(steps.length - 1, Math.max(0, recordsCount));
   const cleanActiveStep = steps[activeStepIdx]?.replace(/^\d+\.\s*/, '') || '';
@@ -35,34 +36,48 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
   return (
     <div
       data-testid="guided-lab-steps-overlay"
-      className={`pointer-events-none absolute top-[128px] lg:top-[132px] xl:top-[100px] z-20 flex justify-center ${corridorClass}`}
+      className={`pointer-events-none absolute top-[98px] lg:top-[96px] z-20 flex justify-center ${corridorClass}`}
     >
-      <div className="pointer-events-auto max-w-full sm:max-w-[460px] rounded-xl studio-hud-surface shadow-md overflow-hidden">
-        <button
-          type="button"
-          data-testid="toggle-guided-steps-btn"
-          aria-expanded={expanded}
-          onClick={() => {
-            labSound.playClick(600);
-            setExpanded((prev) => !prev);
-          }}
-          className="w-full px-3 py-1.5 flex items-center justify-between gap-2 text-left cursor-pointer hover:bg-sky-500/10 transition-colors"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <Compass className="w-3.5 h-3.5 text-sky-500 shrink-0" aria-hidden="true" />
-            <span className="text-[11px] font-bold text-[var(--comfort-hud-text)] whitespace-nowrap tabular-nums">
-              Langkah {activeStepIdx + 1}/{steps.length}
-            </span>
-            <span className="text-[11px] text-[var(--comfort-text-muted)] truncate hidden sm:inline">
-              · {cleanActiveStep}
-            </span>
-          </div>
-          {expanded ? (
-            <ChevronUp className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] shrink-0" aria-hidden="true" />
-          ) : (
-            <ChevronDown className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] shrink-0" aria-hidden="true" />
-          )}
-        </button>
+      <div className="pointer-events-auto max-w-full sm:max-w-[430px] rounded-xl studio-hud-surface shadow-sm overflow-hidden">
+        <div className="flex items-center">
+          <button
+            type="button"
+            data-testid="toggle-guided-steps-btn"
+            aria-expanded={expanded}
+            onClick={() => {
+              labSound.playClick(600);
+              setExpanded((prev) => !prev);
+            }}
+            className="flex-1 min-w-0 px-2.5 py-1 flex items-center justify-between gap-2 text-left cursor-pointer hover:bg-sky-500/10 transition-colors"
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Compass className="w-3.5 h-3.5 text-sky-500 shrink-0" aria-hidden="true" />
+              <span className="text-[11px] font-bold text-[var(--comfort-hud-text)] whitespace-nowrap tabular-nums">
+                Langkah {activeStepIdx + 1}/{steps.length}
+              </span>
+              <span className="text-[11px] text-[var(--comfort-text-muted)] truncate hidden sm:inline">
+                · {cleanActiveStep}
+              </span>
+            </div>
+            {expanded ? (
+              <ChevronUp className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] shrink-0" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] shrink-0" aria-hidden="true" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              labSound.playClick(480);
+              setDismissed(true);
+            }}
+            aria-label="Sembunyikan banner langkah"
+            title="Sembunyikan panduan langkah agar kanvas 3D lebih bersih"
+            className="px-1.5 py-1 text-[var(--comfort-text-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-sky-500/10 border-l border-[var(--comfort-border)] transition-colors cursor-pointer shrink-0"
+          >
+            <X className="w-3 h-3" aria-hidden="true" />
+          </button>
+        </div>
 
         {expanded && (
           <ol className="px-3 pb-2.5 pt-2 border-t border-[var(--comfort-border)] space-y-1.5 text-[11px] max-h-[190px] overflow-y-auto">

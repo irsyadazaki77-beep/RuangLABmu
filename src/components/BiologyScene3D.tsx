@@ -173,6 +173,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       fallbackSize: { width: 600, height: 450 },
       backgroundHex: initialColors.backgroundHex,
       fogDensity: 0.02,
+      domainPreset: 'biology',
       camera: {
         fov: 45,
         near: 0.1,
@@ -188,6 +189,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
         autoRotateSpeed: 1.4,
       },
       onContextRestored: triggerSceneRebuild,
+      onResize: () => {
+        syncConceptLabelsRef.current?.();
+      },
       onUserControlsStart: () => {
         camTransitionActive = false;
       },

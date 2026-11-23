@@ -92,7 +92,7 @@ export const SciFormula: React.FC<SciFormulaProps> = ({
     .replace(/\b(R)\^(2)\b/g, 'R^2');
 
   // Tokenize by explicit superscripts (^{...} or ^token) and subscripts (_{...} or _token)
-  const tokenRegex = /(\^\{[^}]+\}|\^[+-]?\d+|\^[a-zA-Z]+|_\{[^}]+\}|_[a-zA-Z0-9,*]+)/g;
+  const tokenRegex = /(\^\{[^}]+\}|\^[+-]?\d+|\^[a-zA-Z]+|_\{[^}]+\}|_[a-zA-Z0-9,*☉⊕]+)/g;
   const parts = processed.split(tokenRegex).filter((p) => p.length > 0);
 
   return (

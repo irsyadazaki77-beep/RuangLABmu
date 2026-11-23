@@ -7,6 +7,7 @@ import {
   captureComposerSnapshot,
   computeMsaaSamples,
   configureLabRenderer,
+  createAnalogGaugeDialTexture,
   createBeakerProfilePoints,
   createBiologicalMembraneTexture,
   createBorosilicateGlassMaterial,
@@ -14,17 +15,20 @@ import {
   createFunnelProfilePoints,
   createGraduatedScaleTexture,
   createInstancedParticlePool,
+  createInstrumentPanelTexture,
   createVectorArrowGroup,
   disposeThreeScene,
   disposeThreeSceneResources,
   orientAndScaleVectorArrow,
   smoothCameraDamp,
   smoothCameraTransition,
+  updateInstrumentPanelTexture,
   wavelengthNmToHex,
   type StudioComposerHandle,
 } from './threeStudioKit';
 import {
   computeDraggedParameterValue,
+  isPointerClickGesture,
   shouldRunThrottledRaycast,
 } from './threeInteractionHelper';
 import {
@@ -107,10 +111,38 @@ test('smoothCameraTransition smoothly interpolates camera.position and controls.
   assert.equal(mockControls.target.distanceTo(targetLookAt), 0);
 });
 
-test('createGraduatedScaleTexture and createBiologicalMembraneTexture gracefully handle headless Node environment', () => {
-  // In Node environment without DOM document, both return null safely without throwing
+test('procedural CanvasTexture builders gracefully handle headless Node environment', () => {
+  // In Node environment without DOM document, all procedural texture factories return null safely without throwing
   assert.equal(createGraduatedScaleTexture(50, 'mL', 10), null);
   assert.equal(createBiologicalMembraneTexture('#15803d', '#4ade80'), null);
+  assert.equal(
+    createInstrumentPanelTexture({
+      title: 'DC PSU',
+      primaryText: '5.0 V',
+      secondaryText: 'I_g = 0.0 uA',
+      accentHex: '#38bdf8',
+    }),
+    null
+  );
+  assert.doesNotThrow(() =>
+    updateInstrumentPanelTexture(null, {
+      title: 'DC PSU',
+      primaryText: '6.0 V',
+      secondaryText: 'I_g = 1.2 uA',
+      accentHex: '#38bdf8',
+    })
+  );
+  assert.equal(
+    createAnalogGaugeDialTexture({
+      title: 'GALVANOMETER',
+      unit: 'uA',
+      min: -30,
+      max: 30,
+      majorDivisions: 6,
+      zeroCenter: true,
+    }),
+    null
+  );
 });
 
 test('createVectorArrowGroup and orientAndScaleVectorArrow position, hide on zero length, and scale cleanly', () => {
@@ -324,8 +356,12 @@ test('configureLabRenderer clamps exposure to 1.0..1.1, enables ACESFilmicToneMa
   assert.equal(mockRenderer.shadowMap.type, THREE.PCFShadowMap);
   assert.ok(appliedDpr >= 1 && appliedDpr <= 1.5);
 
-  configureLabRenderer(mockRenderer, { exposure: 0.7, isSoftwareGl: true, isLite: true });
+  configureLabRenderer(mockRenderer, { exposure: 0.7, isSoftwareGl: true, isLite: false });
   assert.equal(mockRenderer.toneMappingExposure, 1.0);
+  assert.equal(mockRenderer.shadowMap.enabled, false);
+  assert.equal(appliedDpr, 1);
+
+  configureLabRenderer(mockRenderer, { exposure: 0.7, isSoftwareGl: true, isLite: true });
   assert.equal(mockRenderer.shadowMap.enabled, false);
   assert.equal(appliedDpr, 1);
 });
@@ -385,6 +421,10 @@ test('threeInteractionHelper throttles hover raycasting <= 30 Hz and snaps dragg
   assert.equal(computeDraggedParameterValue(10, 140, 0, 0, 20, 1, 280), 20);
   assert.equal(computeDraggedParameterValue(10, 0, 140, 0, 20, 1, 280), 0);
   assert.equal(computeDraggedParameterValue(5, 500, 0, 0, 10, 0.5, 280), 10);
+
+  assert.equal(isPointerClickGesture(0, 0), true);
+  assert.equal(isPointerClickGesture(3, 4), true);
+  assert.equal(isPointerClickGesture(4, 4), false);
+  assert.equal(isPointerClickGesture(8, 0), false);
+  assert.equal(isPointerClickGesture(Number.NaN, 0), true);
 });
-
-

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   HelpCircle,
   CheckCircle2,
@@ -7,72 +7,48 @@ import {
   Award,
 } from 'lucide-react';
 import { ExperimentRecord } from '../../utils/scienceEngine';
+import { getExperimentById } from '../../registry/experimentRegistry';
+import { generateDynamicPostLabQuiz } from '../../utils/dynamicWorksheetEngine';
 import { labSound } from '../../utils/soundEngine';
 
 export interface PostLabMasteryQuizProps {
   records: ExperimentRecord[];
   activeStudentName: string;
+  moduleId?: string;
+  domain?: string;
   onQuizCompleted?: (score: number, correctCount: number) => void;
 }
 
-interface QuizQuestion {
-  id: string;
-  question: string;
-  options: { key: string; text: string }[];
-  correctKey: string;
-  explanation: string;
-}
+const SOURCE_TAG_LABELS: Record<'data-aktual' | 'analisis-kurva' | 'metodologi', string> = {
+  'data-aktual': 'Data Aktual',
+  'analisis-kurva': 'Analisis Kurva',
+  metodologi: 'Metodologi Ilmiah',
+};
 
 export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
   records,
   activeStudentName,
+  moduleId,
+  domain,
   onQuizCompleted,
 }) => {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
 
-  // Generate 3 contextual multiple-choice questions
-  const sampleRecord = records[0];
-  const domainLabel = sampleRecord?.domain || 'Fisika & Sains';
+  useEffect(() => {
+    setSelectedAnswers({});
+    setIsSubmitted(false);
+  }, [moduleId]);
 
-  const questions: QuizQuestion[] = [
-    {
-      id: 'q1-regression-meaning',
-      question: `Berdasarkan ${records.length} data uji yang Anda catat pada praktikum ${domainLabel}, apa makna fisik dari nilai koefisien korelasi determinasi R² yang mendekati 1.0?`,
-      options: [
-        { key: 'A', text: 'Semua instrumen laboratorium bekerja tanpa adanya ketidakpastian pengukuran.' },
-        { key: 'B', text: 'Variasi pada variabel terikat (Y) dapat dijelaskan dengan sangat presisi oleh model hubungan variabel bebas (X).' },
-        { key: 'C', text: 'Gaya gesek dan disipasi energi diabaikan sepenuhnya dalam eksperimen.' },
-        { key: 'D', text: 'Nilai galat pengukuran meningkat seiring pertambahan jumlah uji coba.' },
-      ],
-      correctKey: 'B',
-      explanation: 'Nilai R² mendekati 1.0 (100%) membuktikan bahwa varians data respons eksperimen sangat selaras dengan kurva prediksi teoritis ilmiah.',
-    },
-    {
-      id: 'q2-outlier-impact',
-      question: 'Bagaimana pengaruh satu titik data anomali (outlier) terhadap gradien garis regresi linier OLS?',
-      options: [
-        { key: 'A', text: 'Tidak berpengaruh sama sekali karena metode kuadrat terkecil selalu mengabaikan deviasi ekstrim.' },
-        { key: 'B', text: 'Hanya mengubah warna visual titik grafik di kanvas tanpa mempengaruhi persamaan matematis.' },
-        { key: 'C', text: 'Menarik garis regresi ke arah titik anomali sehingga menurunkan nilai R² dan mengaburkan konstanta fisik sebenarnya.' },
-        { key: 'D', text: 'Menaikkan nilai R² menjadi selalu 1.000 secara otomatis.' },
-      ],
-      correctKey: 'C',
-      explanation: 'Karena regresi OLS meminimalkan kuadrat selisih jarak residual (Σ(y - y_hat)²), deviasi besar pada satu titik outlier memberikan pengaruh leverage yang signifikan.',
-    },
-    {
-      id: 'q3-experimental-discipline',
-      question: `Ketika menguji hipotesis pada modul ${domainLabel}, langkah ilmiah apa yang paling tepat sebelum menarik kesimpulan akhir?`,
-      options: [
-        { key: 'A', text: 'Mengubah nilai pengamatan langsung di spreadsheet agar sesuai dengan ekspektasi teori.' },
-        { key: 'B', text: 'Melakukan repetisi uji coba minimal 3-5 kali, menganalisis residu galat, dan memverifikasi batas galat instrumen.' },
-        { key: 'C', text: 'Hanya mencatat satu data pertama dan langsung mengabaikan data lainnya.' },
-        { key: 'D', text: 'Menghentikan simulasi segera setelah mendapatkan satu angka yang disukai.' },
-      ],
-      correctKey: 'B',
-      explanation: 'Repetisi data dan evaluasi ketidakpastian merupakan standar baku metode ilmiah untuk memastikan hasil observasi valid, presisi, dan reproducible.',
-    },
-  ];
+  const activeModule = useMemo(
+    () => (moduleId ? getExperimentById(moduleId) : undefined),
+    [moduleId]
+  );
+
+  const questions = useMemo(
+    () => generateDynamicPostLabQuiz(activeModule, records, domain),
+    [activeModule, records, domain]
+  );
 
   const handleSelectOption = (qId: string, optKey: string) => {
     if (isSubmitted) return;
@@ -91,7 +67,7 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
       }
     });
 
-    const score = Math.round((correctCount / questions.length) * 100);
+    const score = Math.round((correctCount / Math.max(1, questions.length)) * 100);
     onQuizCompleted?.(score, correctCount);
   };
 
@@ -101,30 +77,33 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
     setIsSubmitted(false);
   };
 
-  const answeredCount = Object.keys(selectedAnswers).length;
+  const answeredCount = questions.filter((q) => Boolean(selectedAnswers[q.id])).length;
   const correctCount = questions.filter((q) => selectedAnswers[q.id] === q.correctKey).length;
-  const score = Math.round((correctCount / questions.length) * 100);
+  const score = Math.round((correctCount / Math.max(1, questions.length)) * 100);
 
   return (
-    <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-5 shadow-sm space-y-4">
+    <div
+      data-testid="postlab-mastery-quiz"
+      className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-5 shadow-sm space-y-4"
+    >
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
         <div className="flex items-center gap-2">
-          <span className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+          <span className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
             <HelpCircle className="w-4 h-4" />
           </span>
           <div>
             <h3 className="font-extrabold text-sm sm:text-base text-[var(--comfort-text)]">
-              Kuis Evaluasi Pemahaman Pasca-Praktikum
+              Kuis Evaluasi Pemahaman Pasca-Praktikum (Kontekstual)
             </h3>
             <p className="text-xs text-[var(--comfort-text-muted)]">
-              3 soal pilihan ganda kontekstual berdasarkan pengamatan eksperimen {activeStudentName}
+              3 soal dinamis berbasis kurva regresi &amp; data pengamatan {activeStudentName} ({activeModule?.title || domain || 'Sains'})
             </p>
           </div>
         </div>
 
         {isSubmitted && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs font-bold text-amber-700 dark:text-amber-300">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs font-bold text-amber-700 dark:text-amber-300 tabular-nums">
             <Award className="w-4 h-4 text-amber-500" />
             <span>Skor Kuis: {score} / 100</span>
           </div>
@@ -143,9 +122,15 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
               className="p-4 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] space-y-3"
             >
               <div className="flex items-start justify-between gap-2">
-                <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400">
-                  Pertanyaan #{idx + 1}
-                </span>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
+                    Pertanyaan #{idx + 1}
+                  </span>
+                  <span className="text-[var(--comfort-border)]">·</span>
+                  <span className="text-[11px] font-medium text-[var(--comfort-text-muted)]">
+                    {SOURCE_TAG_LABELS[q.sourceTag]}
+                  </span>
+                </div>
                 {isSubmitted && (
                   <span
                     className={`inline-flex items-center gap-1 text-[11px] font-bold ${
@@ -205,7 +190,6 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
                 })}
               </div>
 
-              {/* Explanation upon submission */}
               {isSubmitted && (
                 <div className="p-2.5 rounded-lg bg-sky-500/10 border border-sky-500/25 text-[11px] text-[var(--comfort-text)] leading-relaxed">
                   <strong>Pembahasan Ilmiah:</strong> {q.explanation}
@@ -218,7 +202,7 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
 
       {/* Action Footer */}
       <div className="flex items-center justify-between pt-2">
-        <div className="text-xs text-[var(--comfort-text-muted)]">
+        <div className="text-xs text-[var(--comfort-text-muted)] tabular-nums">
           Terjawab {answeredCount} dari {questions.length} soal
         </div>
 

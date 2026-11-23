@@ -463,7 +463,7 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
 
   {
     id: 'ohm-wheatstone',
-    title: 'Hukum Ohm, Kirchoff & Jembatan Wheatstone',
+    title: 'Hukum Ohm, Kirchhoff & Jembatan Wheatstone',
     domain: 'fisika',
     subCategory: 'Listrik & Magnet',
     supportedTiers: ['SMP', 'SMA', 'Mahasiswa'],
@@ -475,7 +475,7 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
         'Membaca nilai tegangan pada voltmeter dan kuat arus pada amperemeter.',
       ],
       SMA: [
-        'Menerapkan Hukum I dan II Kirchoff pada rangkaian majemuk multi-loop.',
+        'Menerapkan Hukum I dan II Kirchhoff pada rangkaian majemuk multi-loop.',
         'Mengukur hambatan kawat yang belum diketahui (Rx) menggunakan prinsip jembatan Wheatstone seimbang.',
       ],
       Mahasiswa: [
@@ -484,15 +484,15 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
       ],
     },
     theorySummary:
-      'Hukum Ohm menyatakan beda potensial pada ujung resistor berbanding lurus dengan arus listrik yang mengalir melaluinya (V = I·R). Jembatan Wheatstone merupakan konfigurasi empat resistor (R1, R2, R3, Rx) yang digunakan untuk mengukur hambatan presisi. Pada kondisi seimbang, tegangan antara dua titik cabang bernilai nol (VG = 0) sehingga berlaku hubungan Rx = R3 · (R1 / R2).',
+      'Hukum Ohm menyatakan beda potensial pada ujung resistor berbanding lurus dengan arus listrik yang mengalir melaluinya (V = I·R). Jembatan Wheatstone merupakan konfigurasi empat resistor (R1, R2 di cabang atas dan R3, Rx di cabang bawah) untuk mengukur hambatan secara presisi dengan metode nol. Pada kondisi seimbang, beda potensial antar-titik tengah bernilai nol (VG = 0) sehingga berlaku R1·Rx = R2·R3 atau Rx = R3 · (R2 / R1).',
     keyEquations: [
       'V = I \\cdot R',
-      'V_G = V_s \\left( \\frac{R_x}{R_1 + R_x} - \\frac{R_3}{R_2 + R_3} \\right)',
-      'R_x = R_3 \\cdot \\frac{R_1}{R_2} \\quad (\\text{saat } V_G = 0)',
+      'V_G = V_s \\left( \\frac{R_x}{R_3 + R_x} - \\frac{R_2}{R_1 + R_2} \\right)',
+      'R_x = R_3 \\cdot \\frac{R_2}{R_1} \\quad (\\text{saat } V_G = 0)',
       'P = I^2 \\cdot R = \\frac{V^2}{R}',
     ],
     apparatusList: [
-      'Catu daya DC tergulasi (Power Supply 0 - 15V)',
+      'Catu daya DC teregulasi (Power Supply 0 - 15V)',
       'Papan rangkaian (breadboard) dan kabel jumper konektor banana',
       'Dekade resistor presisi toleransi 0.1% dan resistor geser (rheostat)',
       'Multimeter digital & Galvanometer nol-tengah (Zero-center galvanometer)',
@@ -502,15 +502,15 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
       'Pastikan sakelar daya utama dalam keadaan OFF saat memasang atau membongkar komponen rangkaian.',
     ],
     parameters: [
-      { key: 'sourceVoltage', label: 'Tegangan Sumber (Vs)', unit: 'V', min: 1, max: 24, step: 0.5, defaultValue: 10, variableRole: 'bebas', instrumentType: 'voltmeter' },
+      { key: 'sourceVoltage', label: 'Tegangan Sumber (Vs)', unit: 'V', min: 1, max: 24, step: 0.5, defaultValue: 12, variableRole: 'bebas', instrumentType: 'voltmeter' },
       { key: 'resistor1', label: 'Resistor R₁', unit: 'Ω', min: 10, max: 500, step: 10, defaultValue: 100, variableRole: 'kontrol' },
-      { key: 'resistor2', label: 'Resistor R₂', unit: 'Ω', min: 10, max: 500, step: 10, defaultValue: 100, variableRole: 'kontrol' },
-      { key: 'resistor3', label: 'Resistor Variabel R₃', unit: 'Ω', min: 10, max: 1000, step: 5, defaultValue: 220, variableRole: 'bebas' },
-      { key: 'unknownRx', label: 'Hambatan Uji Rₓ', unit: 'Ω', min: 10, max: 1000, step: 5, defaultValue: 220, variableRole: 'kontrol' },
+      { key: 'resistor2', label: 'Resistor R₂', unit: 'Ω', min: 10, max: 500, step: 10, defaultValue: 200, variableRole: 'kontrol' },
+      { key: 'resistor3', label: 'Resistor Variabel R₃', unit: 'Ω', min: 10, max: 1000, step: 5, defaultValue: 150, variableRole: 'bebas' },
+      { key: 'unknownRx', label: 'Hambatan Uji Rₓ', unit: 'Ω', min: 10, max: 1000, step: 5, defaultValue: 300, variableRole: 'kontrol' },
     ],
     outputs: [
       { key: 'bridgeVoltage', label: 'Beda Potensial Jembatan (VG)', unit: 'mV', formulaLatex: 'V_G', precision: 2 },
-      { key: 'calculatedRx', label: 'Estimasi Rx Seimbang', unit: 'Ω', formulaLatex: 'R_x = R_3 (R_1/R_2)', precision: 1 },
+      { key: 'calculatedRx', label: 'Estimasi Rx Seimbang', unit: 'Ω', formulaLatex: 'R_x = R_3 (R_2/R_1)', precision: 1 },
       { key: 'totalCurrent', label: 'Arus Total Sirkuit (I)', unit: 'mA', formulaLatex: 'I_{\\text{tot}}', precision: 2 },
       { key: 'bridgeStatus', label: 'Status Keseimbangan', unit: '', formulaLatex: 'V_G \\approx 0', precision: 0 },
     ],
@@ -525,13 +525,13 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
       },
     ],
     computeStep: (params) => {
-      const { sourceVoltage = 10, resistor1 = 100, resistor2 = 100, resistor3 = 220, unknownRx = 220 } = params;
-      const vGVolts = sourceVoltage * (unknownRx / (resistor1 + unknownRx) - resistor3 / (resistor2 + resistor3));
+      const { sourceVoltage = 12, resistor1 = 100, resistor2 = 200, resistor3 = 150, unknownRx = 300 } = params;
+      const rTop = Math.max(1e-6, resistor1 + resistor2);
+      const rBot = Math.max(1e-6, resistor3 + unknownRx);
+      const vGVolts = sourceVoltage * (unknownRx / rBot - resistor2 / rTop);
       const bridgeVoltage = vGVolts * 1000; // in mV
-      const calculatedRx = resistor3 * (resistor1 / resistor2);
-      const branch1R = resistor1 + unknownRx;
-      const branch2R = resistor2 + resistor3;
-      const rEq = (branch1R * branch2R) / (branch1R + branch2R);
+      const calculatedRx = resistor3 * (resistor2 / Math.max(1e-6, resistor1));
+      const rEq = (rTop * rBot) / (rTop + rBot);
       const totalCurrent = (sourceVoltage / rEq) * 1000; // in mA
       const bridgeStatus = Math.abs(bridgeVoltage) < 5 ? 1 : 0;
       return { bridgeVoltage, calculatedRx, totalCurrent, bridgeStatus };

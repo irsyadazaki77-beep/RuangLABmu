@@ -328,6 +328,22 @@ export const SubmissionGradeSchema = z.object({
   schoolId: SchoolIdSchema.optional().default('default-school'),
 });
 
+export const SubmissionBatchGradeSchema = z.object({
+  submissionIds: z
+    .array(z.string().trim().min(1).max(80))
+    .max(200, 'Maksimal 200 laporan dalam satu permintaan penilaian massal.')
+    .optional(),
+  onlyUngraded: z
+    .boolean({ error: 'Field "onlyUngraded" harus berupa boolean.' })
+    .optional(),
+  feedbackPrefix: z
+    .string()
+    .trim()
+    .max(240, 'Field "feedbackPrefix" melebihi batas 240 karakter.')
+    .optional(),
+  schoolId: SchoolIdSchema.optional().default('default-school'),
+});
+
 export type AutosavePayload = z.infer<typeof AutosavePayloadSchema>;
 export type RoomRejoinPayload = z.infer<typeof RoomRejoinSchema>;
 export type RoomSnapshotPayload = z.infer<typeof RoomSnapshotSchema>;
@@ -338,6 +354,7 @@ export type AiConversationalPayload = z.infer<typeof AiConversationalSchema>;
 export type VisionDiagnosePayload = z.infer<typeof VisionDiagnoseSchema>;
 export type SubmissionCreatePayload = z.infer<typeof SubmissionCreateSchema>;
 export type SubmissionGradePayload = z.infer<typeof SubmissionGradeSchema>;
+export type SubmissionBatchGradePayload = z.infer<typeof SubmissionBatchGradeSchema>;
 export type GradebookQueryPayload = z.infer<typeof GradebookQuerySchema>;
 export type SubmissionsQueryPayload = z.infer<typeof SubmissionsQuerySchema>;
 export type ValidationIssue = z.infer<typeof ValidationIssueSchema>;

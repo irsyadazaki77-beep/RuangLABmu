@@ -226,6 +226,11 @@ export const InteractiveFormulaPrimer: React.FC<InteractiveFormulaPrimerProps> =
                 const isSelected = activeVar.key === v.key;
                 return (
                   <React.Fragment key={v.key}>
+                    {idx === 0 && v.role === 'inverse' && (
+                      <span className="font-mono text-xs font-bold text-[var(--comfort-text-muted)]">
+                        1 ÷
+                      </span>
+                    )}
                     {idx > 0 && (
                       <span className="font-mono text-xs font-bold text-[var(--comfort-text-muted)]">
                         {v.role === 'inverse' ? '÷' : '·'}

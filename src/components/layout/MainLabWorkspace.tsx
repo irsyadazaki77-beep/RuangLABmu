@@ -178,7 +178,11 @@ export const MainLabWorkspace: React.FC = () => {
     mysterySubmissions,
     externalDrLabMuPrompt,
     recordsRegression,
+    addRecord,
+    updateRecord,
     deleteRecord,
+    lksAnswers,
+    setLksAnswers,
     onExportCSV,
     onSubmitQuizScoreAndGrade,
     handleRotateGroup,
@@ -478,8 +482,13 @@ export const MainLabWorkspace: React.FC = () => {
                       records={records}
                       activeStudentName={currentProfile.name}
                       activeGroupId={currentProfile.group}
+                      activeTier={activeTierLabel}
                       onSubmitQuizScore={onSubmitQuizScoreAndGrade}
                       onDeleteRecord={deleteRecord}
+                      onAddManualRecord={addRecord}
+                      onUpdateRecord={updateRecord}
+                      lksAnswers={lksAnswers}
+                      onChangeLksAnswers={setLksAnswers}
                       onExportCSV={onExportCSV}
                       onRotateGroup={handleRotateGroup}
                       hypothesisNote={currentModuleHypothesis}
@@ -525,6 +534,7 @@ export const MainLabWorkspace: React.FC = () => {
                       notes={notes}
                       activeGroupId={currentProfile.group}
                       activeStudentName={currentProfile.name}
+                      activeTier={activeTierLabel}
                       onDeleteRecord={deleteRecord}
                       onToggleTask={toggleTask}
                       onCreateTask={onCreateTask}
@@ -592,6 +602,10 @@ export const MainLabWorkspace: React.FC = () => {
           onInjectOutlierDemo={onInjectOutlierDemo}
           externalPromptRequest={queuedDrLabMuPrompt}
           wsConnected={wsConnected}
+          onSaveSummaryToNotes={onCreateNote}
+          rSquared={recordsRegression.hasRegression ? recordsRegression.rSquared : undefined}
+          activeModuleTitle={currentExperimentModule.title}
+          hypothesisText={currentModuleHypothesis?.hypothesisText}
         />
 
         {activeModal === 'ai-mission-builder' && (

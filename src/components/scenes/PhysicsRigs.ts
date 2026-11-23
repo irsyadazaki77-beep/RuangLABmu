@@ -2,10 +2,15 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
   applyBorosilicateLiteMode,
+  createAnalogGaugeDialTexture,
   createBorosilicateGlassMaterial,
+  createGraduatedScaleTexture,
   createInstancedParticlePool,
+  createInstrumentPanelTexture,
+  createPlanetSurfaceTexture,
   createVectorArrowGroup,
   orientAndScaleVectorArrow,
+  updateInstrumentPanelTexture,
   wavelengthNmToHex,
 } from '../../utils/threeStudioKit';
 import { PhysicsMetrics, PhysicsParams } from '../../utils/scienceEngine';
@@ -64,6 +69,7 @@ export function buildPhysicsSpecialRigs(
   initialLiteMode: boolean
 ): PhysicsSpecialRigsHandle {
   const { darkFrameMat, brushedSteelMat, brassMat, primaryMassMat, airTrackScaleTex } = mats;
+  const disposableTextures: Array<THREE.Texture | null> = [];
 
   // =========================================================
   // 1. STOKES VISCOSITY 3D GROUP
@@ -71,18 +77,26 @@ export function buildPhysicsSpecialRigs(
   const stokesGroup = new THREE.Group();
   scene.add(stokesGroup);
 
-  const stokesStand = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.25, 3.0), darkFrameMat);
-  stokesStand.position.set(0, 0.125, 0);
+  const stokesStand = new THREE.Mesh(
+    new RoundedBoxGeometry(3.3, 0.26, 3.1, 3, 0.04),
+    darkFrameMat
+  );
+  stokesStand.position.set(-0.25, 0.13, 0);
   stokesStand.receiveShadow = true;
   stokesGroup.add(stokesStand);
 
+  const stokesPillarFlange = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.24, 0.28, 0.12, 20),
+    brassMat
+  );
+  stokesPillarFlange.position.set(-1.4, 0.3, 0);
   const stokesPillar = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.09, 0.09, 6.2, 16),
+    new THREE.CylinderGeometry(0.09, 0.09, 5.6, 16),
     brushedSteelMat
   );
-  stokesPillar.position.set(-1.4, 3.1, 0);
+  stokesPillar.position.set(-1.4, 3.0, 0);
   stokesPillar.castShadow = true;
-  stokesGroup.add(stokesPillar);
+  stokesGroup.add(stokesPillarFlange, stokesPillar);
 
   const glassCylMat = createBorosilicateGlassMaterial(initialLiteMode, {
     color: 0xe8f4fc,
@@ -91,23 +105,81 @@ export function buildPhysicsSpecialRigs(
     thickness: 0.55,
   });
   const stokesGlassCyl = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.85, 0.85, 5.2, 32, 1, true),
+    new THREE.CylinderGeometry(0.85, 0.85, 5.0, 32, 1, true),
     glassCylMat
   );
-  stokesGlassCyl.position.set(0, 2.7, 0);
+  stokesGlassCyl.position.set(0, 2.75, 0);
   stokesGroup.add(stokesGlassCyl);
+
+  // Heavy lower glass seat + top flared pouring rim + bottom brass drain spigot
+  const stokesBottomSeat = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.92, 0.96, 0.22, 32),
+    brushedSteelMat
+  );
+  stokesBottomSeat.position.set(0, 0.32, 0);
+  const stokesTopLip = new THREE.Mesh(
+    new THREE.TorusGeometry(0.86, 0.042, 14, 36),
+    glassCylMat
+  );
+  stokesTopLip.rotation.x = Math.PI / 2;
+  stokesTopLip.position.set(0, 5.25, 0);
+  const stokesDrainValve = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.055, 0.055, 0.32, 12),
+    brassMat
+  );
+  stokesDrainValve.rotation.z = Math.PI / 2;
+  stokesDrainValve.position.set(0.98, 0.36, 0);
+  stokesGroup.add(stokesBottomSeat, stokesTopLip, stokesDrainValve);
+
+  // Dual bosshead & ring clamps structurally connecting vertical pillar (-1.4) to glass tube (0)
+  [1.65, 4.35].forEach((cy) => {
+    const boss = new THREE.Mesh(new RoundedBoxGeometry(0.26, 0.24, 0.24, 2, 0.03), darkFrameMat);
+    boss.position.set(-1.4, cy, 0);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.58, 12), brushedSteelMat);
+    arm.rotation.z = Math.PI / 2;
+    arm.position.set(-1.12, cy, 0);
+    const collar = new THREE.Mesh(
+      new THREE.TorusGeometry(0.88, 0.035, 10, 32),
+      darkFrameMat
+    );
+    collar.rotation.x = Math.PI / 2;
+    collar.position.set(0, cy, 0);
+    stokesGroup.add(boss, arm, collar);
+  });
+
+  // Graduated centimeter depth scale along the viscometer tube
+  const stokesScaleTex = createGraduatedScaleTexture(100, 'cm', 20, {
+    invertTopToBottom: true,
+    width: 128,
+    height: 512,
+  });
+  disposableTextures.push(stokesScaleTex);
+  if (stokesScaleTex) {
+    const stokesScaleSleeve = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.865, 0.865, 4.4, 24, 1, true, -0.35, 0.7),
+      new THREE.MeshBasicMaterial({
+        map: stokesScaleTex,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    stokesScaleSleeve.position.set(0, 2.65, 0);
+    stokesGroup.add(stokesScaleSleeve);
+  }
 
   const liquidMat = new THREE.MeshStandardMaterial({
     color: 0xd97706,
     transparent: true,
     opacity: 0.65,
-    roughness: 0.2,
+    roughness: 0.18,
   });
   const stokesLiquid = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.82, 0.82, 4.8, 32),
+    new THREE.CylinderGeometry(0.82, 0.82, 4.65, 32),
     liquidMat
   );
-  stokesLiquid.position.set(0, 2.5, 0);
+  stokesLiquid.position.set(0, 2.68, 0);
   stokesLiquid.userData = {
     draggableParam: 'fluidViscosity',
     min: 0.1,
@@ -118,18 +190,27 @@ export function buildPhysicsSpecialRigs(
   stokesGroup.add(stokesLiquid);
 
   const gateTop = new THREE.Mesh(
-    new THREE.TorusGeometry(0.9, 0.04, 8, 32),
+    new THREE.TorusGeometry(0.9, 0.04, 10, 32),
     new THREE.MeshBasicMaterial({ color: 0x10b981 })
   );
   gateTop.rotation.x = Math.PI / 2;
   gateTop.position.set(0, 4.2, 0);
 
   const gateBottom = new THREE.Mesh(
-    new THREE.TorusGeometry(0.9, 0.04, 8, 32),
+    new THREE.TorusGeometry(0.9, 0.04, 10, 32),
     new THREE.MeshBasicMaterial({ color: 0xef4444 })
   );
   gateBottom.rotation.x = Math.PI / 2;
   gateBottom.position.set(0, 1.4, 0);
+  // Optical sensor pods on timing gates
+  [4.2, 1.4].forEach((gy, gIdx) => {
+    const pod = new THREE.Mesh(
+      new RoundedBoxGeometry(0.22, 0.18, 0.22, 2, 0.02),
+      gIdx === 0 ? brushedSteelMat : brassMat
+    );
+    pod.position.set(0.94, gy, 0);
+    stokesGroup.add(pod);
+  });
   stokesGroup.add(gateTop, gateBottom);
 
   const stokesSphere = new THREE.Mesh(new THREE.SphereGeometry(0.25, 24, 24), brushedSteelMat);
@@ -168,14 +249,17 @@ export function buildPhysicsSpecialRigs(
   scene.add(wheatstoneGroup);
 
   const circuitTable = new THREE.Mesh(
-    new THREE.BoxGeometry(9.0, 0.2, 6.0),
-    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 })
+    new RoundedBoxGeometry(9.0, 0.2, 6.0, 3, 0.03),
+    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.72, metalness: 0.12 })
   );
   circuitTable.position.set(0, 0.1, 0);
   circuitTable.receiveShadow = true;
   wheatstoneGroup.add(circuitTable);
 
-  const powerSupplyBox = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.4, 1.6), darkFrameMat);
+  const powerSupplyBox = new THREE.Mesh(
+    new RoundedBoxGeometry(2.2, 1.4, 1.6, 3, 0.05),
+    darkFrameMat
+  );
   powerSupplyBox.position.set(-3.2, 0.9, -1.8);
   powerSupplyBox.castShadow = true;
   powerSupplyBox.userData = {
@@ -186,6 +270,42 @@ export function buildPhysicsSpecialRigs(
     label: 'Tegangan Sumber V',
   };
   wheatstoneGroup.add(powerSupplyBox);
+
+  // Digital OLED Voltage/Current panel + rotary knob + banana terminals on DC Power Supply front (+Z)
+  const psuScreenTex = createInstrumentPanelTexture({
+    title: 'DC POWER SUPPLY',
+    primaryText: '12.0 V',
+    secondaryText: 'CC/CV REGULATED',
+    accentHex: '#38bdf8',
+  });
+  disposableTextures.push(psuScreenTex);
+  if (psuScreenTex) {
+    const psuScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.38, 0.68),
+      new THREE.MeshBasicMaterial({ map: psuScreenTex })
+    );
+    psuScreen.position.set(-0.28, 0.15, 0.81);
+    powerSupplyBox.add(psuScreen);
+  }
+  const psuDialKnob = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.2, 0.14, 20),
+    brassMat
+  );
+  psuDialKnob.rotation.x = Math.PI / 2;
+  psuDialKnob.position.set(0.68, 0.18, 0.84);
+  const psuJackRed = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 0.12, 14),
+    new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 })
+  );
+  psuJackRed.rotation.x = Math.PI / 2;
+  psuJackRed.position.set(0.45, -0.36, 0.83);
+  const psuJackBlack = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 0.12, 14),
+    new THREE.MeshStandardMaterial({ color: 0x0ea5e9, roughness: 0.3 })
+  );
+  psuJackBlack.rotation.x = Math.PI / 2;
+  psuJackBlack.position.set(0.78, -0.36, 0.83);
+  powerSupplyBox.add(psuDialKnob, psuJackRed, psuJackBlack);
 
   globalMultiApparatusEngine.seedDefaultDomainNodes('Fisika');
   const psuTerminalAnchor = new THREE.Object3D();
@@ -205,7 +325,30 @@ export function buildPhysicsSpecialRigs(
     const post = new THREE.Mesh(postGeo, brassMat);
     post.position.copy(pos);
     post.castShadow = true;
-    wheatstoneGroup.add(post);
+    const washer = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.04, 16), brushedSteelMat);
+    washer.position.set(pos.x, 0.21, pos.z);
+    wheatstoneGroup.add(post, washer);
+  });
+
+  // Visible copper-clad PCB diamond traces linking the 4 Wheatstone nodes on the board
+  const traceMat = new THREE.MeshStandardMaterial({
+    color: 0xb45309,
+    metalness: 0.78,
+    roughness: 0.28,
+  });
+  [
+    [nodePositions.left, nodePositions.bottom],
+    [nodePositions.bottom, nodePositions.right],
+    [nodePositions.left, nodePositions.top],
+    [nodePositions.top, nodePositions.right],
+  ].forEach(([pA, pB]) => {
+    const dx = pB.x - pA.x;
+    const dz = pB.z - pA.z;
+    const len = Math.hypot(dx, dz);
+    const trace = new THREE.Mesh(new THREE.BoxGeometry(len, 0.02, 0.11), traceMat);
+    trace.position.set((pA.x + pB.x) * 0.5, 0.205, (pA.z + pB.z) * 0.5);
+    trace.rotation.y = -Math.atan2(dz, dx);
+    wheatstoneGroup.add(trace);
   });
 
   const resistorMat = new THREE.MeshStandardMaterial({
@@ -228,23 +371,35 @@ export function buildPhysicsSpecialRigs(
     body.castShadow = true;
     if (draggable) body.userData = draggable;
     const lead = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.035, 0.035, 2.2, 12),
+      new THREE.CylinderGeometry(0.035, 0.035, 2.8, 12),
       brushedSteelMat
     );
     lead.rotation.z = Math.PI / 2;
+    const capLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.12, 18), brushedSteelMat);
+    capLeft.rotation.z = Math.PI / 2;
+    capLeft.position.x = -0.56;
+    const capRight = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.12, 18), brushedSteelMat);
+    capRight.rotation.z = Math.PI / 2;
+    capRight.position.x = 0.56;
     const band1 = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.186, 0.186, 0.09, 18),
+      new THREE.CylinderGeometry(0.188, 0.188, 0.09, 18),
       new THREE.MeshBasicMaterial({ color: 0x1e293b })
     );
     band1.rotation.z = Math.PI / 2;
-    band1.position.x = -0.32;
+    band1.position.x = -0.28;
     const band2 = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.186, 0.186, 0.09, 18),
+      new THREE.CylinderGeometry(0.188, 0.188, 0.09, 18),
       new THREE.MeshBasicMaterial({ color: 0xfacc15 })
     );
     band2.rotation.z = Math.PI / 2;
-    band2.position.x = 0.28;
-    rGroup.add(lead, body, band1, band2);
+    band2.position.x = 0.0;
+    const band3 = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.188, 0.188, 0.09, 18),
+      new THREE.MeshBasicMaterial({ color: 0x7c2d12 })
+    );
+    band3.rotation.z = Math.PI / 2;
+    band3.position.x = 0.26;
+    rGroup.add(lead, body, capLeft, capRight, band1, band2, band3);
     return rGroup;
   };
 
@@ -285,8 +440,8 @@ export function buildPhysicsSpecialRigs(
 
   addCurvedWire(
     [
-      new THREE.Vector3(-2.4, 0.68, -1.1),
-      new THREE.Vector3(-2.85, 0.92, -0.55),
+      new THREE.Vector3(-2.75, 0.54, -0.98),
+      new THREE.Vector3(-2.85, 0.88, -0.55),
       new THREE.Vector3(-2.6, 0.52, -0.15),
       new THREE.Vector3(-2.35, 0.34, 0),
     ],
@@ -294,7 +449,7 @@ export function buildPhysicsSpecialRigs(
   );
   addCurvedWire(
     [
-      new THREE.Vector3(-2.1, 0.68, -1.1),
+      new THREE.Vector3(-2.42, 0.54, -0.98),
       new THREE.Vector3(-0.6, 0.76, -2.25),
       new THREE.Vector3(1.65, 0.62, -1.85),
       new THREE.Vector3(2.35, 0.34, 0),
@@ -321,47 +476,56 @@ export function buildPhysicsSpecialRigs(
   );
 
   const galvoBox = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.92, 0.96, 0.36, 32),
+    new THREE.CylinderGeometry(0.92, 0.98, 0.36, 36),
     brushedSteelMat
   );
   galvoBox.position.set(0, 0.38, 0);
   galvoBox.castShadow = true;
   wheatstoneGroup.add(galvoBox);
 
+  const galvoDialTex = createAnalogGaugeDialTexture({
+    min: -30,
+    max: 30,
+    unit: 'μA',
+    title: 'GALVANOMETER',
+    zeroCenter: true,
+    majorDivisions: 6,
+  });
+  disposableTextures.push(galvoDialTex);
   const galvoDialFace = new THREE.Mesh(
-    new THREE.CircleGeometry(0.78, 32),
-    new THREE.MeshBasicMaterial({ color: 0x0f172a })
+    new THREE.CircleGeometry(0.82, 36),
+    new THREE.MeshBasicMaterial({
+      map: galvoDialTex ?? null,
+      color: galvoDialTex ? 0xffffff : 0x0f172a,
+    })
   );
   galvoDialFace.rotation.x = -Math.PI / 2;
   galvoDialFace.position.set(0, 0.565, 0);
   wheatstoneGroup.add(galvoDialFace);
 
-  const galvoZeroTick = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.04, 0.24),
-    new THREE.MeshBasicMaterial({ color: 0x10b981 })
-  );
-  galvoZeroTick.rotation.x = -Math.PI / 2;
-  galvoZeroTick.position.set(0, 0.57, -0.54);
-  wheatstoneGroup.add(galvoZeroTick);
-
-  // Balanced-bridge indicator ring around galvanometer bezel
+  // Balanced-bridge indicator ring + protective glass cover dome around galvanometer bezel
   const galvoBalanceRingMat = new THREE.MeshBasicMaterial({
     color: 0x10b981,
     transparent: true,
     opacity: 0.25,
   });
   const galvoBalanceRing = new THREE.Mesh(
-    new THREE.TorusGeometry(0.84, 0.03, 12, 36),
+    new THREE.TorusGeometry(0.86, 0.032, 12, 36),
     galvoBalanceRingMat
   );
   galvoBalanceRing.rotation.x = Math.PI / 2;
   galvoBalanceRing.position.set(0, 0.57, 0);
-  wheatstoneGroup.add(galvoBalanceRing);
+  const galvoGlassCover = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.84, 0.84, 0.06, 32),
+    glassCylMat
+  );
+  galvoGlassCover.position.set(0, 0.61, 0);
+  wheatstoneGroup.add(galvoBalanceRing, galvoGlassCover);
 
   const galvoNeedle = new THREE.Group();
   galvoNeedle.position.set(0, 0.58, 0.15);
   const galvoNeedlePointer = new THREE.Mesh(
-    new THREE.ConeGeometry(0.065, 0.78, 12),
+    new THREE.ConeGeometry(0.055, 0.76, 12),
     new THREE.MeshStandardMaterial({
       color: 0xef4444,
       emissive: 0xef4444,
@@ -384,13 +548,25 @@ export function buildPhysicsSpecialRigs(
   const youngSlitGroup = new THREE.Group();
   scene.add(youngSlitGroup);
 
-  const optBenchRail = new THREE.Mesh(new THREE.BoxGeometry(11.0, 0.18, 0.6), darkFrameMat);
-  optBenchRail.position.set(0, 0.09, 0);
+  const optBenchRail = new THREE.Mesh(
+    new RoundedBoxGeometry(11.2, 0.2, 0.72, 2, 0.03),
+    darkFrameMat
+  );
+  optBenchRail.position.set(0, 0.1, 0);
   optBenchRail.receiveShadow = true;
-  youngSlitGroup.add(optBenchRail);
+  const optBenchSlot = new THREE.Mesh(
+    new THREE.BoxGeometry(10.8, 0.04, 0.18),
+    brushedSteelMat
+  );
+  optBenchSlot.position.set(0, 0.21, 0);
+  youngSlitGroup.add(optBenchRail, optBenchSlot);
 
-  const laserEmitter = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 1.0), brushedSteelMat);
-  laserEmitter.position.set(-4.8, 1.2, 0);
+  // Composite He-Ne / Diode Cylindrical Laser Emitter Assembly
+  const laserEmitter = new THREE.Mesh(
+    new RoundedBoxGeometry(1.75, 0.42, 0.88, 2, 0.04),
+    darkFrameMat
+  );
+  laserEmitter.position.set(-4.8, 0.92, 0);
   laserEmitter.castShadow = true;
   laserEmitter.userData = {
     draggableParam: 'lightWavelength',
@@ -399,22 +575,52 @@ export function buildPhysicsSpecialRigs(
     step: 10,
     label: 'Panjang Gelombang λ',
   };
+  const laserBarrel = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.32, 0.32, 1.82, 24),
+    brushedSteelMat
+  );
+  laserBarrel.rotation.z = Math.PI / 2;
+  laserBarrel.position.set(0.05, 0.28, 0);
+  laserBarrel.castShadow = true;
+  laserBarrel.userData = laserEmitter.userData;
+  const laserNozzle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.24, 0.22, 20),
+    brassMat
+  );
+  laserNozzle.rotation.z = Math.PI / 2;
+  laserNozzle.position.set(1.02, 0.28, 0);
+  // Cooling fin rings around laser barrel
+  [-0.45, -0.15, 0.15, 0.45].forEach((fx) => {
+    const fin = new THREE.Mesh(
+      new THREE.TorusGeometry(0.33, 0.025, 10, 24),
+      darkFrameMat
+    );
+    fin.rotation.y = Math.PI / 2;
+    fin.position.set(fx, 0.28, 0);
+    laserEmitter.add(fin);
+  });
+  laserEmitter.add(laserBarrel, laserNozzle);
   youngSlitGroup.add(laserEmitter);
 
   const laserMountPost = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.14, 0.22, 0.52, 16),
+    new THREE.CylinderGeometry(0.14, 0.2, 0.54, 16),
+    brushedSteelMat
+  );
+  laserMountPost.position.set(-4.8, 0.46, 0);
+  laserMountPost.castShadow = true;
+  const laserRiderClamp = new THREE.Mesh(
+    new RoundedBoxGeometry(0.56, 0.18, 0.86, 2, 0.02),
     darkFrameMat
   );
-  laserMountPost.position.set(-4.8, 0.42, 0);
-  laserMountPost.castShadow = true;
-  youngSlitGroup.add(laserMountPost);
+  laserRiderClamp.position.set(-4.8, 0.2, 0);
+  youngSlitGroup.add(laserMountPost, laserRiderClamp);
 
   const laserBeamLine = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.035, 0.035, 3.2, 12),
+    new THREE.CylinderGeometry(0.035, 0.035, 2.65, 12),
     new THREE.MeshBasicMaterial({ color: 0x10b981 })
   );
   laserBeamLine.rotation.z = Math.PI / 2;
-  laserBeamLine.position.set(-2.8, 1.2, 0);
+  laserBeamLine.position.set(-2.5, 1.2, 0);
   youngSlitGroup.add(laserBeamLine);
 
   // Coherent diffracted fan cone between slit plate (-1.2) and projection screen (+3.8)
@@ -437,7 +643,10 @@ export function buildPhysicsSpecialRigs(
   slitPlateGroup.position.set(-1.2, 1.2, 0);
   youngSlitGroup.add(slitPlateGroup);
 
-  const slitPlate = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.8, 1.4), darkFrameMat);
+  const slitPlate = new THREE.Mesh(
+    new RoundedBoxGeometry(0.12, 1.84, 1.46, 2, 0.02),
+    darkFrameMat
+  );
   slitPlate.castShadow = true;
   slitPlate.userData = {
     draggableParam: 'slitDistance',
@@ -446,14 +655,30 @@ export function buildPhysicsSpecialRigs(
     step: 0.02,
     label: 'Jarak Celah d',
   };
-  slitPlateGroup.add(slitPlate);
+  // Precision brass optical aperture window + dual illuminated vertical micro-slits
+  const slitApertureFrame = new THREE.Mesh(
+    new RoundedBoxGeometry(0.14, 0.78, 0.62, 2, 0.015),
+    brassMat
+  );
+  slitApertureFrame.userData = slitPlate.userData;
+  const slitLineMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+  const slitLeft = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.52, 0.028), slitLineMat);
+  slitLeft.position.set(0, 0, -0.09);
+  const slitRight = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.52, 0.028), slitLineMat);
+  slitRight.position.set(0, 0, 0.09);
+  slitPlateGroup.add(slitPlate, slitApertureFrame, slitLeft, slitRight);
 
   const slitMountPost = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.1, 0.16, 0.28, 16),
+    new THREE.CylinderGeometry(0.1, 0.14, 0.28, 16),
     brushedSteelMat
   );
   slitMountPost.position.set(0, -0.98, 0);
-  slitPlateGroup.add(slitMountPost);
+  const slitRiderBase = new THREE.Mesh(
+    new RoundedBoxGeometry(0.46, 0.18, 0.86, 2, 0.02),
+    darkFrameMat
+  );
+  slitRiderBase.position.set(0, -1.02, 0);
+  slitPlateGroup.add(slitMountPost, slitRiderBase);
 
   const screenCarrier = new THREE.Group();
   screenCarrier.position.set(3.8, 1.4, 0);
@@ -466,7 +691,7 @@ export function buildPhysicsSpecialRigs(
   fringeTexture.colorSpace = THREE.SRGBColorSpace;
 
   const projScreen = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.1, 2.6),
+    new THREE.PlaneGeometry(2.6, 1.45),
     new THREE.MeshBasicMaterial({ map: fringeTexture, side: THREE.DoubleSide })
   );
   projScreen.rotation.y = -Math.PI / 2;
@@ -477,12 +702,23 @@ export function buildPhysicsSpecialRigs(
     step: 0.1,
     label: 'Jarak Layar L',
   };
+  const projScreenFrame = new THREE.Mesh(
+    new RoundedBoxGeometry(0.1, 1.62, 2.78, 2, 0.02),
+    darkFrameMat
+  );
+  projScreenFrame.position.set(0.06, 0, 0);
+  projScreenFrame.userData = projScreen.userData;
   const screenMountPost = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.1, 0.18, 0.26, 16),
+    new THREE.CylinderGeometry(0.11, 0.16, 0.52, 16),
     brushedSteelMat
   );
-  screenMountPost.position.set(0, -1.2, 0);
-  screenCarrier.add(projScreen, screenMountPost);
+  screenMountPost.position.set(0.04, -1.04, 0);
+  const screenRiderBase = new THREE.Mesh(
+    new RoundedBoxGeometry(0.52, 0.18, 0.86, 2, 0.02),
+    darkFrameMat
+  );
+  screenRiderBase.position.set(0.04, -1.22, 0);
+  screenCarrier.add(projScreen, projScreenFrame, screenMountPost, screenRiderBase);
 
   // =========================================================
   // 4. PHOTOELECTRIC PLANCK 3D GROUP
@@ -490,30 +726,54 @@ export function buildPhysicsSpecialRigs(
   const photoelectricGroup = new THREE.Group();
   scene.add(photoelectricGroup);
 
-  const peBase = new THREE.Mesh(new THREE.BoxGeometry(8.0, 0.2, 4.0), darkFrameMat);
-  peBase.position.set(0, 0.1, 0);
+  const peBase = new THREE.Mesh(
+    new RoundedBoxGeometry(8.2, 0.22, 4.2, 3, 0.04),
+    darkFrameMat
+  );
+  peBase.position.set(0, 0.11, 0);
   peBase.receiveShadow = true;
   photoelectricGroup.add(peBase);
 
   const peCradleLeft = new THREE.Mesh(
-    new RoundedBoxGeometry(0.32, 0.42, 1.2, 2, 0.03),
+    new RoundedBoxGeometry(0.32, 0.48, 1.25, 2, 0.03),
     darkFrameMat
   );
-  peCradleLeft.position.set(-1.1, 0.38, 0);
+  peCradleLeft.position.set(-1.1, 0.42, 0);
   const peCradleRight = new THREE.Mesh(
-    new RoundedBoxGeometry(0.32, 0.42, 1.2, 2, 0.03),
+    new RoundedBoxGeometry(0.32, 0.48, 1.25, 2, 0.03),
     darkFrameMat
   );
-  peCradleRight.position.set(1.1, 0.38, 0);
+  peCradleRight.position.set(1.1, 0.42, 0);
   photoelectricGroup.add(peCradleLeft, peCradleRight);
 
-  const peBulb = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 3.2, 28), glassCylMat);
+  const peBulb = new THREE.Mesh(new THREE.CylinderGeometry(1.16, 1.16, 2.8, 32, 1, true), glassCylMat);
   peBulb.rotation.z = Math.PI / 2;
   peBulb.position.set(0, 1.6, 0);
   photoelectricGroup.add(peBulb);
 
+  // Hemispherical quartz vacuum phototube domes & machined end-caps
+  const peDomeLeft = new THREE.Mesh(
+    new THREE.SphereGeometry(1.16, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2),
+    glassCylMat
+  );
+  peDomeLeft.rotation.z = Math.PI / 2;
+  peDomeLeft.position.set(-1.4, 1.6, 0);
+  const peDomeRight = new THREE.Mesh(
+    new THREE.SphereGeometry(1.16, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2),
+    glassCylMat
+  );
+  peDomeRight.rotation.z = -Math.PI / 2;
+  peDomeRight.position.set(1.4, 1.6, 0);
+  const peCapLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.42, 0.24, 20), brassMat);
+  peCapLeft.rotation.z = Math.PI / 2;
+  peCapLeft.position.set(-2.52, 1.6, 0);
+  const peCapRight = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.42, 0.24, 20), brassMat);
+  peCapRight.rotation.z = Math.PI / 2;
+  peCapRight.position.set(2.52, 1.6, 0);
+  photoelectricGroup.add(peDomeLeft, peDomeRight, peCapLeft, peCapRight);
+
   const peCathode = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.9, 0.9, 0.06, 24, 1, false, 0, Math.PI),
+    new THREE.CylinderGeometry(0.88, 0.88, 0.06, 24, 1, false, 0, Math.PI),
     new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.15 })
   );
   peCathode.rotation.x = Math.PI / 2;
@@ -525,7 +785,38 @@ export function buildPhysicsSpecialRigs(
     step: 0.1,
     label: 'Fungsi Kerja W (eV)',
   };
-  photoelectricGroup.add(peCathode);
+  const peCathodeStem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 1.35, 12),
+    brushedSteelMat
+  );
+  peCathodeStem.rotation.z = Math.PI / 2;
+  peCathodeStem.position.set(-1.82, 1.6, 0);
+  photoelectricGroup.add(peCathode, peCathodeStem);
+
+  // Grounded UV Monochromator Lamp Housing on Articulated Stand at top-left
+  const uvStandRod = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.09, 3.3, 16),
+    brushedSteelMat
+  );
+  uvStandRod.position.set(-3.1, 1.75, 0);
+  const uvLampHousing = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.32, 0.42, 0.95, 22),
+    darkFrameMat
+  );
+  uvLampHousing.position.set(-2.58, 3.22, 0);
+  uvLampHousing.rotation.z = -0.65;
+  const uvLampLens = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.38, 0.38, 0.1, 20),
+    new THREE.MeshStandardMaterial({
+      color: 0x8b5cf6,
+      emissive: 0x8b5cf6,
+      emissiveIntensity: 1.1,
+      roughness: 0.2,
+    })
+  );
+  uvLampLens.position.set(-2.3, 2.86, 0);
+  uvLampLens.rotation.z = -0.65;
+  photoelectricGroup.add(uvStandRod, uvLampHousing, uvLampLens);
 
   // UV / Monochromatic Incident Photon Beam Cone illuminating Cathode from top-left
   const peIncidentBeamMat = new THREE.MeshBasicMaterial({
@@ -536,14 +827,14 @@ export function buildPhysicsSpecialRigs(
     depthWrite: false,
   });
   const peIncidentBeam = new THREE.Mesh(
-    new THREE.ConeGeometry(0.68, 2.4, 20, 1, true),
+    new THREE.ConeGeometry(0.68, 2.15, 20, 1, true),
     peIncidentBeamMat
   );
-  peIncidentBeam.position.set(-1.95, 2.55, 0);
+  peIncidentBeam.position.set(-1.75, 2.35, 0);
   peIncidentBeam.rotation.z = -0.65;
   photoelectricGroup.add(peIncidentBeam);
 
-  const peAnode = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.06, 12, 28), brassMat);
+  const peAnode = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.06, 12, 28), brassMat);
   peAnode.rotation.y = Math.PI / 2;
   peAnode.position.set(1.1, 1.6, 0);
   peAnode.userData = {
@@ -553,7 +844,37 @@ export function buildPhysicsSpecialRigs(
     step: 0.1,
     label: 'Potensial Penghenti V₀',
   };
-  photoelectricGroup.add(peAnode);
+  const peAnodeStem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 1.35, 12),
+    brassMat
+  );
+  peAnodeStem.rotation.z = Math.PI / 2;
+  peAnodeStem.position.set(1.82, 1.6, 0);
+  photoelectricGroup.add(peAnode, peAnodeStem);
+
+  // Grounded Digital Picoammeter & Stopping-Potential Console wired to phototube
+  const peMeterConsole = new THREE.Mesh(
+    new RoundedBoxGeometry(1.85, 0.92, 1.1, 3, 0.04),
+    darkFrameMat
+  );
+  peMeterConsole.position.set(2.6, 0.65, 1.15);
+  peMeterConsole.castShadow = true;
+  const peMeterTex = createInstrumentPanelTexture({
+    title: 'PICOAMMETER & V₀',
+    primaryText: 'V₀ = 1.50 V',
+    secondaryText: 'Ek = 0.80 eV',
+    accentHex: '#38bdf8',
+  });
+  disposableTextures.push(peMeterTex);
+  if (peMeterTex) {
+    const peScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.42, 0.62),
+      new THREE.MeshBasicMaterial({ map: peMeterTex })
+    );
+    peScreen.position.set(0, 0.08, 0.56);
+    peMeterConsole.add(peScreen);
+  }
+  photoelectricGroup.add(peMeterConsole);
 
   const PE_PARTICLES_COUNT = 30;
   const peParticleGeo = new THREE.SphereGeometry(0.06, 10, 10);
@@ -587,6 +908,45 @@ export function buildPhysicsSpecialRigs(
   airTrackRidge.position.set(0, 0.32, 0);
   airTrackRidge.receiveShadow = true;
   collisionGroup.add(airTrackRidge);
+
+  // Air blower compressor unit + hose at left end of air-track + dual U-shaped IR Photogate arches
+  const airBlowerUnit = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.58, 0.64, 0.92, 24),
+    darkFrameMat
+  );
+  airBlowerUnit.position.set(-5.85, 0.52, -0.85);
+  airBlowerUnit.castShadow = true;
+  const airHoseCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-5.85, 0.72, -0.35),
+    new THREE.Vector3(-5.95, 0.55, 0.0),
+    new THREE.Vector3(-5.65, 0.24, 0.0),
+  ]);
+  const airHose = new THREE.Mesh(
+    new THREE.TubeGeometry(airHoseCurve, 18, 0.09, 12, false),
+    brushedSteelMat
+  );
+  collisionGroup.add(airBlowerUnit, airHose);
+
+  [-2.05, 2.05].forEach((gx, idx) => {
+    const gateArchGroup = new THREE.Group();
+    gateArchGroup.position.set(gx, 0.28, 0);
+    const legF = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.15, 0.12), darkFrameMat);
+    legF.position.set(0, 0.58, 0.76);
+    const legB = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.15, 0.12), darkFrameMat);
+    legB.position.set(0, 0.58, -0.76);
+    const crossBar = new THREE.Mesh(
+      new RoundedBoxGeometry(0.24, 0.18, 1.68, 2, 0.02),
+      darkFrameMat
+    );
+    crossBar.position.set(0, 1.18, 0);
+    const ledDot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.045, 10, 10),
+      new THREE.MeshBasicMaterial({ color: idx === 0 ? 0x38bdf8 : 0xf59e0b })
+    );
+    ledDot.position.set(0, 1.28, 0);
+    gateArchGroup.add(legF, legB, crossBar, ledDot);
+    collisionGroup.add(gateArchGroup);
+  });
 
   if (airTrackScaleTex) {
     const airTrackRuler = new THREE.Mesh(
@@ -709,9 +1069,21 @@ export function buildPhysicsSpecialRigs(
   const orbitalGroup = new THREE.Group();
   scene.add(orbitalGroup);
 
+  const orbitalPlanetTex = createPlanetSurfaceTexture({
+    baseHex: '#0284c7',
+    accentHex: '#22c55e',
+    style: 'terrestrial',
+  });
+  disposableTextures.push(orbitalPlanetTex);
+  const centralPlanetMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    map: orbitalPlanetTex ?? null,
+    roughness: 0.48,
+    metalness: 0.1,
+  });
   const centralPlanetBody = new THREE.Mesh(
-    new THREE.SphereGeometry(1.15, 32, 32),
-    primaryMassMat
+    new THREE.SphereGeometry(1.15, 36, 36),
+    centralPlanetMat
   );
   centralPlanetBody.position.set(0, 2.2, 0);
   centralPlanetBody.castShadow = true;
@@ -722,9 +1094,39 @@ export function buildPhysicsSpecialRigs(
     step: 1,
     label: 'Massa Primer M₁',
   };
+  const planetAtmoHalo = new THREE.Mesh(
+    new THREE.SphereGeometry(1.26, 32, 32),
+    new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.16,
+      side: THREE.BackSide,
+      depthWrite: false,
+    })
+  );
+  centralPlanetBody.add(planetAtmoHalo);
   orbitalGroup.add(centralPlanetBody);
 
-  const satelliteBody = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 24), brassMat);
+  // 3D Gravitational Potential Well Funnel Grid V(r) = -G*M/r below the orbital plane
+  const wellPts: THREE.Vector2[] = [];
+  for (let i = 0; i <= 16; i++) {
+    const u = i / 16;
+    const r = 0.7 + u * 4.8;
+    const y = 2.0 - 1.55 / Math.pow(r, 0.75);
+    wellPts.push(new THREE.Vector2(r, y));
+  }
+  const gravityWellFunnel = new THREE.Mesh(
+    new THREE.LatheGeometry(wellPts, 32),
+    new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.24,
+    })
+  );
+  orbitalGroup.add(gravityWellFunnel);
+
+  const satelliteBody = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 24), brassMat);
   satelliteBody.position.set(3.8, 2.2, 0);
   satelliteBody.castShadow = true;
   satelliteBody.userData = {
@@ -734,6 +1136,27 @@ export function buildPhysicsSpecialRigs(
     step: 0.5,
     label: 'Jarak Pisah r',
   };
+  // Multi-part Scientific Satellite Solar Wings & Parabolic Dish attached to satelliteBody
+  const solarPanelMat = new THREE.MeshStandardMaterial({
+    color: 0x1d4ed8,
+    emissive: 0x1e3a8a,
+    emissiveIntensity: 0.35,
+    roughness: 0.25,
+    metalness: 0.65,
+  });
+  const solarWingLeft = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 0.88), solarPanelMat);
+  solarWingLeft.position.set(0, 0, -0.68);
+  solarWingLeft.userData = satelliteBody.userData;
+  const solarWingRight = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 0.88), solarPanelMat);
+  solarWingRight.position.set(0, 0, 0.68);
+  solarWingRight.userData = satelliteBody.userData;
+  const satDish = new THREE.Mesh(
+    new THREE.ConeGeometry(0.18, 0.14, 16, 1, true),
+    brushedSteelMat
+  );
+  satDish.rotation.z = Math.PI / 2;
+  satDish.position.set(-0.34, 0, 0);
+  satelliteBody.add(solarWingLeft, solarWingRight, satDish);
   orbitalGroup.add(satelliteBody);
 
   const orbitRingMesh = new THREE.Mesh(
@@ -757,7 +1180,7 @@ export function buildPhysicsSpecialRigs(
   // 7. LIVE 3D MECHANICAL ENERGY COLUMN HUD (Ek / Ep / Etot)
   // =========================================================
   const energyWidgetGroup = new THREE.Group();
-  energyWidgetGroup.position.set(4.5, 0.15, -2.1);
+  energyWidgetGroup.position.set(3.55, 0.15, -2.05);
   scene.add(energyWidgetGroup);
 
   const energyPedestal = new THREE.Mesh(
@@ -788,6 +1211,8 @@ export function buildPhysicsSpecialRigs(
 
   let lastCollisionImpactIndex = -1;
   let lastFringeKey = '';
+  let lastPsuKey = '';
+  let lastPePanelKey = '';
 
   const _rigOrigin1 = new THREE.Vector3();
   const _rigOrigin2 = new THREE.Vector3();
@@ -909,7 +1334,9 @@ export function buildPhysicsSpecialRigs(
       const angle = nowSec * 1.15;
       const sx = Math.cos(angle) * orbitRadius;
       const sz = Math.sin(angle) * orbitRadius;
+      centralPlanetBody.rotation.y = nowSec * 0.25;
       satelliteBody.position.set(sx, 2.2, sz);
+      satelliteBody.rotation.y = -angle;
       orbitRingMesh.scale.setScalar(orbitRadius / 3.79);
 
       if (showVec) {
@@ -969,6 +1396,18 @@ export function buildPhysicsSpecialRigs(
       );
       galvoBalanceRingMat.color.setHex(needleState.isBalanced ? 0x10b981 : 0xf59e0b);
       galvoBalanceRingMat.opacity = needleState.isBalanced ? 0.78 : 0.25;
+
+      const vSource = p.circuitVoltage ?? 12;
+      const psuKey = `${vSource.toFixed(1)}|${m.galvanometerCurrent.toFixed(2)}|${needleState.isBalanced}`;
+      if (psuKey !== lastPsuKey) {
+        lastPsuKey = psuKey;
+        updateInstrumentPanelTexture(psuScreenTex, {
+          title: 'DC POWER SUPPLY',
+          primaryText: `${vSource.toFixed(1)} V`,
+          secondaryText: `Ig = ${m.galvanometerCurrent.toFixed(2)} mA`,
+          accentHex: needleState.isBalanced ? '#10b981' : '#38bdf8',
+        });
+      }
     } else if (m.mode === 'optics-young-slit') {
       const wl = p.lightWavelength ?? 532;
       const beamColor = wavelengthNmToHex(wl);
@@ -988,18 +1427,48 @@ export function buildPhysicsSpecialRigs(
             const intensity = Math.pow(Math.cos(((x - 256) / fringeSpacing) * Math.PI), 2);
             ctx2d.fillStyle = `#${rgbHex}`;
             ctx2d.globalAlpha = intensity;
-            ctx2d.fillRect(x, 0, 1, fringeCanvas.height);
+            ctx2d.fillRect(x, 0, 1, fringeCanvas.height - 26);
           }
+          // Calibrated mm scale bar along bottom of projection screen
           ctx2d.globalAlpha = 1.0;
+          ctx2d.fillStyle = '#0f172a';
+          ctx2d.fillRect(0, fringeCanvas.height - 26, fringeCanvas.width, 26);
+          ctx2d.strokeStyle = '#94a3b8';
+          ctx2d.fillStyle = '#e2e8f0';
+          ctx2d.font = 'bold 12px monospace';
+          for (let mm = -20; mm <= 20; mm += 5) {
+            const sx = 256 + (mm / 20) * 230;
+            ctx2d.beginPath();
+            ctx2d.moveTo(sx, fringeCanvas.height - 26);
+            ctx2d.lineTo(sx, fringeCanvas.height - (mm % 10 === 0 ? 12 : 18));
+            ctx2d.stroke();
+            if (mm % 10 === 0) {
+              ctx2d.fillText(`${mm}mm`, sx - 14, fringeCanvas.height - 2);
+            }
+          }
           fringeTexture.needsUpdate = true;
         }
       }
     } else if (m.mode === 'photoelectric-planck') {
       const emitted = m.photoelectricEmitted;
       const wl = p.lightWavelength ?? 400;
-      peIncidentBeamMat.color.setHex(wavelengthNmToHex(wl));
+      const beamHex = wavelengthNmToHex(wl);
+      peIncidentBeamMat.color.setHex(beamHex);
+      (uvLampLens.material as THREE.MeshStandardMaterial).color.setHex(beamHex);
+      (uvLampLens.material as THREE.MeshStandardMaterial).emissive.setHex(beamHex);
       const stopV = p.stoppingPotential ?? 1.5;
       const maxKe = m.photoelectricMaxKe;
+
+      const peKey = `${stopV.toFixed(2)}|${maxKe.toFixed(2)}|${emitted}`;
+      if (peKey !== lastPePanelKey) {
+        lastPePanelKey = peKey;
+        updateInstrumentPanelTexture(peMeterTex, {
+          title: 'PICOAMMETER & V₀',
+          primaryText: `V₀ = ${stopV.toFixed(2)} V`,
+          secondaryText: emitted ? `Ek = ${maxKe.toFixed(2)} eV (ON)` : 'CUTOFF (I = 0)',
+          accentHex: emitted ? '#10b981' : '#f43f5e',
+        });
+      }
 
       if (!emitted) {
         peParticlePool.mesh.visible = false;
@@ -1037,6 +1506,8 @@ export function buildPhysicsSpecialRigs(
     update,
     dispose: () => {
       fringeTexture.dispose();
+      disposableTextures.forEach((tex) => tex?.dispose());
     },
   };
 }
+

@@ -58,7 +58,7 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
       'Sudut tembak 45° selalu menghasilkan jarak terjauh pada semua kondisi. Faktanya: Sudut 45° optimum hanya jika elevasi awal h0 = 0. Jika diluncurkan dari tebing (h0 > 0), sudut optimum lebih kecil dari 45°.',
     ],
     realWorldApplications: [
-      'Kalkulasi trajektori peluncuran roket pengorbit satelit di stasiun peluncuran antariksa LAPAN/BRIN Pameungpeuk, Garut.',
+      'Kalkulasi trajektori peluncuran roket sonda suborbital (seri RX-200/RX-320/RX-450) di Stasiun Peluncuran Roket BRIN (eks-LAPAN) Pameungpeuk, Garut.',
       'Analisis sudut tembakan bola basket (shooting arc) atlet nasional untuk mengoptimalkan persentase bola masuk.',
       'Perhitungan pancaran air meriam pemadam kebakaran (water cannon) untuk menjangkau lantai atas gedung.',
     ],
@@ -113,7 +113,7 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
     ],
     realWorldApplications: [
       'Mekanisme jam dinding bandul mekanik kuno yang menjaga presisi waktu dengan ayunan isokronik.',
-      'Peredam massa terstem (Tuned Mass Damper) pada gedung pencakar langit Monas / Taipei 101 untuk meredam goyangan gempa dan angin badai.',
+      'Peredam massa tertala (Tuned Mass Damper) seperti bandul baja 660 ton pada gedung pencakar langit Taipei 101 untuk meredam goyangan gempa dan angin badai.',
       'Gravimeter geofisika eksplorasi minyak bumi untuk memetakan variasi gravitasi lokal di bawah tanah.',
     ],
     stepByStepGuide: [
@@ -168,7 +168,7 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
 
   'collision-momentum': {
     chapterNumber: 3,
-    chapterTitle: 'Bab 3: Gelombang, Optika Fisik & Fisika Kuantum',
+    chapterTitle: 'Bab 3: Momentum, Kelistrikan, Optika & Fisika Kuantum',
     competencyLevel: 'Menengah',
     commonMisconceptions: [
       'Energi kinetik selalu kekal pada setiap peristiwa tabrakan. Faktanya: Energi kinetik hanya kekal pada tumbukan lenting sempurna (e = 1). Pada tumbukan tidak lenting sama sekali (e = 0), sebagian energi kinetik terdisipasi menjadi energi termal (panas), deformasi bodi, dan gelombang suara.',
@@ -189,7 +189,7 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
 
   'ohm-wheatstone': {
     chapterNumber: 3,
-    chapterTitle: 'Bab 3: Gelombang, Optika Fisik & Fisika Kuantum',
+    chapterTitle: 'Bab 3: Momentum, Kelistrikan, Optika & Fisika Kuantum',
     competencyLevel: 'Menengah',
     commonMisconceptions: [
       'Arus listrik habis dikonsumsi oleh lampu dalam rangkaian. Faktanya: Muatan listrik bersifat kekal (Hukum I Kirchhoff); laju elektron yang masuk ke lampu persis sama dengan yang keluar. Yang diserap lampu adalah energi potensial listrik (tegangan), bukan elektronnya.',
@@ -201,16 +201,16 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
       'Sensor gas semikonduktor pada detektor kebocoran tabung LPG rumah tangga.',
     ],
     stepByStepGuide: [
-      '1. Rangkai jembatan Wheatstone dengan R1 = 100 Ω, R2 = 100 Ω, dan resistor uji Rx = 220 Ω.',
-      '2. Geser nilai resistor variabel R3 secara perlahan.',
+      '1. Rangkai jembatan Wheatstone dengan R1 = 100 Ω, R2 = 200 Ω, dan resistor uji Rx = 300 Ω.',
+      '2. Geser nilai resistor variabel R3 secara perlahan menuju 150 Ω.',
       '3. Amati indikator galvanometer hingga beda potensial jembatan VG tepat mencapai 0.0 mV (kondisi seimbang).',
-      '4. Buktikan bahwa nilai Rx terhitung tepat sama dengan R3 × (R1 / R2).',
+      '4. Buktikan bahwa nilai Rx terhitung tepat sama dengan R3 × (R2 / R1) = 150 × (200 / 100) = 300 Ω.',
     ],
   },
 
   'optics-young-slit': {
     chapterNumber: 3,
-    chapterTitle: 'Bab 3: Gelombang, Optika Fisik & Fisika Kuantum',
+    chapterTitle: 'Bab 3: Momentum, Kelistrikan, Optika & Fisika Kuantum',
     competencyLevel: 'Lanjut',
     commonMisconceptions: [
       'Cahaya yang melewati dua celah sempit hanya menghasilkan dua garis bayangan di layar. Faktanya: Gelombang cahaya dari kedua celah mengalami difraksi lenturan dan berinterferensi menghasilkan puluhan pita garis terang dan gelap bergantian.',
@@ -231,7 +231,7 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
 
   'photoelectric-planck': {
     chapterNumber: 3,
-    chapterTitle: 'Bab 3: Gelombang, Optika Fisik & Fisika Kuantum',
+    chapterTitle: 'Bab 3: Momentum, Kelistrikan, Optika & Fisika Kuantum',
     competencyLevel: 'Lanjut',
     commonMisconceptions: [
       'Menaikkan intensitas cahaya redup akan meningkatkan energi kinetik elektron yang lepas. Faktanya: Teori gelombang klasik gagal di sini! Menambah intensitas hanya memperbanyak jumlah foton (arus listrik), tetapi energi kinetik per elektron hanya ditentukan oleh frekuensi atau panjang gelombang foton.',

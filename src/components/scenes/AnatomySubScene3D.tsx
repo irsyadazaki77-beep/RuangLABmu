@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import {
   createBiologicalMembraneTexture,
   createContactShadowPlane,
+  createInstrumentPanelTexture,
   smoothCameraDamp,
+  updateInstrumentPanelTexture,
   type CameraSyncPose,
 } from '../../utils/threeStudioKit';
 import { initThreeStudioHost, startStudioRenderLoop } from '../../utils/threeStudioHost';
@@ -35,6 +37,7 @@ import {
 } from './anatomy/AnatomyPinsData';
 import { AnatomyHudOverlay } from './anatomy/AnatomyHudOverlay';
 import { Scene3DInspectorCard } from '../ui/Scene3DInspectorCard';
+import { Scene3DHoverBadge } from '../ui/Scene3DHoverBadge';
 import {
   getAdaptiveCameraPose,
   resolveApparatusInspection,
@@ -109,6 +112,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
   const layerModeRef = useRef<AnatomyLayerMode>('outer');
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [inspectedPart, setInspectedPart] = useState<ApparatusInspectionInfo | null>(null);
+  const [hoveredPartLabel, setHoveredPartLabel] = useState<string | null>(null);
   const [dragToast, setDragToast] = useState<{ label: string; value: string } | null>(null);
   const [sceneKey, setSceneKey] = useState<number>(0);
   const cameraLerpRef = useRef<{ target: THREE.Vector3; pos: THREE.Vector3; active: boolean }>({
@@ -191,6 +195,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       fallbackSize: { width: 720, height: 460 },
       backgroundHex: initialColors.backgroundHex,
       fogDensity: 0.045,
+      domainPreset: 'anatomy',
       camera: {
         fov: 44,
         near: 0.1,
@@ -338,6 +343,9 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         const val = paramsRef.current[paramKey];
         return typeof val === 'number' ? val : undefined;
       },
+      onHoverChange: (obj) => {
+        setHoveredPartLabel(obj ? String(obj.userData?.label ?? obj.name ?? 'Organ Anatomi 3D') : null);
+      },
       onDragStart: () => {
         labSound.playClick(620);
       },
@@ -359,6 +367,12 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       onDragEnd: () => {
         if (dragToastTimer) clearTimeout(dragToastTimer);
         dragToastTimer = setTimeout(() => setDragToast(null), 1400);
+      },
+      onClick: (obj) => {
+        labSound.playClick(640);
+        setSelectedPinId(null);
+        const hint = String(obj.userData?.label ?? obj.name ?? '');
+        setInspectedPart(resolveApparatusInspection('biology', mode, hint || undefined));
       },
       onCursorMove3D: (pos, normal, hoveredName) => {
         onEmitCursorRef.current?.(pos, normal, hoveredName);
@@ -430,6 +444,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       if (heartMembraneTex) disposableBioTextures.push(heartMembraneTex);
       if (heartBump) disposableBioTextures.push(heartBump);
 
+      const initialCanTransmit = !isSoftwareGl && !useUIStore.getState().liteDeviceMode;
       const myoMat = new THREE.MeshPhysicalMaterial({
         color: 0xffffff,
         map: heartMembraneTex,
@@ -438,7 +453,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         roughness: 0.3,
         clearcoat: 0.72,
         clearcoatRoughness: 0.18,
-        transmission: 0.06,
+        transmission: initialCanTransmit ? 0.06 : 0,
         transparent: true,
         opacity: 1.0,
         sheen: 0.35,
@@ -513,6 +528,19 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       venaCava.position.set(-0.76, 0.85, -0.15);
       venaCava.castShadow = true;
 
+      // Inferior Vena Cava entering Right Atrium from below
+      const infVenaCava = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.92, 18), venaMat);
+      infVenaCava.position.set(-0.72, -0.38, -0.15);
+      infVenaCava.castShadow = true;
+
+      // Superior & Inferior Pulmonary Veins entering Left Atrium
+      [-0.08, 0.12].forEach((pvy) => {
+        const pvLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.08, 0.72, 14), aortaMat);
+        pvLeft.rotation.z = Math.PI / 2;
+        pvLeft.position.set(0.92, 0.56 + pvy, -0.16);
+        rootGroup.add(pvLeft);
+      });
+
       const pulmCurve = new THREE.CatmullRomCurve3([
         new THREE.Vector3(-0.18, 0.35, 0.36),
         new THREE.Vector3(-0.12, 0.92, 0.28),
@@ -520,6 +548,28 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       ]);
       const pulmArtery = new THREE.Mesh(new THREE.TubeGeometry(pulmCurve, 20, 0.145, 14, false), venaMat);
       pulmArtery.castShadow = true;
+
+      // Grounded 3D Clinical ECG / Hemodynamic Monitor on Pedestal
+      const ecgStandMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.65, roughness: 0.34 });
+      const ecgPole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.85, 14), ecgStandMat);
+      ecgPole.position.set(1.85, -1.78, 0.65);
+      const ecgBox = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.64, 0.16), ecgStandMat);
+      ecgBox.position.set(1.85, -1.32, 0.65);
+      ecgBox.rotation.y = -0.35;
+      const ecgScreenTex = createInstrumentPanelTexture({
+        title: 'HEMODYNAMIC MONITOR',
+        primaryText: '72 bpm',
+        secondaryText: 'CO 5.0 L/m · MAP 93 mmHg',
+        accentHex: '#fb7185',
+      });
+      if (ecgScreenTex) disposableBioTextures.push(ecgScreenTex);
+      const ecgScreenMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.02, 0.48),
+        new THREE.MeshBasicMaterial({ map: ecgScreenTex })
+      );
+      ecgScreenMesh.position.set(0, 0, 0.086);
+      ecgBox.add(ecgScreenMesh);
+      rootGroup.add(ecgPole, ecgBox);
 
       rootGroup.add(
         leftVentricle,
@@ -529,6 +579,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         aortaArch,
         coronaryArtery,
         venaCava,
+        infVenaCava,
         pulmArtery
       );
 
@@ -597,10 +648,22 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         rbcCount
       );
       innerGroup.add(sysStream, pulStream);
+      let lastEcgKey = '';
 
       updateFrame = (t) => {
         const hr = paramsRef.current.heartRateBpm ?? 72;
         const radiusRatio = paramsRef.current.vesselRadiusRatio ?? 1.0;
+        const ecgKey = `${Math.round(hr)}_${radiusRatio.toFixed(2)}`;
+        if (ecgKey !== lastEcgKey) {
+          lastEcgKey = ecgKey;
+          const hMetrics = evalHeart(paramsRef.current);
+          updateInstrumentPanelTexture(ecgScreenTex, {
+            title: 'HEMODYNAMIC MONITOR',
+            primaryText: `${Math.round(hr)} bpm`,
+            secondaryText: `CO ${hMetrics.cardiacOutputLMin.toFixed(1)} L/m · MAP ${Math.round(hMetrics.meanArterialPressure)} mmHg`,
+            accentHex: '#fb7185',
+          });
+        }
         const phase = (t * (hr / 60)) % 1.0;
         const sysPulse = phase < 0.32 ? Math.sin((phase / 0.32) * Math.PI) : 0;
         const atrPulse = phase > 0.78 ? Math.sin(((phase - 0.78) / 0.22) * Math.PI) : 0;
@@ -646,16 +709,17 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       if (lungMembraneTex) disposableBioTextures.push(lungMembraneTex);
       if (lungBump) disposableBioTextures.push(lungBump);
 
+      const initialCanTransmitLungs = !isSoftwareGl && !useUIStore.getState().liteDeviceMode;
       const lobeMat = new THREE.MeshPhysicalMaterial({
         color: 0xffffff,
         map: lungMembraneTex,
         bumpMap: lungBump,
         bumpScale: 0.016,
         roughness: 0.28,
-        transmission: 0.72,
+        transmission: initialCanTransmitLungs ? 0.72 : 0,
         thickness: 0.85,
         transparent: true,
-        opacity: 0.8,
+        opacity: initialCanTransmitLungs ? 0.8 : 0.68,
         clearcoat: 0.65,
         clearcoatRoughness: 0.15,
       });
@@ -683,6 +747,61 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       leftLung.position.set(1.05, 0.28, 0);
       leftLung.castShadow = true;
       rootGroup.add(rightLung, leftLung);
+
+      // Translucent Anatomical Thoracic Ribcage & Sternum Frame around Lungs
+      const ribBoneMat = new THREE.MeshPhysicalMaterial({
+        color: 0xf1f5f9,
+        roughness: 0.42,
+        transparent: true,
+        opacity: 0.34,
+        clearcoat: 0.3,
+      });
+      const sternumPlate = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.11, 1.15, 8, 16),
+        ribBoneMat
+      );
+      sternumPlate.scale.set(1.1, 1.0, 0.35);
+      sternumPlate.position.set(0, 0.28, 0.82);
+      rootGroup.add(sternumPlate);
+      for (let r = 0; r < 5; r += 1) {
+        const ribY = 0.88 - r * 0.36;
+        const ribWidth = 1.65 + Math.sin((r / 4) * Math.PI) * 0.38;
+        [-1, 1].forEach((side) => {
+          const ribCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(side * 0.12, ribY, 0.8),
+            new THREE.Vector3(side * (ribWidth * 0.65), ribY - 0.04, 0.62),
+            new THREE.Vector3(side * ribWidth, ribY - 0.08, 0.0),
+            new THREE.Vector3(side * (ribWidth * 0.55), ribY - 0.04, -0.68),
+          ]);
+          const ribMesh = new THREE.Mesh(
+            new THREE.TubeGeometry(ribCurve, 18, 0.036, 8, false),
+            ribBoneMat
+          );
+          rootGroup.add(ribMesh);
+        });
+      }
+
+      // Grounded 3D Digital Spirometer Monitor on Pedestal
+      const spiroStandMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.65, roughness: 0.34 });
+      const spiroPole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.85, 14), spiroStandMat);
+      spiroPole.position.set(1.85, -1.78, 0.65);
+      const spiroBox = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.64, 0.16), spiroStandMat);
+      spiroBox.position.set(1.85, -1.32, 0.65);
+      spiroBox.rotation.y = -0.35;
+      const spiroScreenTex = createInstrumentPanelTexture({
+        title: 'DIGITAL SPIROMETER',
+        primaryText: '500 mL',
+        secondaryText: 'RR 15 /m · MV 7.5 L/m',
+        accentHex: '#38bdf8',
+      });
+      if (spiroScreenTex) disposableBioTextures.push(spiroScreenTex);
+      const spiroScreenMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.02, 0.48),
+        new THREE.MeshBasicMaterial({ map: spiroScreenTex })
+      );
+      spiroScreenMesh.position.set(0, 0, 0.086);
+      spiroBox.add(spiroScreenMesh);
+      rootGroup.add(spiroPole, spiroBox);
 
       const airwayMat = new THREE.MeshStandardMaterial({ color: 0xe0f2fe, roughness: 0.34, clearcoat: 0.25 } as any);
       const trachea = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 1.45, 20), airwayMat);
@@ -770,11 +889,28 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       const o2Mesh = new THREE.InstancedMesh(gasGeo, new THREE.MeshBasicMaterial({ color: 0x38bdf8 }), gasCount);
       const co2Mesh = new THREE.InstancedMesh(gasGeo, new THREE.MeshBasicMaterial({ color: 0xfb923c }), gasCount);
       innerGroup.add(o2Mesh, co2Mesh);
+      let lastSpiroKey = '';
 
       updateFrame = (t, _dt, particleScale) => {
         const rr = paramsRef.current.respirationRate ?? 15;
         const effort = paramsRef.current.diaphragmEffort ?? 50;
         const resistance = paramsRef.current.airwayResistance ?? 1.0;
+        const spiroKey = `${Math.round(rr)}_${Math.round(effort)}_${resistance.toFixed(2)}`;
+        if (spiroKey !== lastSpiroKey) {
+          lastSpiroKey = spiroKey;
+          const lMetrics = calculateRespiratoryLungs({
+            respirationRate: rr,
+            diaphragmEffort: effort,
+            airwayResistance: resistance,
+            altitudeMeters: paramsRef.current.altitudeMeters ?? 0,
+          });
+          updateInstrumentPanelTexture(spiroScreenTex, {
+            title: 'DIGITAL SPIROMETER',
+            primaryText: `${Math.round(lMetrics.tidalVolumeMl)} mL`,
+            secondaryText: `RR ${Math.round(rr)} /m · MV ${lMetrics.minuteVentilationLMin.toFixed(1)} L/m`,
+            accentHex: '#38bdf8',
+          });
+        }
         const breath = 0.5 - 0.5 * Math.cos(2 * Math.PI * (rr / 60) * t);
         const amp = (0.08 + (effort / 100) * 0.22) / Math.max(0.85, Math.sqrt(resistance));
 
@@ -811,6 +947,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       if (neuronMembraneTex) disposableBioTextures.push(neuronMembraneTex);
       if (neuronBump) disposableBioTextures.push(neuronBump);
 
+      const initialCanTransmitNeuron = !isSoftwareGl && !useUIStore.getState().liteDeviceMode;
       const somaMat = new THREE.MeshPhysicalMaterial({
         color: 0xffffff,
         map: neuronMembraneTex,
@@ -818,12 +955,17 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         bumpScale: 0.018,
         roughness: 0.32,
         clearcoat: 0.65,
-        transmission: 0.18,
+        transmission: initialCanTransmitNeuron ? 0.18 : 0,
         transparent: true,
         opacity: 1.0,
       });
       const myelinMat = new THREE.MeshPhysicalMaterial({
-        color: 0xfacc15, roughness: 0.28, clearcoat: 0.55, transmission: 0.35, transparent: true, opacity: 0.92,
+        color: 0xfacc15,
+        roughness: 0.28,
+        clearcoat: 0.55,
+        transmission: initialCanTransmitNeuron ? 0.35 : 0,
+        transparent: true,
+        opacity: 0.92,
       });
       outerMaterials.push(somaMat, myelinMat);
 
@@ -847,6 +989,20 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       nucleus.position.set(-2.1, 0, 0);
       innerGroup.add(nucleus);
 
+      // Rough Endoplasmic Reticulum (Nissl Bodies) & Soma Mitochondria around Nucleus
+      const nisslMat = new THREE.MeshStandardMaterial({
+        color: 0xc084fc,
+        emissive: 0x7e22ce,
+        emissiveIntensity: 0.45,
+        roughness: 0.35,
+      });
+      [0.36, 0.44].forEach((r, idx) => {
+        const erRing = new THREE.Mesh(new THREE.TorusGeometry(r, 0.032, 10, 24, Math.PI * 1.35), nisslMat);
+        erRing.position.set(-2.1, 0, 0);
+        erRing.rotation.set(idx * 0.7, idx * 1.1, 0.4);
+        innerGroup.add(erRing);
+      });
+
       for (let d = 0; d < 6; d++) {
         const ang = (d / 6) * Math.PI * 2;
         const dendCurve = new THREE.CatmullRomCurve3([
@@ -866,12 +1022,19 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       axonCore.position.set(0.15, 0, 0);
       innerGroup.add(axonCore);
 
-      // Rounded Schwann capsule myelin sheaths separated by Ranvier nodes
+      // Rounded Schwann capsule myelin sheaths separated by Ranvier nodes + Na+ Channel Rings
       const myelinSegments: THREE.Mesh[] = [];
+      const ranvierChannelMat = new THREE.MeshStandardMaterial({
+        color: 0x22d3ee,
+        emissive: 0x0891b2,
+        emissiveIntensity: 0.65,
+        roughness: 0.25,
+      });
       for (let s = 0; s < 4; s++) {
+        const segX = -1.05 + s * 0.88;
         const seg = new THREE.Mesh(new THREE.CapsuleGeometry(0.21, 0.44, 8, 20), myelinMat);
         seg.rotation.z = Math.PI / 2;
-        seg.position.set(-1.05 + s * 0.88, 0, 0);
+        seg.position.set(segX, 0, 0);
         seg.castShadow = true;
         seg.name = 'Selubung Mielin (Seret untuk ubah ketebalan)';
         seg.userData = {
@@ -884,12 +1047,63 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         myelinSegments.push(seg);
         interactiveAnatomyMeshes.push(seg);
         rootGroup.add(seg);
+
+        if (s < 3) {
+          const ranvierRing = new THREE.Mesh(
+            new THREE.TorusGeometry(0.115, 0.024, 10, 20),
+            ranvierChannelMat
+          );
+          ranvierRing.rotation.y = Math.PI / 2;
+          ranvierRing.position.set(segX + 0.44, 0, 0);
+          innerGroup.add(ranvierRing);
+        }
       }
 
       const bouton = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 24), somaMat);
       bouton.scale.set(1.2, 0.95, 0.95);
       bouton.position.set(2.25, 0, 0);
       rootGroup.add(bouton);
+
+      // Presynaptic Synaptic Vesicles clustered inside the terminal bouton
+      const vesicleMat = new THREE.MeshStandardMaterial({
+        color: 0x4ade80,
+        emissive: 0x16a34a,
+        emissiveIntensity: 0.6,
+        roughness: 0.25,
+      });
+      [
+        [2.12, 0.14, 0.08],
+        [2.28, -0.12, 0.1],
+        [2.32, 0.11, -0.09],
+        [2.18, -0.08, -0.12],
+        [2.38, 0.0, 0.04],
+      ].forEach(([vx, vy, vz]) => {
+        const vesicle = new THREE.Mesh(new THREE.SphereGeometry(0.068, 12, 12), vesicleMat);
+        vesicle.position.set(vx, vy, vz);
+        innerGroup.add(vesicle);
+      });
+
+      // Grounded 3D Patch-Clamp Electrophysiology Monitor on Pedestal
+      const patchStandMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.65, roughness: 0.34 });
+      const patchPole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.85, 14), patchStandMat);
+      patchPole.position.set(1.85, -1.78, 0.65);
+      const patchBox = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.64, 0.16), patchStandMat);
+      patchBox.position.set(1.85, -1.32, 0.65);
+      patchBox.rotation.y = -0.35;
+      const patchScreenTex = createInstrumentPanelTexture({
+        title: 'PATCH-CLAMP AMPLIFIER',
+        primaryText: '-35 mV',
+        secondaryText: 'POTENSIAL AKSI · Mielin 75%',
+        accentHex: '#22d3ee',
+      });
+      if (patchScreenTex) disposableBioTextures.push(patchScreenTex);
+      const patchScreenMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.04, 0.48),
+        new THREE.MeshBasicMaterial({ map: patchScreenTex })
+      );
+      patchScreenMesh.position.set(0, 0, 0.086);
+      patchBox.add(patchScreenMesh);
+      rootGroup.add(patchPole, patchBox);
 
       // Postsynaptic Membrane Spine & Voltage/Ligand-Gated Ion Channels across synaptic cleft
       const postsynapse = new THREE.Mesh(
@@ -928,11 +1142,22 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         ntCount
       );
       innerGroup.add(ntMesh);
+      let lastPatchKey = '';
 
       updateFrame = (t, _dt, particleScale) => {
         const stim = paramsRef.current.stimulusVoltageMv ?? -35;
         const myelin = paramsRef.current.myelinThickness ?? 75;
         const fired = stim >= -55;
+        const patchKey = `${Math.round(stim)}_${Math.round(myelin)}_${fired}`;
+        if (patchKey !== lastPatchKey) {
+          lastPatchKey = patchKey;
+          updateInstrumentPanelTexture(patchScreenTex, {
+            title: 'PATCH-CLAMP AMPLIFIER',
+            primaryText: `${stim >= 0 ? '+' : ''}${Math.round(stim)} mV`,
+            secondaryText: fired ? `POTENSIAL AKSI · Mielin ${Math.round(myelin)}%` : 'SUB-AMBANG (< -55 mV)',
+            accentHex: fired ? '#22d3ee' : '#fb923c',
+          });
+        }
         const scaleMyelin = 0.45 + (myelin / 100) * 0.75;
         myelinSegments.forEach((seg) => seg.scale.set(scaleMyelin, 1, scaleMyelin));
 
@@ -980,7 +1205,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       renderer,
       isSoftwareGl,
       fpsMonitor,
-      onFrame: ({ nowMs, dt: rawDt, elapsed, particleScale }) => {
+      onFrame: ({ nowMs, dt: rawDt, elapsed, isLite, particleScale }) => {
         const dt = rawDt * (playingRef.current ? timeScaleRef.current : 0);
         simAccumTime += dt;
         const extRef = externalSimTimeRef.current;
@@ -992,14 +1217,19 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
             : simAccumTime || elapsed;
 
         const lm = layerModeRef.current;
+        const canTransmit = !isSoftwareGl && !isLite;
         outerMaterials.forEach((mat) => {
           if (lm === 'xray') {
-            mat.opacity = 0.25; mat.transmission = 0.85; mat.depthWrite = false;
+            mat.opacity = 0.26;
+            mat.transmission = canTransmit ? 0.85 : 0;
+            mat.depthWrite = false;
           } else if (lm === 'cross-section') {
-            mat.opacity = 0.55; mat.transmission = 0.45; mat.depthWrite = true;
+            mat.opacity = 0.55;
+            mat.transmission = canTransmit ? 0.45 : 0;
+            mat.depthWrite = true;
           } else {
-            mat.opacity = mode === 'anatomy-respiratory-lungs' ? 0.78 : 1.0;
-            mat.transmission = mode === 'anatomy-respiratory-lungs' ? 0.75 : 0.12;
+            mat.opacity = mode === 'anatomy-respiratory-lungs' ? (canTransmit ? 0.78 : 0.68) : 1.0;
+            mat.transmission = canTransmit ? (mode === 'anatomy-respiratory-lungs' ? 0.75 : 0.12) : 0;
             mat.depthWrite = true;
           }
         });
@@ -1056,7 +1286,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
           }
         } else if (mode === 'anatomy-respiratory-lungs') {
           const rr = pCur.respirationRate ?? 15;
-          const inhaling = Math.sin(2 * Math.PI * (rr / 60) * elapsed) >= 0;
+          const inhaling = Math.sin(2 * Math.PI * (rr / 60) * effectiveT) >= 0;
           if (lungAirArrow) {
             lungAirArrow.visible = showLabels;
             lungAirArrow.setDirection(inhaling ? downDir : upDir);
@@ -1073,7 +1303,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
               diaphragmEffort: pCur.diaphragmEffort ?? 50,
               airwayResistance: pCur.airwayResistance ?? 1.0,
               altitudeMeters: pCur.altitudeMeters ?? 0,
-              timeSec: elapsed,
+              timeSec: effectiveT,
             });
             cPos1.set(0, -1.25, 0.35);
             cEntries[0].text = 'Diafragma (Hukum Boyle)';
@@ -1099,7 +1329,7 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
               myelinThickness: pCur.myelinThickness ?? 75,
               extracellularNaMm: pCur.extracellularNaMm ?? 145,
               extracellularKMm: pCur.extracellularKMm ?? 4.5,
-              timeSec: elapsed,
+              timeSec: effectiveT,
             });
             cPos1.set(-2.1, 0.85, 0);
             cEntries[0].text = `Soma · Stimulus ${stim} mV`;
@@ -1182,6 +1412,8 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         dragToast={dragToast}
         params={params}
       />
+
+      <Scene3DHoverBadge hoveredLabel={dragToast ? null : hoveredPartLabel} accent="emerald" />
     </div>
   );
 };

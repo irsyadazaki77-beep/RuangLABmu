@@ -353,7 +353,8 @@ export function calculateChemistryMetrics(params: ChemistryParams): ChemistryMet
   const standardCellPotentialE0 = redox.e0Cathode - redox.e0Anode;
   const cAnode = Math.max(0.0001, params.anodeConcM || 1.0);
   const cCathode = Math.max(0.0001, params.cathodeConcM || 1.0);
-  const reactionQuotientQ = cAnode / cCathode;
+  const cathodeStoichPower = redox.id.includes('ag') ? 2 : 1;
+  const reactionQuotientQ = cAnode / Math.pow(cCathode, cathodeStoichPower);
   const FARADAY = 96485;
   const nernstCellPotentialE =
     standardCellPotentialE0 -
@@ -424,12 +425,16 @@ export function calculateChemistryMetrics(params: ChemistryParams): ChemistryMet
     molarExtinctionEpsilon: epsMolar,
     absorbedColorName: params.spectroWavelengthNm
       ? params.spectroWavelengthNm < 450
-        ? 'Violet/Biru'
-        : params.spectroWavelengthNm < 520
-        ? 'Sian/Hijau'
+        ? 'Violet (380–450 nm)'
+        : params.spectroWavelengthNm < 495
+        ? 'Biru (450–495 nm)'
+        : params.spectroWavelengthNm < 570
+        ? 'Hijau (495–570 nm)'
         : params.spectroWavelengthNm < 590
-        ? 'Kuning'
-        : 'Jingga/Merah'
-      : 'Sian/Biru (480-520 nm)',
+        ? 'Kuning (570–590 nm)'
+        : params.spectroWavelengthNm < 620
+        ? 'Jingga (590–620 nm)'
+        : 'Merah (620–750 nm)'
+      : 'Hijau (495–570 nm)',
   };
 }

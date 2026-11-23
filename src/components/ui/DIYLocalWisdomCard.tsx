@@ -35,6 +35,50 @@ export function getLocalWisdomForDomain(domain: string, moduleId = ''): DIYExper
   const mNorm = (moduleId || '').toLowerCase();
 
   if (dNorm.includes('kimia') || dNorm.includes('chem')) {
+    if (mNorm.includes('redox') || mNorm.includes('electro')) {
+      return {
+        title: 'Sel Volta Alami dari Jeruk Nipis, Koin Tembaga & Paku Seng',
+        icon: <FlaskConical className="w-5 h-5 text-amber-500" />,
+        toolsNeeded: [
+          '3–4 buah jeruk nipis / belimbing wuluh segar',
+          'Koin tembaga (atau potongan kabel tembaga) sebagai katoda (+)',
+          'Paku besi galvanis berlapis seng (Zn) sebagai anoda (−)',
+          'Kabel penjepit buaya sederhana dan 1 buah lampu LED tegangan rendah (1,8 V)',
+        ],
+        steps: [
+          'Tekan perlahan jeruk nipis di atas meja agar sari asam sitrat di dalamnya mudah menghantarkan ion.',
+          'Tancapkan satu paku seng dan satu koin tembaga berjarak ~2 cm pada setiap jeruk tanpa saling bersentuhan.',
+          'Hubungkan 3–4 jeruk secara seri (tembaga jeruk 1 ke paku seng jeruk 2, dst.) agar tegangan total mencapai > 2,2 V.',
+          'Sambungkan ujung rangkaian ke kaki LED (+ ke tembaga, − ke seng) dan amati nyala redup LED!',
+        ],
+        scientificPrinciple:
+          'Asam sitrat berperan sebagai elektrolit; seng teroksidasi melepaskan elektron (Zn → Zn²⁺ + 2e⁻) yang mengalir menuju elektroda tembaga menghasilkan gaya gerak listrik (GGL) sel.',
+        localCultureNote:
+          'Kearifan Tradisional: Pemanfaatan jeruk nipis dan belimbing wuluh kaya asam organik juga digunakan masyarakat nusantara untuk membersihkan karat dan kerak oksida logam pada keris maupun perkakas kuningan.',
+      };
+    }
+    if (mNorm.includes('calorim') || mNorm.includes('gas') || mNorm.includes('kinetic')) {
+      return {
+        title: 'Reaksi Endotermik & Tekanan Gas CO₂ dari Soda Kue + Cuka',
+        icon: <FlaskConical className="w-5 h-5 text-amber-500" />,
+        toolsNeeded: [
+          '1 botol plastik bening bekas air mineral',
+          '2 sendok teh soda kue (NaHCO₃) dan 50 mL cuka dapur (CH₃COOH)',
+          '1 buah balon karet dan corong kertas sederhana',
+          'Air dingin vs air hangat (opsional untuk membandingkan laju reaksi)',
+        ],
+        steps: [
+          'Tuangkan 50 mL cuka ke dalam botol plastik, lalu pegang dinding botol untuk merasakan suhu awalnya.',
+          'Masukkan soda kue ke dalam balon menggunakan corong kertas, lalu pasang mulut balon erat pada bibir botol.',
+          'Angkat balon agar soda kue jatuh ke dalam cuka: amati balon mengembang cepat terisi gas CO₂!',
+          'Raba kembali dinding bawah botol: terasa dingin karena reaksi NaHCO₃ + CH₃COOH menyerap kalor (endotermik).',
+        ],
+        scientificPrinciple:
+          'Reaksi asam-bikarbonat menyerap kalor lingkungan (ΔH > 0, endotermik) dan melepaskan gas CO₂ yang meningkatkan jumlah mol gas n sehingga tekanan P dan volume balon V membesar sesuai PV = nRT.',
+        localCultureNote:
+          'Kearifan Tradisional: Prinsip pelepasan gas CO₂ dari ragi dan pengembang alami telah lama dimanfaatkan dalam pembuatan kue apem, bika ambon, dan roti kukus tradisional nusantara.',
+      };
+    }
     return {
       title: 'Indikator Asam-Basa Alami dari Kunyit & Bunga Sepatu',
       icon: <FlaskConical className="w-5 h-5 text-amber-500" />,
@@ -52,13 +96,56 @@ export function getLocalWisdomForDomain(domain: string, moduleId = ''): DIYExper
         'Bila kedua gelas dicampurkan perlahan (reaksi netralisasi), amati perubahan warnanya kembali menuju kuning jingga.',
       ],
       scientificPrinciple:
-        'Kunyit mengandung senyawa kurkumin yang bertindak sebagai indikator pH alami: berwarna kuning pada suasana asam (pH < 7) dan beralih ke merah kecokelatan pada suasana basa (pH > 8.5).',
+        'Kunyit mengandung senyawa kurkumin yang bertindak sebagai indikator pH alami: berwarna kuning pada suasana asam (pH < 7) dan beralih ke merah kecokelatan pada suasana basa (pH > 8,5).',
       localCultureNote:
         'Kearifan Tradisional: Nenek moyang kita telah lama memanfaatkan kunyit dan kapur sirih dalam tradisi menyirih dan pewarnaan kain batik alami tanpa memerlukan zat kimia sintetis impor.',
     };
   }
 
   if (dNorm.includes('fisika') || dNorm.includes('phys')) {
+    if (mNorm.includes('optic') || mNorm.includes('photoelectric')) {
+      return {
+        title: 'Kisi Difraksi Spektrum Pelangi dari Keping CD Bekas & Senter HP',
+        icon: <Scale className="w-5 h-5 text-sky-500" />,
+        toolsNeeded: [
+          '1 keping CD atau DVD bekas (memiliki alur mikro ~1,6 μm sebagai kisi difraksi)',
+          'Senter HP atau cahaya matahari yang masuk melalui celah kardus sempit',
+          'Kertas karton putih sebagai layar pengamatan',
+          'Ruangan yang agak redup agar pita spektrum terlihat tajam',
+        ],
+        steps: [
+          'Arahkan berkas cahaya senter HP dengan sudut miring (~45°) ke permukaan mengilap keping CD.',
+          'Tangkap cahaya pantulan pada kertas karton putih di dekatnya dan amati terurainya cahaya putih menjadi pita warna merah hingga ungu.',
+          'Ubah sudut datang cahaya dan perhatikan pergeseran posisi pita terang orde ke-1 dan ke-2.',
+          'Bandingkan pita merah (λ lebih panjang, sudut belok lebih besar) dengan pita biru-ungu (λ lebih pendek).',
+        ],
+        scientificPrinciple:
+          'Alur data mikroskopis pada keping CD bekerja sebagai kisi difraksi berjarak d ≈ 1,6 μm yang menguraikan panjang gelombang cahaya sesuai persamaan interferensi d · sin θ = m · λ.',
+        localCultureNote:
+          'Kearifan Tradisional: Fenomena pelangi dan kilau warna-warni struktur mikro juga tampak pada bulu burung cenderawasih serta cangkang kerang mutiara di perairan timur Indonesia.',
+      };
+    }
+    if (mNorm.includes('wheatstone') || mNorm.includes('ohm')) {
+      return {
+        title: 'Uji Hambatan & Konduktivitas Bahan dengan Baterai AA dan LED',
+        icon: <Scale className="w-5 h-5 text-sky-500" />,
+        toolsNeeded: [
+          '2 buah baterai AA (total 3 V) dan 1 buah lampu LED + resistor 100 Ω',
+          'Kabel tembaga kecil atau potongan foil aluminium sebagai penghantar',
+          'Bahan uji: isi pensil grafit 2B, sendok logam, karet penghapus, dan air garam',
+        ],
+        steps: [
+          'Rangkai baterai, resistor pengaman, dan LED secara seri dengan dua ujung kabel uji terbuka.',
+          'Sentuhkan kedua ujung kabel ke sendok logam: LED menyala terang karena hambatan logam sangat kecil.',
+          'Goreskan garis tebal dengan pensil grafit 2B di kertas (panjang 2 cm lalu 8 cm) dan sentuhkan ujung kabel: amati nyala LED makin redup saat jalur grafit makin panjang!',
+          'Uji pada karet penghapus (isolator): arus terhenti karena hambatan sangat besar.',
+        ],
+        scientificPrinciple:
+          'Sesuai Hukum Ohm (I = V / R) dan rumus resistansi kawat (R = ρ · L / A), semakin panjang lintasan konduktor grafit, semakin besar hambatannya sehingga arus I yang mengalir ke LED mengecil.',
+        localCultureNote:
+          'Kearifan Tradisional: Pemahaman bahan penghantar dan isolator alami sangat penting dalam keselamatan instalasi listrik rumah tangga pedesaan serta perlindungan sambaran petir.',
+      };
+    }
     if (mNorm.includes('incline') || mNorm.includes('newton')) {
       return {
         title: 'Bidang Miring DIY dengan Papan Kayu & Baterai Bekas',
@@ -77,7 +164,7 @@ export function getLocalWisdomForDomain(domain: string, moduleId = ''): DIYExper
           'Bandingkan waktu tempuh: sudut yang lebih curam menghasilkan percepatan (g · sin θ) yang lebih besar!',
         ],
         scientificPrinciple:
-          'Gaya pendorong benda di bidang miring tanpa gesekan sebanding dengan komponen gravitasi sejajar bidang (W_x = m · g · sin θ).',
+          'Gaya pendorong benda di bidang miring tanpa gesekan sebanding dengan komponen gravitasi sejajar bidang (Wₓ = m · g · sin θ).',
         localCultureNote:
           'Kearifan Tradisional: Prinsip bidang miring telah digunakan masyarakat pedesaan nusantara untuk menaikkan gelondongan kayu atau hasil panen gabah ke atas bak truk pengangkut.',
       };
@@ -106,7 +193,49 @@ export function getLocalWisdomForDomain(domain: string, moduleId = ''): DIYExper
   }
 
   if (dNorm.includes('biologi') || dNorm.includes('bio')) {
-    if (mNorm.includes('heart') || mNorm.includes('cardio') || mNorm.includes('anatomi')) {
+    if (mNorm.includes('photosynthesis')) {
+      return {
+        title: 'Uji Gelembung Oksigen Fotosintesis dengan Daun Segar & Gelas Air',
+        icon: <Leaf className="w-5 h-5 text-emerald-500" />,
+        toolsNeeded: [
+          '2 gelas kaca bening berisi air bersih (1 gelas ditambah sejumput soda kue sebagai sumber CO₂)',
+          '2 helai daun segar yang baru dipetik (daun bayam, melati, atau tanaman air akuarium)',
+          'Cahaya matahari pagi langsung dan tempat teduh sebagai pembanding',
+        ],
+        steps: [
+          'Rendam masing-masing daun segar di dalam gelas air hingga tercelup penuh (tindih sedikit dengan kerikil bersih).',
+          'Letakkan gelas pertama di bawah sinar matahari langsung dan gelas kedua di ruangan teduh selama 20–30 menit.',
+          'Amati permukaan daun: gelembung-gelembung halus gas oksigen (O₂) jauh lebih banyak muncul pada gelas di bawah sinar matahari!',
+          'Tambahkan sejumput soda kue ke air dan amati pertambahan laju gelembung karena suplai CO₂ meningkat.',
+        ],
+        scientificPrinciple:
+          'Energi cahaya matahari memicu fotolisis air di kloroplas daun menghasilkan gas O₂ terlarut yang berkumpul menjadi gelembung di permukaan stomata.',
+        localCultureNote:
+          'Kearifan Tradisional: Penanaman pohon rindang di pekarangan rumah dan sistem subak/wanatani nusantara memanfaatkan fotosintesis untuk menyejukkan udara sekaligus menyuplai oksigen bersih.',
+      };
+    }
+    if (mNorm.includes('lung') || mNorm.includes('respir')) {
+      return {
+        title: 'Model Mekanisme Paru-Paru & Diafragma dari Botol Plastik dan Balon',
+        icon: <HeartPulse className="w-5 h-5 text-sky-500" />,
+        toolsNeeded: [
+          '1 botol plastik bening bekas ukuran 600 mL yang dipotong bagian bawahnya',
+          '2 buah balon karet (1 balon kecil untuk paru-paru, 1 balon besar untuk diafragma)',
+          '1 sedotan plastik, karet gelang, dan plastisin/lilin mainan penutup mulut botol',
+        ],
+        steps: [
+          'Ikat balon kecil di ujung sedotan menggunakan karet gelang, lalu masukkan ke dalam botol dan rapatkan leher botol dengan plastisin.',
+          'Potong leher balon besar lalu rentangkan menutup alas botol yang terbuka sebagai membran diafragma.',
+          'Tarik membran balon bawah ke arah luar: amati balon paru-paru di dalam botol langsung mengembang (inspirasi)!',
+          'Lepaskan atau dorong sedikit ke dalam: balon paru-paru mengempis (ekspirasi).',
+        ],
+        scientificPrinciple:
+          'Menarik diafragma memperbesar volume rongga dada sehingga tekanan intrapleura turun di bawah tekanan atmosfer (Hukum Boyle, P₁V₁ = P₂V₂) dan udara mengalir masuk ke paru-paru.',
+        localCultureNote:
+          'Kearifan Tradisional: Teknik olah napas perut (diafragma) digunakan dalam pencak silat dan seni tarik suara tradisional nusantara untuk memaksimalkan kapasitas vital paru-paru.',
+      };
+    }
+    if (mNorm.includes('heart') || mNorm.includes('cardio') || mNorm.includes('neural') || mNorm.includes('anatomi')) {
       return {
         title: 'Pemeriksaan Denyut Nadi Radial Mandiri Saat Istirahat vs Olahraga',
         icon: <HeartPulse className="w-5 h-5 text-rose-500" />,
@@ -143,7 +272,7 @@ export function getLocalWisdomForDomain(domain: string, moduleId = ''): DIYExper
         'Potongan di air biasa tetap keras dan segar karena air masuk ke dalam vakuola sel (turgid).',
       ],
       scientificPrinciple:
-        'Air berpindah melintasi membran semipermeabel dari larutan berkonsentrasi air tinggi ke larutan garam berkonsentrasi air lebih rendah (osmosis). Sel di air garam mengalami plasmolisis/krenasi.',
+        'Air berpindah melintasi membran semipermeabel dari potensial air tinggi ke larutan garam hipertonik (osmosis). Sel tumbuhan di air garam kehilangan tekanan turgor sehingga mengalami plasmolisis.',
       localCultureNote:
         'Kearifan Tradisional: Prinsip penarikan air oleh garam ini merupakan fondasi pembuatan ikan asin dan asinan sayur tradisional nusantara agar tahan berbulan-bulan tanpa pembusukan bakteri.',
     };
@@ -164,9 +293,9 @@ export function getLocalWisdomForDomain(domain: string, moduleId = ''): DIYExper
       'Catat bentuk fase bulan malam ini (sabit, separuh, atau purnama).',
     ],
     scientificPrinciple:
-      'Warna bintang mencerminkan suhu permukaannya sesuai Hukum Pergeseran Wien (λ_max · T = 2.898 × 10⁻³ m·K). Bintang biru jauh lebih panas dibanding bintang merah.',
+      'Warna bintang mencerminkan suhu permukaannya sesuai Hukum Pergeseran Wien (λ maks · T = 2,898 × 10⁻³ m·K). Bintang biru jauh lebih panas dibanding bintang merah.',
     localCultureNote:
-      'Kearifan Tradisional Nusantara: Nelayan Bugis dan pelaut tradisional nusantara melayari samudera berpedoman pada Bintang Pari. Petani tradisional Jawa menjadikan terbitnya Rasi Waluku sebagai awal musim tanam padi (Pranata Mangsa Kasanga).',
+      'Kearifan Tradisional Nusantara: Nelayan Bugis dan pelaut tradisional nusantara melayari samudera berpedoman pada Bintang Pari. Petani tradisional Jawa memanfaatkan terbitnya Rasi Waluku sebagai penanda musim dalam kalender musiman tradisional Pranata Mangsa.',
   };
 }
 

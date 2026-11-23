@@ -8,6 +8,7 @@ import {
   RoomMissionUpdateSchema,
   RoomRejoinSchema,
   RoomSnapshotSchema,
+  SubmissionBatchGradeSchema,
   SubmissionCreateSchema,
   SubmissionGradeSchema,
   SubmissionsQuerySchema,
@@ -135,6 +136,13 @@ export interface ValidatedSubmissionGradePayload {
   id: string;
   score: number;
   feedback: string;
+  schoolId: string;
+}
+
+export interface ValidatedSubmissionBatchGradePayload {
+  submissionIds?: string[];
+  onlyUngraded: boolean;
+  feedbackPrefix: string;
   schoolId: string;
 }
 
@@ -547,6 +555,32 @@ export function validateGradeSubmissionPayload(
       id: parsed.data.id,
       score: parsed.data.score,
       feedback: parsed.data.feedback || '',
+      schoolId: parsed.data.schoolId || 'default-school',
+    },
+  };
+}
+
+export function validateBatchGradeSubmissionsPayload(
+  body: unknown
+): ValidationResult<ValidatedSubmissionBatchGradePayload> {
+  if (body !== undefined && !isPlainObject(body)) {
+    return fail('Payload penilaian massal harus berupa objek JSON.');
+  }
+
+  const rawBody = isPlainObject(body) ? body : {};
+  const parsed = SubmissionBatchGradeSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return failFromZod(parsed.error, 'Payload penilaian massal tidak valid.');
+  }
+
+  const hasExplicitIds = Array.isArray(parsed.data.submissionIds) && parsed.data.submissionIds.length > 0;
+  return {
+    ok: true,
+    data: {
+      submissionIds: hasExplicitIds ? parsed.data.submissionIds : undefined,
+      onlyUngraded:
+        parsed.data.onlyUngraded !== undefined ? parsed.data.onlyUngraded : !hasExplicitIds,
+      feedbackPrefix: parsed.data.feedbackPrefix || '',
       schoolId: parsed.data.schoolId || 'default-school',
     },
   };

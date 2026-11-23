@@ -12,6 +12,7 @@ import {
 import type { LabServerState, ServerNotification } from '../state/labServerState';
 import {
   formatValidationErrorResponse,
+  validateBatchGradeSubmissionsPayload,
   validateCreateSubmissionPayload,
   validateGradebookQuery,
   validateGradeSubmissionPayload,
@@ -519,6 +520,103 @@ export async function createSubmissionRouter({
         error: err,
       });
       res.status(500).json({ error: 'Gagal memperbarui nilai laporan' });
+    }
+  });
+
+  router.post('/api/submissions/batch-grade', (req, res) => {
+    try {
+      const check = validateBatchGradeSubmissionsPayload(req.body);
+      if (!check.ok) {
+        res.status(400).json(formatValidationErrorResponse(check));
+        return;
+      }
+
+      const { submissionIds, onlyUngraded, feedbackPrefix, schoolId } = check.data;
+      const targetIdSet = submissionIds ? new Set(submissionIds) : null;
+
+      const targets = submissionsList.filter((item) => {
+        if ((item.schoolId || DEFAULT_SCHOOL_ID) !== schoolId) return false;
+        if (targetIdSet && !targetIdSet.has(item.id)) return false;
+        if (onlyUngraded && item.teacherGrade) return false;
+        return true;
+      });
+
+      const gradedAt = new Date().toISOString();
+      const updatedItems: LabSubmissionRecord[] = [];
+
+      for (const item of targets) {
+        const rubric =
+          item.autoRubric ??
+          parseRubricJson(item.rubricJson) ??
+          evaluateSubmissionRubric({
+            moduleId: item.moduleId,
+            domain: item.domain,
+            hypothesisText: item.hypothesisText,
+            observationData: item.observationData,
+            regressionMetrics: item.regressionMetrics,
+            quizScore: item.quizScore,
+            conclusionText: item.conclusionText,
+          });
+        item.autoRubric = rubric;
+        item.rubricJson = serializeRubricJson(rubric);
+
+        const feedbackText = feedbackPrefix
+          ? `${feedbackPrefix} — ${rubric.summaryFeedback}`
+          : rubric.summaryFeedback;
+
+        item.teacherGrade = {
+          score: rubric.score,
+          feedback: feedbackText,
+          gradedAt,
+        };
+
+        state.repository.upsertSubmission({
+          id: item.id,
+          schoolId: item.schoolId || DEFAULT_SCHOOL_ID,
+          roomId: item.roomId || 'LAB-ALPHA',
+          studentId: item.studentId || null,
+          studentName: item.studentName,
+          domain: item.domain,
+          moduleId: item.moduleId,
+          score: rubric.score,
+          payloadJson: JSON.stringify(item),
+          submittedAt: item.submittedAt,
+        });
+        state.saveGradebookEntry({
+          id: item.id,
+          schoolId: item.schoolId || DEFAULT_SCHOOL_ID,
+          roomPin: item.roomId || 'LAB-ALPHA',
+          studentId: item.studentId || 'stu-anon',
+          studentName: item.studentName,
+          moduleId: item.moduleId,
+          score: rubric.score,
+          rubricJson: item.rubricJson,
+          submittedAt: Date.now(),
+        });
+
+        broadcastAll({
+          type: 'submission:graded',
+          payload: { submission: item },
+        });
+        updatedItems.push(item);
+      }
+
+      if (updatedItems.length > 0) {
+        persistSubmissions();
+      }
+
+      res.json({
+        ok: true,
+        success: true,
+        gradedCount: updatedItems.length,
+        submissions: updatedItems,
+      });
+    } catch (err) {
+      logger.error('Error batch grading submissions', {
+        requestId: res.locals?.requestId,
+        error: err,
+      });
+      res.status(500).json({ error: 'Gagal menerapkan penilaian rubrik massal' });
     }
   });
 

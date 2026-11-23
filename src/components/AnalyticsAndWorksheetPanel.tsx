@@ -17,7 +17,11 @@ import {
 } from '../utils/academicReportExporter';
 import { computeMeasurementErrorSummary } from '../utils/uncertaintyEngine';
 import { getLabSafetyLicenseForModule } from '../services/labLicenseEngine';
-import { getExperimentById } from '../registry/experimentRegistry';
+import { EducationTier, getExperimentById } from '../registry/experimentRegistry';
+import {
+  buildModulePresetDataset,
+  resolveModuleAxisMeta,
+} from '../utils/dynamicWorksheetEngine';
 import { AcademicReportPreviewModal } from './ui/AcademicReportPreviewModal';
 import { filterRecordsForModule } from '../utils/spatialHudHelpers';
 import {
@@ -37,6 +41,7 @@ export interface AnalyticsAndWorksheetPanelProps {
   records: ExperimentRecord[];
   activeStudentName: string;
   activeGroupId: string;
+  activeTier?: EducationTier;
   onSubmitQuizScore: (score: number, correctCount: number) => void;
   onExportChartNotification: (format: 'PNG' | 'PDF') => void;
   onProceedToReport?: () => void;
@@ -45,9 +50,13 @@ export interface AnalyticsAndWorksheetPanelProps {
   onChangeHypothesisNote?: (next: HypothesisNote) => void;
   onAskDrLabMu?: (prompt: string) => void;
   snapshots3D?: Lab3DSnapshot[];
+  onAddManualRecord?: (record: ExperimentRecord) => void;
+  onUpdateRecord?: (id: string, patch: Partial<ExperimentRecord>) => void;
   onDeleteRecord?: (id: string) => void;
   onExportCSV?: () => void;
   onRotateGroup?: (nextStudentName: string, nextGroupId: string) => void;
+  lksAnswers?: Record<string, string>;
+  onChangeLksAnswers?: (next: Record<string, string>) => void;
   moduleId?: string;
   domain?: string;
 }
@@ -114,18 +123,27 @@ const PRESET_DATASETS: Record<
       { label: 'Jupiter', x: 140.61, y1: 140.66, y2: 13.07 },
     ],
   },
+  'bio-enzyme-kinetics': {
+    title: 'Biologi: Pengaruh Suhu terhadap Laju Reaksi Enzim Katalase',
+    xAxisLabel: 'Suhu Inkubasi (°C)',
+    y1AxisLabel: 'Laju Pelepasan O₂ (mL/mnt)',
+    y2AxisLabel: 'Stabilitas Protein (%)',
+    points: [
+      { label: '20°C', x: 20, y1: 12.4, y2: 99 },
+      { label: '30°C', x: 30, y1: 24.8, y2: 96 },
+      { label: '37°C', x: 37, y1: 35.6, y2: 92 },
+      { label: '45°C', x: 45, y1: 27.1, y2: 71 },
+      { label: '55°C', x: 55, y1: 9.2, y2: 34 },
+    ],
+  },
 };
 
 function resolveDefaultPresetForModule(domain?: string, moduleId?: string): string {
-  const idLower = (moduleId || '').toLowerCase();
+  if (moduleId) return 'active-module-preset';
   const domainLower = (domain || '').toLowerCase();
-  if (idLower.includes('spring') || idLower.includes('hooke')) return 'hooke-spring';
-  if (domainLower === 'kimia' || domainLower === 'chemistry' || idLower.includes('thermo') || idLower.includes('titration')) {
-    return 'thermo-gibbs';
-  }
-  if (domainLower === 'astronomi' || domainLower === 'astronomy' || idLower.includes('kepler') || idLower.includes('solar')) {
-    return 'kepler-third-law';
-  }
+  if (domainLower === 'biologi' || domainLower === 'biology') return 'bio-enzyme-kinetics';
+  if (domainLower === 'kimia' || domainLower === 'chemistry') return 'thermo-gibbs';
+  if (domainLower === 'astronomi' || domainLower === 'astronomy') return 'kepler-third-law';
   return 'newton-force-acc';
 }
 
@@ -133,6 +151,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
   records,
   activeStudentName,
   activeGroupId,
+  activeTier = 'SMA',
   onSubmitQuizScore,
   onExportChartNotification,
   onProceedToReport,
@@ -140,13 +159,22 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
   hypothesisNote,
   onChangeHypothesisNote,
   onAskDrLabMu,
+  onAddManualRecord,
+  onUpdateRecord,
   onDeleteRecord,
   onExportCSV,
   onRotateGroup,
+  lksAnswers,
+  onChangeLksAnswers,
   moduleId,
   domain,
 }) => {
   const activeMod = useMemo(() => (moduleId ? getExperimentById(moduleId) : undefined), [moduleId]);
+  const axisMeta = useMemo(() => resolveModuleAxisMeta(activeMod), [activeMod]);
+  const activeModulePreset = useMemo(
+    () => (activeMod ? buildModulePresetDataset(activeMod, 5) : null),
+    [activeMod]
+  );
   const effectiveDomain = domain ?? activeMod?.domain;
   const moduleRecords = useMemo(
     () => (effectiveDomain && moduleId ? filterRecordsForModule(records, effectiveDomain, moduleId) : records),
@@ -218,20 +246,24 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
     selectedDatasetKey === 'module-records' && moduleRecordPoints.length >= 2
       ? {
           title: `Dataset Modul Aktif: ${activeMod?.title || moduleId || 'Eksperimen'}`,
-          xAxisLabel: 'Variabel Bebas (X)',
-          y1AxisLabel: 'Respons Terikat (Y1)',
-          y2AxisLabel: 'Respons Sekunder (Y2)',
+          xAxisLabel: axisMeta.xAxisLabel,
+          y1AxisLabel: axisMeta.y1AxisLabel,
+          y2AxisLabel: axisMeta.y2AxisLabel,
           points: moduleRecordPoints,
         }
       : selectedDatasetKey === 'custom-records' && customRecordPoints.length >= 2
       ? {
           title: 'Dataset Rekaman Observasi Semua Sesi Siswa',
-          xAxisLabel: 'Variabel Bebas (X)',
-          y1AxisLabel: 'Respons Terikat (Y1)',
-          y2AxisLabel: 'Respons Sekunder (Y2)',
+          xAxisLabel: axisMeta.xAxisLabel,
+          y1AxisLabel: axisMeta.y1AxisLabel,
+          y2AxisLabel: axisMeta.y2AxisLabel,
           points: customRecordPoints,
         }
-      : PRESET_DATASETS[selectedDatasetKey] || PRESET_DATASETS['newton-force-acc'];
+      : selectedDatasetKey === 'active-module-preset' && activeModulePreset
+      ? activeModulePreset
+      : PRESET_DATASETS[selectedDatasetKey] ||
+        activeModulePreset ||
+        PRESET_DATASETS['newton-force-acc'];
 
   const handlePrintPDFReport = (conclusionText: string) => {
     labSound.playClick();
@@ -274,7 +306,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
       experimentTitle: resolvedModule?.title || activeDataset.title,
       studentName: activeStudentName,
       groupId: activeGroupId,
-      tier: 'SMA',
+      tier: activeTier,
       dateStr: now.toLocaleDateString('id-ID', {
         day: 'numeric',
         month: 'long',
@@ -456,10 +488,16 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
                 Semua Data Sesi Praktikum ({customRecordPoints.length} titik)
               </option>
             )}
-            <option value="newton-force-acc">Preset: Hukum II Newton (Gaya vs Percepatan)</option>
-            <option value="hooke-spring">Preset: Hukum Hooke (Simpangan vs Gaya Pemulih)</option>
-            <option value="thermo-gibbs">Preset: Termodinamika (Suhu vs Energi Gibbs)</option>
-            <option value="kepler-third-law">Preset: Astronomi Hukum III Kepler (a³ vs T²)</option>
+            {activeModulePreset && (
+              <option value="active-module-preset">
+                Preset Modul Aktif: {activeMod?.title} (5 titik kurasi)
+              </option>
+            )}
+            <option value="newton-force-acc">Preset Fisika: Hukum II Newton (Gaya vs Percepatan)</option>
+            <option value="hooke-spring">Preset Fisika: Hukum Hooke (Simpangan vs Gaya Pemulih)</option>
+            <option value="thermo-gibbs">Preset Kimia: Termodinamika (Suhu vs Energi Gibbs)</option>
+            <option value="bio-enzyme-kinetics">Preset Biologi: Kinetika Enzim Katalase (Suhu vs Laju O₂)</option>
+            <option value="kepler-third-law">Preset Astronomi: Hukum III Kepler (a³ vs T²)</option>
           </select>
         </div>
         <div className="text-[11px] text-[var(--comfort-text-muted)] tabular-nums">
@@ -492,6 +530,12 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
         curveModel={curveModel}
         onChangeCurveModel={setCurveModel}
         poePrediction={poePrediction}
+        instrumentNst={
+          uncertaintyNstInput.trim() && Number.isFinite(Number(uncertaintyNstInput.trim()))
+            ? Number(uncertaintyNstInput.trim())
+            : undefined
+        }
+        onExportChart={(fmt) => onExportChartNotification(fmt === 'SVG' ? 'PNG' : fmt)}
         onAskDrLabMuAboutPoe={(deviationPct, predictedY, actualY) =>
           onAskDrLabMu?.(
             `Prediksi POE saya bernilai Y = ${predictedY.toFixed(2)}, sedangkan hasil kurva observasi bernilai ${actualY.toFixed(2)} (deviasi ${deviationPct.toFixed(1)}%). Apa penyebab fisis perbedaan antara dugaan awal dan data eksperimen ini?`
@@ -515,14 +559,25 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
       {/* 2. Observation Records Table */}
       <DataObservationTable
         records={records}
+        onAddRecord={onAddManualRecord}
+        onUpdateRecord={onUpdateRecord}
         onDeleteRecord={onDeleteRecord || (() => {})}
         onExportCSV={onExportCSV || (() => onExportChartNotification('PDF'))}
+        moduleTitle={activeMod?.title}
+        moduleId={moduleId}
+        domain={effectiveDomain}
+        activeStudentName={activeStudentName}
+        activeGroupId={activeGroupId}
+        xAxisLabel={axisMeta.xAxisLabel}
+        y1AxisLabel={axisMeta.y1AxisLabel}
       />
 
       {/* 3. Post-Lab Mastery Quiz */}
       <PostLabMasteryQuiz
-        records={records}
+        records={moduleRecords}
         activeStudentName={activeStudentName}
+        moduleId={moduleId}
+        domain={effectiveDomain}
         onQuizCompleted={onSubmitQuizScore}
       />
 
@@ -530,14 +585,18 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
       <StudentWorksheetForm
         activeStudentName={activeStudentName}
         activeGroupId={activeGroupId}
+        activeTier={activeTier}
         hypothesisNote={hypothesisNote}
         onChangeHypothesisNote={onChangeHypothesisNote}
         onSubmitQuizScore={onSubmitQuizScore}
         onPrintPDFReport={handlePrintPDFReport}
         onRotateGroup={onRotateGroup}
-        observationRecords={records}
+        onAskDrLabMu={onAskDrLabMu}
+        lksAnswers={lksAnswers}
+        onChangeLksAnswers={onChangeLksAnswers}
+        observationRecords={moduleRecords}
         moduleId={moduleId}
-        domain={domain}
+        domain={effectiveDomain}
       />
 
       {reportModalData && (

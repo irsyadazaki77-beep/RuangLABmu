@@ -65,6 +65,19 @@ export function computeDraggedParameterValue(
   return Number(finalClamped.toFixed(safeStep >= 1 ? 0 : 3));
 }
 
+/**
+ * Pure helper distinguishing a tap/click (<= maxTravelPx pointer travel)
+ * from an intentional parameter drag gesture on a 3D apparatus mesh.
+ */
+export function isPointerClickGesture(
+  deltaX: number,
+  deltaY: number,
+  maxTravelPx = 5
+): boolean {
+  if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return true;
+  return deltaX * deltaX + deltaY * deltaY <= maxTravelPx * maxTravelPx;
+}
+
 function isObjectInteractive(obj: THREE.Object3D): boolean {
   const ud = obj.userData as Interactive3DObjectOptions | undefined;
   if (!ud) return false;
@@ -143,6 +156,8 @@ export class ThreeInteractionManager {
   private isDragging = false;
   private dragObject: THREE.Object3D | null = null;
   private dragStartPointer = { x: 0, y: 0 };
+  private dragHitPoint = new THREE.Vector3();
+  private dragExceededClickThreshold = false;
   private dragStartValue = 0;
   private lastHoverRaycastMs = 0;
   private lastCursorEmitMs = 0;
@@ -221,6 +236,12 @@ export class ThreeInteractionManager {
     if (this.isDragging && this.dragObject) {
       const deltaX = e.clientX - this.dragStartPointer.x;
       const deltaY = e.clientY - this.dragStartPointer.y;
+      if (!this.dragExceededClickThreshold && !isPointerClickGesture(deltaX, deltaY, 5)) {
+        this.dragExceededClickThreshold = true;
+      }
+      if (!this.dragExceededClickThreshold) {
+        return;
+      }
       const resolved = resolveInteractiveOptions(this.dragObject);
 
       if (resolved.paramKey && this.onDragUpdate) {
@@ -305,6 +326,8 @@ export class ThreeInteractionManager {
       this.isDragging = true;
       this.dragObject = targetObj;
       this.dragStartPointer = { x: e.clientX, y: e.clientY };
+      this.dragHitPoint.copy(intersects[0].point);
+      this.dragExceededClickThreshold = false;
       const liveVal = resolved.paramKey ? this.getParamValue?.(resolved.paramKey) : undefined;
       this.dragStartValue =
         typeof liveVal === 'number' && Number.isFinite(liveVal)
@@ -322,18 +345,31 @@ export class ThreeInteractionManager {
     }
   }
 
-  private handlePointerUp(_e: PointerEvent) {
+  private handlePointerUp(e: PointerEvent) {
     if (this.isDragging && this.dragObject) {
       const endedObj = this.dragObject;
       const resolved = resolveInteractiveOptions(endedObj);
+      const wasClick =
+        !this.dragExceededClickThreshold &&
+        isPointerClickGesture(
+          e.clientX - this.dragStartPointer.x,
+          e.clientY - this.dragStartPointer.y,
+          5
+        );
       this.isDragging = false;
       this.dragObject = null;
+      this.dragExceededClickThreshold = false;
 
       if (this.controls) {
         this.controls.enabled = true;
       }
       this.domElement.style.cursor = this.hoveredObject ? 'grab' : 'default';
       this.onDragEnd?.(endedObj, resolved.paramKey);
+
+      if (wasClick) {
+        resolved.onClick?.(endedObj, this.dragHitPoint);
+        this.onClickCallback?.(endedObj, this.dragHitPoint);
+      }
     }
   }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileText,
   Printer,
@@ -10,6 +10,7 @@ import {
   Lock,
   AlertTriangle,
   Users,
+  Sparkles,
 } from 'lucide-react';
 import { PassAndPlayRotationModal } from './PassAndPlayRotationModal';
 import { WorksheetQuestionList } from './WorksheetQuestionList';
@@ -41,7 +42,8 @@ import {
   downloadOfflineRlabPacket,
 } from '../../utils/offlinePacketProtocol';
 import { printBlankStudentWorksheet } from '../../utils/academicReportExporter';
-import { getExperimentById } from '../../registry/experimentRegistry';
+import { EducationTier, getExperimentById } from '../../registry/experimentRegistry';
+import { generateDynamicWorksheetQuestions } from '../../utils/dynamicWorksheetEngine';
 import { STUDENT_PROFILES } from '../../stores/initialLabParams';
 import { translateObservationPattern } from '../../utils/pedagogicalHelpers';
 import { ScienceGlossaryTerm } from '../ui/ScienceGlossaryTerm';
@@ -49,11 +51,15 @@ import { ScienceGlossaryTerm } from '../ui/ScienceGlossaryTerm';
 export interface StudentWorksheetFormProps {
   activeStudentName: string;
   activeGroupId: string;
+  activeTier?: EducationTier;
   hypothesisNote?: HypothesisNote;
   onChangeHypothesisNote?: (note: HypothesisNote) => void;
   onSubmitQuizScore?: (score: number, correctCount: number) => void;
   onPrintPDFReport?: (conclusionText: string) => void;
   onRotateGroup?: (nextStudentName: string, nextGroupId: string) => void;
+  onAskDrLabMu?: (prompt: string) => void;
+  lksAnswers?: Record<string, string>;
+  onChangeLksAnswers?: (next: Record<string, string>) => void;
   observationRecords?: ExperimentRecord[];
   moduleId?: string;
   domain?: string;
@@ -62,11 +68,15 @@ export interface StudentWorksheetFormProps {
 export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   activeStudentName,
   activeGroupId,
+  activeTier = 'SMA',
   hypothesisNote,
   onChangeHypothesisNote,
   onSubmitQuizScore,
   onPrintPDFReport,
   onRotateGroup,
+  onAskDrLabMu,
+  lksAnswers,
+  onChangeLksAnswers,
   observationRecords = [],
   moduleId = 'lab-experiment',
   domain = 'Fisika',
@@ -81,21 +91,25 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   const activeCustomMission = useCollabStore((s) => s.activeCustomMission);
   const [customMissionAnswers, setCustomMissionAnswers] = useState<Record<string, string>>({});
 
-  const [answers, setAnswers] = useState<Record<string, string>>({
-    'q-newton-1': '9.0',
-    'q-collision-2': '4.0',
-    'q-thermo-3': '-90.0',
-    'q-titration-4': '20.0',
-    'q-kepler-5': '8.0',
-    'q-exoplanet-6': '1.0',
-    'q-cardio-7': '5.25',
-    'q-osmosis-8': '-16.0',
-  });
+  const activeMod = useMemo(() => getExperimentById(moduleId), [moduleId]);
+  const dynamicQuestions = useMemo(
+    () => generateDynamicWorksheetQuestions(activeMod, observationRecords, domain),
+    [activeMod, observationRecords, domain]
+  );
+
+  const [questionMode, setQuestionMode] = useState<'dynamic' | 'bank'>('dynamic');
+  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>(() => lksAnswers || {});
+  const answers = lksAnswers ?? localAnswers;
+
+  const updateAnswers = (updater: (prev: Record<string, string>) => Record<string, string>) => {
+    const next = updater(answers);
+    setLocalAnswers(next);
+    onChangeLksAnswers?.(next);
+  };
+
   const [hintLevelByQuestion, setHintLevelByQuestion] = useState<Record<string, number>>({});
   const [lksDomainFilter, setLksDomainFilter] = useState<'Semua' | 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi'>('Semua');
-  const [conclusionText, setConclusionText] = useState<string>(
-    'Berdasarkan perolehan data percobaan dan kurva regresi kuantitatif, hipotesis awal terbukti valid. Hubungan antar variabel menunjukkan korelasi linear yang kuat sesuai teori ilmiah yang berlaku.'
-  );
+  const [conclusionText, setConclusionText] = useState<string>('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [submissionSuccessTicket, setSubmissionSuccessTicket] = useState<string | null>(null);
   const [gradedResult, setGradedResult] = useState<ReturnType<typeof gradeWorksheetAnswers> | null>(null);
@@ -130,7 +144,18 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   const handlePrintBlankLks = () => {
     labSound.playClick();
     const modConfig = getExperimentById(moduleId);
-    printBlankStudentWorksheet(modConfig, 'SMA');
+    printBlankStudentWorksheet(modConfig, activeTier);
+  };
+
+  const handleReviewDraftWithDrLabMu = () => {
+    if (!onAskDrLabMu) return;
+    labSound.playClick();
+    const regSummary = computeRecordsRegressionSummary(observationRecords);
+    const hypText = hypothesisNote?.hypothesisText?.trim() || '(belum diisi)';
+    const concText = conclusionText.trim() || '(belum diisi)';
+    onAskDrLabMu(
+      `Tinjau draf LKS saya secara Sokratik untuk modul ${activeMod?.title || moduleId}: Hipotesis="${hypText}", Jumlah data=${observationRecords.length} titik, R²=${regSummary.hasRegression ? regSummary.rSquared.toFixed(3) : 'belum tersedia'}, Draf kesimpulan="${concText}". Berikan 2 pertanyaan reflektif dan saran perbaikan ilmiah tanpa langsung menuliskan jawaban akhir.`
+    );
   };
 
   const handlePassAndPlayRotation = async () => {
@@ -221,12 +246,8 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
       }).catch(() => undefined);
     }
 
-    const blankAnswers: Record<string, string> = {};
-    for (const q of WORKSHEET_QUESTIONS) {
-      blankAnswers[q.id] = '';
-    }
-    setAnswers(blankAnswers);
-    setConclusionText('Berdasarkan pengamatan kelompok kami, ');
+    updateAnswers(() => ({}));
+    setConclusionText('');
     setGradedResult(null);
     setSubmissionSuccessTicket(null);
     setSubmissionLocked(false);
@@ -275,10 +296,13 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     return () => window.clearInterval(timer);
   }, [rateLimitCountdown]);
 
-  const filteredQuestions = WORKSHEET_QUESTIONS.filter((q) => {
-    if (lksDomainFilter === 'Semua') return true;
-    return q.domain.toLowerCase() === lksDomainFilter.toLowerCase();
-  });
+  const filteredQuestions =
+    questionMode === 'dynamic'
+      ? dynamicQuestions
+      : WORKSHEET_QUESTIONS.filter((q) => {
+          if (lksDomainFilter === 'Semua') return true;
+          return q.domain.toLowerCase() === lksDomainFilter.toLowerCase();
+        });
 
   const handleAdvanceHint = (questionId: string) => {
     if (isSubmissionLocked) return;
@@ -449,7 +473,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
 
   const handleDownloadOfflineRlab = () => {
     labSound.playSuccessChime();
-    const finalGrade = gradedResult ?? gradeWorksheetAnswers(answers);
+    const finalGrade = gradedResult ?? gradeWorksheetAnswers(answers, filteredQuestions);
     const activeRoomId = useCollabStore.getState().activeRoomId || 'LAB-3T';
     const regSummary = computeRecordsRegressionSummary(observationRecords);
     const obsPayload = (observationRecords || []).map((r, i) => ({
@@ -612,25 +636,62 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
           </div>
         </div>
 
-        {/* Filter and Action Buttons */}
+        {/* Mode & Domain Filter and Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 p-0.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs">
-            <Filter className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] ml-1.5" />
-            {(['Semua', 'Fisika', 'Kimia', 'Biologi', 'Astronomi'] as const).map((dom) => (
-              <button
-                key={dom}
-                type="button"
-                onClick={() => setLksDomainFilter(dom)}
-                className={`px-2 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
-                  lksDomainFilter === dom
-                    ? 'bg-[var(--comfort-surface)] text-sky-600 dark:text-sky-300 shadow-xs'
-                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
-                }`}
-              >
-                {dom === 'Semua' ? t('lks.filterAll') : dom}
-              </button>
-            ))}
+            <button
+              type="button"
+              data-testid="lks-mode-dynamic-btn"
+              onClick={() => {
+                labSound.playClick();
+                setQuestionMode('dynamic');
+                setGradedResult(null);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                questionMode === 'dynamic'
+                  ? 'bg-[var(--comfort-surface)] text-sky-600 dark:text-sky-300 shadow-xs'
+                  : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+              }`}
+            >
+              Soal Modul Aktif ({dynamicQuestions.length})
+            </button>
+            <button
+              type="button"
+              data-testid="lks-mode-bank-btn"
+              onClick={() => {
+                labSound.playClick();
+                setQuestionMode('bank');
+                setGradedResult(null);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                questionMode === 'bank'
+                  ? 'bg-[var(--comfort-surface)] text-sky-600 dark:text-sky-300 shadow-xs'
+                  : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+              }`}
+            >
+              Bank Lintas Domain
+            </button>
           </div>
+
+          {questionMode === 'bank' && (
+            <div className="flex items-center gap-1 p-0.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs">
+              <Filter className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] ml-1.5" />
+              {(['Semua', 'Fisika', 'Kimia', 'Biologi', 'Astronomi'] as const).map((dom) => (
+                <button
+                  key={dom}
+                  type="button"
+                  onClick={() => setLksDomainFilter(dom)}
+                  className={`px-2 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                    lksDomainFilter === dom
+                      ? 'bg-[var(--comfort-surface)] text-sky-600 dark:text-sky-300 shadow-xs'
+                      : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                  }`}
+                >
+                  {dom === 'Semua' ? t('lks.filterAll') : dom}
+                </button>
+              ))}
+            </div>
+          )}
 
           <button
             type="button"
@@ -740,17 +801,31 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
             </p>
           </div>
 
-          <span className="block text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-            {t('lks.finalConclusion')}
-          </span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="block text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              {t('lks.finalConclusion')}
+            </span>
+            {onAskDrLabMu && (
+              <button
+                type="button"
+                data-testid="review-lks-draft-ai-btn"
+                onClick={handleReviewDraftWithDrLabMu}
+                className="px-2.5 py-1 rounded-lg bg-sky-500/12 hover:bg-sky-500/20 border border-sky-500/30 text-sky-700 dark:text-sky-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>Tinjau Draf dengan Dr. LabMu</span>
+              </button>
+            )}
+          </div>
           <textarea
             rows={3}
             disabled={isSubmissionLocked}
+            data-testid="lks-conclusion-textarea"
             value={conclusionText}
             onChange={(e) => {
               if (!isSubmissionLocked) setConclusionText(e.target.value);
             }}
-            placeholder={t('lks.conclusionPlaceholder')}
+            placeholder="Tuliskan kesimpulan ilmiah Anda berdasarkan tren grafik, nilai R², gradien kurva, dan kesesuaian terhadap hipotesis awal..."
             className="w-full text-xs p-2 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] focus:outline-none focus:border-sky-500 disabled:opacity-60"
           />
         </div>
@@ -765,7 +840,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         }
         filteredQuestions={filteredQuestions}
         answers={answers}
-        onChangeAnswer={(qId, val) => setAnswers((prev) => ({ ...prev, [qId]: val }))}
+        onChangeAnswer={(qId, val) => updateAnswers((prev) => ({ ...prev, [qId]: val }))}
         hintLevelByQuestion={hintLevelByQuestion}
         onAdvanceHint={handleAdvanceHint}
         gradedResult={gradedResult}

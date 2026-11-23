@@ -192,11 +192,13 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
 
     const initialPose = getAdaptiveCameraPose('chemistry', latestRef.current.params.mode, 'isometric');
     let camTransitionActive = false;
+    let syncChemLabelsOnResize: ((w: number, h: number) => void) | null = null;
     const host = initThreeStudioHost({
       container,
       fallbackSize: { width: 760, height: 380 },
       backgroundHex: initialColors.backgroundHex,
       fogDensity: 0.015,
+      domainPreset: 'chemistry',
       camera: {
         fov: 45,
         near: 0.1,
@@ -211,6 +213,9 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         autoRotateSpeed: 1.4,
       },
       onContextRestored: triggerSceneRebuild,
+      onResize: (w, h) => {
+        syncChemLabelsOnResize?.(w, h);
+      },
       onUserControlsStart: () => {
         camTransitionActive = false;
       },
@@ -361,31 +366,29 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
         }
         if (paramKey && latestRef.current.onUpdateParam) {
           labSound.playClick(600);
-          coreStage.triggerWobbleBoost(0.08);
-          const curVal = (latestRef.current.params as unknown as Record<string, number>)[paramKey] ?? 0;
-          if (paramKey === 'titrantAddedMl') {
-            const nextVal = Math.min(50, Number((curVal + 1.0).toFixed(1)));
-            latestRef.current.onUpdateParam(paramKey, nextVal);
-            coreStage.playBuretteDropSound();
-            setDragToast({ label: 'Kran Buret Diteteskan (+1 mL)', value: `${nextVal} mL` });
-          } else if (paramKey === 'kineticsTempC') {
-            const nextVal = Math.min(90, Number((curVal + 5).toFixed(1)));
-            latestRef.current.onUpdateParam(paramKey, nextVal);
-            setDragToast({ label: 'Pemanas Bunsen (+5 °C)', value: `${nextVal} °C` });
-          } else {
-            setDragToast({ label: obj.userData?.label ?? paramKey, value: `${curVal}` });
-          }
+          coreStage.triggerWobbleBoost(0.06);
         }
       },
       onDragUpdate: (_obj, paramKey, newValue, label) => {
         if (!latestRef.current.onUpdateParam) return;
         latestRef.current.onUpdateParam(paramKey, newValue);
         coreStage.triggerWobbleBoost(0.065);
+        if (paramKey === 'titrantAddedMl') {
+          coreStage.playBuretteDropSound();
+        }
         setDragToast({ label: label ?? paramKey, value: `${newValue}` });
       },
       onDragEnd: () => {
         if (dragToastTimer) clearTimeout(dragToastTimer);
         dragToastTimer = setTimeout(() => setDragToast(null), 1200);
+      },
+      onClick: (obj) => {
+        if (obj.userData?.measurementHandle) return;
+        labSound.playClick(640);
+        const hint = String(obj.userData?.label ?? obj.name ?? '');
+        setInspectedPart(
+          resolveApparatusInspection('chemistry', latestRef.current.params.mode, hint || undefined)
+        );
       },
       onCursorMove3D: (pos, normal, hoveredObject) => {
         latestRef.current.onEmitCursor?.(pos, normal, hoveredObject);
@@ -396,6 +399,14 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
     let prevSimTime = -1;
     let wasProbeVisible = false;
     let lastProbeHudMs = -1;
+
+    syncChemLabelsOnResize = (rw: number, rh: number) => {
+      const cDom = conceptDomRef.current;
+      const showLabels = showConceptLabelsRef.current;
+      const { params: p, metrics: m } = latestRef.current;
+      const cEntries = coreStage.buildConceptEntries(p, m, showLabels, cDom);
+      updateProjectedConceptLabels(cEntries, camera, rw, rh, showLabels, conceptProjVec);
+    };
 
     const loopHandle = startStudioRenderLoop({
       renderer,

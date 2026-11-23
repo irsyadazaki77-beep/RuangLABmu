@@ -270,7 +270,7 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
     apparatusList: [
       'Silinder gas berdinding tebal dengan piston kedap gesekan rendah',
       'Sensor tekanan digital terkalibrasi (barometer / manometer presisi)',
-      'Pemandas termostatik suhu konstan terprogram',
+      'Penangas termostatik suhu konstan terprogram',
       'Sensor pergeseran piston linear pengukur volume V',
     ],
     safetyNotes: [
@@ -286,7 +286,7 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
     outputs: [
       { key: 'pressureAtm', label: 'Tekanan Gas (P)', unit: 'atm', formulaLatex: 'P = \\frac{nRT}{V}', precision: 3 },
       { key: 'pressureKpa', label: 'Tekanan Gas (P)', unit: 'kPa', formulaLatex: 'P_{\\text{SI}}', precision: 1 },
-      { key: 'internalEnergyJ', label: 'Energi Dalam Gas (U)', unit: 'J', formulaLatex: 'U = \\frac{3}{2} n R T', precision: 1 },
+      { key: 'internalEnergyJ', label: 'Energi Dalam Gas Diatomik (U)', unit: 'J', formulaLatex: 'U = \\frac{5}{2} n R T', precision: 1 },
       { key: 'gasDensity', label: 'Massa Jenis Gas (ρ_gas)', unit: 'g/L', formulaLatex: '\\rho = \\frac{P M}{R T}', precision: 3 },
     ],
     defaultRegressionAxes: { xKey: 'volumeL', yKey: 'pressureAtm', expectedSlopeMeaning: 'Invers Hiperbolik (Hukum Boyle)' },
@@ -303,17 +303,19 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
       const { moles = 1.0, temperatureK = 300, volumeL = 10.0, isAdiabatic = 0 } = params;
       const R_L_atm = 0.08206; // L·atm/(mol·K)
       const R_SI = 8.314; // J/(mol·K)
-      let pressureAtm = (moles * R_L_atm * temperatureK) / Math.max(0.1, volumeL);
-      if (isAdiabatic === 1) {
-        // Adiabatic exponent gamma for diatomic air ~ 1.4
-        const gamma = 1.4;
-        const vRef = 10.0;
-        pressureAtm = pressureAtm * Math.pow(vRef / Math.max(0.1, volumeL), gamma - 1);
-      }
+      const safeVol = Math.max(0.1, volumeL);
+      // Diatomic ideal gas (udara kering, γ = 1.4, f = 5 derajat kebebasan)
+      const gamma = 1.4;
+      const vRef = 10.0;
+      const effectiveTempK =
+        isAdiabatic === 1
+          ? temperatureK * Math.pow(vRef / safeVol, gamma - 1)
+          : temperatureK;
+      const pressureAtm = (moles * R_L_atm * effectiveTempK) / safeVol;
       const pressureKpa = pressureAtm * 101.325;
-      const internalEnergyJ = 1.5 * moles * R_SI * temperatureK;
+      const internalEnergyJ = 2.5 * moles * R_SI * effectiveTempK;
       const molarMassAir = 28.97; // g/mol
-      const gasDensity = (moles * molarMassAir) / volumeL;
+      const gasDensity = (moles * molarMassAir) / safeVol;
       return { pressureAtm, pressureKpa, internalEnergyJ, gasDensity };
     },
   },
@@ -369,7 +371,7 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
       { key: 'halfLifeSec', label: 'Waktu Paruh Reaksi (t½)', unit: 's', formulaLatex: 't_{1/2} = \\frac{\\ln 2}{k}', precision: 1 },
       { key: 'inverseTemp', label: 'Invers Suhu Mutlak (1/T)', unit: 'x 10⁻³ K⁻¹', formulaLatex: '1000 / T', precision: 3 },
     ],
-    defaultRegressionAxes: { xKey: 'inverseTemp', yKey: 'rateConstantK', expectedSlopeMeaning: 'Plot Arrhenius (-Ea/R)' },
+    defaultRegressionAxes: { xKey: 'inverseTemp', yKey: 'rateConstantK', expectedSlopeMeaning: 'Kurva Eksponensial k vs 1/T (Linearisasi ln k vs 1/T berslope -Ea/R)' },
     preLabQuiz: [
       {
         id: 'kin-q1',

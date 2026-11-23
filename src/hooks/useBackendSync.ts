@@ -31,6 +31,7 @@ export interface BackendSyncState {
 export interface UseBackendSyncReturn extends BackendSyncState {
   ws: WebSocket | null;
   addRecord: (record: ExperimentRecord) => void;
+  updateRecord: (id: string, patch: Partial<ExperimentRecord>) => void;
   deleteRecord: (id: string) => void;
   clearRecords: () => void;
   toggleTask: (id: string, studentName?: string) => void;
@@ -777,6 +778,15 @@ export function useBackendSync(
     [sendWs]
   );
 
+  const updateRecord = useCallback(
+    (id: string, patch: Partial<ExperimentRecord>) => {
+      setRecords((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
+      );
+    },
+    []
+  );
+
   const deleteRecord = useCallback(
     (id: string) => {
       setRecords((prev) => prev.filter((r) => r.id !== id));
@@ -1066,6 +1076,7 @@ export function useBackendSync(
     isHydrated,
     ws: wsRef.current,
     addRecord,
+    updateRecord,
     deleteRecord,
     clearRecords,
     toggleTask,

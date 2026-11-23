@@ -14,6 +14,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../../stores/useUIStore';
 import { labSound } from '../../utils/soundEngine';
 import { ConceptLabelToggleButton } from './ConceptLabelsOverlay';
+import { PostProcessingPopoverButton } from './PostProcessingPopoverButton';
 import type { StudioCameraPreset } from '../../utils/studio3DCatalog';
 import { useSceneEmbedMode } from '../../contexts/SceneEmbedModeContext';
 
@@ -134,7 +135,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
   return (
     <div
       data-testid="scene-3d-control-dock"
-      className={`pointer-events-auto absolute top-[60px] lg:top-[60px] z-30 flex justify-center ${corridorClass}`}
+      className={`pointer-events-auto absolute top-[54px] lg:top-[54px] z-30 flex justify-center ${corridorClass}`}
     >
       {collapsed ? (
         <button
@@ -145,7 +146,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
             setCollapsed(false);
           }}
           title="Tampilkan Dok Kontrol Kamera & Alat 3D (H)"
-          className="studio-hud-surface px-3 py-1.5 rounded-xl text-[11px] font-semibold text-[var(--comfort-hud-text)] shadow-lg flex items-center gap-1.5 cursor-pointer hover:border-sky-500/50 transition-colors"
+          className="studio-hud-surface px-3 py-1 rounded-xl text-[11px] font-semibold text-[var(--comfort-hud-text)] shadow-md flex items-center gap-1.5 cursor-pointer hover:border-sky-500/50 transition-colors"
         >
           <Camera className="w-3.5 h-3.5 text-sky-500 shrink-0" aria-hidden="true" />
           <span>Kontrol 3D</span>
@@ -155,7 +156,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
         <div
           role="toolbar"
           aria-label="Kontrol Kamera dan Instrumen 3D"
-          className="studio-hud-surface max-w-full rounded-xl px-1.5 py-1 shadow-lg flex flex-wrap items-center justify-center gap-1"
+          className="studio-hud-surface max-w-full rounded-xl px-1.5 py-0.5 shadow-md flex flex-wrap items-center justify-center gap-1"
         >
           {/* Group 1: Camera Reset & Presets */}
           <div className="flex items-center gap-0.5">
@@ -288,6 +289,8 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 <span className="hidden md:inline">Info Alat</span>
               </button>
             )}
+
+            <PostProcessingPopoverButton activeClass={activeBtnClass} idleClass={idleBtnClass} />
 
             {isVRSupported && onEnterVR && (
               <button

@@ -194,13 +194,44 @@ export function createMeasurementRuler3D(options?: {
     label: 'Pin Mistar B',
   };
 
-  const beamGeo = new THREE.BoxGeometry(1, 0.055, 0.14);
+  let rulerScaleTex: THREE.CanvasTexture | null = null;
+  if (typeof document !== 'undefined') {
+    const rCanvas = document.createElement('canvas');
+    rCanvas.width = 512;
+    rCanvas.height = 64;
+    const rCtx = rCanvas.getContext('2d');
+    if (rCtx) {
+      rCtx.fillStyle = '#e2e8f0';
+      rCtx.fillRect(0, 0, rCanvas.width, rCanvas.height);
+      rCtx.fillStyle = '#0f172a';
+      rCtx.fillRect(0, 0, rCanvas.width, 4);
+      const totalTicks = 40;
+      for (let i = 0; i <= totalTicks; i++) {
+        const x = Math.round((i / totalTicks) * (rCanvas.width - 16) + 8);
+        const isMajor = i % 5 === 0;
+        const tickH = isMajor ? 26 : 14;
+        rCtx.fillStyle = isMajor ? '#0f172a' : '#475569';
+        rCtx.fillRect(x, 4, isMajor ? 2.5 : 1.5, tickH);
+        if (isMajor && i < totalTicks) {
+          rCtx.font = 'bold 14px "IBM Plex Mono", monospace';
+          rCtx.fillStyle = '#0369a1';
+          rCtx.fillText(String(i / 2), x + 3, 48);
+        }
+      }
+      rulerScaleTex = new THREE.CanvasTexture(rCanvas);
+      rulerScaleTex.colorSpace = THREE.SRGBColorSpace;
+      rulerScaleTex.anisotropy = 4;
+    }
+  }
+
+  const beamGeo = new THREE.BoxGeometry(1, 0.055, 0.16);
   const beamMat = new THREE.MeshStandardMaterial({
-    color: 0xe2e8f0,
-    roughness: 0.3,
-    metalness: 0.7,
+    color: 0xf1f5f9,
+    map: rulerScaleTex,
+    roughness: 0.32,
+    metalness: 0.58,
     emissive: 0x0ea5e9,
-    emissiveIntensity: 0.18,
+    emissiveIntensity: 0.12,
   });
   const beamMesh = new THREE.Mesh(beamGeo, beamMat);
 
@@ -276,6 +307,7 @@ export function createMeasurementRuler3D(options?: {
       pinMatB.dispose();
       beamGeo.dispose();
       beamMat.dispose();
+      rulerScaleTex?.dispose();
       badgeTexture?.dispose();
       badgeMat?.dispose();
     },
@@ -299,16 +331,65 @@ export function createProtractor3D(initialAngleDeg = 30): Protractor3DHandle {
   const group = new THREE.Group();
   group.name = 'ruanglab-protractor-3d';
 
-  const arcGeo = new THREE.RingGeometry(0.82, 1.02, 48, 1, 0, Math.PI);
+  let protractorScaleTex: THREE.CanvasTexture | null = null;
+  if (typeof document !== 'undefined') {
+    const pCanvas = document.createElement('canvas');
+    pCanvas.width = 512;
+    pCanvas.height = 512;
+    const pCtx = pCanvas.getContext('2d');
+    if (pCtx) {
+      const cx = 256;
+      const cy = 256;
+      pCtx.clearRect(0, 0, 512, 512);
+      pCtx.fillStyle = 'rgba(14, 165, 233, 0.24)';
+      pCtx.beginPath();
+      pCtx.arc(cx, cy, 248, Math.PI, 0, false);
+      pCtx.arc(cx, cy, 185, 0, Math.PI, true);
+      pCtx.closePath();
+      pCtx.fill();
+
+      for (let deg = 0; deg <= 180; deg += 5) {
+        const rad = (deg * Math.PI) / 180;
+        const isMajor = deg % 30 === 0;
+        const isMid = deg % 15 === 0;
+        const rOuter = 246;
+        const rInner = isMajor ? 206 : isMid ? 218 : 228;
+        pCtx.strokeStyle = isMajor ? '#f8fafc' : '#bae6fd';
+        pCtx.lineWidth = isMajor ? 3 : 1.5;
+        pCtx.beginPath();
+        pCtx.moveTo(cx + Math.cos(rad) * rInner, cy - Math.sin(rad) * rInner);
+        pCtx.lineTo(cx + Math.cos(rad) * rOuter, cy - Math.sin(rad) * rOuter);
+        pCtx.stroke();
+
+        if (isMajor) {
+          const rLabel = 192;
+          pCtx.save();
+          pCtx.translate(cx + Math.cos(rad) * rLabel, cy - Math.sin(rad) * rLabel);
+          pCtx.fillStyle = '#f8fafc';
+          pCtx.font = 'bold 16px "IBM Plex Mono", monospace';
+          pCtx.textAlign = 'center';
+          pCtx.textBaseline = 'middle';
+          pCtx.fillText(`${deg}°`, 0, 0);
+          pCtx.restore();
+        }
+      }
+      protractorScaleTex = new THREE.CanvasTexture(pCanvas);
+      protractorScaleTex.colorSpace = THREE.SRGBColorSpace;
+      protractorScaleTex.anisotropy = 4;
+    }
+  }
+
+  const arcGeo = new THREE.RingGeometry(0.76, 1.04, 48, 1, 0, Math.PI);
   const arcMat = new THREE.MeshStandardMaterial({
-    color: 0x0ea5e9,
+    color: protractorScaleTex ? 0xffffff : 0x0ea5e9,
+    map: protractorScaleTex,
     emissive: 0x0369a1,
-    emissiveIntensity: 0.35,
+    emissiveIntensity: 0.25,
     transparent: true,
-    opacity: 0.72,
+    opacity: 0.88,
     side: THREE.DoubleSide,
-    roughness: 0.25,
-    metalness: 0.4,
+    roughness: 0.22,
+    metalness: 0.25,
   });
   const arcMesh = new THREE.Mesh(arcGeo, arcMat);
   group.add(arcMesh);
@@ -396,6 +477,7 @@ export function createProtractor3D(initialAngleDeg = 30): Protractor3DHandle {
     dispose: () => {
       arcGeo.dispose();
       arcMat.dispose();
+      protractorScaleTex?.dispose();
       baseArmGeo.dispose();
       baseArmMat.dispose();
       pointerArmGeo.dispose();

@@ -1,8 +1,13 @@
 import * as THREE from 'three';
 import {
+  buildLatheFromProfile,
+  createBeakerProfilePoints,
+  createContactShadowPlane,
   createGraduatedScaleTexture,
   createInstancedParticlePool,
+  createInstrumentPanelTexture,
   type InstancedParticlePool,
+  updateInstrumentPanelTexture,
   wavelengthNmToHex,
 } from '../../utils/threeStudioKit';
 import {
@@ -40,6 +45,55 @@ export interface BiologyRigHandle {
   dispose: () => void;
 }
 
+/**
+ * Creates a soft view-space Fresnel-feathered volumetric light cone shader
+ * so optical lab beams glow smoothly without hard geometric triangle edges.
+ */
+function createVolumetricBeamMaterial(initialHex = 0xef4444): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: new THREE.Color(initialHex) },
+      uOpacity: { value: 0.24 },
+      uTime: { value: 0 },
+    },
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vViewDir;
+      varying vec2 vUv;
+
+      void main() {
+        vUv = uv;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vNormal = normalize(normalMatrix * normal);
+        vViewDir = normalize(-mvPosition.xyz);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      uniform float uTime;
+      varying vec3 vNormal;
+      varying vec3 vViewDir;
+      varying vec2 vUv;
+
+      void main() {
+        float facing = abs(dot(normalize(vNormal), normalize(vViewDir)));
+        float edgeFeather = pow(facing, 1.85);
+        float axialFade = smoothstep(0.0, 0.26, vUv.y) * smoothstep(1.0, 0.08, vUv.y);
+        float shimmer = 0.92 + 0.08 * sin(vUv.y * 18.0 - uTime * 2.8 + vUv.x * 6.283);
+        float alpha = edgeFeather * axialFade * uOpacity * shimmer;
+        vec3 col = uColor * (1.1 + 0.35 * edgeFeather);
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+}
+
 // =====================================================================
 // RIG 1: INGENHOUSZ PHOTOSYNTHESIS (HYDRILLA + VOLUMETRIC BEAM + O2 TRAP)
 // =====================================================================
@@ -47,35 +101,105 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
   const { apparatusGroup, scene, slideGlassMat, chloroMat, createCellularOrganellesGroup } = ctx;
   const disposableItems: { dispose: () => void }[] = [];
 
-  const beaker = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.5, 1.5, 3.2, 32, 1, true),
-    slideGlassMat
-  );
-  beaker.position.y = 1.6;
-  beaker.castShadow = true;
-  beaker.name = 'Gelas Beker Kaca 1000 mL';
+  // Grounded AO contact shadows under beaker, lamp stand, and specimen pedestal
+  const beakerShadow = createContactShadowPlane(1.92, 1.92, 0.32);
+  beakerShadow.position.set(0, 0.008, 0);
+  const lampShadow = createContactShadowPlane(0.92, 0.92, 0.28);
+  lampShadow.position.set(-3.75, 0.008, 0);
+  const specimenShadow = createContactShadowPlane(0.95, 0.95, 0.28);
+  specimenShadow.position.set(2.45, 0.008, 0);
+  apparatusGroup.add(beakerShadow, lampShadow, specimenShadow);
+
+  // Thick-walled 1000 mL Borosilicate Glass Beaker (LatheGeometry with poured lip)
+  const beakerGeo = buildLatheFromProfile(createBeakerProfilePoints(1.5, 3.2, 0.055), 48);
+  const beaker = new THREE.Mesh(beakerGeo, slideGlassMat);
+  beaker.position.y = 0.01;
+  beaker.renderOrder = 3;
+  beaker.name = 'Gelas Beker Kaca Borosilikat 1000 mL';
   apparatusGroup.add(beaker);
 
-  const water = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.48, 1.48, 2.8, 32),
-    new THREE.MeshStandardMaterial({
-      color: 0x0284c7,
+  // Etched 1000 mL graduation scale along front of beaker
+  const beakerScaleTex = createGraduatedScaleTexture(1000, 'mL', 10, {
+    width: 256,
+    height: 512,
+  });
+  if (beakerScaleTex) disposableItems.push(beakerScaleTex);
+  const beakerScaleMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.512, 1.512, 2.52, 28, 1, true, -0.34, 0.68),
+    new THREE.MeshBasicMaterial({
+      map: beakerScaleTex,
       transparent: true,
-      opacity: 0.36,
-      roughness: 0.2,
+      opacity: 0.78,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+  );
+  beakerScaleMesh.position.y = 1.52;
+  beakerScaleMesh.renderOrder = 4;
+  apparatusGroup.add(beakerScaleMesh);
+
+  const glassRimMat = new THREE.MeshStandardMaterial({
+    color: 0xe0f2fe,
+    roughness: 0.12,
+    metalness: 0.22,
+    transparent: true,
+    opacity: 0.62,
+  });
+
+  // Translucent NaHCO3 aqueous column + crisp meniscus ring + underwater caustic light pool
+  const water = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.43, 1.43, 2.66, 36),
+    new THREE.MeshStandardMaterial({
+      color: 0x0ea5e9,
+      transparent: true,
+      opacity: 0.22,
+      roughness: 0.14,
+      metalness: 0.05,
+      depthWrite: false,
     })
   );
   water.position.y = 1.4;
+  water.renderOrder = 1;
   water.name = 'Larutan Air & NaHCO₃';
   apparatusGroup.add(water);
 
-  const funnel = new THREE.Mesh(
-    new THREE.ConeGeometry(1.1, 1.2, 24, 1, true),
-    slideGlassMat
+  const meniscusRing = new THREE.Mesh(
+    new THREE.TorusGeometry(1.425, 0.02, 10, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0xbae6fd,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 0.35,
+      transparent: true,
+      opacity: 0.65,
+      roughness: 0.1,
+    })
   );
-  funnel.position.y = 0.7;
+  meniscusRing.rotation.x = Math.PI / 2;
+  meniscusRing.position.y = 2.73;
+  meniscusRing.renderOrder = 2;
+  apparatusGroup.add(meniscusRing);
+
+  const causticMat = new THREE.MeshBasicMaterial({
+    color: 0xef4444,
+    transparent: true,
+    opacity: 0.16,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const causticDisc = new THREE.Mesh(new THREE.CircleGeometry(1.32, 32), causticMat);
+  causticDisc.rotation.x = -Math.PI / 2;
+  causticDisc.position.y = 0.072;
+  causticDisc.renderOrder = 1;
+  apparatusGroup.add(causticDisc);
+
+  const funnel = new THREE.Mesh(
+    new THREE.ConeGeometry(1.06, 1.18, 32, 1, true),
+    glassRimMat
+  );
+  funnel.position.y = 0.74;
   funnel.rotation.x = Math.PI;
-  funnel.name = '🎯 Corong Kaca & Tabung O₂';
+  funnel.renderOrder = 2;
+  funnel.name = 'Corong Kaca & Tabung O₂';
   funnel.userData = {
     draggableParam: 'wavelengthNm',
     min: 400,
@@ -83,15 +207,38 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
     step: 10,
     label: 'Panjang Gelombang λ (nm)',
   };
-  apparatusGroup.add(funnel);
+  const funnelRim = new THREE.Mesh(new THREE.TorusGeometry(1.06, 0.026, 10, 36), glassRimMat);
+  funnelRim.rotation.x = Math.PI / 2;
+  funnelRim.position.y = 0.16;
+  apparatusGroup.add(funnel, funnelRim);
+
+  // Brass support blocks under funnel rim so water & NaHCO3 circulate freely
+  const brassSpacerMat = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    metalness: 0.84,
+    roughness: 0.24,
+  });
+  [0, (2 * Math.PI) / 3, (4 * Math.PI) / 3].forEach((ang) => {
+    const spacer = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.14), brassSpacerMat);
+    spacer.position.set(Math.cos(ang) * 1.02, 0.11, Math.sin(ang) * 1.02);
+    spacer.rotation.y = -ang;
+    apparatusGroup.add(spacer);
+  });
 
   const tube = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.24, 0.24, 1.9, 18, 1, true),
-    slideGlassMat
+    new THREE.CylinderGeometry(0.24, 0.24, 1.9, 24, 1, true),
+    glassRimMat
   );
   tube.position.y = 2.05;
-  tube.name = '🎯 Tabung Reaksi Penampung Gas O₂';
-  apparatusGroup.add(tube);
+  tube.renderOrder = 2;
+  tube.name = 'Tabung Reaksi Penampung Gas O₂';
+  const tubeTopDome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.24, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2),
+    glassRimMat
+  );
+  tubeTopDome.position.y = 3.0;
+  tubeTopDome.renderOrder = 2;
+  apparatusGroup.add(tube, tubeTopDome);
 
   // Calibrated mL scale strip along the inverted tube
   const tubeScaleTex = createGraduatedScaleTexture(10, 'mL', 10, {
@@ -101,65 +248,86 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
   });
   if (tubeScaleTex) disposableItems.push(tubeScaleTex);
   const tubeScaleMesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.245, 0.245, 1.7, 16, 1, true, -0.5, 1.0),
+    new THREE.CylinderGeometry(0.252, 0.252, 1.7, 18, 1, true, -0.5, 1.0),
     new THREE.MeshBasicMaterial({
       map: tubeScaleTex,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.9,
       side: THREE.DoubleSide,
       depthWrite: false,
     })
   );
   tubeScaleMesh.position.y = 2.05;
+  tubeScaleMesh.renderOrder = 3;
   apparatusGroup.add(tubeScaleMesh);
 
   // Expanding O2 Gas Pocket trapped at top of inverted test tube
   const gasPocketMat = new THREE.MeshStandardMaterial({
     color: 0xe0f2fe,
     emissive: 0x38bdf8,
-    emissiveIntensity: 0.25,
+    emissiveIntensity: 0.35,
     transparent: true,
-    opacity: 0.78,
+    opacity: 0.85,
     roughness: 0.12,
   });
-  const gasPocket = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 1.0, 16), gasPocketMat);
+  const gasPocket = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 1.0, 18), gasPocketMat);
   gasPocket.position.y = 2.8;
+  gasPocket.renderOrder = 2;
   gasPocket.name = 'Ruang Akumulasi Gas O₂ Murni';
   apparatusGroup.add(gasPocket);
 
-  // Articulated Hydrilla Stems & Whorled Leaves
+  // Organic Articulated Hydrilla verticillata Stems & Whorled Lanceolate Leaves
   const plantGroup = new THREE.Group();
-  plantGroup.position.set(0, 0.2, 0);
+  plantGroup.position.set(0, 0.16, 0);
   plantGroup.name = '🌱 Tanaman Hydrilla verticillata';
-  const stemMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.5 });
-  [
-    { x: 0, z: 0, h: 1.08, tilt: 0 },
-    { x: -0.18, z: 0.14, h: 0.85, tilt: 0.14 },
-    { x: 0.16, z: -0.12, h: 0.9, tilt: -0.12 },
-  ].forEach((branch) => {
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.04, branch.h, 8), stemMat);
-    stem.position.set(branch.x, branch.h * 0.5, branch.z);
-    stem.rotation.z = branch.tilt;
-    plantGroup.add(stem);
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.48, metalness: 0.04 });
+  // Flattened botanical lance-shaped leaf pivoted cleanly at its stem node
+  const leafGeo = new THREE.SphereGeometry(1, 8, 6);
+  leafGeo.scale(0.044, 0.19, 0.014);
+  leafGeo.translate(0, 0.16, 0);
+  disposableItems.push(leafGeo);
 
-    const leafGeo = new THREE.ConeGeometry(0.11, 0.34, 4);
-    const levels = 5;
-    for (let i = 0; i < levels; i++) {
-      const y = 0.18 + i * (branch.h / levels);
-      for (let j = 0; j < 4; j++) {
-        const angle = (j * Math.PI) / 2 + (i * Math.PI) / 4;
-        const leaf = new THREE.Mesh(leafGeo, chloroMat);
-        leaf.position.set(
-          branch.x + Math.cos(angle) * 0.11,
-          y,
-          branch.z + Math.sin(angle) * 0.11
-        );
-        leaf.rotation.z = Math.cos(angle) * 0.72;
-        leaf.rotation.x = -Math.sin(angle) * 0.72;
+  const leafTipMat = new THREE.MeshStandardMaterial({
+    color: 0x22c55e,
+    roughness: 0.36,
+    metalness: 0.04,
+    emissive: 0x15803d,
+    emissiveIntensity: 0.28,
+  });
+
+  [
+    { x: 0, z: 0, h: 1.12, tiltZ: 0.03, tiltX: -0.02 },
+    { x: -0.2, z: 0.15, h: 0.88, tiltZ: 0.15, tiltX: 0.08 },
+    { x: 0.18, z: -0.13, h: 0.94, tiltZ: -0.14, tiltX: -0.06 },
+    { x: 0.06, z: 0.2, h: 0.78, tiltZ: -0.05, tiltX: 0.14 },
+  ].forEach((branch, bIdx) => {
+    const branchGroup = new THREE.Group();
+    branchGroup.position.set(branch.x, 0, branch.z);
+    branchGroup.rotation.set(branch.tiltX, bIdx * 0.7, branch.tiltZ);
+
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.034, branch.h, 8), stemMat);
+    stem.position.y = branch.h * 0.5;
+    branchGroup.add(stem);
+
+    const whorls = 6;
+    for (let i = 0; i < whorls; i++) {
+      const y = 0.14 + i * ((branch.h - 0.16) / whorls);
+      const leafScale = 1.0 - (i / whorls) * 0.28;
+      const leavesPerWhorl = 5;
+      for (let j = 0; j < leavesPerWhorl; j++) {
+        const angle = (j * Math.PI * 2) / leavesPerWhorl + i * 0.48;
+        const leafPivot = new THREE.Group();
+        leafPivot.position.set(0, y, 0);
+        leafPivot.rotation.y = angle;
+        const leaf = new THREE.Mesh(leafGeo, (i + j) % 3 === 0 ? leafTipMat : chloroMat);
+        leaf.rotation.z = -1.08 + (i / whorls) * 0.24;
+        leaf.scale.setScalar(leafScale);
         leaf.name = '🌿 Daun Hydrilla & Kloroplas Fotosistem II';
-        plantGroup.add(leaf);
+        leafPivot.add(leaf);
+        branchGroup.add(leafPivot);
       }
     }
+    plantGroup.add(branchGroup);
   });
   apparatusGroup.add(plantGroup);
 
@@ -181,30 +349,72 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
   pedestalStem.castShadow = true;
   const specimenDishRim = new THREE.Mesh(
     new THREE.TorusGeometry(0.66, 0.032, 12, 36),
-    new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.84, roughness: 0.24 })
+    brassSpacerMat
   );
   specimenDishRim.rotation.x = Math.PI / 2;
   specimenDishRim.position.y = 0.72;
   const specimenGlassDisc = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.64, 0.64, 0.04, 32),
-    slideGlassMat
+    new THREE.CylinderGeometry(0.64, 0.64, 0.08, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.52,
+      roughness: 0.15,
+      metalness: 0.15,
+    })
   );
-  specimenGlassDisc.position.y = 0.7;
+  specimenGlassDisc.position.y = 0.72;
   const organellesGroup = createCellularOrganellesGroup(0.42);
-  organellesGroup.position.set(0, 0.94, 0);
+  organellesGroup.position.set(0, 0.84, 0);
   specimenStandGroup.add(pedestalBase, pedestalStem, specimenDishRim, specimenGlassDisc, organellesGroup);
-  specimenStandGroup.name = '🔬 Pembesaran Sel & Kloroplas Hydrilla';
+  specimenStandGroup.name = 'Pembesaran Sel & Kloroplas Hydrilla';
   apparatusGroup.add(specimenStandGroup);
 
-  // Variable Spectrum Lamp Housing + Filter Ring + Glowing Bulb + Photon Cone
+  // Grounded Laboratory Stand + Digital PAR/Spectrum Console + Articulated Arm for Variable Spectrum Lamp
+  const standDarkMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.65, roughness: 0.34 });
+  const standSteelMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.85, roughness: 0.22 });
+  const lampStandBase = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.64, 0.14, 24), standDarkMat);
+  lampStandBase.position.set(-3.75, 0.07, 0);
+  lampStandBase.castShadow = true;
+  lampStandBase.receiveShadow = true;
+  const lampStandRod = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.7, 16), standSteelMat);
+  lampStandRod.position.set(-3.75, 1.4, 0);
+  lampStandRod.castShadow = true;
+  const lampBosshead = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.22), standDarkMat);
+  lampBosshead.position.set(-3.75, 2.68, 0);
+  const lampArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.62, 12), standSteelMat);
+  lampArm.rotation.z = Math.PI / 2 - 0.28;
+  lampArm.position.set(-3.48, 2.6, 0);
+  apparatusGroup.add(lampStandBase, lampStandRod, lampBosshead, lampArm);
+
+  // Digital PAR / Lux Meter Console mounted on the lamp stand
+  const parConsoleBox = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.56, 0.42), standDarkMat);
+  parConsoleBox.position.set(-3.45, 0.46, 0.42);
+  parConsoleBox.castShadow = true;
+  const parScreenTex = createInstrumentPanelTexture({
+    title: 'PAR QUANTUM SENSOR',
+    primaryText: '1200 Lux',
+    secondaryText: 'λ = 660 nm · O₂ 65%',
+    accentHex: '#38bdf8',
+  });
+  if (parScreenTex) disposableItems.push(parScreenTex);
+  const parScreenMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.82, 0.42),
+    new THREE.MeshBasicMaterial({ map: parScreenTex })
+  );
+  parScreenMesh.position.set(-3.45, 0.46, 0.64);
+  apparatusGroup.add(parConsoleBox, parScreenMesh);
+
+  // Variable Spectrum Lamp Housing + Filter Ring + Glowing Bulb + Soft Volumetric Photon Cone
   const lampGroup = new THREE.Group();
   lampGroup.position.set(-3.2, 2.5, 0);
   lampGroup.rotation.z = -Math.PI / 3;
   const lamp = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.3, 0.45, 0.55, 18),
-    new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.7, roughness: 0.3 })
+    new THREE.CylinderGeometry(0.3, 0.45, 0.55, 24),
+    new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.72, roughness: 0.28 })
   );
-  lamp.name = '💡 Lampu Spektrum Variabel';
+  lamp.castShadow = true;
+  lamp.name = 'Lampu Spektrum Variabel';
   lamp.userData = {
     draggableParam: 'lightIntensityLux',
     min: 100,
@@ -218,23 +428,18 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
     emissiveIntensity: 1.4,
     roughness: 0.15,
   });
-  const filterLens = new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.41, 0.08, 20), filterMat);
+  const filterLens = new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.41, 0.08, 24), filterMat);
   filterLens.position.y = -0.28;
   lampGroup.add(lamp, filterLens);
   apparatusGroup.add(lampGroup);
 
-  // Translucent Volumetric Light Beam Cone aimed toward Hydrilla
-  const beamMat = new THREE.MeshBasicMaterial({
-    color: 0xef4444,
-    transparent: true,
-    opacity: 0.14,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
-  const beamCone = new THREE.Mesh(new THREE.ConeGeometry(1.15, 3.3, 24, 1, true), beamMat);
-  beamCone.position.set(-1.75, 1.75, 0);
+  // Soft Volumetric Fresnel-Feathered Light Beam Cone aimed toward Hydrilla
+  const beamMat = createVolumetricBeamMaterial(0xef4444);
+  disposableItems.push(beamMat);
+  const beamCone = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 1.28, 3.35, 32, 1, true), beamMat);
+  beamCone.position.set(-1.72, 1.72, 0);
   beamCone.rotation.z = Math.PI / 2 - 0.52;
+  beamCone.renderOrder = 4;
   apparatusGroup.add(beamCone);
 
   const lightSpot = new THREE.SpotLight(0xef4444, 4.0, 10, Math.PI / 4, 0.5);
@@ -281,6 +486,7 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
     c3: { pos: worldPosA, text: '' },
   };
   const emptyAnchors: BiologyConceptAnchors = {};
+  let lastParKey = '';
 
   return {
     update: (t, curParams, isLite, showConceptLabels, particleScale = isLite ? 0.5 : 1) => {
@@ -291,16 +497,31 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
 
       filterMat.color.setHex(hex);
       filterMat.emissive.setHex(hex);
-      beamMat.color.setHex(hex);
-      beamMat.opacity = Math.min(0.24, 0.05 + (lux / 3000) * 0.18);
+      beamMat.uniforms.uColor.value.setHex(hex);
+      beamMat.uniforms.uOpacity.value = Math.min(0.42, 0.12 + (lux / 3000) * 0.28);
+      beamMat.uniforms.uTime.value = t;
+      causticMat.color.setHex(hex);
+      causticMat.opacity = Math.min(0.24, 0.06 + (lux / 3000) * 0.16) * (0.9 + 0.1 * Math.sin(t * 2.6));
       lightSpot.color.setHex(hex);
       lightSpot.intensity = lux / 300;
+      plantGroup.rotation.y = Math.sin(t * 0.7) * 0.045;
 
       // Dynamic O2 Gas Pocket height at top of inverted tube
       const gasLevel = computePhotosynthesisGasLevel(lux, wavelength, bicarb);
       const pocketHeight = gasLevel * 0.9;
       gasPocket.scale.y = pocketHeight;
       gasPocket.position.y = 2.95 - pocketHeight * 0.5;
+
+      const parKey = `${Math.round(lux)}_${Math.round(wavelength)}_${Math.round(gasLevel * 100)}`;
+      if (parKey !== lastParKey) {
+        lastParKey = parKey;
+        updateInstrumentPanelTexture(parScreenTex, {
+          title: 'PAR QUANTUM SENSOR',
+          primaryText: `${Math.round(lux)} Lux`,
+          secondaryText: `λ = ${Math.round(wavelength)} nm · O₂ ${Math.round(gasLevel * 100)}%`,
+          accentHex: '#38bdf8',
+        });
+      }
 
       const bubbleSpeed = 0.45 + (lux / 1600) * Math.max(0.25, gasLevel);
       const effectiveScale = isLite ? Math.min(0.5, particleScale) : particleScale;
@@ -339,22 +560,76 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
   const { apparatusGroup, slideGlassMat, createCellularOrganellesGroup } = ctx;
   const disposableItems: { dispose: () => void }[] = [];
 
+  const woodRackMat = new THREE.MeshStandardMaterial({
+    color: 0xb45309,
+    roughness: 0.65,
+    metalness: 0.08,
+  });
+  const brassMat = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    metalness: 0.84,
+    roughness: 0.25,
+  });
+  const darkMetalMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    metalness: 0.65,
+    roughness: 0.34,
+  });
+  const brushedSteelMat = new THREE.MeshStandardMaterial({
+    color: 0xcbd5e1,
+    metalness: 0.86,
+    roughness: 0.24,
+  });
+
+  // Complete 2-Tier Laboratory Wooden & Brass Test-Tube Rack
   const rackBase = new THREE.Mesh(
-    new THREE.BoxGeometry(3.5, 0.15, 1.2),
-    new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.7 })
+    new THREE.BoxGeometry(3.6, 0.16, 1.3),
+    woodRackMat
   );
   rackBase.position.y = 0.08;
   rackBase.castShadow = true;
-  rackBase.name = 'Rak Tabung Reaksi Kayu';
+  rackBase.receiveShadow = true;
+  rackBase.name = 'Rak Tabung Reaksi Kayu 2-Tingkat';
   apparatusGroup.add(rackBase);
 
+  [-1.62, 1.62].forEach((px) => {
+    const rackPillar = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 1.56, 1.05),
+      woodRackMat
+    );
+    rackPillar.position.set(px, 0.88, 0);
+    rackPillar.castShadow = true;
+    apparatusGroup.add(rackPillar);
+  });
+
+  const rackUpperDeck = new THREE.Mesh(
+    new THREE.BoxGeometry(3.52, 0.14, 1.15),
+    woodRackMat
+  );
+  rackUpperDeck.position.y = 1.65;
+  rackUpperDeck.castShadow = true;
+  apparatusGroup.add(rackUpperDeck);
+
+  // Brass guide collar grommets for 3 test-tube slots (x = -1.1, 0, +1.1)
+  [-1.1, 0, 1.1].forEach((slotX, idx) => {
+    const holeRadius = idx === 1 ? 0.56 : 0.36;
+    const grommet = new THREE.Mesh(
+      new THREE.TorusGeometry(holeRadius, 0.032, 12, 28),
+      brassMat
+    );
+    grommet.rotation.x = Math.PI / 2;
+    grommet.position.set(slotX, 1.73, 0);
+    apparatusGroup.add(grommet);
+  });
+
+  // Main Central Catalase Reaction Test Tube (x = 0) with hemispherical bottom, top rolled lip & scale
   const tube = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.55, 0.55, 3.2, 24, 1, true),
+    new THREE.CylinderGeometry(0.55, 0.55, 3.0, 28, 1, true),
     slideGlassMat
   );
-  tube.position.y = 1.7;
+  tube.position.y = 1.85;
   tube.castShadow = true;
-  tube.name = '🧪 Tabung Reaksi Reaksi Katalase';
+  tube.name = '🧪 Tabung Reaksi Utama Katalase';
   tube.userData = {
     draggableParam: 'substrateConcMm',
     min: 1,
@@ -362,7 +637,70 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
     step: 1,
     label: 'Konsentrasi Substrat [S] (mM)',
   };
-  apparatusGroup.add(tube);
+  const tubeBottomDome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.55, 24, 14, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+    slideGlassMat
+  );
+  tubeBottomDome.position.y = 0.35;
+  const tubeTopRim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.55, 0.035, 12, 32),
+    slideGlassMat
+  );
+  tubeTopRim.rotation.x = Math.PI / 2;
+  tubeTopRim.position.y = 3.35;
+  apparatusGroup.add(tube, tubeBottomDome, tubeTopRim);
+
+  const catalaseScaleTex = createGraduatedScaleTexture(25, 'mL', 10);
+  if (catalaseScaleTex) {
+    disposableItems.push(catalaseScaleTex);
+    const catalaseScaleSleeve = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.562, 0.562, 2.7, 24, 1, true, -0.55, 1.1),
+      new THREE.MeshBasicMaterial({
+        map: catalaseScaleTex,
+        transparent: true,
+        opacity: 0.88,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    catalaseScaleSleeve.position.y = 1.85;
+    apparatusGroup.add(catalaseScaleSleeve);
+  }
+
+  // Two flanking control test tubes (x = -1.1 Acid Control, x = +1.1 Neutral Blank Control)
+  [
+    { x: -1.1, colorHex: 0xf43f5e, label: 'Tabung Kontrol A (pH Asam)' },
+    { x: 1.1, colorHex: 0x38bdf8, label: 'Tabung Kontrol B (Blanko H₂O₂)' },
+  ].forEach((ctrl) => {
+    const ctrlTube = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.34, 0.34, 2.45, 22, 1, true),
+      slideGlassMat
+    );
+    ctrlTube.position.set(ctrl.x, 1.55, 0);
+    ctrlTube.name = ctrl.label;
+    const ctrlDome = new THREE.Mesh(
+      new THREE.SphereGeometry(0.34, 18, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+      slideGlassMat
+    );
+    ctrlDome.position.set(ctrl.x, 0.325, 0);
+    const ctrlRim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.34, 0.025, 10, 24),
+      slideGlassMat
+    );
+    ctrlRim.rotation.x = Math.PI / 2;
+    ctrlRim.position.set(ctrl.x, 2.775, 0);
+    const ctrlLiquid = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.305, 0.305, 0.72, 20),
+      new THREE.MeshStandardMaterial({
+        color: ctrl.colorHex,
+        transparent: true,
+        opacity: 0.72,
+        roughness: 0.2,
+      })
+    );
+    ctrlLiquid.position.set(ctrl.x, 0.72, 0);
+    apparatusGroup.add(ctrlTube, ctrlDome, ctrlRim, ctrlLiquid);
+  });
 
   const liquidMat = new THREE.MeshStandardMaterial({
     color: 0xef4444,
@@ -371,7 +709,7 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
     roughness: 0.2,
   });
   const liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.51, 0.51, 0.65, 24), liquidMat);
-  liquid.position.y = 0.45;
+  liquid.position.y = 0.55;
   liquid.name = 'Campuran Enzim & H₂O₂';
   liquid.userData = {
     draggableParam: 'solutionPH',
@@ -391,16 +729,49 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
       opacity: 0.86,
     })
   );
-  foamMesh.position.y = 1.3;
+  foamMesh.position.y = 1.38;
   foamMesh.name = '🎯 Kolom Busa O₂ Berbusa';
   apparatusGroup.add(foamMesh);
 
-  // Digital Immersion Thermal Probe beside reaction tube (draggable temperatureC)
-  const thermStem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.04, 0.04, 2.3, 12),
-    new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.85, roughness: 0.25 })
+  // Grounded Digital Incubation Thermometer Console + Stand + Immersion Probe
+  const thermConsoleBox = new THREE.Mesh(
+    new THREE.BoxGeometry(1.18, 0.68, 0.56),
+    darkMetalMat
   );
-  thermStem.position.set(-0.92, 1.35, 0.25);
+  thermConsoleBox.position.set(-2.55, 0.34, 0.15);
+  thermConsoleBox.castShadow = true;
+  const thermScreenTex = createInstrumentPanelTexture({
+    title: 'ENZYME ASSAY MONITOR',
+    primaryText: '37.0 °C',
+    secondaryText: 'pH 7.0 · [S] = 10 mM',
+    accentHex: '#34d399',
+  });
+  if (thermScreenTex) disposableItems.push(thermScreenTex);
+  const thermScreenMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.02, 0.48),
+    new THREE.MeshBasicMaterial({ map: thermScreenTex })
+  );
+  thermScreenMesh.position.set(-2.55, 0.36, 0.44);
+
+  const thermSupportPost = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.045, 0.045, 2.35, 14),
+    brushedSteelMat
+  );
+  thermSupportPost.position.set(-2.25, 1.55, 0.15);
+  const thermSupportArm = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.035, 2.1, 12),
+    brushedSteelMat
+  );
+  thermSupportArm.rotation.z = Math.PI / 2;
+  thermSupportArm.position.set(-1.22, 2.68, 0.15);
+  apparatusGroup.add(thermConsoleBox, thermScreenMesh, thermSupportPost, thermSupportArm);
+
+  // Digital Immersion Thermal Probe dipping into the central reaction tube (draggable temperatureC)
+  const thermStem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.036, 0.036, 2.35, 14),
+    brushedSteelMat
+  );
+  thermStem.position.set(-0.22, 1.82, 0.15);
   thermStem.name = '🌡️ Probe Termometer Inkubasi';
   thermStem.userData = {
     draggableParam: 'temperatureC',
@@ -414,13 +785,41 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
     emissive: 0x10b981,
     emissiveIntensity: 0.8,
   });
-  const thermBulb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 16), thermIndicatorMat);
-  thermBulb.position.set(-0.92, 2.52, 0.25);
+  const thermBulb = new THREE.Mesh(new THREE.SphereGeometry(0.095, 16, 16), thermIndicatorMat);
+  thermBulb.position.set(-0.22, 2.98, 0.15);
   apparatusGroup.add(thermStem, thermBulb);
 
-  const organellesGroup = createCellularOrganellesGroup(0.6);
-  organellesGroup.position.set(1.85, 1.35, 0);
-  apparatusGroup.add(organellesGroup);
+  // Grounded specimen pedestal for cellular peroxisome & organelle zoom view (never floating!)
+  const catPedestalGroup = new THREE.Group();
+  catPedestalGroup.position.set(2.55, 0, 0);
+  const catPedBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.68, 0.76, 0.14, 32),
+    darkMetalMat
+  );
+  catPedBase.position.y = 0.07;
+  catPedBase.castShadow = true;
+  catPedBase.receiveShadow = true;
+  const catPedStem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.14, 0.62, 18),
+    brushedSteelMat
+  );
+  catPedStem.position.y = 0.45;
+  catPedStem.castShadow = true;
+  const catDishRim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.66, 0.032, 12, 36),
+    brassMat
+  );
+  catDishRim.rotation.x = Math.PI / 2;
+  catDishRim.position.y = 0.78;
+  const catGlassDisc = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.64, 0.64, 0.08, 32),
+    slideGlassMat
+  );
+  catGlassDisc.position.y = 0.78;
+  const organellesGroup = createCellularOrganellesGroup(0.46);
+  organellesGroup.position.set(0, 0.92, 0);
+  catPedestalGroup.add(catPedBase, catPedStem, catDishRim, catGlassDisc, organellesGroup);
+  apparatusGroup.add(catPedestalGroup);
 
   const FOAM_BUBBLES = 64;
   const particleGeo = new THREE.SphereGeometry(0.055, 8, 8);
@@ -449,6 +848,7 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
     c3: { pos: worldPosB, text: '' },
   };
   const emptyAnchors: BiologyConceptAnchors = {};
+  let lastThermKey = '';
 
   return {
     update: (t, curParams, isLite, showConceptLabels, particleScale = isLite ? 0.5 : 1) => {
@@ -461,6 +861,17 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
       thermIndicatorMat.color.setHex(thermHex);
       thermIndicatorMat.emissive.setHex(thermHex);
 
+      const thermKey = `${tempC.toFixed(1)}_${ph.toFixed(1)}_${sub}`;
+      if (thermKey !== lastThermKey) {
+        lastThermKey = thermKey;
+        updateInstrumentPanelTexture(thermScreenTex, {
+          title: 'ENZYME ASSAY MONITOR',
+          primaryText: `${tempC.toFixed(1)} °C`,
+          secondaryText: `pH ${ph.toFixed(1)} · [S] = ${Math.round(sub)} mM`,
+          accentHex: tempC > 48 ? '#f87171' : '#34d399',
+        });
+      }
+
       const phFactor = Math.max(0.08, 1.0 - Math.abs(ph - 7.0) * 0.15);
       const thermalFactor =
         tempC > 45 ? Math.max(0.05, 1.0 - (tempC - 45) / 28) : Math.max(0.25, tempC / 37);
@@ -468,7 +879,7 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
 
       const foamTarget = Math.min(2.05, 0.28 + activity * 1.25);
       foamMesh.scale.y = foamTarget;
-      foamMesh.position.y = 0.72 + (1.2 * foamTarget) / 2;
+      foamMesh.position.y = 0.82 + (1.2 * foamTarget) / 2;
 
       const effectiveScale = isLite ? Math.min(0.5, particleScale) : particleScale;
       const activeCount = Math.max(12, Math.round(FOAM_BUBBLES * effectiveScale));
@@ -476,7 +887,7 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
         const seed = particleSeeds[idx] ?? idx * 0.7;
         const span = Math.max(0.6, 1.2 * foamTarget + 0.35);
         const phase = (seed + t * Math.max(0.25, activity * 0.9)) % span;
-        const py = 0.78 + (phase < 0 ? phase + span : phase);
+        const py = 0.85 + (phase < 0 ? phase + span : phase);
         const rad = 0.15 + ((idx % 5) / 5) * 0.3;
         const px = Math.cos(seed * 4.3 + t * 0.9) * rad;
         const pz = Math.sin(seed * 3.1 + t * 0.8) * rad;
@@ -487,8 +898,8 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
       if (!showConceptLabels) return emptyAnchors;
       foamMesh.getWorldPosition(worldPosA);
       worldPosA.y += 0.85;
-      worldPosB.set(-0.92, 2.52, 0.25).applyMatrix4(apparatusGroup.matrixWorld);
-      worldPosB.y += 0.45;
+      worldPosB.set(-0.22, 2.98, 0.15).applyMatrix4(apparatusGroup.matrixWorld);
+      worldPosB.y += 0.35;
       anchors.c1!.text = `Busa O₂ · pH ${ph.toFixed(1)}`;
       anchors.c3!.text = tempC > 45 ? `Suhu ${tempC}°C: Denaturasi Enzim!` : `Suhu ${tempC}°C (Aktif)`;
       return anchors;
@@ -535,6 +946,20 @@ export function buildPredatorPreyRig(ctx: BiologyRigSharedContext): BiologyRigHa
   terrariumWall.position.y = 0.85;
   terrariumWall.name = 'Dinding Kaca Terarium Bioma';
   apparatusGroup.add(terrariumWall);
+
+  // Brass terrarium top & bottom reinforcing rings
+  const terrariumBrassMat = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    metalness: 0.82,
+    roughness: 0.26,
+  });
+  const terrariumTopRim = new THREE.Mesh(
+    new THREE.TorusGeometry(2.66, 0.038, 12, 48),
+    terrariumBrassMat
+  );
+  terrariumTopRim.rotation.x = Math.PI / 2;
+  terrariumTopRim.position.y = 1.4;
+  apparatusGroup.add(terrariumTopRim);
 
   // Oasis water pond + dynamic ecological balance ring
   const pond = new THREE.Mesh(
@@ -735,13 +1160,38 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
   } = ctx;
   const disposableItems: { dispose: () => void }[] = [];
 
-  const petri = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.36, 36), slideGlassMat);
+  const petri = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.4, 2.4, 0.36, 36, 1, true),
+    slideGlassMat
+  );
   petri.position.y = 0.22;
   petri.castShadow = true;
   petri.name = 'Cawan Petri & Kaca Preparat Sukrosa';
-  apparatusGroup.add(petri);
+  const petriBottom = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.4, 2.4, 0.04, 36),
+    slideGlassMat
+  );
+  petriBottom.position.y = 0.05;
+  const petriRim = new THREE.Mesh(
+    new THREE.TorusGeometry(2.4, 0.028, 12, 48),
+    slideGlassMat
+  );
+  petriRim.rotation.x = Math.PI / 2;
+  petriRim.position.y = 0.4;
+  const sucroseBath = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.33, 2.33, 0.22, 36),
+    new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.2,
+      roughness: 0.15,
+      depthWrite: false,
+    })
+  );
+  sucroseBath.position.y = 0.18;
+  apparatusGroup.add(petri, petriBottom, petriRim, sucroseBath);
 
-  // Architectural Rigid Plant Cell Wall Pillars & Rim Frame (non-wireframe solid beams)
+  // Architectural Rigid Plant Cell Wall Pillars & Solid 3D Cellulose Frame Beams (with Plasmodesmata pores)
   const cellWallGroup = new THREE.Group();
   cellWallGroup.position.y = 1.35;
   cellWallGroup.name = '🧱 Dinding Selulosa Kaku';
@@ -749,27 +1199,94 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
     color: 0x22c55e,
     emissive: 0x15803d,
     emissiveIntensity: 0.32,
-    roughness: 0.55,
+    roughness: 0.48,
   });
-  const wallWire = new THREE.Mesh(
-    new THREE.BoxGeometry(2.35, 1.68, 1.48),
-    new THREE.MeshBasicMaterial({ color: 0x4ade80, wireframe: true, transparent: true, opacity: 0.32 })
-  );
-  cellWallGroup.add(wallWire);
 
-  // Corner cellulose columns for structural realism
-  const postGeo = new THREE.CylinderGeometry(0.055, 0.055, 1.68, 10);
+  // 4 Vertical corner cellulose columns extending down to the Petri dish base so the cell is grounded
+  const postGeo = new THREE.CylinderGeometry(0.062, 0.068, 1.98, 12);
+  const cornerX = 1.16;
+  const cornerY = 0.84;
+  const cornerZ = 0.73;
   [
-    [-1.16, -0.73],
-    [1.16, -0.73],
-    [-1.16, 0.73],
-    [1.16, 0.73],
+    [-cornerX, -cornerZ],
+    [cornerX, -cornerZ],
+    [-cornerX, cornerZ],
+    [cornerX, cornerZ],
   ].forEach(([cx, cz]) => {
     const col = new THREE.Mesh(postGeo, wallMat);
-    col.position.set(cx, 0, cz);
+    col.position.set(cx, -0.14, cz);
+    col.castShadow = true;
     cellWallGroup.add(col);
   });
+
+  // 4 Top & 4 Bottom Horizontal Cellulose Frame Beams + 8 Corner Nodes
+  const beamXGeo = new THREE.CylinderGeometry(0.052, 0.052, cornerX * 2, 12);
+  beamXGeo.rotateZ(Math.PI / 2);
+  const beamZGeo = new THREE.CylinderGeometry(0.052, 0.052, cornerZ * 2, 12);
+  beamZGeo.rotateX(Math.PI / 2);
+  const nodeGeo = new THREE.SphereGeometry(0.082, 12, 12);
+
+  [-cornerY, cornerY].forEach((cy) => {
+    [-cornerZ, cornerZ].forEach((cz) => {
+      const bx = new THREE.Mesh(beamXGeo, wallMat);
+      bx.position.set(0, cy, cz);
+      cellWallGroup.add(bx);
+    });
+    [-cornerX, cornerX].forEach((cx) => {
+      const bz = new THREE.Mesh(beamZGeo, wallMat);
+      bz.position.set(cx, cy, 0);
+      cellWallGroup.add(bz);
+      [-cornerZ, cornerZ].forEach((cz) => {
+        const node = new THREE.Mesh(nodeGeo, wallMat);
+        node.position.set(cx, cy, cz);
+        cellWallGroup.add(node);
+      });
+    });
+  });
+
+  // Golden Plasmodesmata intercellular channel rings on left and right cell walls
+  const plasmodesmataMat = new THREE.MeshStandardMaterial({
+    color: 0xfacc15,
+    emissive: 0xd97706,
+    emissiveIntensity: 0.45,
+    roughness: 0.3,
+  });
+  [-cornerX, cornerX].forEach((px) => {
+    [-0.28, 0.28].forEach((py) => {
+      const pore = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.024, 10, 20), plasmodesmataMat);
+      pore.rotation.y = Math.PI / 2;
+      pore.position.set(px, py, 0);
+      pore.name = 'Kanal Plasmodesmata Dinding Sel';
+      cellWallGroup.add(pore);
+    });
+  });
   apparatusGroup.add(cellWallGroup);
+
+  // Grounded Digital Osmometer & Refractometer Console on the left side of the Petri dish
+  const osmConsoleMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    metalness: 0.65,
+    roughness: 0.34,
+  });
+  const osmConsoleBox = new THREE.Mesh(
+    new THREE.BoxGeometry(1.18, 0.64, 0.48),
+    osmConsoleMat
+  );
+  osmConsoleBox.position.set(-2.95, 0.32, 0.2);
+  osmConsoleBox.castShadow = true;
+  const osmScreenTex = createInstrumentPanelTexture({
+    title: 'DIGITAL OSMOMETER',
+    primaryText: '0.30 M',
+    secondaryText: 'ISOTONIK · Ψs Seimbang',
+    accentHex: '#38bdf8',
+  });
+  if (osmScreenTex) disposableItems.push(osmScreenTex);
+  const osmScreenMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.02, 0.46),
+    new THREE.MeshBasicMaterial({ map: osmScreenTex })
+  );
+  osmScreenMesh.position.set(-2.95, 0.34, 0.45);
+  apparatusGroup.add(osmConsoleBox, osmScreenMesh);
 
   // Inner Plasma Membrane & Protoplast (draggable sucroseConcMolar)
   const protoMat = new THREE.MeshPhysicalMaterial({
@@ -861,6 +1378,7 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
   const emptyAnchors: BiologyConceptAnchors = {};
   let cyclosisAngle = 0;
   let lastT = 0;
+  let lastOsmKey = '';
 
   return {
     update: (t, curParams, isLite, showConceptLabels, particleScale = isLite ? 0.5 : 1) => {
@@ -869,6 +1387,23 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
 
       const sucrose = curParams.sucroseConcMolar ?? 0.3;
       const osmState = computeOsmosisVisualState(sucrose);
+      const isHyper = osmState.state === 'hypertonic';
+      const isHypo = osmState.state === 'hypotonic';
+
+      const osmKey = `${sucrose.toFixed(2)}_${osmState.state}`;
+      if (osmKey !== lastOsmKey) {
+        lastOsmKey = osmKey;
+        updateInstrumentPanelTexture(osmScreenTex, {
+          title: 'DIGITAL OSMOMETER',
+          primaryText: `${sucrose.toFixed(2)} M`,
+          secondaryText: isHyper
+            ? 'HIPERTONIK · Plasmolisis'
+            : isHypo
+            ? 'HIPOTONIK · Sel Turgid'
+            : 'ISOTONIK · Ψs Seimbang',
+          accentHex: isHyper ? '#fb923c' : isHypo ? '#38bdf8' : '#34d399',
+        });
+      }
 
       protoplastMesh.scale.setScalar(osmState.protoplastScale);
       vacuoleMesh.scale.set(
@@ -892,8 +1427,6 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
       }
       instancedPool.commit(activeCount);
 
-      const isHyper = osmState.state === 'hypertonic';
-      const isHypo = osmState.state === 'hypotonic';
       if (showConceptLabels && (isHyper || isHypo)) {
         osmosisArrowLeft.visible = true;
         osmosisArrowRight.visible = true;
@@ -932,3 +1465,4 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
     },
   };
 }
+

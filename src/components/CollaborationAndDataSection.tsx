@@ -26,7 +26,7 @@ import {
 } from '../utils/academicReportExporter';
 import { computeMeasurementErrorSummary } from '../utils/uncertaintyEngine';
 import { getLabSafetyLicenseForModule } from '../services/labLicenseEngine';
-import { getExperimentById } from '../registry/experimentRegistry';
+import { EducationTier, getExperimentById } from '../registry/experimentRegistry';
 import { AcademicReportPreviewModal } from './ui/AcademicReportPreviewModal';
 import {
   HypothesisNote,
@@ -78,6 +78,7 @@ interface CollaborationAndDataSectionProps {
   onReplayRecord?: (rec: ExperimentRecord) => void;
   students?: StudentProgressItem[];
   moduleId?: string;
+  activeTier?: EducationTier;
 }
 
 export const CollaborationAndDataSection: React.FC<
@@ -102,6 +103,7 @@ export const CollaborationAndDataSection: React.FC<
   onDeleteSnapshot,
   onReplayRecord,
   students = [],
+  activeTier = 'SMA',
 }) => {
   const [domainFilter, setDomainFilter] = useState<'Semua' | ScienceDomain>('Semua');
   const [newTaskTitle, setNewTaskTitle] = useState<string>('');
@@ -182,7 +184,7 @@ export const CollaborationAndDataSection: React.FC<
       experimentTitle: resolvedModule?.title || expTitle,
       studentName: activeStudentName,
       groupId: activeGroupId,
-      tier: 'SMA',
+      tier: activeTier,
       dateStr: new Date().toLocaleDateString('id-ID', {
         day: 'numeric',
         month: 'long',

@@ -208,6 +208,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       fallbackSize: { width: 760, height: 380 },
       backgroundHex: initialThemeColors.backgroundHex,
       fogDensity: 0.014,
+      domainPreset: 'physics',
       camera: {
         fov: 45,
         near: 0.1,
@@ -222,6 +223,9 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         autoRotateSpeed: 1.4,
       },
       onContextRestored: triggerSceneRebuild,
+      onResize: () => {
+        syncConceptLabelsRef.current?.();
+      },
       onUserControlsStart: () => {
         camTransitionActive = false;
       },
@@ -438,6 +442,14 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
         isDragging = false;
         activeDragMesh = null;
         scheduleClearToast(1200);
+      },
+      onClick: (obj) => {
+        if (obj.userData?.measurementHandle) return;
+        labSound.playClick(640);
+        const hint = String(obj.userData?.label ?? obj.name ?? '');
+        setInspectedPart(
+          resolveApparatusInspection('physics', latestRef.current.params.mode, hint || undefined)
+        );
       },
       onCursorMove3D: (pos, normal, hoveredObject) => {
         latestRef.current.onEmitCursor?.(pos, normal, hoveredObject);

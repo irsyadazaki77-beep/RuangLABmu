@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -8,6 +8,11 @@ import {
   FileCheck2,
   Radio,
   Compass,
+  Timer,
+  Play,
+  Pause,
+  RotateCcw,
+  Send,
 } from 'lucide-react';
 import {
   ExperimentRecord,
@@ -71,6 +76,50 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
   const [groupFilter, setGroupFilter] = useState<string>('Semua');
   const [teacherTab, setTeacherTab] = useState<'radar' | 'rubrik' | 'ujian-misteri'>('radar');
 
+  // Lab Session Countdown Timer (seconds)
+  const [timerPresetMin, setTimerPresetMin] = useState<number>(15);
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(15 * 60);
+  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
+  const [quickBroadcastText, setQuickBroadcastText] = useState<string>('');
+  const [broadcastSentNotice, setBroadcastSentNotice] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isTimerRunning) return;
+    const id = window.setInterval(() => {
+      setRemainingSeconds((prev) => {
+        if (prev <= 1) {
+          setIsTimerRunning(false);
+          labSound.playSuccessChime();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [isTimerRunning]);
+
+  const handleSelectTimerPreset = (minutes: number) => {
+    labSound.playClick();
+    setTimerPresetMin(minutes);
+    setRemainingSeconds(minutes * 60);
+    setIsTimerRunning(false);
+  };
+
+  const handleQuickBroadcast = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = quickBroadcastText.trim();
+    if (!trimmed) return;
+    labSound.playSuccessChime();
+    onSendTeacherFeedback('all', trimmed);
+    setQuickBroadcastText('');
+    setBroadcastSentNotice(true);
+    window.setTimeout(() => setBroadcastSentNotice(false), 3000);
+  };
+
+  const formattedTimer = `${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(
+    remainingSeconds % 60
+  ).padStart(2, '0')}`;
+
   const radarLanes = useMemo(() => {
     return buildRadarLanes(students, groupFilter);
   }, [students, groupFilter]);
@@ -83,6 +132,23 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
   const totalTrials = records.length;
   const studentsNeedingHelp = students.filter((s) => s.status === 'Butuh Bantuan').length;
   const groups = ['Semua', ...Array.from(new Set(students.map((s) => s.groupId)))];
+  const uniqueGroupCount = Math.max(0, groups.length - 1);
+  const activeDomainsLabel = useMemo(() => {
+    const domainSet = new Set<string>();
+    const mapLabel = (d: string) => {
+      const low = d.toLowerCase();
+      if (low.includes('fis') || low.includes('phys')) return 'Fisika';
+      if (low.includes('kim') || low.includes('chem')) return 'Kimia';
+      if (low.includes('bio')) return 'Biologi';
+      if (low.includes('astro')) return 'Astronomi';
+      return d;
+    };
+    students.forEach((s) => domainSet.add(mapLabel(s.activeDomain)));
+    records.forEach((r) => domainSet.add(mapLabel(r.domain)));
+    const arr = Array.from(domainSet);
+    return arr.length > 0 ? arr.join(', ') : '4 Domain STEM';
+  }, [students, records]);
+
   const visibleStudents = students.filter((s) =>
     groupFilter === 'Semua' ? true : s.groupId === groupFilter
   );
@@ -185,8 +251,8 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               SISWA ONLINE
             </span>
           </div>
-          <div className="mt-1 text-xs text-[var(--comfort-text-muted)]">
-            Terbagi dalam 3 kelompok praktikum kolaboratif
+          <div className="mt-1 text-xs text-[var(--comfort-text-muted)] tabular-nums">
+            Terbagi dalam {uniqueGroupCount} kelompok praktikum kolaboratif
           </div>
         </div>
 
@@ -204,7 +270,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             </span>
           </div>
           <div className="mt-1 text-xs text-[var(--comfort-text-muted)]">
-            Target kurikulum Fisika &amp; Kimia: 80%
+            Domain aktif: {activeDomainsLabel} · Target 80%
           </div>
         </div>
 
@@ -245,28 +311,126 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Ringkasan Ergonomi Belajar & Perancah Kognitif Kelas */}
-      <div className="bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-0.5">
-          <div className="text-[11px] font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold">
-            Telemetri Ergonomi Kognitif &amp; Scaffolding Belajar
+      {/* Pengatur Waktu Praktikum (Countdown Timer) & Siaran Instruksi Cepat */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div
+          data-testid="teacher-countdown-timer"
+          className="lg:col-span-5 bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4 flex flex-wrap items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-sky-600/12 border border-sky-500/25 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
+              <Timer className="w-4 h-4" aria-hidden="true" />
+            </div>
+            <div>
+              <div className="text-[11px] font-mono uppercase tracking-wider text-[var(--comfort-text-muted)] font-semibold">
+                Pengatur Waktu Praktikum
+              </div>
+              <div
+                data-testid="teacher-timer-display"
+                className={`text-2xl font-mono font-bold tabular-nums leading-tight ${
+                  remainingSeconds <= 60
+                    ? 'text-rose-600 dark:text-rose-400'
+                    : 'text-[var(--comfort-text)]'
+                }`}
+              >
+                {formattedTimer}
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-[var(--comfort-text-muted)]">
-            Siswa difasilitasi dengan Buku Catatan Hipotesis Terstruktur, Komparator Diff 2 Percobaan, dan Petunjuk Bertahap (3-Tier Hints) untuk mereduksi beban kognitif.
-          </p>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[5, 10, 15, 30].map((min) => (
+              <button
+                key={min}
+                type="button"
+                onClick={() => handleSelectTimerPreset(min)}
+                className={`px-2 py-1 rounded-lg text-[11px] font-mono font-semibold border cursor-pointer transition-colors ${
+                  timerPresetMin === min && !isTimerRunning && remainingSeconds === min * 60
+                    ? 'bg-sky-600 text-white border-sky-600'
+                    : 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] border-[var(--comfort-border)] hover:text-[var(--comfort-text)]'
+                }`}
+              >
+                {min}m
+              </button>
+            ))}
+
+            <button
+              type="button"
+              data-testid="teacher-timer-toggle-btn"
+              onClick={() => {
+                labSound.playClick();
+                if (remainingSeconds === 0) {
+                  setRemainingSeconds(timerPresetMin * 60);
+                }
+                setIsTimerRunning((prev) => !prev);
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            >
+              {isTimerRunning ? (
+                <>
+                  <Pause className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Jeda</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Mulai</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              aria-label="Reset Pengatur Waktu"
+              onClick={() => handleSelectTimerPreset(timerPresetMin)}
+              className="p-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs font-mono shrink-0">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold tabular-nums">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>
-              Konvergen (R² ≥ 0.80):{' '}
-              {students.filter((s) => (s.rSquared ?? 0.95) >= 0.8).length}/{students.length} Siswa
-            </span>
-          </span>
-          <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-semibold tabular-nums">
-            ▲ Intervensi Terdeteksi: {studentsNeedingHelp} Siswa
-          </span>
-        </div>
+
+        <form
+          onSubmit={handleQuickBroadcast}
+          className="lg:col-span-7 bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4 flex flex-col justify-between gap-2.5"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold">
+              Siaran Instruksi Cepat ke Seluruh Kelompok
+            </div>
+            <div className="flex items-center gap-2 text-[11px] font-mono text-[var(--comfort-text-muted)] tabular-nums">
+              <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
+                <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                Konvergen: {students.filter((s) => (s.rSquared ?? 0.95) >= 0.8).length}/{students.length}
+              </span>
+              {broadcastSentNotice && (
+                <span className="text-sky-600 dark:text-sky-400 font-semibold">
+                  · Instruksi tersiarkan
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              data-testid="teacher-quick-broadcast-input"
+              value={quickBroadcastText}
+              onChange={(e) => setQuickBroadcastText(e.target.value)}
+              placeholder="Contoh: Waktu tersisa 5 menit, segera catat minimal 5 titik data dan selesaikan LKS..."
+              className="flex-1 px-3 py-2 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-xs text-[var(--comfort-text)] focus:outline-none focus:border-sky-500"
+            />
+            <button
+              type="submit"
+              data-testid="teacher-quick-broadcast-btn"
+              disabled={!quickBroadcastText.trim()}
+              className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <Send className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Siarkan</span>
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Focused 3-Tab Switcher for Teacher Dashboard */}

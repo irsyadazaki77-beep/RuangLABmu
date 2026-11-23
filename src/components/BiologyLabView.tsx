@@ -38,6 +38,11 @@ import { PrecisionSlider } from './controls/PrecisionSlider';
 import { filterRecordsForModule } from '../utils/spatialHudHelpers';
 import { LabSidebarActionHeader } from './layout/LabSidebarActionHeader';
 import { LabSceneFallback } from './three/LabSceneFallback';
+import { LabPresetAndSweepBar } from './labs/LabPresetAndSweepBar';
+import {
+  generateAutoSweepSeries,
+  getBiologyPresetsForModule,
+} from '../utils/labScenarioPresets';
 
 export interface BiologyLabViewProps {
   activeStudentName: string;
@@ -254,19 +259,37 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
     setParamsState((prev) => ({ ...prev, [key]: val }));
   };
 
-  const handleRecordTrial = () => {
+  const scenarioPresets = useMemo(
+    () => getBiologyPresetsForModule(currentModule),
+    [currentModule]
+  );
+  const sweepSteps = useMemo(
+    () => generateAutoSweepSeries('Biologi', currentModule.id, 5),
+    [currentModule.id]
+  );
+
+  const handleRecordTrial = (
+    overrideParams?: Record<string, number>,
+    noteOverride?: string
+  ) => {
+    const pState = overrideParams ?? paramsState;
+    const outs = overrideParams
+      ? currentModule.computeStep(overrideParams, Math.max(0.5, simTime))
+      : currentOutputs;
     labSound.playRecordSuccess();
     const summaryParts = currentModule.parameters.map(
-      (p) => `${p.label}=${paramsState[p.key]}${p.unit}`
+      (p) => `${p.label}=${pState[p.key]}${p.unit}`
     );
     const primaryKey = currentModule.outputs[0]?.key || 'val';
-    const primaryVal = currentOutputs[primaryKey] ?? 0;
+    const primaryVal = outs[primaryKey] ?? 0;
+    const secondaryKey = currentModule.outputs[1]?.key;
+    const secondaryVal = secondaryKey ? (outs[secondaryKey] ?? primaryVal) : primaryVal;
     const inputKey = currentModule.parameters[0]?.key || 'in';
-    const inputVal = paramsState[inputKey] ?? 0;
+    const inputVal = pState[inputKey] ?? 0;
 
     const metricMap: Record<string, number | string> = {};
     currentModule.outputs.forEach((o) => {
-      metricMap[o.label] = `${currentOutputs[o.key]?.toFixed(1)} ${o.unit}`;
+      metricMap[o.label] = `${(outs[o.key] ?? 0).toFixed(1)} ${o.unit}`;
     });
 
     onRecordExperiment(
@@ -274,8 +297,8 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
       currentModule.title,
       summaryParts.join(', '),
       metricMap,
-      hypothesisNote?.hypothesisText || '',
-      { x: inputVal, y1: primaryVal, y2: primaryVal }
+      noteOverride ?? (hypothesisNote?.hypothesisText || ''),
+      { x: inputVal, y1: primaryVal, y2: secondaryVal }
     );
   };
 
@@ -335,6 +358,10 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
                   : undefined
               }
               onResetBToMatchA={() => setRealityBParamsState({ ...paramsState })}
+              onRecordComparison={() => {
+                handleRecordTrial(paramsState, '[Komparasi A · Kontrol]');
+                handleRecordTrial(realityBParamsState, '[Komparasi B · Uji Variabel]');
+              }}
               onClose={() => setIsDualRealityMode(false)}
               realityBControls={
                 p0 ? (
@@ -438,6 +465,25 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
               ))}
             </select>
           </div>
+
+          <LabPresetAndSweepBar
+            presets={scenarioPresets}
+            sweepSteps={sweepSteps}
+            accentColor="emerald"
+            onApplyPreset={(preset) =>
+              setParamsState((prev) => ({ ...prev, ...(preset.patch as Record<string, number>) }))
+            }
+            onSweepStep={(step) => {
+              const nextParams: Record<string, number> = { ...paramsState };
+              for (const [key, val] of Object.entries(step.patch)) {
+                if (typeof val === 'number') {
+                  nextParams[key] = val;
+                }
+              }
+              setParamsState(nextParams);
+              handleRecordTrial(nextParams, step.label);
+            }}
+          />
 
           {/* Sliders & Parameters */}
           <CollapsibleLabSection title="Variabel & Parameter Biologis" defaultOpen>

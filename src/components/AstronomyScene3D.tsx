@@ -196,6 +196,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       fallbackSize: { width: 760, height: 380 },
       backgroundHex: initialColors.backgroundHex,
       fogDensity: 0.008,
+      domainPreset: 'observatory',
       camera: {
         fov: 45,
         near: 0.1,
@@ -276,14 +277,132 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
     scene.add(astroKeyLight);
     host.registerShadowLight(astroKeyLight);
 
-    // Multi-Layer Parallax Starfield
+    // Procedural Deep-Space Observatory Sky Dome (2048x1024 crisp Milky Way dust lane + galactic core glow)
+    const createDeepSpaceSkyTexture = (): THREE.CanvasTexture | null => {
+      if (typeof document === 'undefined') return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = 2048;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+
+      // Observatory zenith-to-nadir dark sky gradient
+      const bg = ctx.createLinearGradient(0, 0, 0, 1024);
+      bg.addColorStop(0, '#020611');
+      bg.addColorStop(0.45, '#050b1a');
+      bg.addColorStop(0.55, '#060e21');
+      bg.addColorStop(1, '#020510');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 2048, 1024);
+
+      // Subtle inclined Milky Way band
+      ctx.save();
+      ctx.translate(1024, 512);
+      ctx.rotate(-0.34);
+      const bandGrad = ctx.createLinearGradient(0, -220, 0, 220);
+      bandGrad.addColorStop(0, 'rgba(30, 58, 138, 0)');
+      bandGrad.addColorStop(0.32, 'rgba(56, 189, 248, 0.055)');
+      bandGrad.addColorStop(0.5, 'rgba(148, 163, 184, 0.11)');
+      bandGrad.addColorStop(0.68, 'rgba(99, 102, 241, 0.055)');
+      bandGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
+      ctx.fillStyle = bandGrad;
+      ctx.fillRect(-1400, -220, 2800, 440);
+
+      // Warm galactic bulge glow near Sagittarius sector
+      const coreGlow = ctx.createRadialGradient(280, 0, 16, 280, 0, 390);
+      coreGlow.addColorStop(0, 'rgba(253, 224, 71, 0.12)');
+      coreGlow.addColorStop(0.4, 'rgba(245, 158, 11, 0.05)');
+      coreGlow.addColorStop(1, 'rgba(15, 23, 42, 0)');
+      ctx.fillStyle = coreGlow;
+      ctx.fillRect(-240, -360, 1040, 720);
+
+      // Delicate dark interstellar dust rift along the galactic equator
+      for (let i = 0; i < 28; i++) {
+        const rx = -1040 + i * 80;
+        const ry = Math.sin(i * 0.7) * 28;
+        const dust = ctx.createRadialGradient(rx, ry, 8, rx, ry, 88);
+        dust.addColorStop(0, 'rgba(2, 6, 18, 0.42)');
+        dust.addColorStop(1, 'rgba(2, 6, 18, 0)');
+        ctx.fillStyle = dust;
+        ctx.beginPath();
+        ctx.arc(rx, ry, 88, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Pinpoint distant background star dust baked onto high-res sky dome
+      for (let i = 0; i < 1400; i++) {
+        const sx = (i * 797.3) % 2048;
+        const sy = (i * 421.7) % 1024;
+        const r = i % 15 === 0 ? 1.1 : 0.65;
+        const a = 0.18 + ((i * 29) % 44) / 100;
+        ctx.fillStyle =
+          i % 9 === 0
+            ? `rgba(186, 230, 253, ${a.toFixed(2)})`
+            : i % 13 === 0
+            ? `rgba(254, 240, 138, ${a.toFixed(2)})`
+            : `rgba(241, 245, 249, ${a.toFixed(2)})`;
+        ctx.beginPath();
+        ctx.arc(sx, sy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    };
+
+    const skyDomeTex = createDeepSpaceSkyTexture();
+    const skyDome = new THREE.Mesh(
+      new THREE.SphereGeometry(185, 36, 24),
+      new THREE.MeshBasicMaterial({
+        map: skyDomeTex,
+        color: 0xffffff,
+        side: THREE.BackSide,
+        fog: false,
+        depthWrite: false,
+      })
+    );
+    skyDome.renderOrder = -2;
+    scene.add(skyDome);
+
+    // Tight optical pinpoint radial star-glow sprite (zero blocky squares in WebGL/SwiftShader)
+    const createStarSpriteTexture = (): THREE.CanvasTexture | null => {
+      if (typeof document === 'undefined') return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      const g = ctx.createRadialGradient(32, 32, 0.5, 32, 32, 26);
+      g.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      g.addColorStop(0.16, 'rgba(240, 249, 255, 0.88)');
+      g.addColorStop(0.38, 'rgba(148, 163, 184, 0.14)');
+      g.addColorStop(0.72, 'rgba(0, 0, 0, 0)');
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 64, 64);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    };
+    const starSpriteTex = createStarSpriteTexture();
+
+    // Multi-Layer Parallax Starfield (fog: false so distant stars stay razor sharp)
     const spectralPalette = [
-      new THREE.Color(0x93c5fd),
-      new THREE.Color(0xf8fafc),
-      new THREE.Color(0xfde047),
-      new THREE.Color(0xfca5a5),
+      new THREE.Color(0x93c5fd), // O/B blue-white
+      new THREE.Color(0xf8fafc), // A pure white
+      new THREE.Color(0xfef08a), // G solar yellow
+      new THREE.Color(0xfdba74), // K warm amber
+      new THREE.Color(0xfca5a5), // M red giant
     ];
-    const createStarfieldLayer = (count: number, minR: number, maxR: number, pointSize: number) => {
+    const createStarfieldLayer = (
+      count: number,
+      minR: number,
+      maxR: number,
+      pointSize: number,
+      opacity = 0.94
+    ) => {
       const pos = new Float32Array(count * 3);
       const cols = new Float32Array(count * 3);
       for (let i = 0; i < count; i++) {
@@ -295,7 +414,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
 
         const c = spectralPalette[i % spectralPalette.length];
-        const brightness = 0.72 + ((i * 13) % 28) / 100;
+        const brightness = 0.78 + ((i * 13) % 22) / 100;
         cols[i * 3] = c.r * brightness;
         cols[i * 3 + 1] = c.g * brightness;
         cols[i * 3 + 2] = c.b * brightness;
@@ -305,17 +424,22 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
       const mat = new THREE.PointsMaterial({
         size: pointSize,
+        map: starSpriteTex,
         vertexColors: true,
         transparent: true,
-        opacity: 0.88,
+        opacity,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
         sizeAttenuation: true,
+        fog: false,
       });
       return new THREE.Points(geo, mat);
     };
 
-    const nearStarLayer = createStarfieldLayer(500, 35, 65, 0.28);
-    const deepStarLayer = createStarfieldLayer(900, 68, 125, 0.18);
-    scene.add(nearStarLayer, deepStarLayer);
+    const nearStarLayer = createStarfieldLayer(460, 40, 74, 0.48, 0.92);
+    const deepStarLayer = createStarfieldLayer(920, 78, 148, 0.34, 0.85);
+    const heroStarLayer = createStarfieldLayer(90, 58, 120, 0.86, 0.96);
+    scene.add(nearStarLayer, deepStarLayer, heroStarLayer);
 
     // Modular Per-Experiment Rigs
     const rigs: Record<AstronomyMode, AstronomyRigHandle> = {
@@ -401,6 +525,17 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         if (dragToastTimer) clearTimeout(dragToastTimer);
         dragToastTimer = setTimeout(() => setDragToast(null), 1300);
       },
+      onClick: (obj) => {
+        labSound.playClick(640);
+        const hint = String(obj.userData?.label ?? obj.name ?? '');
+        setInspectedPart(
+          resolveApparatusInspection(
+            'astronomy',
+            normalizeAstronomyMode(latestRef.current.params.mode),
+            hint || undefined
+          )
+        );
+      },
       onCursorMove3D: (pos, normal, hoveredName) => {
         latestRef.current.onEmitCursor?.(pos, normal, hoveredName);
       },
@@ -444,17 +579,22 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
           rig.group.visible = modeKey === activeMode;
         });
 
-        const effectiveStarScale = isLite || isSoftwareGl ? Math.min(0.5, particleScale) : particleScale;
-        nearStarLayer.geometry.setDrawRange(0, Math.max(120, Math.round(500 * effectiveStarScale)));
-        deepStarLayer.geometry.setDrawRange(0, Math.max(200, Math.round(900 * effectiveStarScale)));
+        const effectiveStarScale = isLite || isSoftwareGl ? Math.min(0.65, particleScale) : particleScale;
+        nearStarLayer.geometry.setDrawRange(0, Math.max(180, Math.round(460 * effectiveStarScale)));
+        deepStarLayer.geometry.setDrawRange(0, Math.max(360, Math.round(920 * effectiveStarScale)));
+        heroStarLayer.geometry.setDrawRange(0, Math.max(48, Math.round(90 * effectiveStarScale)));
 
-        // Parallax Starfield depth shift
+        // Parallax Starfield & Sky Dome depth shift
+        skyDome.rotation.y = t * 0.0006;
         nearStarLayer.rotation.y = t * 0.004;
         deepStarLayer.rotation.y = -t * 0.0015;
+        heroStarLayer.rotation.y = t * 0.0022;
         nearStarLayer.position.x = -camera.position.x * 0.06;
         nearStarLayer.position.z = -camera.position.z * 0.06;
         deepStarLayer.position.x = -camera.position.x * 0.02;
         deepStarLayer.position.z = -camera.position.z * 0.02;
+        heroStarLayer.position.x = -camera.position.x * 0.035;
+        heroStarLayer.position.z = -camera.position.z * 0.035;
 
         const activeRig = rigs[activeMode];
         const rigFrame = activeRig.update({
@@ -575,10 +715,10 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         </div>
       )}
 
-      {/* Visual Scale Comparison Badge for Orbital Readability */}
+      {/* Visual Scale Comparison Caption for Orbital Readability */}
       <div
         data-testid="astronomy-scale-badge"
-        className={`pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-lg studio-hud-surface px-2.5 py-1 text-[10px] font-mono text-[var(--comfort-text-muted)] shadow-md max-w-[calc(100vw-24px)] ${
+        className={`pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-lg bg-slate-950/75 border border-slate-700/60 px-2.5 py-1 text-[10px] font-mono text-slate-300 shadow-md max-w-[calc(100vw-24px)] ${
           isFullscreen
             ? 'bottom-16 left-3'
             : `bottom-[118px] lg:bottom-[104px] ${
@@ -591,7 +731,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
         }`}
       >
         <span className="truncate">
-          Skala Visual: Diameter benda langit diperbesar untuk keterbacaan orbit & transit · Drag objek 3D aktif
+          Skala Visual: Diameter benda langit diperbesar untuk keterbacaan orbit · Klik/Drag objek 3D
         </span>
       </div>
 

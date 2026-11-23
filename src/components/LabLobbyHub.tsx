@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { BookOpen, Compass, Layers, Play, SearchX } from 'lucide-react';
+import { BookOpen, Compass, Layers, Play, SearchX, Star } from 'lucide-react';
 import { SPRING_LAYOUT_PILL, SPRING_TACTILE } from '../styles/motionPresets';
 import {
   ExperimentModule,
@@ -32,6 +32,12 @@ import {
   filterCurriculumChapters,
   filterExperimentModules,
 } from '../utils/spatialHudHelpers';
+import {
+  computeDomainCurriculumProgress,
+  loadBookmarkedModuleIds,
+  saveBookmarkedModuleIds,
+  toggleModuleBookmarkList,
+} from '../utils/classAnalyticsEngine';
 import { chapterMatchesJenjang } from './lobby/lobbyFormatters';
 import { ChapterCatalogCard, ModuleCatalogCard } from './lobby/ModuleCatalogCard';
 import { RoomCollabModal } from './lobby/RoomCollabModal';
@@ -72,7 +78,18 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
   onJoinRoom,
 }) => {
   const [jenjangFilter, setJenjangFilter] = useState<'all' | EducationTier>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'todo' | 'completed' | 'bookmarked'>('all');
+  const [difficultyFilter, setDifficultyFilter] = useState<'all' | 1 | 2 | 3>('all');
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => loadBookmarkedModuleIds());
   const [detailChapter, setDetailChapter] = useState<CurriculumChapter | null>(null);
+
+  const handleToggleBookmark = (moduleId: string) => {
+    setBookmarkedIds((prev) => {
+      const next = toggleModuleBookmarkList(prev, moduleId);
+      saveBookmarkedModuleIds(next);
+      return next;
+    });
+  };
 
   const { userRole, setUserRole } = useLabStore(
     useShallow((s) => ({
@@ -211,14 +228,43 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
     return byDomainAndQuery.filter((ch) => chapterMatchesJenjang(ch, jenjangFilter));
   }, [lobbySelectedDomain, lobbySearchQuery, jenjangFilter]);
 
+  const domainCurriculumProgress = useMemo(
+    () => computeDomainCurriculumProgress(EXPERIMENT_CATALOG, completedModuleIds),
+    [completedModuleIds]
+  );
+
   const filteredModules = useMemo(() => {
-    return filterExperimentModules(EXPERIMENT_CATALOG, {
+    const base = filterExperimentModules(EXPERIMENT_CATALOG, {
       domain: lobbySelectedDomain,
       activeTier: jenjangFilter === 'all' ? activeTier : jenjangFilter,
       searchQuery: lobbySearchQuery,
       respectTierFilter: jenjangFilter !== 'all',
     });
-  }, [lobbySelectedDomain, activeTier, lobbySearchQuery, jenjangFilter]);
+    return base.filter((mod) => {
+      if (difficultyFilter !== 'all' && mod.difficulty !== difficultyFilter) {
+        return false;
+      }
+      if (statusFilter === 'completed' && !completedModuleIds.includes(mod.id)) {
+        return false;
+      }
+      if (statusFilter === 'todo' && completedModuleIds.includes(mod.id)) {
+        return false;
+      }
+      if (statusFilter === 'bookmarked' && !bookmarkedIds.includes(mod.id)) {
+        return false;
+      }
+      return true;
+    });
+  }, [
+    lobbySelectedDomain,
+    activeTier,
+    lobbySearchQuery,
+    jenjangFilter,
+    difficultyFilter,
+    statusFilter,
+    completedModuleIds,
+    bookmarkedIds,
+  ]);
 
   const detailChapterModules = useMemo(() => {
     if (!detailChapter) return [];
@@ -517,6 +563,122 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
             })}
           </div>
         </div>
+
+        {/* Row 3: Domain Curriculum Progress & Status/Difficulty Micro-Filters */}
+        <div
+          data-testid="lobby-domain-progress-strip"
+          className="px-4 py-2.5 flex flex-col xl:flex-row xl:items-center justify-between gap-3 text-xs bg-[var(--comfort-surface)]"
+        >
+          {/* Per-domain Curriculum Progress Bars */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="text-[11px] font-mono font-semibold text-[var(--comfort-text-muted)] tabular-nums shrink-0">
+              Kurikulum {domainCurriculumProgress.totalCompleted}/{domainCurriculumProgress.totalModules} ({domainCurriculumProgress.overallPct}%)
+            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              {domainCurriculumProgress.domains.map((dom) => {
+                const isActive = lobbySelectedDomain === dom.domain;
+                const barColor =
+                  dom.domain === 'fisika'
+                    ? 'bg-sky-500'
+                    : dom.domain === 'kimia'
+                    ? 'bg-emerald-500'
+                    : dom.domain === 'biologi'
+                    ? 'bg-rose-500'
+                    : 'bg-amber-500';
+                return (
+                  <button
+                    key={dom.domain}
+                    type="button"
+                    onClick={() => {
+                      labSound.playClick();
+                      setLobbySelectedDomain(isActive ? 'all' : dom.domain);
+                    }}
+                    className={`flex items-center gap-2 px-2 py-1 rounded-lg border transition-colors cursor-pointer ${
+                      isActive
+                        ? 'border-sky-500/45 bg-sky-500/10 text-[var(--comfort-text)]'
+                        : 'border-transparent hover:bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)]'
+                    }`}
+                    title={`Filter domain ${dom.label} (${dom.completedCount}/${dom.totalCount} selesai)`}
+                  >
+                    <span className="font-semibold text-[11px] text-[var(--comfort-text)]">
+                      {dom.label}
+                    </span>
+                    <div className="w-12 h-1.5 rounded-full bg-[var(--comfort-surface-subtle)] overflow-hidden border border-[var(--comfort-border)]">
+                      <div
+                        className={`h-full rounded-full ${barColor} transition-all`}
+                        style={{ width: `${dom.pct}%` }}
+                      />
+                    </div>
+                    <span className="font-mono text-[10px] tabular-nums">
+                      {dom.completedCount}/{dom.totalCount}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Status & Difficulty Compact Selectors */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div
+              role="group"
+              aria-label="Filter Status Modul"
+              className="inline-flex items-center gap-1 bg-[var(--comfort-surface-subtle)] p-0.5 rounded-lg border border-[var(--comfort-border)]"
+            >
+              {(
+                [
+                  { id: 'all', label: 'Semua' },
+                  { id: 'todo', label: 'Belum' },
+                  { id: 'completed', label: 'Selesai' },
+                  { id: 'bookmarked', label: `Favorit (${bookmarkedIds.length})` },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  data-testid={`lobby-status-filter-${item.id}`}
+                  onClick={() => {
+                    labSound.playClick();
+                    setStatusFilter(item.id);
+                    if (item.id !== 'all' && lobbyViewMode === 'chapters') {
+                      setLobbyViewMode('all');
+                    }
+                  }}
+                  className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap inline-flex items-center gap-1 ${
+                    statusFilter === item.id
+                      ? 'bg-sky-600 text-white'
+                      : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                  }`}
+                >
+                  {item.id === 'bookmarked' && (
+                    <Star className="w-3 h-3 fill-current" aria-hidden="true" />
+                  )}
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <select
+              data-testid="lobby-difficulty-filter"
+              aria-label="Filter Tingkat Kesulitan Modul"
+              value={difficultyFilter}
+              onChange={(e) => {
+                labSound.playClick();
+                const val = e.target.value === 'all' ? 'all' : (Number(e.target.value) as 1 | 2 | 3);
+                setDifficultyFilter(val);
+                if (val !== 'all' && lobbyViewMode === 'chapters') {
+                  setLobbyViewMode('all');
+                }
+              }}
+              className="px-2.5 py-1 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[11px] font-semibold text-[var(--comfort-text)] cursor-pointer"
+            >
+              <option value="all">Semua Level</option>
+              <option value="1">Dasar</option>
+              <option value="2">Menengah</option>
+              <option value="3">Lanjut</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {badges.length > 0 && <AchievementBadgesStrip badges={badges} />}
@@ -572,6 +734,8 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                         key={exp.id}
                         exp={exp}
                         isCompleted={completedModuleIds.includes(exp.id)}
+                        isBookmarked={bookmarkedIds.includes(exp.id)}
+                        onToggleBookmark={handleToggleBookmark}
                         tierLabel={cardTierLabel}
                         onSelect={handleSelectAndTrackExperiment}
                       />
@@ -599,6 +763,8 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               setLobbySearchQuery('');
               setLobbySelectedDomain('all');
               setJenjangFilter('all');
+              setStatusFilter('all');
+              setDifficultyFilter('all');
             }}
             className="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
           >
@@ -612,6 +778,8 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               key={exp.id}
               exp={exp}
               isCompleted={completedModuleIds.includes(exp.id)}
+              isBookmarked={bookmarkedIds.includes(exp.id)}
+              onToggleBookmark={handleToggleBookmark}
               tierLabel={cardTierLabel}
               onSelect={handleSelectAndTrackExperiment}
             />

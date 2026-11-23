@@ -91,7 +91,7 @@ Buat skenario misi praktikum kontekstual berbahasa Indonesia dalam format JSON t
 4. contextualQuestions: Array berisi tepat 3 pertanyaan LKS kontekstual (masing-masing memiliki id, questionText, expectedConceptOrValue, dan hint Sokratik).`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         contents: missionPrompt,
         config: {
           responseMimeType: 'application/json',
@@ -304,7 +304,7 @@ export function createAiRouter({
           const prompt = `Data Telemetri Eksperimen Siswa (JSON):\n${JSON.stringify(telemetry, null, 2)}\n\nBerikan respons Dr. LabMu dalam 3 bagian: observasiSingkat, insightKonseptual, pertanyaanPemantik, serta opsional uiActions bila perlu menggerakkan kamera 3D / X-Ray / sorot slider.`;
 
           const response = await ai.models.generateContent({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-4-hydrogen',
             contents: prompt,
             config: {
               systemInstruction: DR_LABMU_SYSTEM_INSTRUCTION,
@@ -401,7 +401,7 @@ ${activeQuery.slice(0, 600)}
 </student_input>`;
 
           const response = await ai.models.generateContent({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-4-hydrogen',
             contents: promptContext,
             config: { systemInstruction: DR_LABMU_SYSTEM_INSTRUCTION },
           });
@@ -411,7 +411,7 @@ ${activeQuery.slice(0, 600)}
             res.json({
               reply: replyText,
               uiActions: sanitizeDrLabMuUIActions(fallbackActions),
-              source: 'gemini-3.8-flash',
+              source: 'gemini-4-hydrogen',
             });
             return;
           }
@@ -491,7 +491,7 @@ Berikan bimbingan Sokratik cerdas:
 3. Pertanyaan Pemantik Reflektif (1 kalimat): Menuntun langkah penyetelan instrumen berikutnya.`;
 
           const response = await ai.models.generateContent({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-4-hydrogen',
             contents: { parts: [imagePart, { text: visionPrompt }] },
             config: { systemInstruction: DR_LABMU_SYSTEM_INSTRUCTION },
           });

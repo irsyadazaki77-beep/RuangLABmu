@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
@@ -9,6 +11,16 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import type { SceneThemeColors } from '../components/ui/VisualComfortToolbar';
 import { registerActiveXRScene } from './webXRStudioAdapter';
 import { attachMultiApparatusAndScaffoldingVisuals } from './engines/multiApparatusEngine';
+import {
+  computeEffectivePassFlags,
+  DEFAULT_POST_PROCESSING_SETTINGS,
+  getDomainPostProcessingDefaults,
+  shouldHideMeshForSsao,
+  type EffectivePostProcessingState,
+  type PostProcessingDomainPreset,
+  type PostProcessingSettings,
+} from './threePostProcessing';
+import type { QualityTier } from '../hooks/useAdaptiveQuality';
 
 export interface ProfilePoint2D {
   x: number;
@@ -805,9 +817,9 @@ export function createStudioWorkbenchGroup(
     roughnessMap: benchTex?.roughnessMap ?? null,
     bumpMap: benchTex?.bumpMap ?? null,
     bumpScale: 0.006,
-    roughness: 0.62,
+    roughness: 0.56,
     metalness: 0.08,
-    envMapIntensity: 0.55,
+    envMapIntensity: 0.68,
   });
   const benchMesh = new THREE.Mesh(benchGeo, benchTopMat);
   benchMesh.position.y = benchY;
@@ -815,30 +827,82 @@ export function createStudioWorkbenchGroup(
   benchMesh.receiveShadow = true;
   group.add(benchMesh);
 
+  // Subtle recessed laboratory anti-static work-mat inset on top of benchtop
+  const matInsetW = width - 0.9;
+  const matInsetD = depth - 0.85;
+  const workMatGeo = new THREE.PlaneGeometry(matInsetW, matInsetD);
+  const workMatMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(colors.tableHex ?? 0xc2ccd8).multiplyScalar(0.92),
+    roughnessMap: benchTex?.roughnessMap ?? null,
+    roughness: 0.76,
+    metalness: 0.04,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+  const workMatMesh = new THREE.Mesh(workMatGeo, workMatMat);
+  workMatMesh.rotation.x = -Math.PI / 2;
+  workMatMesh.position.y = benchY + thickness * 0.5 + 0.002;
+  workMatMesh.receiveShadow = true;
+  group.add(workMatMesh);
+
   // Anodized brushed aluminum front/perimeter trim band
-  const trimGeo = new RoundedBoxGeometry(width + 0.1, thickness * 0.42, depth + 0.1, 3, 0.025);
+  const trimGeo = new RoundedBoxGeometry(width + 0.12, thickness * 0.44, depth + 0.12, 3, 0.028);
   const trimMat = new THREE.MeshStandardMaterial({
     color: colors.trimHex ?? 0x64748b,
     roughnessMap: metalTex?.roughnessMap ?? null,
     bumpMap: metalTex?.bumpMap ?? null,
     bumpScale: 0.004,
-    metalness: 0.78,
-    roughness: 0.28,
-    envMapIntensity: 0.72,
+    metalness: 0.82,
+    roughness: 0.24,
+    envMapIntensity: 0.88,
   });
   const trimMesh = new THREE.Mesh(trimGeo, trimMat);
-  trimMesh.position.y = benchY - thickness * 0.25;
+  trimMesh.position.y = benchY - thickness * 0.24;
   trimMesh.castShadow = true;
   trimMesh.receiveShadow = true;
   group.add(trimMesh);
 
+  // Rear phenolic laboratory backsplash curb & brushed aluminum cap rail
+  const curbGeo = new RoundedBoxGeometry(width - 0.08, 0.22, 0.14, 3, 0.025);
+  const curbMesh = new THREE.Mesh(curbGeo, benchTopMat);
+  curbMesh.position.set(0, benchY + thickness * 0.5 + 0.09, -depth * 0.5 + 0.12);
+  curbMesh.castShadow = true;
+  curbMesh.receiveShadow = true;
+  group.add(curbMesh);
+
+  const curbRailGeo = new RoundedBoxGeometry(width - 0.04, 0.036, 0.16, 2, 0.012);
+  const curbRailMesh = new THREE.Mesh(curbRailGeo, trimMat);
+  curbRailMesh.position.set(0, benchY + thickness * 0.5 + 0.205, -depth * 0.5 + 0.12);
+  group.add(curbRailMesh);
+
+  // Grounded structural steel underframe apron beneath the benchtop (eliminates floating-slab look)
+  const apronH = 0.22;
+  const apronGeo = new RoundedBoxGeometry(width - 0.72, apronH, depth - 0.68, 2, 0.02);
+  const apronMat = new THREE.MeshStandardMaterial({
+    color: 0x334155,
+    roughnessMap: metalTex?.roughnessMap ?? null,
+    metalness: 0.72,
+    roughness: 0.34,
+    envMapIntensity: 0.65,
+  });
+  const apronMesh = new THREE.Mesh(apronGeo, apronMat);
+  apronMesh.position.y = benchY - thickness * 0.5 - apronH * 0.42;
+  group.add(apronMesh);
+
+  // Grounded floor contact shadow spread smoothly under the entire bench footprint
+  const benchFloorShadow = createContactShadowPlane(width * 0.56, depth * 0.58, 0.34);
+  benchFloorShadow.position.y = floorY + 0.008;
+  group.add(benchFloorShadow);
+
   // Subtle grounded contact-shadow AO pad centered on benchtop for apparatus seating
-  const contactPad = createContactShadowPlane(width * 0.36, depth * 0.36, 0.28);
-  contactPad.position.y = benchY + thickness * 0.5 + 0.004;
+  const contactPad = createContactShadowPlane(width * 0.36, depth * 0.36, 0.32);
+  contactPad.position.y = benchY + thickness * 0.5 + 0.005;
   group.add(contactPad);
 
   const updateTheme = (nextColors: SceneThemeColors) => {
     benchTopMat.color.setHex(nextColors.tableHex ?? 0xc2ccd8);
+    workMatMat.color.setHex(nextColors.tableHex ?? 0xc2ccd8).multiplyScalar(0.92);
     floorMat.color.setHex(nextColors.floorHex ?? 0xd8e0ea);
     trimMat.color.setHex(nextColors.trimHex ?? 0x64748b);
     applyGridColors(nextColors.gridPrimaryHex, nextColors.gridSecondaryHex);
@@ -849,8 +913,18 @@ export function createStudioWorkbenchGroup(
     floorMat.dispose();
     benchGeo.dispose();
     benchTopMat.dispose();
+    workMatGeo.dispose();
+    workMatMat.dispose();
     trimGeo.dispose();
     trimMat.dispose();
+    curbGeo.dispose();
+    curbRailGeo.dispose();
+    apronGeo.dispose();
+    apronMat.dispose();
+    benchFloorShadow.geometry.dispose();
+    const bfsMat = benchFloorShadow.material as THREE.MeshBasicMaterial;
+    bfsMat.map?.dispose();
+    bfsMat.dispose();
     contactPad.geometry.dispose();
     const cMat = contactPad.material as THREE.MeshBasicMaterial;
     cMat.map?.dispose();
@@ -1040,7 +1114,7 @@ export function configureLabRenderer(
   const rawExposure = options.exposure ?? 1.05;
   renderer.toneMappingExposure = Math.max(1.0, Math.min(1.1, rawExposure));
   if (renderer.shadowMap) {
-    renderer.shadowMap.enabled = options.shadowsEnabled ?? !isLite;
+    renderer.shadowMap.enabled = options.shadowsEnabled ?? (!isLite && !isSoftwareGl);
     renderer.shadowMap.type = THREE.PCFShadowMap;
   }
   return renderer;
@@ -1072,17 +1146,33 @@ export function configureRendererForLiteMode(
 export interface StudioComposerHandle {
   composer?: EffectComposer;
   renderTarget?: THREE.WebGLRenderTarget;
+  ssaoPass?: SSAOPass;
   bloomPass?: UnrealBloomPass;
+  smaaPass?: SMAAPass;
+  fxaaPass?: ShaderPass;
+  outputPass?: OutputPass;
+  applySettings: (
+    settings: PostProcessingSettings,
+    qualityTier?: QualityTier,
+    liteDeviceMode?: boolean
+  ) => EffectivePostProcessingState;
+  getEffectiveState: () => EffectivePostProcessingState;
   resize: (width: number, height: number, pixelRatio: number) => void;
   render: (liteDeviceMode?: boolean, dt?: number) => void;
   dispose: () => void;
 }
 
 /**
- * Configures an EffectComposer with hardware WebGL2 MSAA (when supported) + subtle Bloom + ACES OutputPass.
- * Includes OutputPass so renderer.toneMapping (ACESFilmicToneMapping) and sRGB output color space apply cleanly.
- * On software WebGL (SwiftShader/llvmpipe), bypasses HalfFloat RenderTarget + multi-pass Bloom/Output shaders
- * and renders directly so scene startup and interaction remain responsive.
+ * Configures a studio-grade EffectComposer pipeline:
+ * 1. RenderPass into HalfFloat WebGL2 MSAA target (up to 4x hardware samples)
+ * 2. Glass-safe SSAOPass (screen-space ambient occlusion that excludes transparent glassware/liquids)
+ * 3. UnrealBloomPass (HDR selective glow for OLEDs, lasers, plasma, and stars)
+ * 4. SMAAPass (linear-sRGB subpixel morphological anti-aliasing before OutputPass)
+ * 5. OutputPass (ACESFilmicToneMapping + sRGB output conversion)
+ * 6. FXAA ShaderPass (optional sRGB anti-aliasing mode)
+ *
+ * On software WebGL (SwiftShader/llvmpipe), bypasses multi-pass shaders and renders directly
+ * so scene startup and interaction remain responsive.
  */
 export function createStudioComposer(
   renderer: THREE.WebGLRenderer,
@@ -1095,13 +1185,41 @@ export function createStudioComposer(
     strength?: number;
     radius?: number;
     threshold?: number;
+  },
+  pipelineOptions?: {
+    domainPreset?: PostProcessingDomainPreset;
+    initialSettings?: PostProcessingSettings;
+    initialQualityTier?: QualityTier;
   }
 ): StudioComposerHandle {
   const xrRig = registerActiveXRScene(renderer, scene, camera);
   const sandboxVisuals = attachMultiApparatusAndScaffoldingVisuals(scene, camera);
+  const domainPreset = pipelineOptions?.domainPreset ?? 'benchtop';
+  const domainProfile = getDomainPostProcessingDefaults(domainPreset);
+
+  let effectiveState = computeEffectivePassFlags({
+    settings: pipelineOptions?.initialSettings ?? DEFAULT_POST_PROCESSING_SETTINGS,
+    qualityTier: pipelineOptions?.initialQualityTier ?? 'high',
+    liteDeviceMode: false,
+    isSoftwareGl,
+    domainPreset,
+    bloomOverride: bloomOptions,
+  });
 
   if (isSoftwareGl) {
     return {
+      applySettings: (settings, qualityTier = 'high', liteDeviceMode = false) => {
+        effectiveState = computeEffectivePassFlags({
+          settings,
+          qualityTier,
+          liteDeviceMode,
+          isSoftwareGl: true,
+          domainPreset,
+          bloomOverride: bloomOptions,
+        });
+        return effectiveState;
+      },
+      getEffectiveState: () => effectiveState,
       resize: () => {},
       render: (_liteDeviceMode?: boolean, dt = 0.016) => {
         const safeDt = Number.isFinite(dt) ? Math.min(0.05, Math.max(0, dt)) : 0.016;
@@ -1116,13 +1234,15 @@ export function createStudioComposer(
     };
   }
 
+  const safeInitW = Math.max(1, width);
+  const safeInitH = Math.max(1, height);
   const pixelRatio = renderer.getPixelRatio();
   const maxSamples = renderer.capabilities?.maxSamples ?? 4;
   const samples = computeMsaaSamples(maxSamples, isSoftwareGl);
 
   const renderTarget = new THREE.WebGLRenderTarget(
-    Math.max(1, Math.floor(width * pixelRatio)),
-    Math.max(1, Math.floor(height * pixelRatio)),
+    Math.max(1, Math.floor(safeInitW * pixelRatio)),
+    Math.max(1, Math.floor(safeInitH * pixelRatio)),
     {
       type: THREE.HalfFloatType,
       samples,
@@ -1131,56 +1251,134 @@ export function createStudioComposer(
 
   const composer = new EffectComposer(renderer, renderTarget);
   composer.setPixelRatio(pixelRatio);
-  composer.setSize(Math.max(1, width), Math.max(1, height));
+  composer.setSize(safeInitW, safeInitH);
 
+  // 1. HDR Linear Scene Render
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
 
+  // 2. Glass-Safe Screen-Space Ambient Occlusion (SSAO) for contact depth & crevice realism
+  let ssaoPass: SSAOPass | undefined;
+  if (domainProfile.ssaoAllowed) {
+    ssaoPass = new SSAOPass(
+      scene,
+      camera,
+      safeInitW,
+      safeInitH,
+      effectiveState.ssaoKernelSize
+    );
+    ssaoPass.output = SSAOPass.OUTPUT.Default;
+    ssaoPass.kernelRadius = effectiveState.ssaoKernelRadius;
+    ssaoPass.minDistance = effectiveState.ssaoMinDistance;
+    ssaoPass.maxDistance = effectiveState.ssaoMaxDistance;
+    ssaoPass.enabled = effectiveState.useSsao;
+
+    // Exclude transparent glassware, liquid shaders, lines, and particles from SSAO normal/depth pass
+    const ssaoWithCache = ssaoPass as unknown as {
+      _visibilityCache: THREE.Object3D[];
+      _overrideVisibility: () => void;
+    };
+    ssaoWithCache._overrideVisibility = () => {
+      const cache = ssaoWithCache._visibilityCache;
+      scene.traverse((object) => {
+        if (shouldHideMeshForSsao(object)) {
+          object.visible = false;
+          cache.push(object);
+        }
+      });
+    };
+    composer.addPass(ssaoPass);
+  }
+
+  // 3. Selective HDR Bloom (linear space)
   const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(Math.max(1, width), Math.max(1, height)),
-    bloomOptions?.strength ?? 0.14,
-    bloomOptions?.radius ?? 0.25,
-    bloomOptions?.threshold ?? 1.15
+    new THREE.Vector2(safeInitW, safeInitH),
+    effectiveState.bloomStrength,
+    effectiveState.bloomRadius,
+    effectiveState.bloomThreshold
   );
+  bloomPass.enabled = effectiveState.useBloom;
   composer.addPass(bloomPass);
 
+  // 4. SMAA Anti-Aliasing (operates in linear-sRGB before OutputPass in Three.js r187+)
+  const smaaPass = new SMAAPass();
+  smaaPass.setSize(
+    Math.max(1, Math.floor(safeInitW * pixelRatio)),
+    Math.max(1, Math.floor(safeInitH * pixelRatio))
+  );
+  smaaPass.enabled = effectiveState.useSmaa;
+  composer.addPass(smaaPass);
+
+  // 5. ACES Filmic Tone Mapping + sRGB Conversion
   const outputPass = new OutputPass();
   composer.addPass(outputPass);
 
-  let fxaaPass: ShaderPass | null = null;
-  if (samples === 0) {
-    fxaaPass = new ShaderPass(FXAAShader);
-    fxaaPass.uniforms['resolution'].value.set(
-      1 / Math.max(1, width * pixelRatio),
-      1 / Math.max(1, height * pixelRatio)
-    );
-    composer.addPass(fxaaPass);
-  }
+  // 6. Lightweight FXAA fallback (operates in sRGB after OutputPass when aaMode === 'fxaa')
+  const fxaaPass = new ShaderPass(FXAAShader);
+  fxaaPass.uniforms['resolution'].value.set(
+    1 / Math.max(1, safeInitW * pixelRatio),
+    1 / Math.max(1, safeInitH * pixelRatio)
+  );
+  fxaaPass.enabled = effectiveState.useFxaa;
+  composer.addPass(fxaaPass);
+
+  const applySettings = (
+    settings: PostProcessingSettings,
+    qualityTier: QualityTier = 'high',
+    liteDeviceMode = false
+  ): EffectivePostProcessingState => {
+    effectiveState = computeEffectivePassFlags({
+      settings,
+      qualityTier,
+      liteDeviceMode,
+      isSoftwareGl: false,
+      domainPreset,
+      bloomOverride: bloomOptions,
+    });
+    if (ssaoPass) {
+      ssaoPass.enabled = effectiveState.useSsao;
+      ssaoPass.kernelRadius = effectiveState.ssaoKernelRadius;
+      ssaoPass.minDistance = effectiveState.ssaoMinDistance;
+      ssaoPass.maxDistance = effectiveState.ssaoMaxDistance;
+    }
+    bloomPass.enabled = effectiveState.useBloom;
+    bloomPass.strength = effectiveState.bloomStrength;
+    bloomPass.radius = effectiveState.bloomRadius;
+    bloomPass.threshold = effectiveState.bloomThreshold;
+    smaaPass.enabled = effectiveState.useSmaa;
+    fxaaPass.enabled = effectiveState.useFxaa;
+    return effectiveState;
+  };
 
   const resize = (nextW: number, nextH: number, nextPr: number) => {
     const safeW = Math.max(1, nextW);
     const safeH = Math.max(1, nextH);
+    const safePixelW = Math.max(1, Math.floor(safeW * nextPr));
+    const safePixelH = Math.max(1, Math.floor(safeH * nextPr));
     composer.setPixelRatio(nextPr);
     composer.setSize(safeW, safeH);
+    ssaoPass?.setSize(safeW, safeH);
     bloomPass.setSize(safeW, safeH);
-    if (fxaaPass) {
-      fxaaPass.uniforms['resolution'].value.set(
-        1 / Math.max(1, safeW * nextPr),
-        1 / Math.max(1, safeH * nextPr)
-      );
-    }
+    smaaPass.setSize(safePixelW, safePixelH);
+    fxaaPass.uniforms['resolution'].value.set(1 / safePixelW, 1 / safePixelH);
   };
 
   return {
     composer,
     renderTarget,
+    ssaoPass,
     bloomPass,
+    smaaPass,
+    fxaaPass,
+    outputPass,
+    applySettings,
+    getEffectiveState: () => effectiveState,
     resize,
     render: (liteDeviceMode?: boolean, dt = 0.016) => {
       const safeDt = Number.isFinite(dt) ? Math.min(0.05, Math.max(0, dt)) : 0.016;
       xrRig.updateSpatialRaycasters();
       sandboxVisuals.updatePerFrame(safeDt);
-      if (renderer.xr?.isPresenting || liteDeviceMode) {
+      if (renderer.xr?.isPresenting || liteDeviceMode || effectiveState.bypassComposer) {
         renderer.render(scene, camera);
       } else {
         composer.render();
@@ -1189,6 +1387,11 @@ export function createStudioComposer(
     dispose: () => {
       sandboxVisuals.dispose();
       xrRig.dispose();
+      ssaoPass?.dispose();
+      bloomPass.dispose();
+      smaaPass.dispose();
+      outputPass.dispose();
+      fxaaPass.dispose();
       renderTarget.dispose();
       composer.dispose();
     },
@@ -1328,27 +1531,32 @@ export function captureComposerSnapshot(
  */
 export function createVectorArrowGroup(
   colorHex: number,
-  emissiveIntensity = 0.28
+  emissiveIntensity = 0.22
 ): THREE.Group {
   const group = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({
     color: colorHex,
-    roughness: 0.25,
-    metalness: 0.2,
+    roughness: 0.22,
+    metalness: 0.32,
     emissive: colorHex,
     emissiveIntensity,
   });
-  const shaftGeo = new THREE.CylinderGeometry(0.055, 0.055, 1, 12);
+  const collarGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.045, 16);
+  collarGeo.translate(0, 0.022, 0);
+  const collar = new THREE.Mesh(collarGeo, mat);
+  collar.name = 'collar';
+
+  const shaftGeo = new THREE.CylinderGeometry(0.036, 0.036, 1, 14);
   shaftGeo.translate(0, 0.5, 0);
   const shaft = new THREE.Mesh(shaftGeo, mat);
   shaft.name = 'shaft';
 
-  const headGeo = new THREE.ConeGeometry(0.16, 0.36, 14);
-  headGeo.translate(0, 0.18, 0);
+  const headGeo = new THREE.ConeGeometry(0.115, 0.34, 18);
+  headGeo.translate(0, 0.17, 0);
   const head = new THREE.Mesh(headGeo, mat);
   head.name = 'head';
 
-  group.add(shaft, head);
+  group.add(collar, shaft, head);
   return group;
 }
 
@@ -1445,12 +1653,14 @@ export function createBorosilicateGlassMaterial(
   } = options;
 
   if (liteDeviceMode) {
+    // High-gloss optical borosilicate look with zero extra transmission/physical shader pass (fast on 3T/SwiftShader)
     return new THREE.MeshStandardMaterial({
       color,
       metalness: 0.16,
-      roughness: 0.12,
+      roughness: 0.05,
       transparent: true,
-      opacity: Math.max(0.28, tintOpacity),
+      opacity: Math.max(0.24, Math.min(0.42, tintOpacity)),
+      envMapIntensity: 1.65,
       emissive,
       emissiveIntensity,
       depthWrite: false,
@@ -1460,15 +1670,17 @@ export function createBorosilicateGlassMaterial(
   const mat = new THREE.MeshPhysicalMaterial({
     color,
     metalness: 0.0,
-    roughness: 0.05,
+    roughness: 0.04,
     transmission: 0.93,
     transparent: true,
     opacity: tintOpacity,
     ior,
     thickness,
+    attenuationColor: new THREE.Color(0xcce6f8),
+    attenuationDistance: 3.2,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.04,
-    envMapIntensity: 0.55,
+    clearcoatRoughness: 0.03,
+    envMapIntensity: 1.35,
     emissive,
     emissiveIntensity,
     depthWrite: false,
@@ -1643,5 +1855,193 @@ export function createContactShadowPlane(
   mesh.name = 'studio-contact-shadow';
   return mesh;
 }
+
+export interface InstrumentPanelTextureOptions {
+  title: string;
+  primaryText: string;
+  secondaryText?: string;
+  accentHex?: string;
+  width?: number;
+  height?: number;
+}
+
+/**
+ * Renders or updates a dark-glass OLED/LED laboratory digital readout panel onto a CanvasTexture.
+ */
+export function drawInstrumentPanelCanvas(
+  canvas: HTMLCanvasElement,
+  options: InstrumentPanelTextureOptions
+): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const w = canvas.width;
+  const h = canvas.height;
+  const accent = options.accentHex ?? '#38bdf8';
+
+  ctx.fillStyle = '#060b14';
+  ctx.fillRect(0, 0, w, h);
+
+  // Subtle recessed metallic bezel & inner LCD window
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, w - 4, h - 4);
+
+  ctx.fillStyle = '#091220';
+  ctx.fillRect(10, 10, w - 20, h - 20);
+  ctx.strokeStyle = accent;
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(10, 10, w - 20, h - 20);
+  ctx.globalAlpha = 1;
+
+  // Power / active status LED indicator dot
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath();
+  ctx.arc(24, 24, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Header model title
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 13px "IBM Plex Mono", ui-monospace, monospace';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(options.title.toUpperCase(), 36, 24);
+
+  // Primary high-contrast digital readout
+  ctx.fillStyle = accent;
+  ctx.font = 'bold 34px "IBM Plex Mono", ui-monospace, monospace';
+  ctx.fillText(options.primaryText, 22, h * 0.56);
+
+  // Secondary telemetry line
+  if (options.secondaryText) {
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '600 15px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.fillText(options.secondaryText, 22, h - 24);
+  }
+}
+
+export function createInstrumentPanelTexture(
+  options: InstrumentPanelTextureOptions
+): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = options.width ?? 256;
+  canvas.height = options.height ?? 128;
+  drawInstrumentPanelCanvas(canvas, options);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+export function updateInstrumentPanelTexture(
+  tex: THREE.CanvasTexture | null,
+  options: InstrumentPanelTextureOptions
+): void {
+  if (!tex || !(tex.image instanceof HTMLCanvasElement)) return;
+  drawInstrumentPanelCanvas(tex.image, options);
+  tex.needsUpdate = true;
+}
+
+export interface AnalogGaugeDialOptions {
+  min: number;
+  max: number;
+  unit: string;
+  title?: string;
+  zeroCenter?: boolean;
+  majorDivisions?: number;
+}
+
+/**
+ * Generates a calibrated radial analog meter face texture (for galvanometers, pressure manometers, etc.).
+ */
+export function createAnalogGaugeDialTexture(
+  options: AnalogGaugeDialOptions
+): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = size * 0.46;
+
+  ctx.clearRect(0, 0, size, size);
+
+  // Dial face plate
+  const grad = ctx.createRadialGradient(cx, cy, 12, cx, cy, r);
+  grad.addColorStop(0, '#0f172a');
+  grad.addColorStop(0.85, '#090f1d');
+  grad.addColorStop(1, '#1e293b');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+
+  // Arc span (-125 deg to +125 deg from top -90 deg)
+  const startAngle = -Math.PI * 0.5 - Math.PI * 0.68;
+  const endAngle = -Math.PI * 0.5 + Math.PI * 0.68;
+  const majorDivs = Math.max(4, options.majorDivisions ?? 6);
+  const minorPerMajor = 4;
+  const totalTicks = majorDivs * minorPerMajor;
+
+  for (let i = 0; i <= totalTicks; i++) {
+    const u = i / totalTicks;
+    const ang = startAngle + u * (endAngle - startAngle);
+    const isMajor = i % minorPerMajor === 0;
+    const isZeroCenter = options.zeroCenter && Math.abs(u - 0.5) < 0.01;
+    const outerR = r * 0.86;
+    const innerR = isMajor ? r * 0.68 : r * 0.77;
+
+    ctx.strokeStyle = isZeroCenter
+      ? '#10b981'
+      : u > 0.8 && !options.zeroCenter
+      ? '#ef4444'
+      : '#e2e8f0';
+    ctx.lineWidth = isMajor ? 3 : 1.4;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(ang) * innerR, cy + Math.sin(ang) * innerR);
+    ctx.lineTo(cx + Math.cos(ang) * outerR, cy + Math.sin(ang) * outerR);
+    ctx.stroke();
+
+    if (isMajor) {
+      const val = options.min + u * (options.max - options.min);
+      const label = Number.isInteger(val) ? `${val}` : val.toFixed(1);
+      const textR = r * 0.52;
+      ctx.fillStyle = isZeroCenter ? '#34d399' : '#cbd5e1';
+      ctx.font = 'bold 15px "IBM Plex Mono", ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, cx + Math.cos(ang) * textR, cy + Math.sin(ang) * textR);
+    }
+  }
+
+  // Unit & title in center-lower dial
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 20px "IBM Plex Mono", ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(options.unit, cx, cy + r * 0.34);
+
+  if (options.title) {
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 12px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.fillText(options.title.toUpperCase(), cx, cy + r * 0.54);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 
 

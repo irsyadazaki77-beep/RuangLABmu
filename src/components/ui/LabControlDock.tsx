@@ -200,21 +200,21 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       aria-label="Dock Kontrol Cepat RuangLABmu"
       className={`${
         isMobileSheetOpen ? 'hidden lg:flex' : 'flex'
-      } fixed bottom-[62px] lg:bottom-3 left-1/2 -translate-x-1/2 z-20 lg:z-40 w-[calc(100vw-16px)] sm:w-auto lg:max-w-[calc(100vw-688px)] 2xl:max-w-none flex-col items-stretch gap-1 px-2 py-1.5 rounded-xl studio-hud-surface shadow-2xl border transition-all duration-200 select-none`}
+      } fixed bottom-[56px] lg:bottom-2.5 left-1/2 -translate-x-1/2 z-20 lg:z-40 max-w-[calc(100vw-16px)] lg:max-w-[calc(100vw-688px)] 2xl:max-w-none flex-col items-stretch gap-1 px-2 py-1 rounded-xl studio-hud-surface shadow-lg border transition-all duration-200 select-none`}
     >
-      {/* Slim Time-Travel Scrubber Slider */}
+      {/* Ultra-slim Time-Travel Scrubber Strip */}
       {timelineCount > 1 && (
         <div
           data-testid="time-travel-scrubber-bar"
-          className={`flex items-center gap-2 px-2 py-1 rounded-lg border text-[10px] font-mono transition-colors ${
+          className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-mono transition-colors ${
             isTimeTraveling
-              ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-200'
-              : 'studio-hud-subcard text-[var(--comfort-hud-muted)]'
+              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-200'
+              : 'text-[var(--comfort-hud-muted)]'
           }`}
         >
           <span className="flex items-center gap-1 font-bold shrink-0">
             <History className={`w-3 h-3 ${isTimeTraveling ? 'text-amber-500' : 'text-sky-500'}`} aria-hidden="true" />
-            <span>{isTimeTraveling ? 'Time-Travel' : 'Linimasa'}</span>
+            <span className="hidden md:inline">{isTimeTraveling ? 'Time-Travel' : 'Linimasa'}</span>
           </span>
           <input
             type="range"
@@ -227,7 +227,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
             onChange={(e) => {
               seekTimelineCursor(Number(e.target.value));
             }}
-            className="flex-1 min-w-[90px] sm:min-w-[150px] h-1.5 accent-amber-500 cursor-ew-resize"
+            className="flex-1 min-w-[88px] sm:min-w-[140px] h-1 accent-amber-500 cursor-ew-resize"
           />
           <span className="tabular-nums font-bold shrink-0 text-[var(--comfort-hud-text)]">
             t={timelineCurrentTime.toFixed(2)}s
@@ -239,7 +239,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         </div>
       )}
 
-      <div className="flex flex-wrap lg:flex-nowrap items-center justify-center gap-1">
+      <div className="flex flex-nowrap items-center justify-center gap-0.5 sm:gap-1 overflow-x-auto no-scrollbar">
         {/* 1. Play/Pause */}
         <button
           type="button"

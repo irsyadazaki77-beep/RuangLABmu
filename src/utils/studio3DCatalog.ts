@@ -21,28 +21,28 @@ type ModeCameraMap = Record<string, Record<'isometric' | 'front' | 'top' | 'focu
 
 const PHYSICS_CAMERAS: ModeCameraMap = {
   incline: {
-    isometric: { pos: [5.2, 4.8, 10.6], target: [0.0, 1.4, 0.0] },
-    front: { pos: [0.0, 2.5, 12.2], target: [0.0, 1.4, 0.0] },
-    top: { pos: [0.0, 13.5, 0.6], target: [0.0, 1.0, 0.0] },
-    focus: { pos: [2.4, 2.8, 6.4], target: [0.0, 1.5, 0.0] },
+    isometric: { pos: [5.4, 5.6, 14.2], target: [0.0, 1.45, 0.0] },
+    front: { pos: [0.0, 2.5, 14.8], target: [0.0, 1.45, 0.0] },
+    top: { pos: [0.0, 15.2, 0.6], target: [0.0, 1.0, 0.0] },
+    focus: { pos: [2.4, 2.8, 6.4], target: [-0.8, 1.4, 0.0] },
   },
   projectile: {
-    isometric: { pos: [5.4, 5.2, 11.8], target: [0.6, 1.8, 0.0] },
-    front: { pos: [0.6, 2.8, 13.4], target: [0.6, 1.8, 0.0] },
-    top: { pos: [0.6, 14.8, 0.6], target: [0.6, 1.2, 0.0] },
+    isometric: { pos: [5.8, 5.6, 13.6], target: [0.4, 1.8, 0.0] },
+    front: { pos: [0.4, 2.8, 14.6], target: [0.4, 1.8, 0.0] },
+    top: { pos: [0.4, 15.6, 0.6], target: [0.4, 1.2, 0.0] },
     focus: { pos: [-1.0, 2.6, 6.2], target: [-1.8, 1.4, 0.0] },
   },
   pendulum: {
-    isometric: { pos: [4.4, 4.2, 9.2], target: [0.0, 2.2, 0.0] },
-    front: { pos: [0.0, 2.4, 10.6], target: [0.0, 2.2, 0.0] },
-    top: { pos: [0.0, 12.4, 0.5], target: [0.0, 1.8, 0.0] },
-    focus: { pos: [2.1, 2.3, 5.6], target: [0.0, 1.8, 0.0] },
+    isometric: { pos: [4.6, 4.4, 10.6], target: [0.2, 2.4, 0.0] },
+    front: { pos: [0.2, 2.5, 11.4], target: [0.2, 2.4, 0.0] },
+    top: { pos: [0.0, 13.0, 0.5], target: [0.0, 1.8, 0.0] },
+    focus: { pos: [2.1, 2.3, 5.6], target: [0.0, 1.9, 0.0] },
   },
   spring: {
-    isometric: { pos: [4.4, 4.2, 9.0], target: [0.0, 2.2, 0.0] },
-    front: { pos: [0.0, 2.4, 10.4], target: [0.0, 2.2, 0.0] },
-    top: { pos: [0.0, 12.0, 0.5], target: [0.0, 1.8, 0.0] },
-    focus: { pos: [2.1, 2.4, 5.4], target: [0.0, 2.0, 0.0] },
+    isometric: { pos: [4.8, 4.6, 11.2], target: [0.0, 1.9, 0.0] },
+    front: { pos: [0.0, 2.3, 12.0], target: [0.0, 1.9, 0.0] },
+    top: { pos: [0.0, 13.0, 0.5], target: [0.0, 1.6, 0.0] },
+    focus: { pos: [2.0, 2.4, 5.6], target: [0.0, 1.7, 0.0] },
   },
   collision: {
     isometric: { pos: [4.8, 4.6, 10.6], target: [0.0, 1.2, 0.0] },
@@ -90,14 +90,14 @@ const CHEMISTRY_CAMERAS: ModeCameraMap = {
     focus: { pos: [2.0, 2.5, 5.4], target: [0.0, 1.45, 0.0] },
   },
   titration: {
-    isometric: { pos: [5.2, 5.6, 12.0], target: [0.0, 2.25, 0.0] },
-    front: { pos: [0.0, 3.2, 13.0], target: [0.0, 2.25, 0.0] },
-    top: { pos: [0.0, 14.5, 0.5], target: [0.0, 1.8, 0.0] },
-    focus: { pos: [2.2, 2.5, 5.6], target: [0.0, 1.55, 0.0] },
+    isometric: { pos: [5.6, 6.2, 14.4], target: [0.15, 2.55, 0.0] },
+    front: { pos: [0.15, 3.3, 14.8], target: [0.15, 2.55, 0.0] },
+    top: { pos: [0.0, 15.2, 0.5], target: [0.0, 1.8, 0.0] },
+    focus: { pos: [2.2, 2.5, 5.8], target: [0.0, 1.65, 0.0] },
   },
   electrochemistry: {
-    isometric: { pos: [5.0, 5.2, 10.8], target: [0.0, 1.6, 0.0] },
-    front: { pos: [0.0, 2.8, 11.8], target: [0.0, 1.6, 0.0] },
+    isometric: { pos: [3.2, 4.2, 10.8], target: [0.0, 1.4, 0.0] },
+    front: { pos: [0.0, 2.6, 11.4], target: [0.0, 1.4, 0.0] },
     top: { pos: [0.0, 13.6, 0.5], target: [0.0, 1.4, 0.0] },
     focus: { pos: [2.2, 2.5, 5.8], target: [0.0, 1.65, 0.0] },
   },
@@ -123,10 +123,10 @@ const CHEMISTRY_CAMERAS: ModeCameraMap = {
 
 const BIOLOGY_CAMERAS: ModeCameraMap = {
   photosynthesis: {
-    isometric: { pos: [3.6, 4.4, 9.8], target: [-0.2, 1.55, 0.0] },
-    front: { pos: [-0.2, 2.4, 10.8], target: [-0.2, 1.55, 0.0] },
-    top: { pos: [0.0, 12.2, 0.5], target: [-0.15, 0.9, 0.0] },
-    focus: { pos: [1.5, 2.2, 4.8], target: [0.0, 1.35, 0.0] },
+    isometric: { pos: [3.8, 4.7, 11.4], target: [-0.25, 1.6, 0.0] },
+    front: { pos: [-0.25, 2.4, 12.0], target: [-0.25, 1.6, 0.0] },
+    top: { pos: [0.0, 13.0, 0.5], target: [-0.2, 0.9, 0.0] },
+    focus: { pos: [1.5, 2.2, 5.0], target: [0.0, 1.4, 0.0] },
   },
   enzyme: {
     isometric: { pos: [3.6, 4.3, 8.9], target: [0.0, 1.5, 0.0] },
