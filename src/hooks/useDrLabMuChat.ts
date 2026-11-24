@@ -138,6 +138,8 @@ export function useDrLabMuChat({
 }: UseDrLabMuChatProps) {
   const [studentQuery, setStudentQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [streamingText, setStreamingText] = useState<string>('');
   const [isSpeakingAnswer, setIsSpeakingAnswer] = useState<boolean>(false);
   const [autoSpeakEnabled, setAutoSpeakEnabled] = useState<boolean>(false);
   const [isListeningVoice, setIsListeningVoice] = useState<boolean>(false);
@@ -147,7 +149,17 @@ export function useDrLabMuChat({
     return typeof navigator !== 'undefined' ? !navigator.onLine : false;
   });
   const recognitionRef = useRef<any>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
   const [historyByDomain, setHistoryByDomain] = useState<Record<string, ConversationTurn[]>>({});
+
+  const cancelStreaming = () => {
+    if (streamAbortRef.current) {
+      streamAbortRef.current.abort();
+      streamAbortRef.current = null;
+    }
+    setIsStreaming(false);
+    setIsLoading(false);
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -303,14 +315,20 @@ export function useDrLabMuChat({
         window.clearTimeout(askTimeoutId);
       }
 
-      // 2. Try conversational endpoint if structured endpoint didn't respond
+      // 2. Try SSE streaming endpoint for progressive Dr. LabMu response if structured endpoint didn't respond
       if (!structuredResult) {
-        const chatController = new AbortController();
-        const chatTimeoutId = window.setTimeout(() => chatController.abort(), 8000);
+        const streamController = new AbortController();
+        streamAbortRef.current = streamController;
+        const streamTimeoutId = window.setTimeout(() => streamController.abort(), 20_000);
+        setIsStreaming(true);
+        setStreamingText('');
         try {
-          const res = await fetch('/api/ai/dr-labmu', {
+          const res = await fetch('/api/ai/dr-labmu/stream', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'text/event-stream',
+            },
             body: JSON.stringify({
               message: queryToUse,
               history: domainHistory.slice(0, 4).map((turn) => ({
@@ -319,7 +337,7 @@ export function useDrLabMuChat({
               })),
               telemetry: payload,
             }),
-            signal: chatController.signal,
+            signal: streamController.signal,
           });
 
           if (res.status === 429) {
@@ -338,23 +356,66 @@ export function useDrLabMuChat({
               detectedTrigger: 'concept-analogy',
               formattedText: friendlyMsg,
             };
-          } else if (res.ok) {
-            const data = await res.json();
-            if (data?.structured?.observation) {
-              const rawStructured = data.structured as DrLabMuStructuredResponse;
-              structuredResult = {
-                ...rawStructured,
-                uiActions: sanitizeDrLabMuUIActions(rawStructured.uiActions ?? data.uiActions),
-              };
-              setIsOfflineMentorActive(false);
-            } else if (data?.reply) {
+          } else if (res.ok && res.body) {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+            let assembled = '';
+            let streamedActions: DrLabMuUIAction[] = [];
+
+            const processEventBlock = (block: string) => {
+              const lines = block.split('\n');
+              let eventName = 'message';
+              let dataRaw = '';
+              for (const line of lines) {
+                if (line.startsWith('event:')) {
+                  eventName = line.slice(6).trim();
+                } else if (line.startsWith('data:')) {
+                  dataRaw += line.slice(5).trim();
+                }
+              }
+              if (!dataRaw) return;
+              try {
+                const parsed = JSON.parse(dataRaw) as {
+                  text?: string;
+                  uiActions?: unknown;
+                };
+                if (eventName === 'chunk' && typeof parsed.text === 'string') {
+                  assembled += parsed.text;
+                  setStreamingText(assembled);
+                } else if (eventName === 'actions' && Array.isArray(parsed.uiActions)) {
+                  streamedActions = sanitizeDrLabMuUIActions(parsed.uiActions);
+                }
+              } catch {
+                // Ignore malformed SSE JSON fragment
+              }
+            };
+
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              let boundary = buffer.indexOf('\n\n');
+              while (boundary !== -1) {
+                const block = buffer.slice(0, boundary).trim();
+                buffer = buffer.slice(boundary + 2);
+                if (block) processEventBlock(block);
+                boundary = buffer.indexOf('\n\n');
+              }
+            }
+            if (buffer.trim()) {
+              processEventBlock(buffer.trim());
+            }
+
+            if (assembled.trim()) {
               structuredResult = {
                 observation: `Eksplorasi yang sangat baik di laboratorium virtual ${payload.domain} (${payload.educationLevel}).`,
-                dataHighlight: data.reply,
-                socraticQuestion: 'Bagaimana hipotesis Anda bila parameter simulasi disesuaikan satu langkah lagi?',
+                dataHighlight: assembled.trim(),
+                socraticQuestion:
+                  'Bagaimana hipotesis Anda bila parameter simulasi disesuaikan satu langkah lagi?',
                 detectedTrigger: 'concept-analogy',
-                formattedText: data.reply,
-                uiActions: sanitizeDrLabMuUIActions(data.uiActions),
+                formattedText: assembled.trim(),
+                uiActions: streamedActions,
               };
               setIsOfflineMentorActive(false);
             }
@@ -362,7 +423,10 @@ export function useDrLabMuChat({
         } catch {
           // fallback to deterministic local engine
         } finally {
-          window.clearTimeout(chatTimeoutId);
+          window.clearTimeout(streamTimeoutId);
+          streamAbortRef.current = null;
+          setIsStreaming(false);
+          setStreamingText('');
         }
       }
     }
@@ -628,6 +692,9 @@ export function useDrLabMuChat({
     studentQuery,
     setStudentQuery,
     isLoading,
+    isStreaming,
+    streamingText,
+    cancelStreaming,
     isSpeakingAnswer,
     autoSpeakEnabled,
     setAutoSpeakEnabled,

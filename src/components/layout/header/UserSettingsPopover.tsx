@@ -96,19 +96,19 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
         }}
         aria-expanded={isOpen}
         aria-label="Dr. LabMu, Profil & Pengaturan"
-        className={`relative h-8 px-2.5 flex items-center gap-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
+        className={`relative h-8 px-2.5 flex items-center gap-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
           isOpen
-            ? 'bg-sky-600 text-white border-sky-600'
-            : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] hover:border-sky-500/50 text-[var(--comfort-text)]'
+            ? 'comfort-tab-active border-transparent'
+            : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] hover:border-[var(--comfort-accent-border)] text-[var(--comfort-text)]'
         }`}
       >
         {userRole === 'pengajar' ? (
           <GraduationCap
-            className={`w-3.5 h-3.5 shrink-0 ${isOpen ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`}
+            className={`w-3.5 h-3.5 shrink-0 ${isOpen ? 'text-white' : 'text-[var(--comfort-accent)]'}`}
           />
         ) : (
           <UserCircle2
-            className={`w-3.5 h-3.5 shrink-0 ${isOpen ? 'text-white' : 'text-sky-600 dark:text-sky-400'}`}
+            className={`w-3.5 h-3.5 shrink-0 ${isOpen ? 'text-white' : 'text-[var(--comfort-accent)]'}`}
           />
         )}
         <span className="hidden sm:inline font-semibold">
@@ -134,7 +134,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                   <div className="font-semibold truncate">
                     {activeProfile?.name || 'Alya Pratama'}
                   </div>
-                  <div className="text-[11px] text-[var(--comfort-text-muted)] tabular-nums">
+                  <div className="text-2xs text-[var(--comfort-text-muted)] tabular-nums">
                     {activeProfile?.group || 'Kelompok 1'} · Level {gamificationProfile.level} ({gamificationProfile.xp} XP)
                   </div>
                 </div>
@@ -150,9 +150,9 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                       openModal('portfolio');
                     }
                   }}
-                  className="px-2.5 py-1.5 rounded-lg bg-amber-500/12 hover:bg-amber-500/20 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-semibold text-[11px] inline-flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
+                  className="px-2.5 py-1.5 rounded-lg comfort-btn-secondary font-semibold text-2xs inline-flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
                 >
-                  <Trophy className="w-3.5 h-3.5" />
+                  <Trophy className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
                   <span>{userRole === 'pengajar' ? 'Buku Nilai' : 'Portofolio'}</span>
                 </button>
               </div>
@@ -167,12 +167,12 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                     if (drawerOpen) toggleDrawer();
                     else setDrawerTab('ai');
                   }}
-                  className="px-2.5 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/18 border border-sky-500/30 text-sky-700 dark:text-sky-300 font-semibold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  className="px-2.5 py-1.5 rounded-lg comfort-accent-soft border hover:opacity-90 font-semibold text-2xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap transition-opacity"
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
                   <span>Asisten Dr. LabMu</span>
                   {notificationsCount > 0 && (
-                    <span className="font-mono text-[10px] opacity-80 tabular-nums">({notificationsCount})</span>
+                    <span className="font-mono text-2xs opacity-80 tabular-nums">({notificationsCount})</span>
                   )}
                 </button>
 
@@ -188,13 +188,13 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                       onClose();
                     }
                   }}
-                  className={`px-2.5 py-1.5 rounded-lg border font-semibold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  className={`px-2.5 py-1.5 rounded-lg border font-semibold text-2xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors ${
                     userRole === 'pengajar'
-                      ? 'bg-emerald-600 text-white border-emerald-500'
-                      : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500'
+                      ? 'comfort-tab-active border-transparent'
+                      : 'comfort-btn-secondary'
                   }`}
                 >
-                  <GraduationCap className="w-3.5 h-3.5" />
+                  <GraduationCap className={`w-3.5 h-3.5 ${userRole === 'pengajar' ? '' : 'text-[var(--comfort-accent)]'}`} />
                   <span>{userRole === 'pengajar' ? 'Buku Nilai Aktif' : 'Mode Guru'}</span>
                 </button>
               </div>
@@ -211,7 +211,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
             {/* Language & Role */}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
+                <span className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
                   Bahasa
                 </span>
                 <div className="flex items-center p-0.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] font-mono font-bold">
@@ -220,7 +220,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                     onClick={() => onLanguageSwitch('id')}
                     className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
                       activeLang === 'id'
-                        ? 'bg-sky-600 text-white'
+                        ? 'comfort-tab-active'
                         : 'text-[var(--comfort-text-muted)]'
                     }`}
                   >
@@ -231,7 +231,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                     onClick={() => onLanguageSwitch('en')}
                     className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
                       activeLang === 'en'
-                        ? 'bg-sky-600 text-white'
+                        ? 'comfort-tab-active'
                         : 'text-[var(--comfort-text-muted)]'
                     }`}
                   >
@@ -241,10 +241,10 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
               </div>
 
               <div className="space-y-1">
-                <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
+                <span className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
                   Peran
                 </span>
-                <div className="flex items-center p-0.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] font-semibold text-[11px]">
+                <div className="flex items-center p-0.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] font-semibold text-2xs">
                   <button
                     type="button"
                     onClick={() => {
@@ -267,7 +267,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                     }}
                     className={`flex-1 py-1 rounded-md text-center cursor-pointer transition-colors ${
                       userRole === 'pengajar'
-                        ? 'bg-[var(--comfort-surface)] text-sky-700 dark:text-sky-300 shadow-xs'
+                        ? 'bg-[var(--comfort-surface)] text-[var(--comfort-accent)] shadow-xs'
                         : 'text-[var(--comfort-text-muted)]'
                     }`}
                   >
@@ -279,7 +279,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
 
             {/* 3T Visual Classroom Modes */}
             <div className="pt-2 border-t border-[var(--comfort-border)] space-y-1.5">
-              <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
+              <span className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
                 Mode Visual Ruang Kelas 3T
               </span>
 
@@ -292,15 +292,15 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                 }}
                 className={`w-full px-2.5 py-1.5 flex items-center justify-between rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
                   projectorMode
-                    ? 'bg-amber-500/15 text-amber-900 dark:text-amber-200 border-amber-500/60'
-                    : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] hover:border-amber-500/40'
+                    ? 'comfort-accent-soft text-[var(--comfort-text)]'
+                    : 'comfort-btn-secondary'
                 }`}
               >
                 <span className="flex items-center gap-2">
-                  <Monitor className={`w-3.5 h-3.5 ${projectorMode ? 'text-amber-500' : 'text-[var(--comfort-text-muted)]'}`} />
+                  <Monitor className={`w-3.5 h-3.5 ${projectorMode ? 'text-[var(--comfort-accent)]' : 'text-[var(--comfort-text-muted)]'}`} />
                   <span>Mode Proyektor Kelas (1.5x)</span>
                 </span>
-                <span className={`font-mono text-[10px] font-bold ${projectorMode ? 'text-amber-600 dark:text-amber-300' : 'text-[var(--comfort-text-muted)]'}`}>
+                <span className={`font-mono text-2xs font-bold ${projectorMode ? 'text-[var(--comfort-accent)]' : 'text-[var(--comfort-text-muted)]'}`}>
                   {projectorMode ? 'Aktif' : 'Off'}
                 </span>
               </button>
@@ -314,15 +314,15 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                 }}
                 className={`w-full px-2.5 py-1.5 flex items-center justify-between rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
                   liteDeviceMode
-                    ? 'bg-amber-500/12 text-amber-800 dark:text-amber-300 border-amber-500/40'
-                    : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] hover:border-amber-500/40'
+                    ? 'comfort-accent-soft text-[var(--comfort-text)]'
+                    : 'comfort-btn-secondary'
                 }`}
               >
                 <span className="flex items-center gap-2">
-                  <Zap className={`w-3.5 h-3.5 ${liteDeviceMode ? 'text-amber-500 fill-amber-500' : 'text-[var(--comfort-text-muted)]'}`} />
+                  <Zap className={`w-3.5 h-3.5 ${liteDeviceMode ? 'text-[var(--comfort-accent)]' : 'text-[var(--comfort-text-muted)]'}`} />
                   <span>Mode Hemat Daya 3T (30 FPS)</span>
                 </span>
-                <span className={`font-mono text-[10px] font-bold ${liteDeviceMode ? 'text-amber-600 dark:text-amber-300' : 'text-[var(--comfort-text-muted)]'}`}>
+                <span className={`font-mono text-2xs font-bold ${liteDeviceMode ? 'text-[var(--comfort-accent)]' : 'text-[var(--comfort-text-muted)]'}`}>
                   {liteDeviceMode ? 'Aktif' : 'Off'}
                 </span>
               </button>
@@ -330,7 +330,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
 
             {/* Lab Tools */}
             <div className="space-y-1 pt-2 border-t border-[var(--comfort-border)]">
-              <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
+              <span className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
                 Alat Praktikum
               </span>
               <button
@@ -343,9 +343,9 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                     m.printBlankStudentWorksheet(experimentModule, 'SMA')
                   );
                 }}
-                className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-sky-700 dark:text-sky-300 text-xs font-medium cursor-pointer transition-colors"
+                className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] text-xs font-medium cursor-pointer transition-colors"
               >
-                <Printer className="w-3.5 h-3.5 shrink-0" />
+                <Printer className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" />
                 <span>Cetak LKS Kosong (Fotokopi Kelas)</span>
               </button>
 
@@ -358,7 +358,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                 }}
                 className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-xs cursor-pointer transition-colors"
               >
-                <Link2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                <Link2 className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" />
                 <span>Salin Link Modul Praktikum</span>
               </button>
 
@@ -375,7 +375,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                   <Search className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] shrink-0" />
                   <span>Pencarian Cepat</span>
                 </span>
-                <span className="font-mono text-[10px] text-[var(--comfort-text-muted)]">Ctrl+K</span>
+                <span className="font-mono text-2xs text-[var(--comfort-text-muted)]">Ctrl+K</span>
               </button>
 
               <button
@@ -388,7 +388,7 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                 }}
                 className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-xs cursor-pointer transition-colors"
               >
-                <HelpCircle className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                <HelpCircle className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" />
                 <span>Tur Panduan UI Interaktif</span>
               </button>
 
@@ -403,9 +403,9 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
                   }
                   openModal('ai-mission-builder');
                 }}
-                className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-indigo-700 dark:text-indigo-300 text-xs font-medium cursor-pointer transition-colors"
+                className="w-full px-2.5 py-1.5 flex items-center gap-2 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] text-xs font-medium cursor-pointer transition-colors"
               >
-                <Wand2 className="w-3.5 h-3.5 shrink-0" />
+                <Wand2 className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" />
                 <span>Buat Misi Praktikum AI (Guru)</span>
               </button>
             </div>

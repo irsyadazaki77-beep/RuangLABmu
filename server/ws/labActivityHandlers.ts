@@ -1,4 +1,5 @@
 import type { WsPayloadOf } from '../../src/shared/contracts/wsContracts';
+import { DEFAULT_SCHOOL_ID } from '../db/LabRepository';
 import type {
   CollabNote,
   GroupTask,
@@ -8,11 +9,31 @@ import type {
 import { authorizeTeacherAction } from './wsAuth';
 import type { ExtWebSocket, WsHandlerServices } from './wsTypes';
 
+function emitScopedActivity(
+  services: WsHandlerServices,
+  ws: ExtWebSocket | undefined,
+  payload: unknown,
+  explicitRoomId?: string
+): void {
+  const roomId = explicitRoomId || ws?.roomId;
+  if (roomId) {
+    services.broadcastRoom(roomId, payload);
+    return;
+  }
+  const schoolId = ws?.schoolId || DEFAULT_SCHOOL_ID;
+  if (services.broadcastSchool) {
+    services.broadcastSchool(schoolId, payload);
+    return;
+  }
+  services.broadcastAll(payload);
+}
+
 export function handleRecordCreate(
   rec: WsPayloadOf<'record:create'>,
-  services: WsHandlerServices
+  services: WsHandlerServices,
+  ws?: ExtWebSocket
 ): void {
-  const { state, broadcastAll } = services;
+  const { state } = services;
   if (!state.experimentRecords.some((r) => r.id === rec.id)) {
     state.experimentRecords.unshift(rec);
   }
@@ -26,7 +47,7 @@ export function handleRecordCreate(
     if (stu.completionPct >= 90) stu.status = 'Selesai';
   }
   state.persistServerState();
-  broadcastAll({
+  emitScopedActivity(services, ws, {
     type: 'record:created',
     payload: { record: rec, students: state.studentRoster },
   });
@@ -34,14 +55,15 @@ export function handleRecordCreate(
 
 export function handleRecordDelete(
   id: string,
-  services: WsHandlerServices
+  services: WsHandlerServices,
+  ws?: ExtWebSocket
 ): void {
-  const { state, broadcastAll } = services;
+  const { state } = services;
   const idx = state.experimentRecords.findIndex((r) => r.id === id);
   if (idx !== -1) {
     state.experimentRecords.splice(idx, 1);
     state.persistServerState();
-    broadcastAll({
+    emitScopedActivity(services, ws, {
       type: 'record:deleted',
       payload: { id },
     });
@@ -50,9 +72,10 @@ export function handleRecordDelete(
 
 export function handleTaskToggle(
   payload: WsPayloadOf<'task:toggle'>,
-  services: WsHandlerServices
+  services: WsHandlerServices,
+  ws?: ExtWebSocket
 ): void {
-  const { state, broadcastAll } = services;
+  const { state } = services;
   const taskId = payload.id;
   const task = state.groupTasks.find((t) => t.id === taskId);
   if (task) {
@@ -61,15 +84,19 @@ export function handleTaskToggle(
       ? (typeof payload.studentName === 'string' && payload.studentName) || 'Siswa'
       : undefined;
     state.persistServerState();
-    broadcastAll({ type: 'task:updated', payload: { tasks: state.groupTasks } });
+    emitScopedActivity(services, ws, {
+      type: 'task:updated',
+      payload: { tasks: state.groupTasks },
+    });
   }
 }
 
 export function handleTaskCreate(
   payload: WsPayloadOf<'task:create'>,
-  services: WsHandlerServices
+  services: WsHandlerServices,
+  ws?: ExtWebSocket
 ): void {
-  const { state, broadcastAll } = services;
+  const { state } = services;
   const title = payload.title;
   if (!title) return;
   const newTask: GroupTask = {
@@ -89,14 +116,18 @@ export function handleTaskCreate(
   };
   state.groupTasks.push(newTask);
   state.persistServerState();
-  broadcastAll({ type: 'task:updated', payload: { tasks: state.groupTasks } });
+  emitScopedActivity(services, ws, {
+    type: 'task:updated',
+    payload: { tasks: state.groupTasks },
+  });
 }
 
 export function handleNoteCreate(
   payload: WsPayloadOf<'note:create'>,
-  services: WsHandlerServices
+  services: WsHandlerServices,
+  ws?: ExtWebSocket
 ): void {
-  const { state, broadcastAll } = services;
+  const { state } = services;
   const text = payload.text;
   if (!text) return;
   const note: CollabNote = {
@@ -119,15 +150,19 @@ export function handleNoteCreate(
   if (!state.collabNotes.some((n) => n.id === note.id)) {
     state.collabNotes.push(note);
     state.persistServerState();
-    broadcastAll({ type: 'note:created', payload: { note } });
+    emitScopedActivity(services, ws, {
+      type: 'note:created',
+      payload: { note },
+    });
   }
 }
 
 export function handleQuizSubmit(
   payload: WsPayloadOf<'quiz:submit'>,
-  services: WsHandlerServices
+  services: WsHandlerServices,
+  ws?: ExtWebSocket
 ): void {
-  const { state, broadcastAll } = services;
+  const { state } = services;
   const studentName = String(payload.studentName || 'Siswa');
   const score = Number(payload.score || 0);
   const correctCount = Number(payload.correctCount || 0);
@@ -154,7 +189,7 @@ export function handleQuizSubmit(
   };
   state.notifications.unshift(notif);
   state.persistServerState();
-  broadcastAll({
+  emitScopedActivity(services, ws, {
     type: 'quiz:submitted',
     payload: { students: state.studentRoster, notification: notif },
   });
@@ -162,13 +197,14 @@ export function handleQuizSubmit(
 
 export function handleNotificationPush(
   notif: WsPayloadOf<'notification:push'>,
-  services: WsHandlerServices
+  services: WsHandlerServices,
+  ws?: ExtWebSocket
 ): void {
-  const { state, broadcastAll } = services;
+  const { state } = services;
   if (!state.notifications.some((n) => n.id === notif.id)) {
     state.notifications.unshift(notif);
     state.persistServerState();
-    broadcastAll({
+    emitScopedActivity(services, ws, {
       type: 'notification:pushed',
       payload: { notification: notif },
     });
@@ -180,7 +216,7 @@ export function handleTeacherFeedback(
   payload: WsPayloadOf<'teacher:feedback'>,
   services: WsHandlerServices
 ): void {
-  const { state, broadcastAll } = services;
+  const { state } = services;
   const auth = authorizeTeacherAction(ws, payload, state.activeLabRooms);
   if (!auth.authorized) return;
 
@@ -224,10 +260,15 @@ export function handleTeacherFeedback(
     targetStu.status = 'Nominal';
   }
   state.persistServerState();
-  broadcastAll({
-    type: 'teacher:broadcasted',
-    payload: { notification: notif, note, students: state.studentRoster },
-  });
+  emitScopedActivity(
+    services,
+    ws,
+    {
+      type: 'teacher:broadcasted',
+      payload: { notification: notif, note, students: state.studentRoster },
+    },
+    auth.targetRoomId || undefined
+  );
 }
 
 export function handleMysteryBroadcast(
@@ -235,7 +276,7 @@ export function handleMysteryBroadcast(
   payload: WsPayloadOf<'mystery:broadcast'>,
   services: WsHandlerServices
 ): void {
-  const { state, broadcastAll } = services;
+  const { state } = services;
   const auth = authorizeTeacherAction(ws, payload, state.activeLabRooms);
   if (!auth.authorized) return;
 
@@ -263,17 +304,23 @@ export function handleMysteryBroadcast(
   };
   state.notifications.unshift(notif);
   state.persistServerState();
-  broadcastAll({
-    type: 'mystery:broadcasted',
-    payload: { challenge, notification: notif },
-  });
+  emitScopedActivity(
+    services,
+    ws,
+    {
+      type: 'mystery:broadcasted',
+      payload: { challenge, notification: notif },
+    },
+    auth.targetRoomId || undefined
+  );
 }
 
 export function handleMysterySubmit(
   payload: WsPayloadOf<'mystery:submit'>,
-  services: WsHandlerServices
+  services: WsHandlerServices,
+  ws?: ExtWebSocket
 ): void {
-  const { state, broadcastAll } = services;
+  const { state } = services;
   const studentName = String(payload.studentName || 'Siswa');
   const challengeTitle = String(payload.challengeTitle || 'Ujian Misteri');
   const result = payload.result;
@@ -304,7 +351,7 @@ export function handleMysterySubmit(
   };
   state.notifications.unshift(notif);
   state.persistServerState();
-  broadcastAll({
+  emitScopedActivity(services, ws, {
     type: 'mystery:submitted',
     payload: {
       studentName,

@@ -1,12 +1,11 @@
 import crypto from 'crypto';
-import { loadPersistedState, scheduleSaveState } from '../../src/utils/statePersistence';
+import { loadPersistedState } from '../../src/utils/statePersistence';
 import {
   LabRoom,
   ParameterLockPayload,
 } from '../../src/utils/collabProtocol';
 import {
   DEFAULT_NOTIFICATION_TTL_MS,
-  LabSqliteStore,
   hashRoomPin,
   resolveDefaultDbPath,
   verifyRoomPinTimingSafe,
@@ -19,11 +18,18 @@ import {
   type DbSimulationSnapshotRecord,
   type LabRepository,
 } from '../db/database';
-import { DEFAULT_SCHOOL_ID } from '../db/LabRepository';
+import {
+  DEFAULT_SCHOOL_ID,
+  type AsyncLabRepository,
+  type AuditLogInput,
+  type AuditLogRecord,
+} from '../db/LabRepository';
+import { createHybridAsyncRepository } from '../db/repositoryFactory';
+import { DatabaseBackupService } from '../services/backupService';
+import { logger } from '../utils/logger';
 
 export {
   DEFAULT_NOTIFICATION_TTL_MS,
-  LabSqliteStore,
   RuangLabDatabase,
   hashRoomPin,
   resolveDefaultDbPath,
@@ -150,9 +156,10 @@ class SqliteBackedMap<K extends string, V> extends Map<K, V> {
 
 export interface LabServerState {
   readonly dbPath: string;
-  readonly sqliteStore: LabSqliteStore;
   readonly database: RuangLabDatabase;
   readonly repository: LabRepository;
+  readonly asyncRepository: AsyncLabRepository;
+  readonly backupService: DatabaseBackupService;
   experimentRecords: ServerExperimentRecord[];
   groupTasks: GroupTask[];
   collabNotes: CollabNote[];
@@ -171,6 +178,7 @@ export interface LabServerState {
       ownerTokenHash?: string;
     }
   >;
+  recordAuditLog: (input: AuditLogInput) => AuditLogRecord;
   touchLabRoom: (roomId: string, now?: number) => void;
   rejoinParticipantSession: (
     roomPin: string,
@@ -226,6 +234,8 @@ export interface LabServerState {
 
 export function createLabServerState(options?: {
   dbPath?: string;
+  backupDir?: string;
+  databaseUrl?: string;
   maxActiveRooms?: number;
   roomIdleTtlMs?: number;
   maxSessionSnapshots?: number;
@@ -258,9 +268,16 @@ export function createLabServerState(options?: {
   };
 
   const resolvedDbPath = options?.dbPath || resolveDefaultDbPath();
-  const sqliteStore = new LabSqliteStore(resolvedDbPath);
   const database = new RuangLabDatabase(resolvedDbPath);
   const repository: LabRepository = database;
+  const asyncRepository: AsyncLabRepository = createHybridAsyncRepository(
+    database,
+    options?.databaseUrl !== undefined ? options.databaseUrl : process.env.DATABASE_URL
+  );
+  const backupService = new DatabaseBackupService({
+    database,
+    backupDir: options?.backupDir,
+  });
 
   const syncRoomToRelationalTables = (room: LabRoom) => {
     const cleanPin = String(room.pin || room.roomId).trim();
@@ -476,17 +493,33 @@ export function createLabServerState(options?: {
   ];
 
   const parameterLocks = new SqliteBackedMap<string, ParameterLockPayload>({
-    onSet: (key, lock) => sqliteStore.upsertParameterLock(key, lock),
-    onDelete: (key) => sqliteStore.deleteParameterLock(key),
+    onSet: (key, lock) =>
+      repository.upsertParameterLock({
+        key,
+        schoolId: DEFAULT_SCHOOL_ID,
+        roomId: (lock as ParameterLockPayload & { roomId?: string }).roomId || null,
+        payloadJson: JSON.stringify(lock),
+        expiresAt: Number.isFinite(lock.expiresAt) ? lock.expiresAt : Date.now() + 60_000,
+      }),
+    onDelete: (key) => repository.deleteParameterLock(key),
   });
 
   const activeLabRooms = new SqliteBackedMap<string, LabRoom>({
     onSet: (_key, room) => {
-      sqliteStore.upsertRoom(room);
+      const now = Date.now();
+      const roomWithHash = room as LabRoom & { pinHash?: string };
+      repository.upsertRoomState({
+        roomId: room.roomId,
+        schoolId: room.schoolId || DEFAULT_SCHOOL_ID,
+        pinHash: roomWithHash.pinHash || (room.pin ? hashRoomPin(room.pin) : null),
+        stateJson: JSON.stringify(room),
+        lastActivityAt: room.lastActivityAt ?? room.createdAt ?? now,
+        updatedAt: now,
+      });
       syncRoomToRelationalTables(room);
     },
     onDelete: (key) => {
-      sqliteStore.deleteRoom(key);
+      repository.deleteRoomState(key);
     },
   });
 
@@ -502,7 +535,6 @@ export function createLabServerState(options?: {
     }
   >({
     onSet: (key, snap) => {
-      sqliteStore.upsertSessionSnapshot(key, snap);
       repository.upsertAutosave({
         storageKey: key,
         schoolId: snap.schoolId || DEFAULT_SCHOOL_ID,
@@ -520,37 +552,51 @@ export function createLabServerState(options?: {
         );
       }
     },
-    onDelete: (key) => sqliteStore.deleteSessionSnapshot(key),
+    onDelete: (key) => {
+      repository.deleteAutosaveByKey(key);
+    },
   });
 
-  // Hydrate any pre-existing rooms, snapshots, and locks from SQLite immediately
-  for (const room of sqliteStore.loadAllRooms()) {
-    activeLabRooms.setSilent(room.roomId, room);
-    syncRoomToRelationalTables(room);
-  }
-  for (const snap of sqliteStore.loadAllSessionSnapshots()) {
-    sessionSnapshots.setSilent(snap.key, snap.value);
-  }
-  for (const row of repository.listAutosaves()) {
-    if (!sessionSnapshots.has(row.storage_key)) {
-      let parsedSession: unknown = {};
-      try {
-        parsedSession = JSON.parse(row.session_json);
-      } catch {
-        parsedSession = {};
+  // Hydrate rooms, autosave snapshots, and active parameter locks from consolidated SQLite
+  for (const row of repository.loadAllRoomStates()) {
+    try {
+      const parsedRoom = JSON.parse(row.stateJson) as LabRoom & { pinHash?: string };
+      if (parsedRoom && parsedRoom.roomId) {
+        if (row.pinHash && !parsedRoom.pinHash) {
+          parsedRoom.pinHash = row.pinHash;
+        }
+        activeLabRooms.setSilent(parsedRoom.roomId, parsedRoom);
+        syncRoomToRelationalTables(parsedRoom);
       }
-      sessionSnapshots.setSilent(row.storage_key, {
-        version: row.version,
-        session: parsedSession,
-        updatedAt: row.updated_at,
-        schoolId: row.school_id,
-        ownerStudentId: row.student_id || undefined,
-        ownerTokenHash: row.owner_token_hash || undefined,
-      });
+    } catch {
+      // Ignore malformed room state row
     }
   }
-  for (const lockEntry of sqliteStore.loadActiveParameterLocks()) {
-    parameterLocks.setSilent(lockEntry.key, lockEntry.lock);
+  for (const row of repository.listAutosaves()) {
+    let parsedSession: unknown = {};
+    try {
+      parsedSession = JSON.parse(row.session_json);
+    } catch {
+      parsedSession = {};
+    }
+    sessionSnapshots.setSilent(row.storage_key, {
+      version: row.version,
+      session: parsedSession,
+      updatedAt: row.updated_at,
+      schoolId: row.school_id,
+      ownerStudentId: row.student_id || undefined,
+      ownerTokenHash: row.owner_token_hash || undefined,
+    });
+  }
+  for (const lockEntry of repository.loadActiveParameterLocks()) {
+    try {
+      const parsedLock = JSON.parse(lockEntry.payloadJson) as ParameterLockPayload;
+      if (parsedLock && typeof parsedLock === 'object') {
+        parameterLocks.setSilent(lockEntry.key, parsedLock);
+      }
+    } catch {
+      // Ignore malformed parameter lock row
+    }
   }
 
   const demoRoomPin =
@@ -563,6 +609,7 @@ export function createLabServerState(options?: {
     activeLabRooms.set('LAB-ALPHA', {
       roomId: 'LAB-ALPHA',
       pin: demoRoomPin,
+      schoolId: DEFAULT_SCHOOL_ID,
       domain: 'physics',
       moduleId: 'newton-incline',
       teacherSocketId: undefined,
@@ -583,6 +630,38 @@ export function createLabServerState(options?: {
       activeLabRooms.set('LAB-ALPHA', existingAlpha);
     }
   }
+
+  const recordAuditLog = (input: AuditLogInput): AuditLogRecord => {
+    const normalizedMetadata =
+      input.metadataJson ||
+      JSON.stringify({
+        ...(input.metadata || {}),
+        ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
+      });
+    const payload = {
+      id: input.id && input.id.trim() ? input.id.trim() : `audit-${crypto.randomUUID()}`,
+      schoolId: input.schoolId || DEFAULT_SCHOOL_ID,
+      actorId: input.actorId,
+      actorName: input.actorName,
+      actorRole: input.actorRole,
+      action: input.action,
+      targetType: input.targetType,
+      targetId: input.targetId,
+      metadataJson: normalizedMetadata,
+      requestId: input.requestId ?? null,
+      createdAt: input.createdAt || new Date().toISOString(),
+    };
+    const saved = repository.appendAuditLog(payload);
+    if (asyncRepository.driver === 'postgres') {
+      void asyncRepository.appendAuditLog(payload).catch((err) => {
+        logger.warn('Failed to mirror audit log to PostgreSQL', {
+          action: input.action,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }
+    return saved;
+  };
 
   const findRoomByPinOrId = (pinOrRoomId: string): LabRoom | null => {
     const needle = String(pinOrRoomId || '').trim();
@@ -657,11 +736,26 @@ export function createLabServerState(options?: {
     const effectivePin = matchedRoom?.pin || String(entry.roomPin || 'MANDIRI').trim();
     const effectiveSchoolId =
       entry.schoolId || matchedRoom?.schoolId || DEFAULT_SCHOOL_ID;
-    return repository.upsertGradebookEntry({
+    const saved = repository.upsertGradebookEntry({
       ...entry,
       schoolId: effectiveSchoolId,
       roomPin: effectivePin,
     });
+    if (asyncRepository.driver === 'postgres') {
+      void asyncRepository
+        .upsertGradebookEntry({
+          ...entry,
+          schoolId: effectiveSchoolId,
+          roomPin: effectivePin,
+        })
+        .catch((err) => {
+          logger.warn('Failed to mirror gradebook entry to PostgreSQL', {
+            id: entry.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+    }
+    return saved;
   };
 
   const getGradebookEntries = (roomPin?: string, schoolId?: string) => {
@@ -681,13 +775,12 @@ export function createLabServerState(options?: {
     const existing = activeLabRooms.get(roomId);
     if (!existing) return;
     existing.lastActivityAt = now;
-    // Re-insert so Map iteration order tracks LRU recency and persists to SQLite
     activeLabRooms.delete(roomId);
     activeLabRooms.set(roomId, existing);
   };
 
   const pruneExpiredLocks = (now = Date.now()) => {
-    sqliteStore.pruneExpiredParameterLocks(now);
+    repository.pruneExpiredParameterLocks(now);
     for (const [key, lock] of parameterLocks.entries()) {
       if (now > lock.expiresAt) {
         parameterLocks.delete(key);
@@ -701,7 +794,7 @@ export function createLabServerState(options?: {
   };
 
   const pruneExpiredNotifications = (now = Date.now()) => {
-    sqliteStore.pruneExpiredNotifications(now);
+    repository.pruneExpiredNotifications(now);
     for (let i = notifications.length - 1; i >= 0; i -= 1) {
       const exp = notifications[i].expiresAt;
       if (typeof exp === 'number' && now > exp) {
@@ -786,25 +879,21 @@ export function createLabServerState(options?: {
 
   const persistServerState = () => {
     enforceCollectionBounds();
-    sqliteStore.syncCollections({
-      records: experimentRecords,
-      tasks: groupTasks,
-      notes: collabNotes,
-      students: studentRoster,
-      notifications,
+    // Single source of truth: persist strictly to consolidated SQLite tables (no flat JSON dual-writes)
+    repository.syncLabCollections({
+      records: experimentRecords as unknown as Array<Record<string, unknown>>,
+      tasks: groupTasks as unknown as Array<Record<string, unknown>>,
+      notes: collabNotes as unknown as Array<Record<string, unknown>>,
+      students: studentRoster as unknown as Array<Record<string, unknown>>,
+      notifications: notifications as unknown as Array<Record<string, unknown>>,
       notificationTtlMs: limits.NOTIFICATION_TTL_MS,
-    });
-    scheduleSaveState({
-      records: experimentRecords,
-      tasks: groupTasks,
-      notes: collabNotes,
-      students: studentRoster,
-      notifications,
     });
   };
 
   const hydrateServerState = async () => {
-    const sqliteCollections = sqliteStore.loadCollections();
+    await asyncRepository.init();
+
+    const sqliteCollections = repository.loadLabCollections();
     const hasSqliteData =
       sqliteCollections.records.length > 0 ||
       sqliteCollections.tasks.length > 0 ||
@@ -814,24 +903,45 @@ export function createLabServerState(options?: {
 
     if (hasSqliteData) {
       if (sqliteCollections.records.length > 0) {
-        experimentRecords.splice(0, experimentRecords.length, ...sqliteCollections.records);
+        experimentRecords.splice(
+          0,
+          experimentRecords.length,
+          ...(sqliteCollections.records as unknown as ServerExperimentRecord[])
+        );
       }
       if (sqliteCollections.tasks.length > 0) {
-        groupTasks.splice(0, groupTasks.length, ...sqliteCollections.tasks);
+        groupTasks.splice(
+          0,
+          groupTasks.length,
+          ...(sqliteCollections.tasks as unknown as GroupTask[])
+        );
       }
       if (sqliteCollections.notes.length > 0) {
-        collabNotes.splice(0, collabNotes.length, ...sqliteCollections.notes);
+        collabNotes.splice(
+          0,
+          collabNotes.length,
+          ...(sqliteCollections.notes as unknown as CollabNote[])
+        );
       }
       if (sqliteCollections.students.length > 0) {
-        studentRoster.splice(0, studentRoster.length, ...sqliteCollections.students);
+        studentRoster.splice(
+          0,
+          studentRoster.length,
+          ...(sqliteCollections.students as unknown as StudentProgress[])
+        );
       }
       if (sqliteCollections.notifications.length > 0) {
-        notifications.splice(0, notifications.length, ...sqliteCollections.notifications);
+        notifications.splice(
+          0,
+          notifications.length,
+          ...(sqliteCollections.notifications as unknown as ServerNotification[])
+        );
       }
       enforceCollectionBounds();
       return;
     }
 
+    // One-time legacy import from data/lab-state.json if present (read-only migration, never writes JSON back)
     const loadedState = await loadPersistedState({
       records: experimentRecords,
       tasks: groupTasks,
@@ -881,12 +991,12 @@ export function createLabServerState(options?: {
     }
 
     enforceCollectionBounds();
-    sqliteStore.syncCollections({
-      records: experimentRecords,
-      tasks: groupTasks,
-      notes: collabNotes,
-      students: studentRoster,
-      notifications,
+    repository.syncLabCollections({
+      records: experimentRecords as unknown as Array<Record<string, unknown>>,
+      tasks: groupTasks as unknown as Array<Record<string, unknown>>,
+      notes: collabNotes as unknown as Array<Record<string, unknown>>,
+      students: studentRoster as unknown as Array<Record<string, unknown>>,
+      notifications: notifications as unknown as Array<Record<string, unknown>>,
       notificationTtlMs: limits.NOTIFICATION_TTL_MS,
     });
   };
@@ -903,15 +1013,19 @@ export function createLabServerState(options?: {
 
   const dispose = () => {
     clearInterval(maintenanceTimer);
-    sqliteStore.close();
+    backupService.stopScheduler();
+    if (asyncRepository.driver === 'postgres') {
+      void asyncRepository.close();
+    }
     database.close();
   };
 
   return {
     dbPath: resolvedDbPath,
-    sqliteStore,
     database,
     repository,
+    asyncRepository,
+    backupService,
     experimentRecords,
     groupTasks,
     collabNotes,
@@ -920,6 +1034,7 @@ export function createLabServerState(options?: {
     parameterLocks,
     activeLabRooms,
     sessionSnapshots,
+    recordAuditLog,
     touchLabRoom,
     rejoinParticipantSession,
     saveRoomSimulationSnapshot,

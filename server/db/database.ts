@@ -12,6 +12,10 @@ import { createRequire } from 'module';
 import { runMigrations } from './migrator';
 import {
   DEFAULT_SCHOOL_ID,
+  type AuditLogQueryOptions,
+  type ConsolidatedLabCollections,
+  type DbAuditLogRecord,
+  type DbAuthCredentialRecord,
   type DbAutosaveRecord,
   type DbGradebookEntryRecord,
   type DbIdempotencyKeyRecord,
@@ -20,11 +24,20 @@ import {
   type DbSchoolRecord,
   type DbSimulationSnapshotRecord,
   type DbSubmissionRecord,
+  type GradebookQueryOptions,
   type LabRepository,
+  type PaginatedResult,
   type SimulationSnapshotView,
+  type StoredParameterLockRow,
+  type StoredRoomStateRow,
+  type SubmissionQueryOptions,
 } from './LabRepository';
 
 export type {
+  AuditLogQueryOptions,
+  ConsolidatedLabCollections,
+  DbAuditLogRecord,
+  DbAuthCredentialRecord,
   DbAutosaveRecord,
   DbGradebookEntryRecord,
   DbIdempotencyKeyRecord,
@@ -33,8 +46,13 @@ export type {
   DbSchoolRecord,
   DbSimulationSnapshotRecord,
   DbSubmissionRecord,
+  GradebookQueryOptions,
   LabRepository,
+  PaginatedResult,
   SimulationSnapshotView,
+  StoredParameterLockRow,
+  StoredRoomStateRow,
+  SubmissionQueryOptions,
 };
 
 const requireModule = createRequire(path.resolve(process.cwd(), 'package.json'));
@@ -205,6 +223,25 @@ export class SqliteLabRepository implements LabRepository {
 
   private stmtGetIdempotencyKey!: SqlitePreparedStatement;
   private stmtSaveIdempotencyKey!: SqlitePreparedStatement;
+  private stmtDeleteAutosaveByKey!: SqlitePreparedStatement;
+
+  private stmtUpsertRoomState!: SqlitePreparedStatement;
+  private stmtLoadAllRoomStates!: SqlitePreparedStatement;
+  private stmtLoadRoomStatesBySchool!: SqlitePreparedStatement;
+  private stmtDeleteRoomState!: SqlitePreparedStatement;
+
+  private stmtUpsertParameterLock!: SqlitePreparedStatement;
+  private stmtDeleteParameterLock!: SqlitePreparedStatement;
+  private stmtLoadActiveParameterLocks!: SqlitePreparedStatement;
+  private stmtPruneExpiredParameterLocks!: SqlitePreparedStatement;
+  private stmtPruneExpiredNotifications!: SqlitePreparedStatement;
+
+  private stmtGetAuthCredential!: SqlitePreparedStatement;
+  private stmtCountTeacherCredentials!: SqlitePreparedStatement;
+  private stmtCountTeacherCredentialsBySchool!: SqlitePreparedStatement;
+  private stmtUpsertAuthCredential!: SqlitePreparedStatement;
+
+  private stmtInsertAuditLog!: SqlitePreparedStatement;
 
   constructor(customDbPath?: string) {
     this.dbPath = customDbPath || process.env.RUANGLAB_DB_PATH || DEFAULT_DB_FILE;
@@ -509,10 +546,108 @@ export class SqliteLabRepository implements LabRepository {
       INSERT OR IGNORE INTO idempotency_keys (key, school_id, endpoint, response_json, created_at)
       VALUES (?, ?, ?, ?, ?)
     `);
+
+    this.stmtDeleteAutosaveByKey = this.db.prepare(`
+      DELETE FROM autosaves WHERE storage_key = ?
+    `);
+
+    this.stmtUpsertRoomState = this.db.prepare(`
+      INSERT INTO lab_rooms_state (room_id, school_id, pin_hash, state_json, last_activity_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(room_id) DO UPDATE SET
+        school_id = excluded.school_id,
+        pin_hash = excluded.pin_hash,
+        state_json = excluded.state_json,
+        last_activity_at = excluded.last_activity_at,
+        updated_at = excluded.updated_at
+    `);
+
+    this.stmtLoadAllRoomStates = this.db.prepare(`
+      SELECT room_id, school_id, pin_hash, state_json, last_activity_at, updated_at
+      FROM lab_rooms_state
+      ORDER BY last_activity_at DESC
+    `);
+
+    this.stmtLoadRoomStatesBySchool = this.db.prepare(`
+      SELECT room_id, school_id, pin_hash, state_json, last_activity_at, updated_at
+      FROM lab_rooms_state
+      WHERE school_id = ?
+      ORDER BY last_activity_at DESC
+    `);
+
+    this.stmtDeleteRoomState = this.db.prepare(`
+      DELETE FROM lab_rooms_state WHERE room_id = ?
+    `);
+
+    this.stmtUpsertParameterLock = this.db.prepare(`
+      INSERT INTO parameter_locks (lock_key, school_id, room_id, payload_json, expires_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(lock_key) DO UPDATE SET
+        school_id = excluded.school_id,
+        room_id = excluded.room_id,
+        payload_json = excluded.payload_json,
+        expires_at = excluded.expires_at
+    `);
+
+    this.stmtDeleteParameterLock = this.db.prepare(`
+      DELETE FROM parameter_locks WHERE lock_key = ?
+    `);
+
+    this.stmtLoadActiveParameterLocks = this.db.prepare(`
+      SELECT lock_key, school_id, room_id, payload_json, expires_at
+      FROM parameter_locks
+      WHERE expires_at >= ?
+    `);
+
+    this.stmtPruneExpiredParameterLocks = this.db.prepare(`
+      DELETE FROM parameter_locks WHERE expires_at < ?
+    `);
+
+    this.stmtPruneExpiredNotifications = this.db.prepare(`
+      DELETE FROM notifications WHERE expires_at IS NOT NULL AND expires_at < ?
+    `);
+
+    this.stmtGetAuthCredential = this.db.prepare(`
+      SELECT id, school_id, role, username, password_hash, created_at, updated_at
+      FROM auth_credentials
+      WHERE school_id = ? AND role = ? AND username = ?
+    `);
+
+    this.stmtCountTeacherCredentials = this.db.prepare(`
+      SELECT COUNT(*) AS cnt FROM auth_credentials WHERE role IN ('teacher', 'admin')
+    `);
+
+    this.stmtCountTeacherCredentialsBySchool = this.db.prepare(`
+      SELECT COUNT(*) AS cnt FROM auth_credentials WHERE school_id = ? AND role IN ('teacher', 'admin')
+    `);
+
+    this.stmtUpsertAuthCredential = this.db.prepare(`
+      INSERT INTO auth_credentials (id, school_id, role, username, password_hash, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(school_id, role, username) DO UPDATE SET
+        password_hash = excluded.password_hash,
+        updated_at = excluded.updated_at
+    `);
+
+    this.stmtInsertAuditLog = this.db.prepare(`
+      INSERT INTO audit_logs (
+        id, school_id, actor_id, actor_name, actor_role, action, target_type, target_id, metadata_json, request_id, created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
   }
 
   public isAvailable(): boolean {
     return Boolean(this.db);
+  }
+
+  public healthCheck(): boolean {
+    try {
+      const row = this.db.prepare('SELECT 1 AS ok').get();
+      return Number(row?.ok) === 1;
+    } catch {
+      return false;
+    }
   }
 
   public ensureSchool(input: {
@@ -1140,6 +1275,600 @@ export class SqliteLabRepository implements LabRepository {
       record.created_at
     );
     return record;
+  }
+
+  public deleteAutosaveByKey(storageKey: string): void {
+    this.stmtDeleteAutosaveByKey.run(String(storageKey).trim());
+  }
+
+  public upsertRoomState(input: {
+    roomId: string;
+    schoolId?: string;
+    pinHash?: string | null;
+    stateJson: string;
+    lastActivityAt: number;
+    updatedAt?: number;
+  }): void {
+    const now = input.updatedAt ?? Date.now();
+    this.stmtUpsertRoomState.run(
+      String(input.roomId).trim(),
+      normalizeSchoolId(input.schoolId),
+      input.pinHash ?? null,
+      String(input.stateJson),
+      Number(input.lastActivityAt),
+      now
+    );
+  }
+
+  public loadAllRoomStates(schoolId?: string): StoredRoomStateRow[] {
+    const rows = schoolId
+      ? this.stmtLoadRoomStatesBySchool.all(normalizeSchoolId(schoolId))
+      : this.stmtLoadAllRoomStates.all();
+    return rows.map((row) => ({
+      roomId: String(row.room_id),
+      schoolId: normalizeSchoolId(row.school_id as string | undefined),
+      pinHash: row.pin_hash != null ? String(row.pin_hash) : null,
+      stateJson: String(row.state_json),
+      lastActivityAt: Number(row.last_activity_at),
+      updatedAt: Number(row.updated_at),
+    }));
+  }
+
+  public deleteRoomState(roomId: string): void {
+    this.stmtDeleteRoomState.run(String(roomId).trim());
+  }
+
+  public queryGradebookPaginated(
+    options: GradebookQueryOptions
+  ): PaginatedResult<DbGradebookEntryRecord> {
+    const limit =
+      typeof options.limit === 'number' && Number.isFinite(options.limit)
+        ? Math.max(1, Math.min(200, Math.floor(options.limit)))
+        : 50;
+    const offset =
+      typeof options.offset === 'number' && Number.isFinite(options.offset)
+        ? Math.max(0, Math.floor(options.offset))
+        : 0;
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (options.schoolId && options.schoolId.trim()) {
+      conditions.push('school_id = ?');
+      params.push(options.schoolId.trim());
+    }
+    if (options.roomPin && options.roomPin.trim()) {
+      conditions.push('room_pin = ?');
+      params.push(options.roomPin.trim());
+    }
+    if (options.moduleId && options.moduleId.trim()) {
+      conditions.push('module_id = ?');
+      params.push(options.moduleId.trim());
+    }
+
+    const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const countRow = this.db
+      .prepare(`SELECT COUNT(*) AS total FROM gradebook_entries ${whereSql}`)
+      .get(...params);
+    const total = Number(countRow?.total ?? 0);
+
+    const rows = this.db
+      .prepare(
+        `SELECT id, school_id, room_pin, student_id, student_name, module_id, score, rubric_json, submitted_at
+         FROM gradebook_entries ${whereSql}
+         ORDER BY submitted_at DESC
+         LIMIT ? OFFSET ?`
+      )
+      .all(...params, limit, offset);
+
+    const items: DbGradebookEntryRecord[] = rows.map((row) => ({
+      id: String(row.id),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
+      room_pin: String(row.room_pin),
+      student_id: String(row.student_id),
+      student_name: String(row.student_name),
+      module_id: String(row.module_id),
+      score: Number(row.score),
+      rubric_json: String(row.rubric_json),
+      submitted_at: Number(row.submitted_at),
+    }));
+    const hasMore = offset + items.length < total;
+    return {
+      items,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore,
+        nextOffset: hasMore ? offset + items.length : null,
+      },
+    };
+  }
+
+  public querySubmissionsPaginated(
+    options: SubmissionQueryOptions
+  ): PaginatedResult<DbSubmissionRecord> {
+    const limit =
+      typeof options.limit === 'number' && Number.isFinite(options.limit)
+        ? Math.max(1, Math.min(200, Math.floor(options.limit)))
+        : 50;
+    const offset =
+      typeof options.offset === 'number' && Number.isFinite(options.offset)
+        ? Math.max(0, Math.floor(options.offset))
+        : 0;
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (options.schoolId && options.schoolId.trim()) {
+      conditions.push('school_id = ?');
+      params.push(options.schoolId.trim());
+    }
+    if (options.roomId && options.roomId.trim()) {
+      conditions.push('UPPER(room_id) = UPPER(?)');
+      params.push(options.roomId.trim());
+    }
+    if (options.studentId && options.studentId.trim()) {
+      conditions.push('student_id = ?');
+      params.push(options.studentId.trim());
+    }
+    if (options.domain && options.domain.trim() && options.domain !== 'Semua') {
+      conditions.push('LOWER(domain) = LOWER(?)');
+      params.push(options.domain.trim());
+    }
+    if (options.moduleId && options.moduleId.trim() && options.moduleId !== 'Semua') {
+      conditions.push('LOWER(module_id) = LOWER(?)');
+      params.push(options.moduleId.trim());
+    }
+    if (options.status === 'graded') {
+      conditions.push(`payload_json LIKE '%"teacherGrade":%'`);
+    } else if (options.status === 'ungraded') {
+      conditions.push(`payload_json NOT LIKE '%"teacherGrade":%'`);
+    }
+    if (options.search && options.search.trim()) {
+      const pattern = `%${options.search.trim().toLowerCase()}%`;
+      conditions.push(
+        '(LOWER(student_name) LIKE ? OR LOWER(module_id) LIKE ? OR LOWER(id) LIKE ?)'
+      );
+      params.push(pattern, pattern, pattern);
+    }
+
+    const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sortDir = options.sortDir === 'asc' ? 'ASC' : 'DESC';
+    const orderCol =
+      options.sortBy === 'score'
+        ? 'COALESCE(score, 0)'
+        : options.sortBy === 'studentName'
+          ? 'student_name'
+          : 'submitted_at';
+
+    const countRow = this.db
+      .prepare(`SELECT COUNT(*) AS total FROM submissions ${whereSql}`)
+      .get(...params);
+    const total = Number(countRow?.total ?? 0);
+
+    const rows = this.db
+      .prepare(
+        `SELECT id, school_id, room_id, student_id, student_name, domain, module_id, score, payload_json, submitted_at
+         FROM submissions ${whereSql}
+         ORDER BY ${orderCol} ${sortDir}, id DESC
+         LIMIT ? OFFSET ?`
+      )
+      .all(...params, limit, offset);
+
+    const items: DbSubmissionRecord[] = rows.map((row) => ({
+      id: String(row.id),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
+      room_id: String(row.room_id),
+      student_id: row.student_id != null ? String(row.student_id) : null,
+      student_name: String(row.student_name),
+      domain: String(row.domain),
+      module_id: String(row.module_id),
+      score: row.score != null ? Number(row.score) : null,
+      payload_json: String(row.payload_json),
+      submitted_at: String(row.submitted_at),
+    }));
+
+    const hasMore = offset + items.length < total;
+    return {
+      items,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore,
+        nextOffset: hasMore ? offset + items.length : null,
+      },
+    };
+  }
+
+  public syncLabCollections(
+    bundle: ConsolidatedLabCollections & {
+      schoolId?: string;
+      notificationTtlMs?: number;
+    }
+  ): void {
+    const schoolId = normalizeSchoolId(bundle.schoolId);
+    const now = Date.now();
+    const notifTtl = bundle.notificationTtlMs ?? 60 * 60 * 1000;
+
+    const tx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM lab_records WHERE school_id = ?').run(schoolId);
+      const insertRec = this.db.prepare(`
+        INSERT OR REPLACE INTO lab_records (
+          id, school_id, room_id, student_name, group_id, domain, module_id, experiment_title, payload_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      bundle.records.forEach((rec, idx) => {
+        const id = String(rec.id || `rec-${now}-${idx}`);
+        insertRec.run(
+          id,
+          schoolId,
+          typeof rec.roomId === 'string' ? rec.roomId : null,
+          String(rec.studentName || 'Praktikan'),
+          String(rec.groupId || 'Kelompok 1'),
+          String(rec.domain || 'Fisika'),
+          typeof rec.moduleId === 'string' ? rec.moduleId : null,
+          String(rec.experimentTitle || 'Eksperimen'),
+          JSON.stringify(rec),
+          now - idx
+        );
+      });
+
+      this.db.prepare('DELETE FROM group_tasks WHERE school_id = ?').run(schoolId);
+      const insertTask = this.db.prepare(`
+        INSERT OR REPLACE INTO group_tasks (
+          id, school_id, room_id, group_id, title, domain, completed, completed_by, payload_json, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      bundle.tasks.forEach((task, idx) => {
+        insertTask.run(
+          String(task.id || `task-${now}-${idx}`),
+          schoolId,
+          typeof task.roomId === 'string' ? task.roomId : null,
+          String(task.groupId || 'Kelompok 1'),
+          String(task.title || 'Tugas'),
+          String(task.domain || 'Fisika'),
+          task.completed ? 1 : 0,
+          typeof task.completedBy === 'string' ? task.completedBy : null,
+          JSON.stringify(task),
+          now + idx
+        );
+      });
+
+      this.db.prepare('DELETE FROM collab_notes WHERE school_id = ?').run(schoolId);
+      const insertNote = this.db.prepare(`
+        INSERT OR REPLACE INTO collab_notes (
+          id, school_id, room_id, group_id, author, role, text, timestamp_label, payload_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      bundle.notes.forEach((note, idx) => {
+        insertNote.run(
+          String(note.id || `note-${now}-${idx}`),
+          schoolId,
+          typeof note.roomId === 'string' ? note.roomId : null,
+          String(note.groupId || 'Kelompok 1'),
+          String(note.author || 'Praktikan'),
+          String(note.role || 'Siswa'),
+          String(note.text || ''),
+          String(note.timestamp || ''),
+          JSON.stringify(note),
+          now + idx
+        );
+      });
+
+      this.db.prepare('DELETE FROM student_roster WHERE school_id = ?').run(schoolId);
+      const insertStu = this.db.prepare(`
+        INSERT OR REPLACE INTO student_roster (
+          id, school_id, room_id, name, group_id, active_domain, status, completion_pct, payload_json, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      bundle.students.forEach((stu, idx) => {
+        insertStu.run(
+          String(stu.id || `stu-${now}-${idx}`),
+          schoolId,
+          typeof stu.roomId === 'string' ? stu.roomId : null,
+          String(stu.name || 'Siswa'),
+          String(stu.groupId || 'Kelompok 1'),
+          String(stu.activeDomain || 'Fisika'),
+          String(stu.status || 'Nominal'),
+          Number(stu.completionPct ?? 0),
+          JSON.stringify(stu),
+          now - idx
+        );
+      });
+
+      this.db.prepare('DELETE FROM notifications WHERE school_id = ?').run(schoolId);
+      const insertNotif = this.db.prepare(`
+        INSERT OR REPLACE INTO notifications (
+          id, school_id, room_id, severity, domain, title, message, payload_json, expires_at, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      bundle.notifications.forEach((notif, idx) => {
+        const exp =
+          typeof notif.expiresAt === 'number' && Number.isFinite(notif.expiresAt)
+            ? notif.expiresAt
+            : now + notifTtl;
+        insertNotif.run(
+          String(notif.id || `notif-${now}-${idx}`),
+          schoolId,
+          typeof notif.roomId === 'string' ? notif.roomId : null,
+          String(notif.severity || 'nominal'),
+          String(notif.domain || 'Fisika'),
+          String(notif.title || 'Notifikasi'),
+          String(notif.message || ''),
+          JSON.stringify({ ...notif, expiresAt: exp }),
+          exp,
+          now - idx
+        );
+      });
+    });
+    tx();
+  }
+
+  public loadLabCollections(
+    schoolId: string = DEFAULT_SCHOOL_ID,
+    now: number = Date.now()
+  ): ConsolidatedLabCollections {
+    const cleanSchool = normalizeSchoolId(schoolId);
+    const parseRows = (rows: Array<Record<string, unknown>>): Array<Record<string, unknown>> => {
+      const result: Array<Record<string, unknown>> = [];
+      for (const row of rows) {
+        try {
+          const parsed = JSON.parse(String(row.payload_json || '{}'));
+          if (parsed && typeof parsed === 'object') {
+            result.push(parsed as Record<string, unknown>);
+          }
+        } catch {
+          // Ignore malformed row
+        }
+      }
+      return result;
+    };
+
+    const records = parseRows(
+      this.db
+        .prepare('SELECT payload_json FROM lab_records WHERE school_id = ? ORDER BY created_at DESC')
+        .all(cleanSchool)
+    );
+    const tasks = parseRows(
+      this.db
+        .prepare('SELECT payload_json FROM group_tasks WHERE school_id = ? ORDER BY updated_at ASC')
+        .all(cleanSchool)
+    );
+    const notes = parseRows(
+      this.db
+        .prepare('SELECT payload_json FROM collab_notes WHERE school_id = ? ORDER BY created_at ASC')
+        .all(cleanSchool)
+    );
+    const students = parseRows(
+      this.db
+        .prepare('SELECT payload_json FROM student_roster WHERE school_id = ? ORDER BY updated_at DESC')
+        .all(cleanSchool)
+    );
+    const notifications = parseRows(
+      this.db
+        .prepare(
+          'SELECT payload_json FROM notifications WHERE school_id = ? AND (expires_at IS NULL OR expires_at >= ?) ORDER BY created_at DESC'
+        )
+        .all(cleanSchool, now)
+    );
+
+    return { records, tasks, notes, students, notifications };
+  }
+
+  public pruneExpiredNotifications(now: number = Date.now()): number {
+    const before = this.db
+      .prepare('SELECT COUNT(*) AS cnt FROM notifications WHERE expires_at IS NOT NULL AND expires_at < ?')
+      .get(now);
+    const count = Number(before?.cnt ?? 0);
+    if (count > 0) {
+      this.stmtPruneExpiredNotifications.run(now);
+    }
+    return count;
+  }
+
+  public upsertParameterLock(input: {
+    key: string;
+    schoolId?: string;
+    roomId?: string | null;
+    payloadJson: string;
+    expiresAt?: number;
+  }): void {
+    const safeExpiresAt = Number.isFinite(input.expiresAt)
+      ? Number(input.expiresAt)
+      : Date.now() + 60_000;
+    this.stmtUpsertParameterLock.run(
+      String(input.key).trim(),
+      normalizeSchoolId(input.schoolId),
+      input.roomId ?? null,
+      String(input.payloadJson),
+      safeExpiresAt
+    );
+  }
+
+  public deleteParameterLock(key: string): void {
+    this.stmtDeleteParameterLock.run(String(key).trim());
+  }
+
+  public loadActiveParameterLocks(now: number = Date.now()): StoredParameterLockRow[] {
+    const rows = this.stmtLoadActiveParameterLocks.all(now);
+    return rows.map((row) => ({
+      key: String(row.lock_key),
+      schoolId: normalizeSchoolId(row.school_id as string | undefined),
+      roomId: row.room_id != null ? String(row.room_id) : null,
+      payloadJson: String(row.payload_json),
+      expiresAt: Number(row.expires_at),
+    }));
+  }
+
+  public pruneExpiredParameterLocks(now: number = Date.now()): number {
+    const before = this.db
+      .prepare('SELECT COUNT(*) AS cnt FROM parameter_locks WHERE expires_at < ?')
+      .get(now);
+    const count = Number(before?.cnt ?? 0);
+    if (count > 0) {
+      this.stmtPruneExpiredParameterLocks.run(now);
+    }
+    return count;
+  }
+
+  public getAuthCredential(
+    schoolId: string,
+    role: 'teacher' | 'admin' | 'student',
+    username: string = 'default-teacher'
+  ): DbAuthCredentialRecord | null {
+    const row = this.stmtGetAuthCredential.get(
+      normalizeSchoolId(schoolId),
+      role,
+      username.trim().toLowerCase()
+    );
+    if (!row) return null;
+    return {
+      id: String(row.id),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
+      role: row.role as 'teacher' | 'admin' | 'student',
+      username: String(row.username),
+      password_hash: String(row.password_hash),
+      created_at: String(row.created_at),
+      updated_at: String(row.updated_at),
+    };
+  }
+
+  public hasAnyTeacherCredential(schoolId?: string): boolean {
+    const row = schoolId
+      ? this.stmtCountTeacherCredentialsBySchool.get(normalizeSchoolId(schoolId))
+      : this.stmtCountTeacherCredentials.get();
+    return Number(row?.cnt ?? 0) > 0;
+  }
+
+  public upsertAuthCredential(input: {
+    id: string;
+    schoolId?: string;
+    role: 'teacher' | 'admin' | 'student';
+    username: string;
+    passwordHash: string;
+  }): DbAuthCredentialRecord {
+    const now = new Date().toISOString();
+    const record: DbAuthCredentialRecord = {
+      id: String(input.id).trim(),
+      school_id: normalizeSchoolId(input.schoolId),
+      role: input.role,
+      username: input.username.trim().toLowerCase(),
+      password_hash: input.passwordHash,
+      created_at: now,
+      updated_at: now,
+    };
+    this.stmtUpsertAuthCredential.run(
+      record.id,
+      record.school_id,
+      record.role,
+      record.username,
+      record.password_hash,
+      record.created_at,
+      record.updated_at
+    );
+    return record;
+  }
+
+  public appendAuditLog(input: {
+    id: string;
+    schoolId?: string;
+    actorId: string;
+    actorName: string;
+    actorRole: string;
+    action: string;
+    targetType: string;
+    targetId: string;
+    metadataJson: string;
+    requestId?: string | null;
+    createdAt?: string;
+  }): DbAuditLogRecord {
+    const record: DbAuditLogRecord = {
+      id: String(input.id).trim(),
+      school_id: normalizeSchoolId(input.schoolId),
+      actor_id: String(input.actorId || 'system').trim(),
+      actor_name: String(input.actorName || 'System').trim(),
+      actor_role: String(input.actorRole || 'system').trim(),
+      action: String(input.action).trim(),
+      target_type: String(input.targetType).trim(),
+      target_id: String(input.targetId).trim(),
+      metadata_json: String(input.metadataJson || '{}'),
+      request_id: input.requestId ? String(input.requestId).trim() : null,
+      created_at: input.createdAt || new Date().toISOString(),
+    };
+    this.stmtInsertAuditLog.run(
+      record.id,
+      record.school_id,
+      record.actor_id,
+      record.actor_name,
+      record.actor_role,
+      record.action,
+      record.target_type,
+      record.target_id,
+      record.metadata_json,
+      record.request_id,
+      record.created_at
+    );
+    return record;
+  }
+
+  public queryAuditLogs(
+    options: AuditLogQueryOptions
+  ): PaginatedResult<DbAuditLogRecord> {
+    const limit =
+      typeof options.limit === 'number' && Number.isFinite(options.limit)
+        ? Math.max(1, Math.min(200, Math.floor(options.limit)))
+        : 50;
+    const offset =
+      typeof options.offset === 'number' && Number.isFinite(options.offset)
+        ? Math.max(0, Math.floor(options.offset))
+        : 0;
+
+    const params: unknown[] = [normalizeSchoolId(options.schoolId)];
+    let whereSql = 'WHERE school_id = ?';
+    if (options.action && options.action.trim()) {
+      whereSql += ' AND action = ?';
+      params.push(options.action.trim());
+    }
+
+    const countRow = this.db
+      .prepare(`SELECT COUNT(*) AS total FROM audit_logs ${whereSql}`)
+      .get(...params);
+    const total = Number(countRow?.total ?? 0);
+
+    const rows = this.db
+      .prepare(
+        `SELECT id, school_id, actor_id, actor_name, actor_role, action, target_type, target_id, metadata_json, request_id, created_at
+         FROM audit_logs ${whereSql}
+         ORDER BY created_at DESC
+         LIMIT ? OFFSET ?`
+      )
+      .all(...params, limit, offset);
+
+    const items: DbAuditLogRecord[] = rows.map((row) => ({
+      id: String(row.id),
+      school_id: normalizeSchoolId(row.school_id as string | undefined),
+      actor_id: String(row.actor_id),
+      actor_name: String(row.actor_name),
+      actor_role: String(row.actor_role),
+      action: String(row.action),
+      target_type: String(row.target_type),
+      target_id: String(row.target_id),
+      metadata_json: String(row.metadata_json),
+      request_id: row.request_id != null ? String(row.request_id) : null,
+      created_at: String(row.created_at),
+    }));
+    const hasMore = offset + items.length < total;
+    return {
+      items,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore,
+        nextOffset: hasMore ? offset + items.length : null,
+      },
+    };
   }
 
   public checkpointWalTruncate(): void {

@@ -394,6 +394,9 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
         isOpen={isLeftVisible}
         onClose={() => setLeftDrawerOpen(false)}
         hypothesisText={hypothesisText}
+        theorySummary={activeExperiment?.theorySummary}
+        keyTakeaways={activeExperiment?.keyTakeaways}
+        safetyNotes={activeExperiment?.safetyNotes}
         sidebar={sidebar}
       />
 
@@ -433,6 +436,7 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
           formulaEquation={formulaEquation}
           domainLabel={domainLabel}
           telemetryMetrics={telemetryMetrics}
+          recordsCount={recordsCount}
         />
       )}
 

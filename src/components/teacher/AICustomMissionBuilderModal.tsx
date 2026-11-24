@@ -25,6 +25,9 @@ import {
 } from '../../utils/collabProtocol';
 import { useShallow } from 'zustand/react/shallow';
 import { useCollabStore } from '../../stores/useCollabStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { apiFetch } from '../../utils/apiClient';
+import { TeacherAuthGateModal } from './TeacherAuthGateModal';
 import { labSound } from '../../utils/soundEngine';
 
 export interface AICustomMissionBuilderModalProps {
@@ -121,6 +124,9 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
   );
   const [publishSuccessMsg, setPublishSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const authPromptOpen = useAuthStore((s) => s.authPromptOpen);
+  const authPromptReason = useAuthStore((s) => s.authPromptReason);
+  const closeAuthPrompt = useAuthStore((s) => s.closeAuthPrompt);
 
   if (!isOpen) return null;
 
@@ -140,7 +146,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
     setPublishSuccessMsg(null);
 
     try {
-      const response = await fetch('/api/generate-mission', {
+      const response = await apiFetch('/api/generate-mission', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -150,7 +156,14 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
           roomId: effectiveRoomId,
           publishToRoom: true,
         }),
+        promptTeacherAuthOn401: true,
+        authReason: 'Verifikasi PIN pengajar diperlukan untuk menyiarkan misi praktikum AI ke ruangan.',
       });
+
+      if (response.status === 401 || response.status === 403) {
+        setErrorMsg('Silakan verifikasi sesi pengajar terlebih dahulu untuk menyiarkan misi ke ruangan.');
+        return;
+      }
 
       if (response.ok) {
         const data = await response.json();
@@ -202,7 +215,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
     setErrorMsg(null);
 
     try {
-      const res = await fetch(`/api/rooms/${encodeURIComponent(effectiveRoomId)}/mission`, {
+      const res = await apiFetch(`/api/rooms/${encodeURIComponent(effectiveRoomId)}/mission`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -212,7 +225,13 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
           },
           teacherName,
         }),
+        promptTeacherAuthOn401: true,
+        authReason: 'Verifikasi PIN pengajar diperlukan untuk menyimpan misi kustom ke Room.',
       });
+      if (res.status === 401 || res.status === 403) {
+        setErrorMsg('Silakan verifikasi sesi pengajar terlebih dahulu untuk menyimpan misi ke Room.');
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         if (data.room) {
@@ -261,10 +280,10 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 font-bold">
+                <span className="text-2xs font-mono uppercase tracking-widest px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 font-bold">
                   AI CUSTOM MISSION BUILDER · MODE GURU
                 </span>
-                <span className="text-[11px] font-mono text-emerald-700 dark:text-emerald-300 font-bold">
+                <span className="text-2xs font-mono text-emerald-700 dark:text-emerald-300 font-bold">
                   Room Aktif: {effectiveRoomId} {roomPin ? `(PIN: ${roomPin})` : ''}
                 </span>
               </div>
@@ -316,7 +335,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
                       >
                         <div className="flex items-center justify-between">
                           {preset.icon}
-                          <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)]">
+                          <span className="text-2xs font-mono uppercase px-1.5 py-0.5 rounded bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)]">
                             {preset.domainLabel}
                           </span>
                         </div>
@@ -331,7 +350,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
                 <div className="pt-1">
                   <label
                     htmlFor="ai-mission-catalog-select"
-                    className="block text-[11px] text-[var(--comfort-text-muted)] mb-1"
+                    className="block text-2xs text-[var(--comfort-text-muted)] mb-1"
                   >
                     Atau pilih dari seluruh katalog 25 modul eksperimen:
                   </label>
@@ -353,7 +372,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
                 <div>
                   <label
                     htmlFor="ai-mission-room-input"
-                    className="block text-[11px] text-[var(--comfort-text-muted)] mb-1"
+                    className="block text-2xs text-[var(--comfort-text-muted)] mb-1"
                   >
                     Kode Room PIN Kelas Target:
                   </label>
@@ -388,7 +407,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
                   />
 
                   <div className="space-y-1.5">
-                    <span className="text-[11px] text-[var(--comfort-text-muted)] font-medium">
+                    <span className="text-2xs text-[var(--comfort-text-muted)] font-medium">
                       Contoh Studi Kasus Cepat (1-Klik):
                     </span>
                     <div className="flex flex-wrap gap-1.5">
@@ -401,7 +420,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
                             setSelectedModuleId(ex.moduleId);
                             setCaseStudyPrompt(ex.text);
                           }}
-                          className="text-[11px] px-2.5 py-1 rounded-lg bg-[var(--comfort-surface)] hover:bg-indigo-500/15 border border-[var(--comfort-border)] hover:border-indigo-500/40 text-[var(--comfort-text)] transition-colors cursor-pointer text-left"
+                          className="text-2xs px-2.5 py-1 rounded-lg bg-[var(--comfort-surface)] hover:bg-indigo-500/15 border border-[var(--comfort-border)] hover:border-indigo-500/40 text-[var(--comfort-text)] transition-colors cursor-pointer text-left"
                         >
                           “{ex.text}”
                         </button>
@@ -450,7 +469,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>{publishSuccessMsg}</span>
               </div>
-              <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 shrink-0">
+              <span className="font-mono font-bold text-2xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 shrink-0">
                 LIVE DI ROOM {effectiveRoomId}
               </span>
             </div>
@@ -465,10 +484,10 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--comfort-border)] pb-3.5">
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-indigo-500/15 border border-indigo-500/30 text-[10px] font-mono font-bold text-indigo-700 dark:text-indigo-300 uppercase">
+                    <span className="px-2 py-0.5 rounded bg-indigo-500/15 border border-indigo-500/30 text-2xs font-mono font-bold text-indigo-700 dark:text-indigo-300 uppercase">
                       SKENARIO MISI TERSTRUKTUR JSON
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[10px] font-mono text-[var(--comfort-text-muted)]">
+                    <span className="px-2 py-0.5 rounded bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-2xs font-mono text-[var(--comfort-text-muted)]">
                       Modul: {generatedMission.moduleTitle}
                     </span>
                   </div>
@@ -508,7 +527,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
               {/* 1. Narasi Studi Kasus & 2. Target Variabel */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-8 p-4 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-1.5">
-                  <div className="text-[11px] font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold">
+                  <div className="text-2xs font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold">
                     Narasi Studi Kasus Ilmiah
                   </div>
                   <p
@@ -523,7 +542,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
                   data-testid="ai-mission-target-variable"
                   className="md:col-span-4 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/35 flex flex-col justify-between space-y-2"
                 >
-                  <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-indigo-700 dark:text-indigo-300 font-bold">
+                  <div className="flex items-center gap-1.5 text-2xs font-mono uppercase tracking-wider text-indigo-700 dark:text-indigo-300 font-bold">
                     <Target className="w-3.5 h-3.5 text-indigo-500" />
                     <span>Target Variabel Keberhasilan</span>
                   </div>
@@ -539,7 +558,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
                       </span>
                     </div>
                   </div>
-                  <div className="text-[11px] font-mono text-[var(--comfort-text-muted)]">
+                  <div className="text-2xs font-mono text-[var(--comfort-text-muted)]">
                     Nilai Optimal: {generatedMission.targetVariable.targetValue}{' '}
                     {generatedMission.targetVariable.unit}
                   </div>
@@ -563,7 +582,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
                       className="p-3.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] flex flex-col justify-between space-y-2.5"
                     >
                       <div className="space-y-1.5">
-                        <span className="inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                        <span className="inline-block text-2xs font-mono font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                           Pertanyaan LKS #{idx + 1}
                         </span>
                         <p className="text-xs font-semibold text-[var(--comfort-text)] leading-relaxed">
@@ -571,7 +590,7 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
                         </p>
                       </div>
 
-                      <div className="space-y-1 pt-2 border-t border-[var(--comfort-border)] text-[11px]">
+                      <div className="space-y-1 pt-2 border-t border-[var(--comfort-border)] text-2xs">
                         <div className="text-emerald-700 dark:text-emerald-300">
                           <strong className="font-mono">Kunci Konsep:</strong>{' '}
                           {q.expectedConceptOrValue}
@@ -591,6 +610,13 @@ export const AICustomMissionBuilderModal: React.FC<AICustomMissionBuilderModalPr
           )}
         </div>
       </div>
+
+      <TeacherAuthGateModal
+        isOpen={authPromptOpen}
+        onClose={closeAuthPrompt}
+        reason={authPromptReason}
+        defaultTeacherName={teacherName}
+      />
     </div>
   );
 };

@@ -10,6 +10,7 @@ export const LAB_EVENTS = {
   TOGGLE_SIMULATION: 'ruanglab:toggle-simulation',
   CAPTURE_SNAPSHOT: 'ruanglab:capture-snapshot',
   RESET_TRIAL: 'ruanglab:reset-trial',
+  RECORD_TRIAL: 'ruanglab:record-trial',
   CHANGE_SPEED: 'ruanglab:change-speed',
   APPARATUS_DOCKED: 'ruanglab:apparatus-docked',
   SCAFFOLDING_FOCUS_INSTRUMENT: 'ruanglab:scaffolding-focus-instrument',
@@ -28,6 +29,10 @@ export interface LabEventPayloadMap {
   [LAB_EVENTS.TOGGLE_SIMULATION]: { isSimulating?: boolean };
   [LAB_EVENTS.CAPTURE_SNAPSHOT]: { timestamp: number };
   [LAB_EVENTS.RESET_TRIAL]: { timestamp: number };
+  [LAB_EVENTS.RECORD_TRIAL]: {
+    source?: 'dock' | 'keyboard' | 'mobile-sheet' | 'sidebar';
+    timestamp: number;
+  };
   [LAB_EVENTS.CHANGE_SPEED]: { speed: number };
   [LAB_EVENTS.APPARATUS_DOCKED]: {
     sourceNodeId: string;

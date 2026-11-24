@@ -106,7 +106,7 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-1">
         <span
           title={label}
-          className="text-[10px] font-bold uppercase tracking-normal text-[var(--comfort-text-muted)] leading-tight"
+          className="text-2xs font-bold uppercase tracking-normal text-[var(--comfort-text-muted)] leading-tight"
         >
           {label}
         </span>
@@ -115,7 +115,7 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({
             color: strokeColor,
             borderColor: colorBlindSafe ? strokeColor : undefined,
           }}
-          className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border shrink-0 ${
+          className={`px-1.5 py-0.5 rounded text-2xs font-mono font-bold border shrink-0 ${
             colorBlindSafe ? 'bg-[var(--comfort-surface-subtle)]' : meta.badgeBg
           }`}
         >
@@ -170,13 +170,13 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({
 
       {/* Tabular Readout + Min/Max Scale */}
       <div className="flex items-baseline justify-between gap-1.5 pt-0.5 border-t border-[var(--comfort-border)] min-w-0">
-        <span className="text-[10px] font-mono text-[var(--comfort-text-muted)] tabular-nums shrink-0 whitespace-nowrap">
+        <span className="text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums shrink-0 whitespace-nowrap">
           {Number.isInteger(min) ? min : Number(min.toFixed(1))}–{Number.isInteger(max) ? max : Math.ceil(max)}
         </span>
         <div className="font-mono text-xs sm:text-sm font-bold text-[var(--comfort-text)] tabular-nums truncate text-right">
           {safeVal.toFixed(decimals)}
           {unit ? (
-            <span className="ml-1 text-[10px] font-normal text-[var(--comfort-text-muted)]">
+            <span className="ml-1 text-2xs font-normal text-[var(--comfort-text-muted)]">
               {unit}
             </span>
           ) : null}
@@ -184,7 +184,7 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({
       </div>
 
       {subtitle && (
-        <p className="text-[10px] text-[var(--comfort-text-muted)] truncate">{subtitle}</p>
+        <p className="text-2xs text-[var(--comfort-text-muted)] truncate">{subtitle}</p>
       )}
     </div>
   );

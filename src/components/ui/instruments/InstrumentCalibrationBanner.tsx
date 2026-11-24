@@ -40,7 +40,7 @@ export const InstrumentCalibrationCard: React.FC<
           </span>
         </div>
         <span
-          className={`text-[11px] font-mono font-semibold ${
+          className={`text-2xs font-mono font-semibold ${
             config.isZeroCalibrated
               ? 'text-emerald-700 dark:text-emerald-300'
               : 'text-amber-700 dark:text-amber-300'
@@ -60,7 +60,7 @@ export const InstrumentCalibrationCard: React.FC<
               labSound.playClick();
               onChangeConfig({ ...config, precisionTier: 'standard' });
             }}
-            className={`flex-1 py-1.5 px-2 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+            className={`flex-1 py-1.5 px-2 rounded text-2xs font-semibold transition-colors cursor-pointer ${
               config.precisionTier === 'standard'
                 ? 'bg-sky-600 text-white'
                 : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -74,7 +74,7 @@ export const InstrumentCalibrationCard: React.FC<
               labSound.playClick();
               onChangeConfig({ ...config, precisionTier: 'high-precision' });
             }}
-            className={`flex-1 py-1.5 px-2 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+            className={`flex-1 py-1.5 px-2 rounded text-2xs font-semibold transition-colors cursor-pointer ${
               config.precisionTier === 'high-precision'
                 ? 'bg-emerald-600 text-white'
                 : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -95,7 +95,7 @@ export const InstrumentCalibrationCard: React.FC<
                 zeroOffsetBias: 0,
               });
             }}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer min-h-[36px]"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-2xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer min-h-[36px]"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             Kalibrasi Nol (Tare)
@@ -113,7 +113,7 @@ export const InstrumentCalibrationCard: React.FC<
               });
             }}
             title="Simulasikan pergeseran titik nol (Zero Drift) sebelum kalibrasi"
-            className="inline-flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-[11px] font-semibold bg-[var(--comfort-surface)] hover:bg-[var(--comfort-elevated)] text-[var(--comfort-text)] border border-[var(--comfort-border)] transition-colors cursor-pointer min-h-[36px]"
+            className="inline-flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-2xs font-semibold bg-[var(--comfort-surface)] hover:bg-[var(--comfort-elevated)] text-[var(--comfort-text)] border border-[var(--comfort-border)] transition-colors cursor-pointer min-h-[36px]"
           >
             <RotateCcw className="w-3 h-3 text-amber-500" />
             Uji Drift
@@ -121,7 +121,7 @@ export const InstrumentCalibrationCard: React.FC<
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-[var(--comfort-border)] text-[11px] font-mono tabular-nums">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-[var(--comfort-border)] text-2xs font-mono tabular-nums">
         <span className="text-[var(--comfort-text-muted)]">
           Nilai Teoretis:{' '}
           <strong className="text-[var(--comfort-text)]">
@@ -160,7 +160,7 @@ export const CockpitStepGuideBanner: React.FC<CockpitStepGuideBannerProps> = ({
       }`}
     >
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-[11px] font-mono">
+        <div className="flex items-center gap-1.5 text-2xs font-mono">
           <span
             className={
               isReady

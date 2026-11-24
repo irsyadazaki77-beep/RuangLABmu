@@ -76,17 +76,16 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
       {/* 1. TOP PROGRESS TRACKER */}
       <nav
         aria-label="Tahapan Alur Praktikum"
-        style={{ backgroundColor: 'var(--comfort-header-bg)' }}
-        className="w-full border-b border-[var(--comfort-border)] py-2.5 px-4 text-[var(--comfort-text)] shrink-0 z-40 select-none backdrop-blur-md"
+        className="w-full comfort-header-surface border-b border-[var(--comfort-border)] py-2 px-3 sm:px-4 text-[var(--comfort-text)] shrink-0 z-40 select-none backdrop-blur-md"
       >
-        <div className="max-w-[1380px] mx-auto flex items-center justify-between gap-4">
+        <div className="max-w-[1380px] mx-auto flex items-center justify-between gap-3 sm:gap-4">
           <div className="hidden lg:flex items-center gap-2 text-xs text-[var(--comfort-text-muted)] truncate max-w-xs xl:max-w-md font-semibold">
             <span className="truncate" title={experimentTitle}>
               {experimentTitle}
             </span>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2 flex-1 justify-center max-w-2xl">
+          <div className="flex items-center gap-1 sm:gap-2 flex-1 justify-start sm:justify-center max-w-2xl overflow-x-auto no-scrollbar">
             {steps.map((st, idx) => {
               const isCurrent = currentStep === st.num;
               const isPast = currentStep > st.num;
@@ -100,20 +99,20 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
                       labSound.playClick();
                       onStepChange(st.num);
                     }}
-                    className={`group relative px-2.5 sm:px-3 py-1.5 rounded-xl transition-colors duration-200 flex items-center gap-2 cursor-pointer text-xs whitespace-nowrap shrink-0 ${
+                    className={`group relative px-2.5 sm:px-3 py-1.5 rounded-xl transition-all duration-150 active:scale-[0.98] flex items-center gap-2 cursor-pointer text-xs whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
                       isCurrent
-                        ? 'bg-sky-600 text-white font-bold shadow-xs'
+                        ? 'comfort-tab-active font-bold shadow-xs'
                         : isPast || st.isCompleted
-                        ? 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500/50 font-medium'
+                        ? 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-[var(--comfort-accent-border)] font-medium'
                         : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)]'
                     }`}
                   >
                     <div
-                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono font-bold shrink-0 ${
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-2xs font-mono font-bold shrink-0 ${
                         isCurrent
-                          ? 'bg-[var(--comfort-surface)] text-sky-600 dark:text-sky-400'
+                          ? 'bg-[var(--comfort-surface)] text-[var(--comfort-accent)]'
                           : st.isCompleted
-                          ? 'bg-emerald-600 text-white'
+                          ? 'bg-[var(--comfort-success)] text-white'
                           : isFuture
                           ? 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)]'
                           : 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)]'
@@ -133,9 +132,9 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
                   {idx < steps.length - 1 && (
                     <div
                       aria-hidden="true"
-                      className={`w-4 sm:w-8 h-0.5 rounded-full ${
+                      className={`w-4 sm:w-8 h-0.5 rounded-full transition-colors ${
                         currentStep > st.num
-                          ? 'bg-emerald-500/80'
+                          ? 'bg-[var(--comfort-success)]'
                           : 'bg-[var(--comfort-border)]'
                       }`}
                     />
@@ -146,7 +145,7 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
           </div>
 
           <div className="hidden sm:flex items-center gap-2 text-xs text-[var(--comfort-text-muted)] shrink-0">
-            <span className="font-mono text-sky-600 dark:text-sky-400 font-bold tabular-nums">
+            <span className="font-mono text-[var(--comfort-accent)] font-bold tabular-nums">
               Tahap {currentStep}/4
             </span>
           </div>
@@ -155,10 +154,9 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
 
       {/* 2. BOTTOM SMART NEXT-STEP NAVIGATOR BAR */}
       <footer
-        style={{ backgroundColor: 'var(--comfort-header-bg)' }}
-        className="fixed bottom-0 inset-x-0 h-16 border-t border-[var(--comfort-border)] text-[var(--comfort-text)] px-4 z-40 flex items-center justify-between select-none backdrop-blur-md shadow-sm"
+        className="fixed bottom-0 inset-x-0 min-h-[60px] py-2 comfort-header-surface border-t border-[var(--comfort-border)] text-[var(--comfort-text)] px-3 sm:px-4 z-40 flex items-center justify-between select-none backdrop-blur-md shadow-sm"
       >
-        <div className="max-w-[1380px] w-full mx-auto flex items-center justify-between gap-4">
+        <div className="max-w-[1380px] w-full mx-auto flex items-center justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-3">
             {currentStep > 1 ? (
               <button
@@ -167,7 +165,7 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
                   labSound.playClick();
                   onStepChange((currentStep - 1) as WorkflowStepNumber);
                 }}
-                className="px-3 py-2 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-xs font-semibold text-[var(--comfort-text)] hover:border-sky-500/50 transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                className="min-h-[42px] px-3 py-2 rounded-xl comfort-btn-secondary text-xs font-semibold transition-transform active:scale-[0.98] flex items-center gap-1.5 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Langkah Sebelumnya</span>
@@ -179,7 +177,7 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
                   labSound.playClick();
                   onBackToLobby();
                 }}
-                className="px-3 py-2 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-xs font-semibold text-[var(--comfort-text)] hover:border-sky-500/50 transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                className="min-h-[42px] px-3 py-2 rounded-xl comfort-btn-secondary text-xs font-semibold transition-transform active:scale-[0.98] flex items-center gap-1.5 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
               >
                 ← Beranda Lab
               </button>
@@ -193,17 +191,17 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
                 <div className="flex items-center gap-2">
                   <span>Status Data:</span>
                   <span
-                    className={`font-mono font-bold text-[11px] tabular-nums ${
+                    className={`font-mono font-bold text-2xs tabular-nums ${
                       hasEnoughData
-                        ? 'text-emerald-700 dark:text-emerald-400'
-                        : 'text-amber-700 dark:text-amber-400'
+                        ? 'text-[var(--comfort-success)]'
+                        : 'text-[var(--comfort-warning)]'
                     }`}
                   >
                     {hasEnoughData ? '● ' : '▲ '}
                     {recordsCount} / {minRecordsRequired} Data Minimal
                   </span>
                   {!hasEnoughData && (
-                    <span>· Tekan &quot;+ Catat Data&quot; di meja 3D.</span>
+                    <span>· Tekan &quot;Catat Data&quot; atau tombol D di meja 3D.</span>
                   )}
                 </div>
               )}
@@ -224,7 +222,7 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
                   labSound.playClick();
                   onStepChange(2);
                 }}
-                className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-xs whitespace-nowrap"
+                className="min-h-[42px] px-5 py-2.5 rounded-xl comfort-btn-primary font-bold text-xs transition-transform active:scale-[0.98] flex items-center gap-2 cursor-pointer shadow-xs whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
               >
                 <span>Buka Meja Simulasi 3D</span>
                 <ArrowRight className="w-4 h-4" />
@@ -238,10 +236,10 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
                   labSound.playClick();
                   onStepChange(3);
                 }}
-                className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-xs whitespace-nowrap ${
+                className={`min-h-[42px] px-5 py-2.5 rounded-xl font-bold text-xs transition-transform active:scale-[0.98] flex items-center gap-2 cursor-pointer shadow-xs whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
                   hasEnoughData
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-sky-600 hover:bg-sky-500 text-white'
+                    ? 'bg-[var(--comfort-success)] text-white hover:opacity-92'
+                    : 'comfort-btn-primary'
                 }`}
               >
                 {hasEnoughData ? (
@@ -263,7 +261,7 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
                   labSound.playClick();
                   onStepChange(4);
                 }}
-                className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-xs whitespace-nowrap"
+                className="min-h-[42px] px-5 py-2.5 rounded-xl comfort-btn-primary font-bold text-xs transition-transform active:scale-[0.98] flex items-center gap-2 cursor-pointer shadow-xs whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
               >
                 <span>Susun Laporan Resmi Praktikum</span>
                 <ArrowRight className="w-4 h-4" />
@@ -279,7 +277,7 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
                       labSound.playClick();
                       onPrintReport();
                     }}
-                    className="px-4 py-2.5 rounded-xl bg-[var(--comfort-surface)] hover:border-sky-500/50 text-[var(--comfort-text)] font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer border border-[var(--comfort-border)] whitespace-nowrap"
+                    className="min-h-[42px] px-4 py-2.5 rounded-xl comfort-btn-secondary font-semibold text-xs transition-transform active:scale-[0.98] flex items-center gap-2 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
                   >
                     <Printer className="w-4 h-4" />
                     <span className="hidden sm:inline">Cetak Laporan</span>
@@ -292,7 +290,7 @@ export const GuidedWorkflowStepper: React.FC<GuidedWorkflowStepperProps> = ({
                     labSound.playRecordSuccess();
                     onBackToLobby();
                   }}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-xs whitespace-nowrap"
+                  className="min-h-[42px] px-5 py-2.5 rounded-xl bg-[var(--comfort-success)] hover:opacity-92 text-white font-bold text-xs transition-transform active:scale-[0.98] flex items-center gap-2 cursor-pointer shadow-xs whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Selesai &amp; Pilih Praktikum Lain</span>

@@ -217,7 +217,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
         <div className="flex items-center gap-2">
-          <span className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+          <span className="w-7 h-7 rounded-lg comfort-accent-soft flex items-center justify-center shrink-0">
             <FileSpreadsheet className="w-4 h-4" />
           </span>
           <div>
@@ -231,7 +231,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="hidden xl:flex items-center gap-2 text-[11px] text-[var(--comfort-text-muted)] mr-1">
+          <div className="hidden xl:flex items-center gap-2 text-2xs text-[var(--comfort-text-muted)] mr-1">
             <span>Kamus:</span>
             <ScienceGlossaryTerm term="R²" />
             <span>·</span>
@@ -250,7 +250,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                   setShowAddForm((v) => !v);
                   setShowImportCsv(false);
                 }}
-                className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
+                className="comfort-btn-primary px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Tambah Baris</span>
@@ -264,9 +264,9 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                   setShowImportCsv((v) => !v);
                   setShowAddForm(false);
                 }}
-                className="px-3 py-1.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 text-[var(--comfort-text)] font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+                className="comfort-btn-secondary px-3 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
               >
-                <Upload className="w-3.5 h-3.5 text-sky-500" />
+                <Upload className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
                 <span>Impor CSV</span>
               </button>
             </>
@@ -276,9 +276,9 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
             <button
               type="button"
               onClick={handleDownloadCSV}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+              className="comfort-btn-secondary px-3 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
               <span>Unduh CSV</span>
             </button>
           )}
@@ -290,7 +290,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
         <form
           onSubmit={handleSubmitManualRow}
           data-testid="manual-row-form"
-          className="p-3.5 rounded-xl border border-sky-500/35 bg-sky-500/5 space-y-3"
+          className="p-3.5 rounded-xl border border-[var(--comfort-accent-border)] bg-[var(--comfort-accent-soft)] space-y-3"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[var(--comfort-text)]">
@@ -305,7 +305,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
             </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
-            <label className="space-y-1 text-[11px]">
+            <label className="space-y-1 text-2xs">
               <span className="font-semibold text-[var(--comfort-text-muted)] block truncate">
                 {xAxisLabel} *
               </span>
@@ -320,7 +320,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                 className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-xs font-mono text-[var(--comfort-text)]"
               />
             </label>
-            <label className="space-y-1 text-[11px]">
+            <label className="space-y-1 text-2xs">
               <span className="font-semibold text-[var(--comfort-text-muted)] block truncate">
                 {y1AxisLabel} *
               </span>
@@ -335,7 +335,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                 className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-xs font-mono text-[var(--comfort-text)]"
               />
             </label>
-            <label className="space-y-1 text-[11px]">
+            <label className="space-y-1 text-2xs">
               <span className="font-semibold text-[var(--comfort-text-muted)] block">
                 Y2 (Opsional)
               </span>
@@ -348,7 +348,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                 className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-xs font-mono text-[var(--comfort-text)]"
               />
             </label>
-            <label className="space-y-1 text-[11px] lg:col-span-2">
+            <label className="space-y-1 text-2xs lg:col-span-2">
               <span className="font-semibold text-[var(--comfort-text-muted)] block">
                 Catatan Pengamatan
               </span>
@@ -364,14 +364,14 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                 <button
                   type="submit"
                   data-testid="manual-row-submit-btn"
-                  className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs cursor-pointer whitespace-nowrap"
+                  className="comfort-btn-primary px-3.5 py-1.5 rounded-lg font-bold text-xs cursor-pointer whitespace-nowrap"
                 >
                   Simpan Baris
                 </button>
               </div>
             </label>
           </div>
-          {formError && <p className="text-[11px] text-rose-500 font-semibold">{formError}</p>}
+          {formError && <p className="text-2xs text-[var(--comfort-danger)] font-semibold">{formError}</p>}
         </form>
       )}
 
@@ -379,7 +379,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
       {showImportCsv && onAddRecord && (
         <div
           data-testid="csv-import-panel"
-          className="p-3.5 rounded-xl border border-indigo-500/35 bg-indigo-500/5 space-y-2.5"
+          className="p-3.5 rounded-xl border border-[var(--comfort-accent-border)] bg-[var(--comfort-accent-soft)] space-y-2.5"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[var(--comfort-text)]">
@@ -393,7 +393,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
               Tutup
             </button>
           </div>
-          <p className="text-[11px] text-[var(--comfort-text-muted)]">
+          <p className="text-2xs text-[var(--comfort-text-muted)]">
             Format tiap baris: <code className="font-mono text-[var(--comfort-text)]">X, Y1 [, Y2 [, Catatan]]</code> (dipisahkan koma, titik-koma, atau tab). Baris judul otomatis dilewati.
           </p>
           <textarea
@@ -405,9 +405,9 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
             className="w-full p-2.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-xs font-mono text-[var(--comfort-text)]"
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-[11px] text-[var(--comfort-text-muted)]">
+            <div className="text-2xs text-[var(--comfort-text-muted)]">
               {csvFeedback ? (
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">{csvFeedback}</span>
+                <span className="font-semibold text-[var(--comfort-success)]">{csvFeedback}</span>
               ) : (
                 <span>Terdeteksi {parseManualCsvRecords(csvRawText).length} baris numerik valid</span>
               )}
@@ -416,7 +416,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
               type="button"
               data-testid="csv-import-submit-btn"
               onClick={handleImportCsvSubmit}
-              className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs cursor-pointer whitespace-nowrap"
+              className="comfort-btn-primary px-3.5 py-1.5 rounded-lg font-bold text-xs cursor-pointer whitespace-nowrap"
             >
               Impor ke Tabel &amp; Grafik
             </button>
@@ -431,7 +431,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
           <p className="text-xs font-medium text-[var(--comfort-text)]">
             Belum ada data percobaan yang direkam.
           </p>
-          <p className="text-[11px] text-[var(--comfort-text-muted)]">
+          <p className="text-2xs text-[var(--comfort-text-muted)]">
             Kembali ke simulasi 3D dan klik <strong>&ldquo;+ Catat Data&rdquo;</strong>, jalankan <strong>Auto-Sweep 5 Titik</strong>, atau klik <strong>&ldquo;+ Tambah Baris&rdquo;</strong> di atas.
           </p>
         </div>
@@ -452,7 +452,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--comfort-border)] font-mono text-[11px] tabular-nums">
+            <tbody className="divide-y divide-[var(--comfort-border)] font-mono text-2xs tabular-nums">
               {records.map((rec, idx) => {
                 const isEditing = editingId === rec.id;
                 return (
@@ -460,7 +460,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                     key={rec.id}
                     className="hover:bg-[var(--comfort-surface-subtle)] transition-colors"
                   >
-                    <td className="py-2 px-3 font-bold text-sky-600 dark:text-sky-400 whitespace-nowrap">
+                    <td className="py-2 px-3 font-bold text-[var(--comfort-accent)] whitespace-nowrap">
                       #{idx + 1} ({rec.id})
                     </td>
                     <td className="py-2 px-3 text-[var(--comfort-text-muted)] whitespace-nowrap">
@@ -476,7 +476,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                           step="any"
                           value={editX}
                           onChange={(e) => setEditX(e.target.value)}
-                          className="w-20 px-1.5 py-0.5 rounded border border-sky-500 bg-[var(--comfort-surface)] text-right text-xs"
+                          className="w-20 px-1.5 py-0.5 rounded border border-[var(--comfort-accent)] bg-[var(--comfort-surface)] text-right text-xs"
                         />
                       ) : rec.numericX !== undefined ? (
                         rec.numericX
@@ -484,14 +484,14 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                         '—'
                       )}
                     </td>
-                    <td className="py-2 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                    <td className="py-2 px-3 text-right font-bold text-[var(--comfort-success)]">
                       {isEditing ? (
                         <input
                           type="number"
                           step="any"
                           value={editY1}
                           onChange={(e) => setEditY1(e.target.value)}
-                          className="w-20 px-1.5 py-0.5 rounded border border-emerald-500 bg-[var(--comfort-surface)] text-right text-xs"
+                          className="w-20 px-1.5 py-0.5 rounded border border-[var(--comfort-accent)] bg-[var(--comfort-surface)] text-right text-xs"
                         />
                       ) : rec.numericY1 !== undefined ? (
                         rec.numericY1
@@ -523,7 +523,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                                 type="button"
                                 onClick={() => saveEditRow(rec)}
                                 title="Simpan perubahan"
-                                className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-500/10 cursor-pointer"
+                                className="p-1 rounded-lg text-[var(--comfort-success)] hover:bg-[var(--comfort-success-soft)] cursor-pointer"
                               >
                                 <Check className="w-3.5 h-3.5" />
                               </button>
@@ -543,7 +543,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                                   type="button"
                                   onClick={() => startEditRow(rec)}
                                   title="Edit baris data ini"
-                                  className="p-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-sky-500 hover:bg-sky-500/10 transition-colors cursor-pointer"
+                                  className="p-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-accent)] hover:bg-[var(--comfort-accent-soft)] transition-colors cursor-pointer"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
@@ -556,7 +556,7 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
                                     onDeleteRecord(rec.id);
                                   }}
                                   title="Hapus baris data ini"
-                                  className="p-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                  className="p-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-danger)] hover:bg-[var(--comfort-danger-soft)] transition-colors cursor-pointer"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>

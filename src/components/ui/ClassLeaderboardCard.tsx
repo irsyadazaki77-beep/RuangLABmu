@@ -52,7 +52,7 @@ export const ClassLeaderboardCard: React.FC<{
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-[var(--comfort-border)] text-[var(--comfort-text-muted)] font-mono text-[11px]">
+              <tr className="border-b border-[var(--comfort-border)] text-[var(--comfort-text-muted)] font-mono text-2xs">
                 <th className="py-2 pr-2">#</th>
                 <th className="py-2 px-2">Praktikan &amp; Modul</th>
                 <th className="py-2 px-2 text-right whitespace-nowrap">R²</th>
@@ -88,7 +88,7 @@ export const ClassLeaderboardCard: React.FC<{
                       <div className="font-semibold text-[var(--comfort-text)] leading-snug">
                         {stu.name}
                       </div>
-                      <div className="text-[11px] text-[var(--comfort-text-muted)] truncate max-w-[200px]">
+                      <div className="text-2xs text-[var(--comfort-text-muted)] truncate max-w-[200px]">
                         {stu.groupId} · <span className="text-sky-600 dark:text-sky-400 font-medium">{stu.activeDomain}</span>
                       </div>
                     </td>

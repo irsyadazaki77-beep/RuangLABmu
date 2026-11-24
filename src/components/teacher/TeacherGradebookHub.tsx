@@ -15,6 +15,9 @@ import {
   BarChart3,
   ListChecks,
   Sparkles,
+  ShieldCheck,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { LabSubmission } from '../../types/submissionTypes';
 import {
@@ -35,6 +38,10 @@ import { computeClassGradebookAnalytics } from '../../utils/classAnalyticsEngine
 import { GradebookSubmissionsList } from './GradebookSubmissionsList';
 import { GradebookSubmissionReview } from './GradebookSubmissionReview';
 import { GradebookClassAnalyticsPanel } from './GradebookClassAnalyticsPanel';
+import { GradebookSecurityBackupPanel } from './GradebookSecurityBackupPanel';
+import { TeacherAuthGateModal } from './TeacherAuthGateModal';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { apiFetch } from '../../utils/apiClient';
 
 export interface TeacherGradebookHubProps {
   isOpen: boolean;
@@ -76,7 +83,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
   const [statusFilter, setStatusFilter] = useState<'Semua' | 'Belum Dinilai' | 'Sudah Dinilai'>('Semua');
   const [sortField, setSortField] = useState<SortField>('submittedAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [expandedRubricOpen, setExpandedRubricOpen] = useState<boolean>(true);
+  const [expandedRubricOpen, setExpandedRubricOpen] = useState<boolean>(false);
   const [selectedSubmission, setSelectedSubmission] = useState<LabSubmission | null>(null);
   const [replaySubmission, setReplaySubmission] = useState<LabSubmission | null>(null);
 
@@ -88,13 +95,25 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [viewMode, setViewMode] = useState<'review' | 'analytics'>('review');
+  const [viewMode, setViewMode] = useState<'review' | 'analytics' | 'security'>('review');
+  const [mobileDetailOpen, setMobileDetailOpen] = useState<boolean>(false);
   const [kkmThreshold, setKkmThreshold] = useState<number>(75);
   const [showBlankLksPicker, setShowBlankLksPicker] = useState(false);
   const [blankLksModuleId, setBlankLksModuleId] = useState<string>(
     EXPERIMENT_CATALOG[0]?.id || 'newton-incline'
   );
   const [blankLksTier, setBlankLksTier] = useState<EducationTier>('SMA');
+
+  const PAGE_SIZE = 25;
+  const [pageOffset, setPageOffset] = useState<number>(0);
+  const [serverTotal, setServerTotal] = useState<number>(0);
+  const [hasMorePages, setHasMorePages] = useState<boolean>(false);
+
+  const authPromptOpen = useAuthStore((s) => s.authPromptOpen);
+  const authPromptReason = useAuthStore((s) => s.authPromptReason);
+  const openAuthPrompt = useAuthStore((s) => s.openAuthPrompt);
+  const closeAuthPrompt = useAuthStore((s) => s.closeAuthPrompt);
+  const authSession = useAuthStore((s) => s.session);
 
   const [importSummary, setImportSummary] = useState<{
     totalFiles: number;
@@ -218,10 +237,25 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
     }
   };
 
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = async (overrideOffset?: number) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/submissions');
+      const effectiveOffset = overrideOffset !== undefined ? overrideOffset : pageOffset;
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(effectiveOffset),
+      });
+      if (domainFilter !== 'Semua') params.set('domain', domainFilter);
+      if (moduleFilter !== 'Semua') params.set('moduleId', moduleFilter);
+      if (statusFilter === 'Sudah Dinilai') params.set('status', 'graded');
+      if (statusFilter === 'Belum Dinilai') params.set('status', 'ungraded');
+      if (searchQuery.trim()) params.set('search', searchQuery.trim());
+      if (sortField === 'score') params.set('sortBy', 'score');
+      else if (sortField === 'studentName') params.set('sortBy', 'student_name');
+      else params.set('sortBy', 'submitted_at');
+      params.set('sortDir', sortDirection);
+
+      const res = await apiFetch(`/api/submissions?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.submissions)) {
@@ -230,6 +264,12 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
             autoRubric: resolveSubmissionRubric(s),
           }));
           setSubmissions(enriched);
+          const totalCount =
+            typeof data.pagination?.total === 'number'
+              ? data.pagination.total
+              : enriched.length;
+          setServerTotal(totalCount);
+          setHasMorePages(Boolean(data.pagination?.hasMore));
           if (enriched.length > 0 && !selectedSubmission) {
             const first = enriched[0];
             setSelectedSubmission(first);
@@ -253,9 +293,9 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      fetchSubmissions();
+      void fetchSubmissions();
     }
-  }, [isOpen]);
+  }, [isOpen, pageOffset, domainFilter, moduleFilter, statusFilter, sortField, sortDirection]);
 
   useEffect(() => {
     if (!isOpen || replaySubmission) return;
@@ -276,6 +316,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
       sub.teacherGrade?.score ?? rubric.score ?? Math.min(100, Math.max(70, sub.quizScore))
     );
     setGradingFeedback(sub.teacherGrade?.feedback || rubric.summaryFeedback || '');
+    setMobileDetailOpen(true);
   };
 
   const handleExportClassroomCSV = () => {
@@ -307,13 +348,15 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
 
     setIsSubmittingGrade(true);
     try {
-      const res = await fetch(`/api/submissions/${selectedSubmission.id}/grade`, {
+      const res = await apiFetch(`/api/submissions/${selectedSubmission.id}/grade`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           score: gradingScore,
           feedback: gradingFeedback,
         }),
+        promptTeacherAuthOn401: true,
+        authReason: 'Verifikasi PIN pengajar diperlukan untuk menyimpan penilaian laporan siswa.',
       });
 
       if (res.ok) {
@@ -330,6 +373,9 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
           prev.map((s) => (s.id === selectedSubmission.id ? updatedSub : s))
         );
         setSelectedSubmission(updatedSub);
+      } else if (res.status === 401 || res.status === 403) {
+        setToastMessage('Masukkan PIN pengajar untuk menyimpan nilai.');
+        setTimeout(() => setToastMessage(null), 3500);
       }
     } catch {
       setToastMessage('Gagal menyimpan nilai.');
@@ -342,7 +388,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
     if (targetIds.length === 0) return;
     setIsBatchGrading(true);
     try {
-      const res = await fetch('/api/submissions/batch-grade', {
+      const res = await apiFetch('/api/submissions/batch-grade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -350,6 +396,8 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
           onlyUngraded,
           feedbackPrefix: 'Penilaian Rubrik Massal',
         }),
+        promptTeacherAuthOn401: true,
+        authReason: 'Verifikasi PIN pengajar diperlukan untuk penilaian rubrik massal.',
       });
       if (res.ok) {
         const data = await res.json();
@@ -372,6 +420,9 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
           `Penilaian rubrik massal selesai: ${data.gradedCount ?? updatedList.length} laporan diperbarui.`
         );
         setTimeout(() => setToastMessage(null), 4000);
+      } else if (res.status === 401 || res.status === 403) {
+        setToastMessage('Verifikasi sesi pengajar diperlukan untuk penilaian massal.');
+        setTimeout(() => setToastMessage(null), 3500);
       } else {
         setToastMessage('Gagal menjalankan penilaian rubrik massal.');
         setTimeout(() => setToastMessage(null), 3500);
@@ -578,7 +629,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
 
             <button
               type="button"
-              onClick={fetchSubmissions}
+              onClick={() => void fetchSubmissions()}
               disabled={isLoading}
               title="Segarkan Data Laporan"
               className="p-2 rounded-xl text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface)] transition cursor-pointer"
@@ -661,8 +712,8 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
           </div>
         )}
 
-        {/* Global Toast Feedback Banner when in Analytics mode or top-level actions */}
-        {toastMessage && viewMode === 'analytics' && (
+        {/* Global Toast Feedback Banner across Analytics & Security tabs */}
+        {toastMessage && viewMode !== 'review' && (
           <div className="px-4 sm:px-6 py-2 bg-emerald-500/12 border-b border-emerald-500/30 text-xs font-semibold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
             <span>{toastMessage}</span>
             <button
@@ -676,35 +727,37 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
           </div>
         )}
 
-        {/* Bulk .rlab Import Summary Banner */}
+        {/* Bulk .rlab Import Summary Banner (Zero-Pill Clean Inline Readout) */}
         {importSummary && (
           <div
             data-testid="rlab-import-summary-banner"
             className="p-3.5 bg-[var(--comfort-surface)] border-b border-[var(--comfort-border)] text-xs text-[var(--comfort-text)] space-y-2 animate-fade-in"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 tabular-nums">
                 <span className="font-bold text-teal-600 dark:text-teal-300 flex items-center gap-1.5">
                   <FolderOpen className="w-4 h-4 text-teal-500" />
-                  <span>Hasil Impor Massal .rlab ({importSummary.totalFiles} berkas):</span>
+                  <span>Impor Massal .rlab ({importSummary.totalFiles} berkas):</span>
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-500/30">
-                  ✓ {importSummary.newCount} Sukses Baru
+                <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-300">
+                  ✓ {importSummary.newCount} Baru
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 font-semibold border border-sky-500/30">
-                  ↻ {importSummary.updatedCount} Diperbarui (Deduplikasi)
+                <span aria-hidden="true" className="opacity-35">·</span>
+                <span className="font-mono font-semibold text-sky-700 dark:text-sky-300">
+                  ↻ {importSummary.updatedCount} Diperbarui
                 </span>
+                <span aria-hidden="true" className="opacity-35">·</span>
                 {importSummary.failedCount > 0 ? (
                   <button
                     type="button"
                     onClick={() => setShowFailuresDetail((prev) => !prev)}
-                    className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-300 font-semibold border border-rose-500/35 hover:bg-rose-500/25 cursor-pointer underline flex items-center gap-1"
+                    className="font-mono font-semibold text-rose-700 dark:text-rose-300 hover:underline cursor-pointer inline-flex items-center gap-1"
                   >
                     ✕ {importSummary.failedCount} Gagal{' '}
                     {showFailuresDetail ? '▲ Sembunyikan' : '▼ Rincian'}
                   </button>
                 ) : (
-                  <span className="px-2 py-0.5 rounded-full bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text-muted)] font-mono text-[11px]">
+                  <span className="font-mono text-2xs text-[var(--comfort-text-muted)]">
                     0 Gagal
                   </span>
                 )}
@@ -720,7 +773,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
             </div>
 
             {showFailuresDetail && importSummary.failures.length > 0 && (
-              <div className="mt-2 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5 max-h-36 overflow-y-auto font-mono text-[11px]">
+              <div className="mt-2 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5 max-h-36 overflow-y-auto font-mono text-2xs">
                 <div className="font-bold text-rose-700 dark:text-rose-300">
                   Daftar Berkas Gagal &amp; Penyebab:
                 </div>
@@ -752,7 +805,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                   labSound.playClick();
                   setViewMode('review');
                 }}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded-lg text-2xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap ${
                   viewMode === 'review'
                     ? 'bg-sky-600 text-white'
                     : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -770,7 +823,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                   labSound.playClick();
                   setViewMode('analytics');
                 }}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded-lg text-2xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap ${
                   viewMode === 'analytics'
                     ? 'bg-sky-600 text-white'
                     : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -779,11 +832,29 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                 <BarChart3 className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Analitik Kelas</span>
               </button>
+              <button
+                type="button"
+                role="tab"
+                data-testid="gradebook-tab-security"
+                aria-selected={viewMode === 'security'}
+                onClick={() => {
+                  labSound.playClick();
+                  setViewMode('security');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-2xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap ${
+                  viewMode === 'security'
+                    ? 'bg-sky-600 text-white'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Keamanan &amp; Backup</span>
+              </button>
             </div>
 
             <span className="font-medium text-[var(--comfort-text)]">
               Total:{' '}
-              <strong className="font-mono">{submissions.length}</strong>
+              <strong className="font-mono">{serverTotal || submissions.length}</strong>
             </span>
             <span aria-hidden="true" className="opacity-35">·</span>
             <span className="text-amber-700 dark:text-amber-400 font-medium inline-flex items-center gap-1">
@@ -800,7 +871,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               <button
                 type="button"
                 onClick={() => handleToggleSort('score')}
-                className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+                className={`px-2 py-1 rounded-lg text-2xs font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
                   sortField === 'score'
                     ? 'bg-sky-600 text-white'
                     : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -813,7 +884,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               <button
                 type="button"
                 onClick={() => handleToggleSort('quizScore')}
-                className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+                className={`px-2 py-1 rounded-lg text-2xs font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
                   sortField === 'quizScore'
                     ? 'bg-sky-600 text-white'
                     : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -828,7 +899,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
               <button
                 type="button"
                 onClick={() => handleToggleSort('submittedAt')}
-                className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+                className={`px-2 py-1 rounded-lg text-2xs font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
                   sortField === 'submittedAt'
                     ? 'bg-sky-600 text-white'
                     : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -896,38 +967,109 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
           </div>
         </div>
 
-        {/* Main Content Area: Split View or Class Analytics */}
-        {viewMode === 'analytics' ? (
+        {/* Main Content Area: Split View, Class Analytics, or Security & Backup */}
+        {viewMode === 'security' ? (
+          <GradebookSecurityBackupPanel
+            onOpenAuthModal={(reason) => openAuthPrompt(reason)}
+            onNotify={(msg) => {
+              setToastMessage(msg);
+              setTimeout(() => setToastMessage(null), 4000);
+            }}
+          />
+        ) : viewMode === 'analytics' ? (
           <GradebookClassAnalyticsPanel
             analytics={classAnalytics}
             kkmThreshold={kkmThreshold}
             onChangeKkm={setKkmThreshold}
           />
         ) : (
-          <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
-            <GradebookSubmissionsList
-              submissions={filteredSubmissions}
-              isLoading={isLoading}
-              selectedSubmissionId={selectedSubmission?.id}
-              resolveSubmissionRubric={resolveSubmissionRubric}
-              onSelectSubmission={handleSelectSubmission}
-              onOpenReplay={setReplaySubmission}
-            />
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            {mobileDetailOpen && selectedSubmission && (
+              <div className="md:hidden px-3 py-2 border-b border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] flex items-center justify-between gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    setMobileDetailOpen(false);
+                  }}
+                  className="min-h-[36px] px-2.5 py-1 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-xs font-semibold text-[var(--comfort-text)] inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Kembali ke Daftar</span>
+                </button>
+                <span className="text-xs font-semibold text-[var(--comfort-text-muted)] truncate">
+                  {selectedSubmission.studentName}
+                </span>
+              </div>
+            )}
 
-            <GradebookSubmissionReview
-              selectedSubmission={selectedSubmission}
-              selectedRubric={selectedRubric}
-              expandedRubricOpen={expandedRubricOpen}
-              onToggleRubricOpen={() => setExpandedRubricOpen((prev) => !prev)}
-              onOpenReplay={setReplaySubmission}
-              gradingScore={gradingScore}
-              onChangeGradingScore={setGradingScore}
-              gradingFeedback={gradingFeedback}
-              onChangeGradingFeedback={setGradingFeedback}
-              isSubmittingGrade={isSubmittingGrade}
-              toastMessage={toastMessage}
-              onSaveGrade={handleSaveGrade}
-            />
+            <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
+              <div
+                className={`${
+                  mobileDetailOpen ? 'hidden md:flex' : 'flex'
+                } w-full md:w-1/2 min-h-0 flex-1 overflow-hidden`}
+              >
+                <GradebookSubmissionsList
+                  submissions={filteredSubmissions}
+                  isLoading={isLoading}
+                  selectedSubmissionId={selectedSubmission?.id}
+                  resolveSubmissionRubric={resolveSubmissionRubric}
+                  onSelectSubmission={handleSelectSubmission}
+                  onOpenReplay={setReplaySubmission}
+                />
+              </div>
+
+              <div
+                className={`${
+                  mobileDetailOpen ? 'flex' : 'hidden md:flex'
+                } w-full md:w-1/2 min-h-0 flex-1 overflow-hidden`}
+              >
+                <GradebookSubmissionReview
+                  selectedSubmission={selectedSubmission}
+                  selectedRubric={selectedRubric}
+                  expandedRubricOpen={expandedRubricOpen}
+                  onToggleRubricOpen={() => setExpandedRubricOpen((prev) => !prev)}
+                  onOpenReplay={setReplaySubmission}
+                  gradingScore={gradingScore}
+                  onChangeGradingScore={setGradingScore}
+                  gradingFeedback={gradingFeedback}
+                  onChangeGradingFeedback={setGradingFeedback}
+                  isSubmittingGrade={isSubmittingGrade}
+                  toastMessage={toastMessage}
+                  onSaveGrade={handleSaveGrade}
+                />
+              </div>
+            </div>
+
+            {serverTotal > PAGE_SIZE && (
+              <div className="px-4 py-2 border-t border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="text-[var(--comfort-text-muted)] font-mono tabular-nums">
+                  Halaman {Math.floor(pageOffset / PAGE_SIZE) + 1} · Menampilkan{' '}
+                  {pageOffset + 1}–{Math.min(pageOffset + submissions.length, serverTotal)} dari{' '}
+                  {serverTotal} laporan
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={pageOffset === 0 || isLoading}
+                    onClick={() => setPageOffset((prev) => Math.max(0, prev - PAGE_SIZE))}
+                    className="min-h-[34px] px-2.5 py-1 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Sebelumnya</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!hasMorePages || isLoading}
+                    onClick={() => setPageOffset((prev) => prev + PAGE_SIZE)}
+                    className="min-h-[34px] px-2.5 py-1 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Berikutnya</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -936,6 +1078,18 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
         submission={replaySubmission}
         isOpen={Boolean(replaySubmission)}
         onClose={() => setReplaySubmission(null)}
+      />
+
+      <TeacherAuthGateModal
+        isOpen={authPromptOpen}
+        onClose={closeAuthPrompt}
+        reason={authPromptReason}
+        defaultTeacherName={authSession?.displayName || 'Dr. Hendra Kusuma'}
+        onAuthenticated={() => {
+          setToastMessage('Sesi pengajar terverifikasi. Silakan lanjutkan tindakan Anda.');
+          setTimeout(() => setToastMessage(null), 3500);
+          void fetchSubmissions();
+        }}
       />
     </div>,
     document.body

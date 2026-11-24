@@ -416,7 +416,7 @@ export const MainLabWorkspace: React.FC = () => {
                             type="button"
                             data-testid="student-follow-teacher-cam-btn"
                             onClick={() => setFollowTeacherCamera(!followTeacherCamera)}
-                            className="px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold cursor-pointer"
+                            className="px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-2xs font-bold cursor-pointer"
                           >
                             {followTeacherCamera ? 'Lepas' : 'Ikuti Guru'}
                           </button>
@@ -461,7 +461,7 @@ export const MainLabWorkspace: React.FC = () => {
                               labSound.playClick();
                               setPip3DMode('split');
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-100 font-bold text-[11px] cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-100 font-bold text-2xs cursor-pointer"
                           >
                             Buka Split 3D 45/55
                           </button>
@@ -471,7 +471,7 @@ export const MainLabWorkspace: React.FC = () => {
                               labSound.playClick();
                               setWorkflowStep(2);
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-2xs cursor-pointer"
                           >
                             Kembali ke Meja 3D
                           </button>

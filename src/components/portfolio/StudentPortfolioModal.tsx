@@ -465,7 +465,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                       <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-base font-bold tracking-tight">{studentName}</h3>
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30">
+                          <span className="px-2 py-0.5 rounded-md text-2xs font-mono font-bold bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30">
                             {levelInfo.rankTitle}
                           </span>
                           <span className="text-xs text-[var(--comfort-text-muted)]">
@@ -500,7 +500,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                         <div className="font-mono text-lg font-bold text-sky-600 dark:text-sky-400 tabular-nums">
                           {completedModulesCount}
                         </div>
-                        <div className="text-[11px] text-[var(--comfort-text-muted)]">
+                        <div className="text-2xs text-[var(--comfort-text-muted)]">
                           Modul Tuntas
                         </div>
                       </div>
@@ -508,7 +508,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                         <div className="font-mono text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                           {overallStemIndex}
                         </div>
-                        <div className="text-[11px] text-[var(--comfort-text-muted)]">
+                        <div className="text-2xs text-[var(--comfort-text-muted)]">
                           Indeks STEM
                         </div>
                       </div>
@@ -516,7 +516,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                         <div className="font-mono text-lg font-bold text-amber-600 dark:text-amber-400 tabular-nums">
                           {profile.unlockedBadges.length}/{SCIENTIFIC_BADGES_CATALOG.length}
                         </div>
-                        <div className="text-[11px] text-[var(--comfort-text-muted)]">
+                        <div className="text-2xs text-[var(--comfort-text-muted)]">
                           Lencana Sains
                         </div>
                       </div>
@@ -587,7 +587,8 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                               y={v.labelY}
                               textAnchor="middle"
                               dominantBaseline="middle"
-                              className="fill-slate-700 dark:fill-slate-200 text-[9.5px] font-bold"
+                              fontSize={9.5}
+                              className="fill-slate-700 dark:fill-slate-200 font-bold"
                             >
                               {v.shortLabel} ({v.score})
                             </text>
@@ -654,7 +655,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                                 </div>
                                 <div>
                                   <div className="text-xs font-bold">{badge.title}</div>
-                                  <div className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold">
+                                  <div className="text-2xs font-mono text-amber-600 dark:text-amber-400 font-bold">
                                     +{badge.xpBonus} XP · {badge.category}
                                   </div>
                                 </div>
@@ -663,10 +664,10 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                                 <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                               )}
                             </div>
-                            <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed">
+                            <p className="comfort-report-prose text-xs text-[var(--comfort-text-muted)]">
                               {badge.description}
                             </p>
-                            <div className="text-[10px] font-mono text-[var(--comfort-text-muted)]">
+                            <div className="text-2xs font-mono text-[var(--comfort-text-muted)]">
                               {isUnlocked
                                 ? `Terbuka ${
                                     unlockedDate
@@ -706,7 +707,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                             />
                             <div className="p-2.5 space-y-0.5">
                               <div className="text-xs font-bold truncate">{snap.moduleTitle}</div>
-                              <div className="text-[10px] font-mono text-sky-600 dark:text-sky-400 truncate">
+                              <div className="text-2xs font-mono text-sky-600 dark:text-sky-400 truncate">
                                 {snap.primaryMetric}
                               </div>
                             </div>
@@ -799,11 +800,11 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                                   <span className="text-[var(--comfort-text-muted)]">·</span>
                                   <span className="text-[var(--comfort-text-muted)]">{sub.domain}</span>
                                   <span className="text-[var(--comfort-text-muted)]">·</span>
-                                  <span className="font-mono text-[11px] text-[var(--comfort-text-muted)]">
+                                  <span className="font-mono text-2xs text-[var(--comfort-text-muted)]">
                                     {sub.studentName}
                                   </span>
                                 </div>
-                                <div className="text-[11px] font-mono text-[var(--comfort-text-muted)] tabular-nums">
+                                <div className="text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
                                   Tiket {sub.id} ·{' '}
                                   {Number.isFinite(Date.parse(sub.submittedAt))
                                     ? new Date(sub.submittedAt).toLocaleString('id-ID')
@@ -821,27 +822,27 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                                 >
                                   Skor {finalScore}/100
                                 </span>
-                                <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
+                                <span className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
                                   {isGraded ? 'Dinilai Guru' : 'Rubrik Otomatis'}
                                 </span>
                               </div>
                             </div>
 
                             {sub.teacherGrade?.feedback ? (
-                              <div className="p-3 rounded-lg bg-sky-500/8 border border-sky-500/25 text-xs text-[var(--comfort-text)]">
-                                <div className="text-[10px] font-mono uppercase tracking-wider font-bold text-sky-700 dark:text-sky-300 mb-1">
+                              <div className="p-3 rounded-lg bg-sky-500/8 border border-sky-500/25 text-[var(--comfort-text)] space-y-1">
+                                <div className="text-2xs font-mono uppercase tracking-wider font-bold text-sky-700 dark:text-sky-300">
                                   Umpan Balik Guru
                                 </div>
-                                <p className="leading-relaxed">{sub.teacherGrade.feedback}</p>
+                                <p className="comfort-report-prose">{sub.teacherGrade.feedback}</p>
                               </div>
                             ) : sub.autoRubric?.summaryFeedback ? (
-                              <div className="p-3 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs text-[var(--comfort-text-muted)]">
-                                {sub.autoRubric.summaryFeedback}
+                              <div className="p-3 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text-muted)]">
+                                <p className="comfort-report-prose">{sub.autoRubric.summaryFeedback}</p>
                               </div>
                             ) : null}
 
                             {sub.regressionMetrics && (
-                              <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-[var(--comfort-text-muted)] tabular-nums pt-1 border-t border-[var(--comfort-border)]">
+                              <div className="flex flex-wrap items-center gap-3 text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums pt-1 border-t border-[var(--comfort-border)]">
                                 <span>R² = {Number(sub.regressionMetrics.rSquared ?? 0).toFixed(3)}</span>
                                 <span>·</span>
                                 <span>Persamaan: {sub.regressionMetrics.equation || '-'}</span>
@@ -878,7 +879,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
                     </p>
                   </div>
 
-                  <p className="text-xs sm:text-sm text-[var(--comfort-text-muted)] max-w-xl mx-auto leading-relaxed comfort-prose">
+                  <p className="comfort-report-prose text-sm text-[var(--comfort-text-muted)] max-w-xl mx-auto">
                     Telah menyelesaikan rangkaian eksperimen metode ilmiah, analisis regresi linier
                     kuadrat terkecil (OLS), dan evaluasi K3 pada modul{' '}
                     <strong className="text-[var(--comfort-text)]">{activeModuleTitle}</strong> dengan Indeks Kompetensi STEM{' '}
@@ -887,19 +888,19 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
 
                   <div className="pt-4 grid grid-cols-3 gap-4 max-w-lg mx-auto border-t border-[var(--comfort-border)] text-xs">
                     <div>
-                      <div className="text-[var(--comfort-text-muted)] text-[10px] uppercase">Presisi Regresi</div>
+                      <div className="text-[var(--comfort-text-muted)] text-2xs uppercase">Presisi Regresi</div>
                       <div className="font-mono font-bold">
                         {bestRSquared > 0 ? `R² = ${bestRSquared.toFixed(3)}` : 'Terverifikasi'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[var(--comfort-text-muted)] text-[10px] uppercase">Lencana Saintifik</div>
+                      <div className="text-[var(--comfort-text-muted)] text-2xs uppercase">Lencana Saintifik</div>
                       <div className="font-mono font-bold tabular-nums">
                         {profile.unlockedBadges.length} Lencana
                       </div>
                     </div>
                     <div>
-                      <div className="text-[var(--comfort-text-muted)] text-[10px] uppercase">Tanggal Terbit</div>
+                      <div className="text-[var(--comfort-text-muted)] text-2xs uppercase">Tanggal Terbit</div>
                       <div className="font-mono font-bold tabular-nums">
                         {new Date().toLocaleDateString('id-ID')}
                       </div>

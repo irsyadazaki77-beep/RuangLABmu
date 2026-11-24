@@ -122,7 +122,7 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
           <Compass className="w-4 h-4 text-sky-500 shrink-0" />
           <div className="truncate">
             <span className="font-bold">Panduan Praktikum 3D</span>
-            <span className="ml-1.5 font-mono text-[10px] text-emerald-500 tabular-nums">
+            <span className="ml-1.5 font-mono text-2xs text-emerald-500 tabular-nums">
               ({completedCount}/3 Selesai)
             </span>
           </div>
@@ -149,12 +149,12 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
             transition={{ duration: 0.16 }}
             className="p-3 space-y-2.5"
           >
-            <div className="text-[11px] text-[var(--comfort-hud-muted)] truncate" title={moduleTitle}>
+            <div className="text-2xs text-[var(--comfort-hud-muted)] truncate" title={moduleTitle}>
               Modul: <strong className="text-[var(--comfort-hud-text)]">{moduleTitle}</strong>
             </div>
 
             {keyEquation && (
-              <div className="px-2.5 py-1.5 rounded-lg studio-hud-subcard font-mono text-[11px] text-sky-500 truncate">
+              <div className="px-2.5 py-1.5 rounded-lg studio-hud-subcard font-mono text-2xs text-sky-500 truncate">
                 {keyEquation}
               </div>
             )}
@@ -163,14 +163,14 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
               {steps.map((st) => (
                 <li
                   key={st.id}
-                  className="flex items-center justify-between gap-2 text-[11px] py-1.5 px-2 rounded-lg studio-hud-subcard"
+                  className="flex items-center justify-between gap-2 text-2xs py-1.5 px-2 rounded-lg studio-hud-subcard"
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     {st.done ? (
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                     ) : (
                       <span
-                        className="w-3.5 h-3.5 rounded-full border text-[9px] font-mono flex items-center justify-center text-[var(--comfort-hud-muted)] shrink-0"
+                        className="w-3.5 h-3.5 rounded-full border text-2xs font-mono flex items-center justify-center text-[var(--comfort-hud-muted)] shrink-0"
                         style={{ borderColor: 'var(--comfort-hud-border)' }}
                       >
                         {st.id}
@@ -191,7 +191,7 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
                         labSound.playClick();
                         st.onAction?.();
                       }}
-                      className="px-2 py-0.5 rounded bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/35 text-sky-600 dark:text-sky-300 font-semibold text-[10px] whitespace-nowrap cursor-pointer shrink-0"
+                      className="px-2 py-0.5 rounded bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/35 text-sky-600 dark:text-sky-300 font-semibold text-2xs whitespace-nowrap cursor-pointer shrink-0"
                     >
                       {st.actionLabel}
                     </button>
@@ -207,7 +207,7 @@ export const ContextualMicroGuideHUD: React.FC<ContextualMicroGuideHUDProps> = (
                   labSound.playRecordSuccess();
                   onProceedToAnalysis();
                 }}
-                className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-2xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <span>Data Cukup! Lanjut ke Grafik & LKS</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -299,7 +299,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
             <h3 className="font-bold text-[var(--comfort-text)] text-xs leading-tight">
               Buku Catatan Hipotesis &amp; Refleksi Ilmiah
             </h3>
-            <p className="text-[11px] text-[var(--comfort-text-muted)] truncate max-w-[260px]">
+            <p className="text-2xs text-[var(--comfort-text-muted)] truncate max-w-[260px]">
               {moduleTitle} · Tersimpan otomatis ke Laporan Resmi
             </p>
           </div>
@@ -307,7 +307,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
 
         <div className="flex items-center gap-1.5">
           {savedToast && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1 text-2xs font-semibold text-emerald-600 dark:text-emerald-400">
               <Check className="w-3.5 h-3.5" /> Tersimpan
             </span>
           )}
@@ -327,7 +327,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
       {/* Independent & Dependent Variables Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <div>
-          <label className="block text-[11px] font-semibold text-[var(--comfort-text)] mb-1">
+          <label className="block text-2xs font-semibold text-[var(--comfort-text)] mb-1">
             Variabel Bebas (Diubah di Slider)
           </label>
           <input
@@ -339,7 +339,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
           />
         </div>
         <div>
-          <label className="block text-[11px] font-semibold text-[var(--comfort-text)] mb-1">
+          <label className="block text-2xs font-semibold text-[var(--comfort-text)] mb-1">
             Variabel Terikat (Respons Terukur)
           </label>
           <input
@@ -354,9 +354,9 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
 
       {/* Quick Hypothesis Templates */}
       <div className="space-y-1">
-        <div className="text-[11px] text-[var(--comfort-text-muted)] flex items-center justify-between">
+        <div className="text-2xs text-[var(--comfort-text-muted)] flex items-center justify-between">
           <span>Templat Perumusan Cepat:</span>
-          <span className="font-mono text-[10px]">Klik untuk mengisi</span>
+          <span className="font-mono text-2xs">Klik untuk mengisi</span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {(
@@ -370,7 +370,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
               key={tpl.val}
               type="button"
               onClick={() => handleInsertTemplate(tpl.val)}
-              className="px-2.5 py-1 rounded-lg bg-[var(--comfort-surface-subtle)] hover:bg-sky-500/20 text-[var(--comfort-text)] hover:text-sky-600 dark:hover:text-sky-300 border border-[var(--comfort-border)] font-medium text-[11px] transition-colors cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-[var(--comfort-surface-subtle)] hover:bg-sky-500/20 text-[var(--comfort-text)] hover:text-sky-600 dark:hover:text-sky-300 border border-[var(--comfort-border)] font-medium text-2xs transition-colors cursor-pointer"
             >
               {tpl.label}
             </button>
@@ -380,7 +380,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
 
       {/* Hypothesis Textarea */}
       <div>
-        <label className="block text-[11px] font-semibold text-[var(--comfort-text)] mb-1">
+        <label className="block text-2xs font-semibold text-[var(--comfort-text)] mb-1">
           Hipotesis Awal Siswa (Sebelum / Saat Eksperimen):
         </label>
         <textarea
@@ -404,11 +404,11 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
       {/* POE Quantitative Prediction Box */}
       <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+          <div className="text-2xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
             <Target className="w-3.5 h-3.5 text-amber-500" />
             <span>Tantangan Prediksi Kuantitatif (Metode POE: Predict–Observe–Explain)</span>
           </div>
-          <span className="text-[10px] font-mono text-amber-700 dark:text-amber-400">
+          <span className="text-2xs font-mono text-amber-700 dark:text-amber-400">
             Ditampilkan di Grafik Analitik
           </span>
         </div>
@@ -417,7 +417,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
           <div className="min-w-0">
             <label
               title="Tren Kurva Prediksi"
-              className="block text-[10px] font-semibold text-[var(--comfort-text-muted)] mb-1 truncate"
+              className="block text-2xs font-semibold text-[var(--comfort-text-muted)] mb-1 truncate"
             >
               Tren Kurva Prediksi
             </label>
@@ -440,7 +440,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
           <div className="min-w-0">
             <label
               title={`Titik Uji X (${note.independentVar || defaultIndependentVar})`}
-              className="block text-[10px] font-semibold text-[var(--comfort-text-muted)] mb-1 truncate"
+              className="block text-2xs font-semibold text-[var(--comfort-text-muted)] mb-1 truncate"
             >
               Titik Uji X ({note.independentVar || defaultIndependentVar})
             </label>
@@ -461,7 +461,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
           <div className="min-w-0">
             <label
               title={`Prediksi Output Y (${note.dependentVar || defaultDependentVar})`}
-              className="block text-[10px] font-semibold text-[var(--comfort-text-muted)] mb-1 truncate"
+              className="block text-2xs font-semibold text-[var(--comfort-text-muted)] mb-1 truncate"
             >
               Prediksi Output Y ({note.dependentVar || defaultDependentVar})
             </label>
@@ -484,7 +484,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
 
       {/* Reflection / Empirical Verification Textarea */}
       <div>
-        <label className="block text-[11px] font-semibold text-[var(--comfort-text)] mb-1">
+        <label className="block text-2xs font-semibold text-[var(--comfort-text)] mb-1">
           Refleksi Hasil Pengamatan vs Hipotesis:
         </label>
         <textarea
@@ -508,7 +508,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
       {/* Pin Live Recorded Trials as Evidence */}
       {records.length > 0 && (
         <div className="pt-1 border-t border-[var(--comfort-border)] space-y-1.5">
-          <div className="flex items-center justify-between text-[11px] text-[var(--comfort-text-muted)]">
+          <div className="flex items-center justify-between text-2xs text-[var(--comfort-text-muted)]">
             <span className="flex items-center gap-1 font-semibold text-[var(--comfort-text)]">
               <Pin className="w-3 h-3 text-sky-500" />
               <span>Sematkan Bukti Data Eksperimen ({pinnedRecordIds.length})</span>
@@ -523,7 +523,7 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
                   key={rec.id}
                   type="button"
                   onClick={() => handleTogglePinRecord(rec.id)}
-                  className={`px-2 py-1 rounded-lg border font-mono text-[10px] transition-colors cursor-pointer flex items-center gap-1 ${
+                  className={`px-2 py-1 rounded-lg border font-mono text-2xs transition-colors cursor-pointer flex items-center gap-1 ${
                     pinned
                       ? 'bg-sky-500/20 border-sky-500 text-sky-700 dark:text-sky-300 font-bold'
                       : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)]'

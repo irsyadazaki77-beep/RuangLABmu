@@ -190,7 +190,7 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
                   setInternalSpeed(spd);
                   onPlaybackSpeedChange?.(spd);
                 }}
-                className={`px-2 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                className={`px-2 py-1 rounded text-2xs font-bold transition-colors cursor-pointer ${
                   currentSpeed === spd
                     ? 'bg-sky-600 text-white'
                     : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -214,7 +214,7 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
             ) : (
               <span className="text-sky-700 dark:text-sky-300 font-semibold">{rawTime.toFixed(2)} s</span>
             )}
-            <span className="text-[var(--comfort-text-muted)] ml-1.5 text-[10px]">
+            <span className="text-[var(--comfort-text-muted)] ml-1.5 text-2xs">
               (f: {currentIdx}/{bounds.maxFrame})
             </span>
           </div>
@@ -254,7 +254,7 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
         {/* Realistic Lab Noise Toggle Switch & Instrument Spec */}
         <div className="flex items-center gap-2">
           {noiseEnabled && (
-            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded tabular-nums">
+            <span className="hidden sm:inline-flex items-center gap-1 text-2xs font-mono text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded tabular-nums">
               Alat: {activeInstrument.type} (NST {activeInstrument.smallestScaleDivision} {activeInstrument.unit})
             </span>
           )}
@@ -278,7 +278,7 @@ export const SimulationPlaybackBar: React.FC<SimulationPlaybackBarProps> = ({
             />
             <span>Mode Ketidakpastian Alat Ukur</span>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+              className={`text-2xs px-1.5 py-0.5 rounded font-mono ${
                 noiseEnabled
                   ? 'bg-amber-500 text-slate-950 font-bold'
                   : 'bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text-muted)]'

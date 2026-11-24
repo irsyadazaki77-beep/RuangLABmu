@@ -283,7 +283,7 @@ export const RoomCollabModal: React.FC<RoomCollabModalProps> = ({
 
               {mode === 'join' && availableRooms.length > 0 && (
                 <div className="pt-1 space-y-1.5">
-                  <div className="text-[11px] font-mono text-[var(--comfort-text-muted)]">
+                  <div className="text-2xs font-mono text-[var(--comfort-text-muted)]">
                     Meja Aktif Tersedia:
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -295,7 +295,7 @@ export const RoomCollabModal: React.FC<RoomCollabModalProps> = ({
                           setFormRoomId(r.roomId);
                           setFormPin('');
                         }}
-                        className="px-2.5 py-1 rounded-md bg-[var(--comfort-surface-subtle)] hover:border-sky-500 border border-[var(--comfort-border)] text-[11px] font-mono text-sky-700 dark:text-sky-300 cursor-pointer tabular-nums"
+                        className="px-2.5 py-1 rounded-md bg-[var(--comfort-surface-subtle)] hover:border-sky-500 border border-[var(--comfort-border)] text-2xs font-mono text-sky-700 dark:text-sky-300 cursor-pointer tabular-nums"
                       >
                         {r.roomId} ({r.clientCount} peserta)
                       </button>
@@ -314,19 +314,19 @@ export const RoomCollabModal: React.FC<RoomCollabModalProps> = ({
                     <span>Mode LAN Kelas 3T (Tanpa Kuota Internet)</span>
                   </div>
                   {lanInfo?.allLanIps && lanInfo.allLanIps.length > 1 && (
-                    <span className="text-[11px] font-mono text-amber-700 dark:text-amber-300 tabular-nums">
+                    <span className="text-2xs font-mono text-amber-700 dark:text-amber-300 tabular-nums">
                       {lanInfo.allLanIps.length} IP
                     </span>
                   )}
                 </div>
 
-                <p className="text-[11px] leading-relaxed text-[var(--comfort-text-muted)]">
+                <p className="text-2xs leading-relaxed text-[var(--comfort-text-muted)]">
                   Nyalakan Hotspot Wi-Fi di laptop Guru, lalu siswa membuka alamat IP lokal atau memindai QR Code berikut untuk praktikum bersama tanpa kuota:
                 </p>
 
                 {lanInfo?.allLanIps && lanInfo.allLanIps.length > 1 && (
                   <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 bg-[var(--comfort-surface-subtle)] p-2 rounded-lg border border-[var(--comfort-border)]">
-                    <label className="text-[11px] font-semibold text-[var(--comfort-text-muted)] shrink-0">
+                    <label className="text-2xs font-semibold text-[var(--comfort-text-muted)] shrink-0">
                       IP Guru:
                     </label>
                     <select
@@ -366,7 +366,7 @@ export const RoomCollabModal: React.FC<RoomCollabModalProps> = ({
                         <QrCodeIcon className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
                         <span>Pindai Kode QR Meja Praktikum</span>
                       </div>
-                      <p className="text-[11px] leading-relaxed text-[var(--comfort-text-muted)]">
+                      <p className="text-2xs leading-relaxed text-[var(--comfort-text-muted)]">
                         Arahkan kamera HP siswa ke QR ini untuk bergabung ke meja praktikum LAN tanpa kuota.
                       </p>
                     </div>

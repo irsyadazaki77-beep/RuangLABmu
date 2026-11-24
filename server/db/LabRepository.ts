@@ -76,6 +76,48 @@ export interface DbIdempotencyKeyRecord {
   created_at: string;
 }
 
+export interface DbAuthCredentialRecord {
+  id: string;
+  school_id: string;
+  role: 'teacher' | 'admin' | 'student';
+  username: string;
+  password_hash: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbAuditLogRecord {
+  id: string;
+  school_id: string;
+  actor_id: string;
+  actor_name: string;
+  actor_role: string;
+  action: string;
+  target_type: string;
+  target_id: string;
+  metadata_json: string;
+  request_id: string | null;
+  created_at: string;
+}
+
+export type AuditLogRecord = DbAuditLogRecord;
+
+export interface AuditLogInput {
+  id?: string;
+  schoolId?: string;
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  metadata?: Record<string, unknown>;
+  metadataJson?: string;
+  requestId?: string | null;
+  ipAddress?: string;
+  createdAt?: string;
+}
+
 export interface SimulationSnapshotView {
   id: number;
   roomPin: string;
@@ -84,8 +126,76 @@ export interface SimulationSnapshotView {
   updatedAt: number;
 }
 
+export interface PaginationMeta {
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  pagination: PaginationMeta;
+}
+
+export interface SubmissionQueryOptions {
+  schoolId?: string;
+  roomId?: string;
+  studentId?: string;
+  domain?: string;
+  moduleId?: string;
+  status?: 'all' | 'graded' | 'ungraded';
+  search?: string;
+  sortBy?: 'submittedAt' | 'score' | 'studentName';
+  sortDir?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+}
+
+export interface GradebookQueryOptions {
+  schoolId?: string;
+  roomPin?: string;
+  moduleId?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AuditLogQueryOptions {
+  schoolId: string;
+  action?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ConsolidatedLabCollections {
+  records: Array<Record<string, unknown>>;
+  tasks: Array<Record<string, unknown>>;
+  notes: Array<Record<string, unknown>>;
+  students: Array<Record<string, unknown>>;
+  notifications: Array<Record<string, unknown>>;
+}
+
+export interface StoredRoomStateRow {
+  roomId: string;
+  schoolId: string;
+  pinHash?: string | null;
+  stateJson: string;
+  lastActivityAt: number;
+  updatedAt: number;
+}
+
+export interface StoredParameterLockRow {
+  key: string;
+  schoolId: string;
+  roomId?: string | null;
+  payloadJson: string;
+  expiresAt: number;
+}
+
 export interface LabRepository {
   isAvailable(): boolean;
+  healthCheck(): boolean;
 
   ensureSchool(input: {
     id: string;
@@ -120,6 +230,17 @@ export interface LabRepository {
   listActiveRooms(now?: number, schoolId?: string): DbRoomRecord[];
   deleteRoomByPin(pin: string): void;
   pruneExpiredRooms(now?: number): number;
+
+  upsertRoomState(input: {
+    roomId: string;
+    schoolId?: string;
+    pinHash?: string | null;
+    stateJson: string;
+    lastActivityAt: number;
+    updatedAt?: number;
+  }): void;
+  loadAllRoomStates(schoolId?: string): StoredRoomStateRow[];
+  deleteRoomState(roomId: string): void;
 
   upsertParticipant(input: {
     id: string;
@@ -178,6 +299,9 @@ export interface LabRepository {
   }): DbGradebookEntryRecord;
   getGradebookEntryById(id: string): DbGradebookEntryRecord | null;
   listGradebookEntries(roomPin?: string, schoolId?: string): DbGradebookEntryRecord[];
+  queryGradebookPaginated(
+    options: GradebookQueryOptions
+  ): PaginatedResult<DbGradebookEntryRecord>;
 
   upsertSubmission(input: {
     id: string;
@@ -193,6 +317,9 @@ export interface LabRepository {
   }): DbSubmissionRecord;
   getSubmissionById(id: string, schoolId?: string): DbSubmissionRecord | null;
   listSubmissions(schoolId?: string): DbSubmissionRecord[];
+  querySubmissionsPaginated(
+    options: SubmissionQueryOptions
+  ): PaginatedResult<DbSubmissionRecord>;
 
   upsertAutosave(input: {
     storageKey: string;
@@ -205,6 +332,7 @@ export interface LabRepository {
   }): DbAutosaveRecord;
   getAutosaveByKey(storageKey: string, schoolId?: string): DbAutosaveRecord | null;
   listAutosaves(schoolId?: string): DbAutosaveRecord[];
+  deleteAutosaveByKey(storageKey: string): void;
 
   getIdempotencyKey(
     key: string,
@@ -219,6 +347,154 @@ export interface LabRepository {
     createdAt?: string;
   }): DbIdempotencyKeyRecord;
 
+  // Consolidated lab state tables (replacing legacy JSON / LabSqliteStore)
+  syncLabCollections(
+    bundle: ConsolidatedLabCollections & {
+      schoolId?: string;
+      notificationTtlMs?: number;
+    }
+  ): void;
+  loadLabCollections(schoolId?: string, now?: number): ConsolidatedLabCollections;
+  pruneExpiredNotifications(now?: number): number;
+
+  upsertParameterLock(input: {
+    key: string;
+    schoolId?: string;
+    roomId?: string | null;
+    payloadJson: string;
+    expiresAt: number;
+  }): void;
+  deleteParameterLock(key: string): void;
+  loadActiveParameterLocks(now?: number): StoredParameterLockRow[];
+  pruneExpiredParameterLocks(now?: number): number;
+
+  // Offline-ready Auth Credentials (scrypt hashed)
+  getAuthCredential(
+    schoolId: string,
+    role: 'teacher' | 'admin' | 'student',
+    username?: string
+  ): DbAuthCredentialRecord | null;
+  hasAnyTeacherCredential(schoolId?: string): boolean;
+  upsertAuthCredential(input: {
+    id: string;
+    schoolId?: string;
+    role: 'teacher' | 'admin' | 'student';
+    username: string;
+    passwordHash: string;
+  }): DbAuthCredentialRecord;
+
+  // Immutable Audit Logs
+  appendAuditLog(input: {
+    id: string;
+    schoolId?: string;
+    actorId: string;
+    actorName: string;
+    actorRole: string;
+    action: string;
+    targetType: string;
+    targetId: string;
+    metadataJson: string;
+    requestId?: string | null;
+    createdAt?: string;
+  }): DbAuditLogRecord;
+  queryAuditLogs(options: AuditLogQueryOptions): PaginatedResult<DbAuditLogRecord>;
+
   checkpointWalTruncate(): void;
   close(): void;
+}
+
+/**
+ * Promise-based unified repository contract for hybrid deployment:
+ * - SqliteAsyncLabRepository (default 3T offline-first WAL mode)
+ * - PostgresLabRepository (cloud mode when DATABASE_URL is configured)
+ */
+export interface AsyncLabRepository {
+  readonly driver: 'sqlite' | 'postgres';
+  init(): Promise<void>;
+  healthCheck(): Promise<boolean>;
+
+  ensureSchool(input: {
+    id: string;
+    name?: string;
+    slug?: string;
+    createdAt?: string;
+  }): Promise<DbSchoolRecord>;
+  getSchoolById(id: string): Promise<DbSchoolRecord | null>;
+  listSchools(): Promise<DbSchoolRecord[]>;
+
+  upsertSubmission(input: {
+    id: string;
+    schoolId?: string;
+    roomId: string;
+    studentId?: string | null;
+    studentName: string;
+    domain: string;
+    moduleId: string;
+    score?: number | null;
+    payloadJson: string;
+    submittedAt: string;
+  }): Promise<DbSubmissionRecord>;
+  getSubmissionById(id: string, schoolId?: string): Promise<DbSubmissionRecord | null>;
+  querySubmissionsPaginated(
+    options: SubmissionQueryOptions
+  ): Promise<PaginatedResult<DbSubmissionRecord>>;
+
+  upsertGradebookEntry(input: {
+    id: string;
+    schoolId?: string;
+    roomPin: string;
+    studentId: string;
+    studentName: string;
+    moduleId: string;
+    score: number;
+    rubricJson: string;
+    submittedAt?: number;
+  }): Promise<DbGradebookEntryRecord>;
+  queryGradebookPaginated(
+    options: GradebookQueryOptions
+  ): Promise<PaginatedResult<DbGradebookEntryRecord>>;
+
+  getIdempotencyKey(
+    key: string,
+    schoolId: string,
+    endpoint: string
+  ): Promise<DbIdempotencyKeyRecord | null>;
+  saveIdempotencyKey(input: {
+    key: string;
+    schoolId: string;
+    endpoint: string;
+    responseJson: string;
+    createdAt?: string;
+  }): Promise<DbIdempotencyKeyRecord>;
+
+  getAuthCredential(
+    schoolId: string,
+    role: 'teacher' | 'admin' | 'student',
+    username?: string
+  ): Promise<DbAuthCredentialRecord | null>;
+  hasAnyTeacherCredential(schoolId?: string): Promise<boolean>;
+  upsertAuthCredential(input: {
+    id: string;
+    schoolId?: string;
+    role: 'teacher' | 'admin' | 'student';
+    username: string;
+    passwordHash: string;
+  }): Promise<DbAuthCredentialRecord>;
+
+  appendAuditLog(input: {
+    id: string;
+    schoolId?: string;
+    actorId: string;
+    actorName: string;
+    actorRole: string;
+    action: string;
+    targetType: string;
+    targetId: string;
+    metadataJson: string;
+    requestId?: string | null;
+    createdAt?: string;
+  }): Promise<DbAuditLogRecord>;
+  queryAuditLogs(options: AuditLogQueryOptions): Promise<PaginatedResult<DbAuditLogRecord>>;
+
+  close(): Promise<void>;
 }

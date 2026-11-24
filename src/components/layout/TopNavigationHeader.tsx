@@ -303,9 +303,8 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     <>
       {!isFullBleedActiveLab && (
         <header
-          style={{ backgroundColor: 'var(--comfort-header-bg)' }}
-          className={`sticky top-0 shrink-0 flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2.5 gap-y-2 lg:gap-3 px-3 sm:px-5 backdrop-blur-md border-b border-[var(--comfort-border)] text-[var(--comfort-text)] z-40 select-none transition-colors duration-200 ${
-            isLobbyMode ? 'py-2 sm:py-0 sm:h-14' : 'h-14'
+          className={`sticky top-0 shrink-0 comfort-header-surface flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2.5 gap-y-2 lg:gap-3 px-3 sm:px-5 backdrop-blur-md border-b border-[var(--comfort-border)] text-[var(--comfort-text)] z-40 select-none transition-colors duration-200 ${
+            isLobbyMode ? 'py-2 sm:py-1.5 min-h-14' : 'min-h-14 py-1.5'
           }`}
         >
           {/* Zone 1: Brand Wordmark + Concise Module Breadcrumb */}
@@ -317,9 +316,9 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                 setIsLobbyMode(true);
               }}
               aria-label="Kembali ke RuangLABmu Lobby"
-              className="flex items-center gap-2 shrink-0 cursor-pointer hover:opacity-85 transition-opacity rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 whitespace-nowrap"
+              className="flex items-center gap-2 min-h-[36px] shrink-0 cursor-pointer hover:opacity-85 transition-opacity rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] whitespace-nowrap"
             >
-              <span className="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center shrink-0">
+              <span className="w-7 h-7 rounded-lg bg-[var(--comfort-accent-solid)] flex items-center justify-center shrink-0 shadow-2xs">
                 <Atom className="w-4 h-4 text-white" aria-hidden="true" />
               </span>
               <span className="font-bold text-sm sm:text-base tracking-tight whitespace-nowrap">
@@ -336,7 +335,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                     setIsLobbyMode(true);
                   }}
                   aria-label="Kembali ke Katalog Laboratorium"
-                  className="font-medium text-[var(--comfort-text-muted)] hover:text-[var(--comfort-accent)] transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded"
+                  className="font-medium text-[var(--comfort-text-muted)] hover:text-[var(--comfort-accent)] transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] rounded"
                 >
                   {t('nav.backToCatalog')}
                 </button>
@@ -345,11 +344,11 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                 </span>
                 <span
                   title={experimentModule.title}
-                  className="hidden lg:inline font-semibold truncate max-w-[125px] xl:max-w-[145px] 2xl:max-w-[210px]"
+                  className="hidden lg:inline font-semibold truncate max-w-[125px] xl:max-w-[155px] 2xl:max-w-[220px]"
                 >
                   {experimentModule.title}
                 </span>
-                <span className="hidden 2xl:inline text-[var(--comfort-text-muted)] font-mono text-[11px] shrink-0">
+                <span className="hidden 2xl:inline text-[var(--comfort-text-muted)] font-mono text-2xs shrink-0 tabular-nums">
                   {tierShortLabel}
                 </span>
               </div>
@@ -371,18 +370,18 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
                   type="text"
                   value={lobbySearchQuery}
                   onChange={(e) => setLobbySearchQuery(e.target.value)}
-                  placeholder="Cari modul atau rumus..."
+                  placeholder="Cari modul, bab, atau rumus..."
                   aria-label="Cari modul atau rumus..."
-                  className="w-full h-8 pl-8 pr-7 text-xs rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] placeholder:text-[var(--comfort-text-muted)] focus:outline-none focus:border-sky-500 transition-colors"
+                  className="w-full h-9 sm:h-8 pl-8 pr-8 text-xs rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] placeholder:text-[var(--comfort-text-muted)] focus:outline-none focus:border-[var(--comfort-accent)] focus:ring-2 focus:ring-[var(--comfort-accent-soft)] transition-colors"
                 />
                 {lobbySearchQuery && (
                   <button
                     type="button"
                     onClick={() => setLobbySearchQuery('')}
                     aria-label="Hapus kata kunci pencarian"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
@@ -471,7 +470,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         <div
           role="status"
           data-testid="share-link-toast"
-          className="fixed top-16 right-4 z-50 px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold shadow-lg flex items-center gap-2"
+          className="fixed top-16 right-4 z-50 px-3.5 py-2 rounded-lg bg-[var(--comfort-accent-solid)] text-white text-xs font-semibold shadow-lg flex items-center gap-2"
         >
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>Tautan praktikum berhasil disalin!</span>
@@ -528,12 +527,12 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
         <div
           role="status"
           data-testid="lite-mode-notification-toast"
-          className="fixed bottom-[120px] lg:bottom-[106px] left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-amber-500 text-slate-950 font-semibold text-xs shadow-lg flex items-center gap-2 border border-amber-400 cursor-pointer max-w-[calc(100vw-24px)]"
+          className="fixed bottom-[120px] lg:bottom-[106px] left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-[var(--comfort-surface)] text-[var(--comfort-text)] font-semibold text-xs shadow-lg flex items-center gap-2 border border-[var(--comfort-accent-border)] cursor-pointer max-w-[calc(100vw-24px)]"
           onClick={() => setLiteModeNotification(null)}
         >
-          <Zap className="w-4 h-4 fill-slate-950 shrink-0" />
+          <Zap className="w-4 h-4 text-[var(--comfort-warning)] shrink-0" />
           <span>{liteModeNotification}</span>
-          <span className="text-[11px] opacity-80 underline ml-1">(Tutup)</span>
+          <span className="text-2xs text-[var(--comfort-text-muted)] underline ml-1">(Tutup)</span>
         </div>
       )}
     </>

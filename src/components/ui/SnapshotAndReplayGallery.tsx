@@ -62,7 +62,7 @@ export const SnapshotAndReplayGallery: React.FC<SnapshotAndReplayGalleryProps> =
                   alt={snap.moduleTitle}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-slate-950/85 text-[10px] font-mono text-sky-300 border border-white/10">
+                <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-slate-950/85 text-2xs font-mono text-sky-300 border border-white/10">
                   {snap.domain} · {snap.timestamp}
                 </div>
                 {onDeleteSnapshot && (
@@ -80,10 +80,10 @@ export const SnapshotAndReplayGallery: React.FC<SnapshotAndReplayGalleryProps> =
                 <div className="font-bold text-[var(--comfort-text)] truncate">
                   {snap.moduleTitle}
                 </div>
-                <div className="text-[11px] font-mono text-[var(--comfort-text-muted)] truncate">
+                <div className="text-2xs font-mono text-[var(--comfort-text-muted)] truncate">
                   {snap.parametersSummary || snap.paramsSummary}
                 </div>
-                <div className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold truncate">
+                <div className="text-2xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold truncate">
                   Hasil: {snap.primaryMetric}
                 </div>
               </div>
@@ -109,7 +109,7 @@ export const SnapshotAndReplayGallery: React.FC<SnapshotAndReplayGalleryProps> =
                   <div className="font-semibold text-[var(--comfort-text)] truncate">
                     {rec.id} · {rec.experimentTitle}
                   </div>
-                  <div className="text-[11px] font-mono text-[var(--comfort-text-muted)] truncate">
+                  <div className="text-2xs font-mono text-[var(--comfort-text-muted)] truncate">
                     {rec.parametersSummary}
                   </div>
                 </div>
@@ -119,7 +119,7 @@ export const SnapshotAndReplayGallery: React.FC<SnapshotAndReplayGalleryProps> =
                     labSound.playClick();
                     onReplayRecord(rec);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold text-[11px] shrink-0 flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold text-2xs shrink-0 flex items-center gap-1 cursor-pointer"
                 >
                   <Eye className="w-3 h-3" />
                   <span>Putar di 3D</span>

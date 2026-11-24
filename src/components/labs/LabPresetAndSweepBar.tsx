@@ -116,12 +116,12 @@ export function LabPresetAndSweepBar<TParams = Record<string, unknown>>({
     >
       {/* Curated Scenario Presets */}
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-[11px] font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider">
+        <div className="flex items-center justify-between text-2xs font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider">
           <span className="inline-flex items-center gap-1.5">
             <Sliders className="w-3 h-3" aria-hidden="true" />
             <span>Preset Skenario Cepat</span>
           </span>
-          <span className="font-mono text-[10px] font-normal normal-case">1 klik</span>
+          <span className="font-mono text-2xs font-normal normal-case">1 klik</span>
         </div>
 
         <div className="grid grid-cols-1 gap-1.5">
@@ -144,7 +144,7 @@ export function LabPresetAndSweepBar<TParams = Record<string, unknown>>({
                 }`}
               >
                 <div className="text-xs font-semibold leading-tight">{preset.label}</div>
-                <div className="text-[10px] font-mono text-[var(--comfort-text-muted)] mt-0.5 truncate">
+                <div className="text-2xs font-mono text-[var(--comfort-text-muted)] mt-0.5 truncate">
                   {preset.summary}
                 </div>
               </button>
@@ -185,7 +185,7 @@ export function LabPresetAndSweepBar<TParams = Record<string, unknown>>({
                 style={{ width: `${Math.round((sweepProgress / Math.max(1, sweepSteps.length)) * 100)}%` }}
               />
             </div>
-            <div className="flex items-center justify-between text-[10px] font-mono text-[var(--comfort-text-muted)] tabular-nums">
+            <div className="flex items-center justify-between text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
               <span>
                 {isSweeping
                   ? `Mengukur ${sweepSteps[Math.max(0, sweepProgress - 1)]?.paramLabel ?? ''}...`
@@ -197,7 +197,7 @@ export function LabPresetAndSweepBar<TParams = Record<string, unknown>>({
             </div>
           </div>
         ) : (
-          <p className="text-[10px] text-[var(--comfort-text-muted)] leading-snug">
+          <p className="text-2xs text-[var(--comfort-text-muted)] leading-snug">
             Otomatis menyapu 5 variasi{' '}
             <strong className="text-[var(--comfort-text)]">
               {sweepSteps[0]?.paramLabel || 'variabel bebas'}

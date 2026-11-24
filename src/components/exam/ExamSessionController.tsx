@@ -246,7 +246,7 @@ export const ExamSessionController: React.FC<ExamSessionControllerProps> = ({
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span>{antiCheatWarningMessage}</span>
-            <span className="font-mono text-[11px] opacity-80">
+            <span className="font-mono text-2xs opacity-80">
               (Log peringatan telah dikirim ke server pengawas via WebSocket · Pelanggaran #{tabViolationCount})
             </span>
           </div>

@@ -1,6 +1,9 @@
 import type { ZodError } from 'zod';
 import {
   AiConversationalSchema,
+  AuditLogsQuerySchema,
+  AuthBootstrapTeacherSchema,
+  AuthSessionRequestSchema,
   AutosavePayloadSchema,
   DrLabMuTelemetrySchema,
   GenerateMissionSchema,
@@ -76,10 +79,44 @@ export interface ValidatedRoomMissionPayload {
 export interface ValidatedGradebookQueryPayload {
   roomPin?: string;
   schoolId?: string;
+  moduleId?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface ValidatedSubmissionsQueryPayload {
   schoolId?: string;
+  roomId?: string;
+  studentId?: string;
+  domain?: string;
+  moduleId?: string;
+  status?: 'all' | 'graded' | 'ungraded';
+  search?: string;
+  sortBy?: 'submitted_at' | 'score' | 'student_name';
+  sortDir?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+}
+
+export interface ValidatedAuditLogsQueryPayload {
+  action?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ValidatedAuthBootstrapTeacherPayload {
+  schoolId: string;
+  teacherName: string;
+  passcode: string;
+}
+
+export interface ValidatedAuthSessionRequestPayload {
+  role: 'teacher' | 'student';
+  schoolId: string;
+  displayName?: string;
+  userId?: string;
+  roomId?: string;
+  passcode?: string;
 }
 
 export interface ValidatedDrLabMuAskPayload {
@@ -345,17 +382,24 @@ export function validateGradebookQuery(
   const parsed = GradebookQuerySchema.safeParse({
     roomPin: rawQuery.roomPin,
     schoolId: rawQuery.schoolId,
+    moduleId: rawQuery.moduleId,
+    limit: rawQuery.limit,
+    offset: rawQuery.offset,
   });
   if (!parsed.success) {
     return failFromZod(parsed.error, 'Parameter query gradebook tidak valid.');
   }
   const cleanRoomPin = parsed.data.roomPin?.trim();
   const cleanSchoolId = parsed.data.schoolId?.trim();
+  const cleanModuleId = parsed.data.moduleId?.trim();
   return {
     ok: true,
     data: {
       roomPin: cleanRoomPin && cleanRoomPin.length > 0 ? cleanRoomPin : undefined,
       schoolId: cleanSchoolId && cleanSchoolId.length > 0 ? cleanSchoolId : undefined,
+      moduleId: cleanModuleId && cleanModuleId.length > 0 ? cleanModuleId : undefined,
+      limit: parsed.data.limit,
+      offset: parsed.data.offset,
     },
   };
 }
@@ -369,15 +413,110 @@ export function validateSubmissionsQuery(
   const rawQuery = isPlainObject(query) ? query : {};
   const parsed = SubmissionsQuerySchema.safeParse({
     schoolId: rawQuery.schoolId,
+    roomId: rawQuery.roomId,
+    studentId: rawQuery.studentId,
+    domain: rawQuery.domain,
+    moduleId: rawQuery.moduleId,
+    status: rawQuery.status,
+    search: rawQuery.search,
+    sortBy: rawQuery.sortBy,
+    sortDir: rawQuery.sortDir,
+    limit: rawQuery.limit,
+    offset: rawQuery.offset,
   });
   if (!parsed.success) {
     return failFromZod(parsed.error, 'Parameter query submissions tidak valid.');
   }
   const cleanSchoolId = parsed.data.schoolId?.trim();
+  const cleanRoomId = parsed.data.roomId?.trim();
+  const cleanStudentId = parsed.data.studentId?.trim();
+  const cleanDomain = parsed.data.domain?.trim();
+  const cleanModuleId = parsed.data.moduleId?.trim();
+  const cleanSearch = parsed.data.search?.trim();
   return {
     ok: true,
     data: {
       schoolId: cleanSchoolId && cleanSchoolId.length > 0 ? cleanSchoolId : undefined,
+      roomId: cleanRoomId && cleanRoomId.length > 0 ? cleanRoomId : undefined,
+      studentId: cleanStudentId && cleanStudentId.length > 0 ? cleanStudentId : undefined,
+      domain: cleanDomain && cleanDomain.length > 0 ? cleanDomain : undefined,
+      moduleId: cleanModuleId && cleanModuleId.length > 0 ? cleanModuleId : undefined,
+      status: parsed.data.status,
+      search: cleanSearch && cleanSearch.length > 0 ? cleanSearch : undefined,
+      sortBy: parsed.data.sortBy,
+      sortDir: parsed.data.sortDir,
+      limit: parsed.data.limit,
+      offset: parsed.data.offset,
+    },
+  };
+}
+
+export function validateAuditLogsQuery(
+  query: unknown
+): ValidationResult<ValidatedAuditLogsQueryPayload> {
+  if (query !== undefined && !isPlainObject(query)) {
+    return fail('Parameter query audit-logs tidak valid.');
+  }
+  const rawQuery = isPlainObject(query) ? query : {};
+  const parsed = AuditLogsQuerySchema.safeParse({
+    action: rawQuery.action,
+    limit: rawQuery.limit,
+    offset: rawQuery.offset,
+  });
+  if (!parsed.success) {
+    return failFromZod(parsed.error, 'Parameter query audit-logs tidak valid.');
+  }
+  const cleanAction = parsed.data.action?.trim();
+  return {
+    ok: true,
+    data: {
+      action: cleanAction && cleanAction.length > 0 ? cleanAction : undefined,
+      limit: parsed.data.limit,
+      offset: parsed.data.offset,
+    },
+  };
+}
+
+export function validateAuthBootstrapTeacherPayload(
+  body: unknown
+): ValidationResult<ValidatedAuthBootstrapTeacherPayload> {
+  if (!isPlainObject(body)) {
+    return fail('Payload inisialisasi pengajar harus berupa objek JSON.');
+  }
+  const parsed = AuthBootstrapTeacherSchema.safeParse(body);
+  if (!parsed.success) {
+    return failFromZod(parsed.error, 'Payload inisialisasi pengajar tidak valid.');
+  }
+  return {
+    ok: true,
+    data: {
+      schoolId: parsed.data.schoolId || 'default-school',
+      teacherName: parsed.data.teacherName,
+      passcode: parsed.data.passcode,
+    },
+  };
+}
+
+export function validateAuthSessionRequestPayload(
+  body: unknown
+): ValidationResult<ValidatedAuthSessionRequestPayload> {
+  if (!isPlainObject(body)) {
+    return fail('Payload autentikasi sesi harus berupa objek JSON.');
+  }
+  const parsed = AuthSessionRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return failFromZod(parsed.error, 'Payload autentikasi sesi tidak valid.');
+  }
+  const resolvedPasscode = (parsed.data.passcode || parsed.data.pin || '').trim();
+  return {
+    ok: true,
+    data: {
+      role: parsed.data.role,
+      schoolId: parsed.data.schoolId || 'default-school',
+      displayName: parsed.data.displayName || undefined,
+      userId: parsed.data.userId || undefined,
+      roomId: parsed.data.roomId || undefined,
+      passcode: resolvedPasscode || undefined,
     },
   };
 }

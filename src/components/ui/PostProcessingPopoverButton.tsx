@@ -100,7 +100,7 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
             <div className="flex items-center justify-between gap-2 pb-2 mb-2.5 border-b border-[var(--comfort-border)]">
               <div className="flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-sky-500 shrink-0" aria-hidden="true" />
-                <span className="text-[11px] font-bold tracking-tight text-[var(--comfort-text)]">
+                <span className="text-2xs font-bold tracking-tight text-[var(--comfort-text)]">
                   Post-Processing 3D
                 </span>
               </div>
@@ -120,7 +120,7 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
             </div>
 
             {isSaverPaused && (
-              <div className="mb-2.5 px-2 py-1.5 rounded-lg bg-amber-500/12 border border-amber-500/30 text-[10px] leading-snug text-amber-800 dark:text-amber-300">
+              <div className="mb-2.5 px-2 py-1.5 rounded-lg bg-amber-500/12 border border-amber-500/30 text-2xs leading-snug text-amber-800 dark:text-amber-300">
                 Mode Ringan 3T aktif — efek multi-pass dijeda otomatis untuk menghemat GPU &amp; baterai.
               </div>
             )}
@@ -128,10 +128,10 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
             {/* Master Pipeline Switch */}
             <label className="flex items-center justify-between gap-2 py-1 cursor-pointer">
               <div>
-                <div className="text-[11px] font-semibold text-[var(--comfort-text)]">
+                <div className="text-2xs font-semibold text-[var(--comfort-text)]">
                   Aktifkan Pipeline FX
                 </div>
-                <div className="text-[10px] text-[var(--comfort-text-muted)]">
+                <div className="text-2xs text-[var(--comfort-text-muted)]">
                   HDR Tone-Mapping + Pass Visual
                 </div>
               </div>
@@ -156,10 +156,10 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
               <div className="space-y-1">
                 <label className="flex items-center justify-between gap-2 cursor-pointer">
                   <div>
-                    <div className="text-[11px] font-semibold text-[var(--comfort-text)]">
+                    <div className="text-2xs font-semibold text-[var(--comfort-text)]">
                       SSAO (Bayangan Kontak)
                     </div>
-                    <div className="text-[10px] text-[var(--comfort-text-muted)]">
+                    <div className="text-2xs text-[var(--comfort-text-muted)]">
                       Kedalaman celah meja &amp; instrumen
                     </div>
                   </div>
@@ -176,7 +176,7 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
                 </label>
                 {postProcessing.ssaoEnabled && (
                   <div className="flex items-center gap-2 pl-0.5">
-                    <span className="text-[10px] text-[var(--comfort-text-muted)] w-12 shrink-0">
+                    <span className="text-2xs text-[var(--comfort-text-muted)] w-12 shrink-0">
                       Radius
                     </span>
                     <input
@@ -192,7 +192,7 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
                       }
                       className="flex-1 h-1.5 accent-sky-600 cursor-pointer"
                     />
-                    <span className="text-[10px] font-mono tabular-nums text-[var(--comfort-text)] w-8 text-right">
+                    <span className="text-2xs font-mono tabular-nums text-[var(--comfort-text)] w-8 text-right">
                       {postProcessing.ssaoRadius.toFixed(2)}
                     </span>
                   </div>
@@ -203,10 +203,10 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
               <div className="space-y-1">
                 <label className="flex items-center justify-between gap-2 cursor-pointer">
                   <div>
-                    <div className="text-[11px] font-semibold text-[var(--comfort-text)]">
+                    <div className="text-2xs font-semibold text-[var(--comfort-text)]">
                       Bloom HDR
                     </div>
-                    <div className="text-[10px] text-[var(--comfort-text-muted)]">
+                    <div className="text-2xs text-[var(--comfort-text-muted)]">
                       Pendar halus OLED, laser &amp; bintang
                     </div>
                   </div>
@@ -223,7 +223,7 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
                 </label>
                 {postProcessing.bloomEnabled && (
                   <div className="flex items-center gap-2 pl-0.5">
-                    <span className="text-[10px] text-[var(--comfort-text-muted)] w-12 shrink-0">
+                    <span className="text-2xs text-[var(--comfort-text-muted)] w-12 shrink-0">
                       Intensitas
                     </span>
                     <input
@@ -239,7 +239,7 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
                       }
                       className="flex-1 h-1.5 accent-sky-600 cursor-pointer"
                     />
-                    <span className="text-[10px] font-mono tabular-nums text-[var(--comfort-text)] w-8 text-right">
+                    <span className="text-2xs font-mono tabular-nums text-[var(--comfort-text)] w-8 text-right">
                       {postProcessing.bloomStrength.toFixed(2)}
                     </span>
                   </div>
@@ -248,7 +248,7 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
 
               {/* Anti-Aliasing Mode */}
               <div className="space-y-1.5 pt-1 border-t border-[var(--comfort-border)]">
-                <div className="text-[11px] font-semibold text-[var(--comfort-text)]">
+                <div className="text-2xs font-semibold text-[var(--comfort-text)]">
                   Anti-Aliasing Tepi &amp; Tekstur
                 </div>
                 <div
@@ -270,7 +270,7 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
                           labSound.playClick(620);
                           setPostProcessing({ aaMode: opt.id });
                         }}
-                        className={`px-2 py-1 rounded-lg text-[10px] font-mono font-semibold border transition-colors cursor-pointer ${
+                        className={`px-2 py-1 rounded-lg text-2xs font-mono font-semibold border transition-colors cursor-pointer ${
                           selected
                             ? 'bg-sky-600 text-white border-sky-600'
                             : 'studio-hud-subcard text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -302,7 +302,7 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
           setOpen((prev) => !prev);
         }}
         title="Pengaturan Post-Processing 3D (Bloom, SSAO, Anti-Aliasing)"
-        className={`px-1.5 py-1 text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+        className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
           open ? activeClass : idleClass
         }`}
       >

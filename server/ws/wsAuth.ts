@@ -6,6 +6,8 @@ import {
   type WsValidationIssue,
 } from '../../src/shared/contracts/wsContracts';
 import type { LabRoom } from '../../src/utils/collabProtocol';
+import { verifySessionToken } from '../auth/sessionToken';
+import { DEFAULT_SCHOOL_ID } from '../db/LabRepository';
 import type { LabServerState } from '../state/labServerState';
 import type { ExtWebSocket } from './wsTypes';
 
@@ -45,6 +47,28 @@ export function validateWsMessageEnvelope(raw: unknown): {
   return { type: msg.type, payload };
 }
 
+export function applySessionTokenToSocket(
+  ws: ExtWebSocket,
+  token: string | undefined
+): boolean {
+  if (!token || typeof token !== 'string' || !token.trim()) return false;
+  const claims = verifySessionToken(token.trim());
+  if (!claims) return false;
+  ws.sessionClaims = claims;
+  ws.schoolId = claims.schoolId || DEFAULT_SCHOOL_ID;
+  if (!ws.userId) {
+    ws.userId = claims.sub;
+  }
+  if (!ws.userName) {
+    ws.userName = claims.displayName;
+  }
+  if (claims.role === 'teacher' || claims.role === 'admin') {
+    ws.role = 'Pengajar';
+    return true;
+  }
+  return false;
+}
+
 export function handleClientIdentify(
   ws: ExtWebSocket,
   payload: ClientIdentifyPayload,
@@ -57,9 +81,29 @@ export function handleClientIdentify(
   if (typeof payload.roomId === 'string' && payload.roomId.trim()) {
     ws.roomId = payload.roomId.toUpperCase().trim();
   }
+  if (typeof payload.schoolId === 'string' && payload.schoolId.trim()) {
+    ws.schoolId = payload.schoolId.trim();
+  } else if (!ws.schoolId) {
+    ws.schoolId = DEFAULT_SCHOOL_ID;
+  }
+
+  const tokenVerifiedTeacher = applySessionTokenToSocket(
+    ws,
+    payload.sessionToken || payload.teacherToken
+  );
+
   const activeRoom = ws.roomId
     ? (state.activeLabRooms.get(ws.roomId) as (LabRoom & { pinHash?: string }) | undefined)
     : undefined;
+  if (activeRoom?.schoolId && !ws.sessionClaims) {
+    ws.schoolId = activeRoom.schoolId;
+  }
+
+  if (tokenVerifiedTeacher) {
+    ws.role = 'Pengajar';
+    return;
+  }
+
   const authCheck = verifyTeacherAuthorization({
     socketId: ws.socketId,
     claimedRole: payload.role,
@@ -78,6 +122,7 @@ export interface TeacherAuthPayloadFields {
   teacherPin?: string;
   pin?: string;
   teacherToken?: string;
+  sessionToken?: string;
 }
 
 export function authorizeTeacherAction(
@@ -93,6 +138,39 @@ export function authorizeTeacherAction(
   const room = targetRoomId
     ? (activeLabRooms.get(targetRoomId) as (LabRoom & { pinHash?: string }) | undefined)
     : undefined;
+
+  const sessionToken =
+    typeof payload.sessionToken === 'string'
+      ? payload.sessionToken
+      : typeof payload.teacherToken === 'string' && payload.teacherToken.includes('.')
+      ? payload.teacherToken
+      : undefined;
+
+  const tokenClaims = sessionToken ? verifySessionToken(sessionToken) : ws.sessionClaims;
+  const isTokenTeacher = Boolean(
+    tokenClaims && (tokenClaims.role === 'teacher' || tokenClaims.role === 'admin')
+  );
+  if (tokenClaims && isTokenTeacher) {
+    const roomSchool = room?.schoolId || DEFAULT_SCHOOL_ID;
+    if (!room || tokenClaims.schoolId === roomSchool) {
+      ws.sessionClaims = tokenClaims;
+      ws.schoolId = tokenClaims.schoolId;
+      ws.role = 'Pengajar';
+      return { authorized: true, room, targetRoomId };
+    }
+    if (emitUnauthorizedError) {
+      ws.send(
+        JSON.stringify({
+          type: 'ROOM_ERROR',
+          payload: {
+            message: 'Akses Pengajar ditolak: Token sesi milik sekolah lain.',
+            code: 'SCHOOL_TENANT_MISMATCH',
+          },
+        })
+      );
+    }
+    return { authorized: false, room, targetRoomId };
+  }
 
   const providedPin =
     typeof payload.teacherPin === 'string'

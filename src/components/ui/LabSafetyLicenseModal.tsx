@@ -107,7 +107,7 @@ export const LabSafetyLicenseModal: React.FC<LabSafetyLicenseModalProps> = ({
             {/* License Header */}
             <div className="flex items-start justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
               <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                <div className="flex items-center gap-1.5 text-2xs font-mono font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>Otorisasi Resmi RuangLABmu</span>
                 </div>
@@ -118,7 +118,7 @@ export const LabSafetyLicenseModal: React.FC<LabSafetyLicenseModalProps> = ({
                   No. Lisensi: <strong className="text-[var(--comfort-text)]">{license.licenseId}</strong>
                 </div>
               </div>
-              <span className="text-emerald-700 dark:text-emerald-300 font-mono text-[11px] font-bold inline-flex items-center gap-1 shrink-0">
+              <span className="text-emerald-700 dark:text-emerald-300 font-mono text-2xs font-bold inline-flex items-center gap-1 shrink-0">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>TERVERIFIKASI</span>
               </span>
@@ -145,7 +145,7 @@ export const LabSafetyLicenseModal: React.FC<LabSafetyLicenseModalProps> = ({
                 </div>
                 <div className="grid grid-cols-3 gap-1">
                   <span className="text-[var(--comfort-text-muted)] font-medium">Diterbitkan</span>
-                  <span className="col-span-2 font-mono text-[11px] text-[var(--comfort-text-muted)]">: {license.issuedAtFormatted} WIB</span>
+                  <span className="col-span-2 font-mono text-2xs text-[var(--comfort-text-muted)]">: {license.issuedAtFormatted} WIB</span>
                 </div>
               </div>
 
@@ -157,7 +157,7 @@ export const LabSafetyLicenseModal: React.FC<LabSafetyLicenseModalProps> = ({
                     alt={`QR Verifikasi SIM Lab ${license.licenseId}`}
                     className="w-24 h-24 rounded"
                   />
-                  <span className="text-[9px] font-mono text-slate-600 font-bold">
+                  <span className="text-2xs font-mono text-slate-600 font-bold">
                     SCAN VERIFIKASI
                   </span>
                 </div>
@@ -169,7 +169,7 @@ export const LabSafetyLicenseModal: React.FC<LabSafetyLicenseModalProps> = ({
               <div className="p-2.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <div>
-                  <div className="text-[10px] text-[var(--comfort-text-muted)]">Protokol K3</div>
+                  <div className="text-2xs text-[var(--comfort-text-muted)]">Protokol K3</div>
                   <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
                     {license.k3Complied ? 'Lulus & Patuh SOP' : 'Belum Patuh'}
                   </div>
@@ -178,7 +178,7 @@ export const LabSafetyLicenseModal: React.FC<LabSafetyLicenseModalProps> = ({
               <div className="p-2.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] flex items-center gap-2">
                 <Award className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
                 <div>
-                  <div className="text-[10px] text-[var(--comfort-text-muted)]">Kuis Pra-Praktikum</div>
+                  <div className="text-2xs text-[var(--comfort-text-muted)]">Kuis Pra-Praktikum</div>
                   <div className="text-xs font-bold text-sky-700 dark:text-sky-400 font-mono tabular-nums">
                     {license.preLabQuizScorePct}% (Syarat ≥ 75%)
                   </div>
@@ -186,7 +186,7 @@ export const LabSafetyLicenseModal: React.FC<LabSafetyLicenseModalProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 text-[11px] text-[var(--comfort-text)] bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-2.5">
+            <div className="flex items-center gap-2 text-2xs text-[var(--comfort-text)] bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-2.5">
               <FileCheck2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span>
                 Praktikan berhak mengoperasikan aparatus laboratorium 3D serta merekam data eksperimen secara mandiri dan bertanggung jawab.

@@ -517,7 +517,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
           />
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider">
+            <label className="text-2xs font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider">
               Mode Modul Astronomi:
             </label>
             <select

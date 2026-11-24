@@ -233,6 +233,10 @@ export function handleParamLockResetAll(
   if (ws.roomId || payload.roomId) {
     broadcastRoom(targetRoomId, syncMsg);
     broadcastRoom(targetRoomId, resetMsg);
+  } else if (services.broadcastSchool) {
+    const schoolId = ws.schoolId || 'default-school';
+    services.broadcastSchool(schoolId, syncMsg);
+    services.broadcastSchool(schoolId, resetMsg);
   } else {
     broadcastAll(syncMsg);
     broadcastAll(resetMsg);

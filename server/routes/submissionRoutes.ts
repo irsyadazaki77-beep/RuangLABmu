@@ -2,13 +2,17 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { rateLimit } from 'express-rate-limit';
-import { AsyncSubmissionStore } from '../../src/utils/submissionPersistence';
 import {
   evaluateSubmissionRubric,
   parseRubricJson,
   serializeRubricJson,
   type EvaluatedRubricReport,
 } from '../../src/shared/grading/rubricEngine';
+import { requireTeacherAuthMiddleware } from '../auth/sessionToken';
+import {
+  DEFAULT_SCHOOL_ID,
+  type DbSubmissionRecord,
+} from '../db/LabRepository';
 import type { LabServerState, ServerNotification } from '../state/labServerState';
 import {
   formatValidationErrorResponse,
@@ -18,7 +22,6 @@ import {
   validateGradeSubmissionPayload,
   validateSubmissionsQuery,
 } from '../utils/routePayloadValidators';
-import { DEFAULT_SCHOOL_ID } from '../db/LabRepository';
 import { rateLimitKeyGenerator } from '../utils/rateLimitKey';
 import { logger } from '../utils/logger';
 
@@ -60,31 +63,62 @@ export interface SubmissionRoutesDeps {
   rootDir: string;
   state: LabServerState;
   broadcastAll: (payload: unknown) => void;
+  broadcastSchool?: (schoolId: string, payload: unknown) => void;
+  broadcastSchoolTeachers?: (schoolId: string, payload: unknown) => void;
+}
+
+function hydrateSubmissionFromRow(row: DbSubmissionRecord): LabSubmissionRecord | null {
+  try {
+    const parsed = JSON.parse(row.payload_json) as LabSubmissionRecord;
+    return {
+      ...parsed,
+      id: parsed.id || row.id,
+      schoolId: row.school_id || parsed.schoolId || DEFAULT_SCHOOL_ID,
+      roomId: parsed.roomId || row.room_id,
+      studentId: parsed.studentId || row.student_id || undefined,
+      studentName: parsed.studentName || row.student_name,
+      domain: parsed.domain || row.domain,
+      moduleId: parsed.moduleId || row.module_id,
+      submittedAt: parsed.submittedAt || row.submitted_at,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function createSubmissionRouter({
   rootDir,
   state,
   broadcastAll,
+  broadcastSchool,
+  broadcastSchoolTeachers,
 }: SubmissionRoutesDeps): Promise<express.Router> {
   const router = express.Router();
 
+  const emitSchoolEvent = (schoolId: string, payload: unknown) => {
+    if (broadcastSchoolTeachers) {
+      broadcastSchoolTeachers(schoolId, payload);
+    } else if (broadcastSchool) {
+      broadcastSchool(schoolId, payload);
+    } else {
+      broadcastAll(payload);
+    }
+  };
+
   const submissionsLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 30,
+    max: 60,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: rateLimitKeyGenerator,
     message: {
-      error:
-        'Terlalu banyak pengiriman laporan dalam 1 menit (maksimal 30 permintaan/menit).',
+      error: 'RATE_LIMITED',
+      message:
+        'Terlalu banyak permintaan laporan dalam 1 menit (maksimal 60 permintaan/menit).',
     },
   });
 
   router.use('/api/submissions', submissionsLimiter);
-
-  const DATA_DIR = path.join(rootDir, 'data');
-  const SUBMISSIONS_FILE = path.join(DATA_DIR, 'submissions.json');
 
   const seedRubric = evaluateSubmissionRubric({
     moduleId: 'newton-incline',
@@ -109,6 +143,7 @@ export async function createSubmissionRouter({
   const initialSubmissionsSeed: LabSubmissionRecord[] = [
     {
       id: 'SUB-2026-001',
+      schoolId: DEFAULT_SCHOOL_ID,
       studentName: 'Alya Pratama',
       studentId: 'stu-1',
       roomId: 'LAB-ALPHA',
@@ -192,89 +227,93 @@ export async function createSubmissionRouter({
     },
   ];
 
-  // Ensure data/ directory and data/submissions.json exist asynchronously without blocking
-  await fs.promises.mkdir(DATA_DIR, { recursive: true });
-  try {
-    await fs.promises.access(SUBMISSIONS_FILE);
-  } catch {
-    await fs.promises.writeFile(SUBMISSIONS_FILE, '[]\n', 'utf-8');
-  }
+  const persistSingleSubmissionToDb = async (sub: LabSubmissionRecord): Promise<void> => {
+    const schoolId = sub.schoolId || DEFAULT_SCHOOL_ID;
+    const rubric =
+      sub.autoRubric ??
+      parseRubricJson(sub.rubricJson) ??
+      evaluateSubmissionRubric({
+        moduleId: sub.moduleId,
+        domain: sub.domain,
+        hypothesisText: sub.hypothesisText,
+        observationData: sub.observationData,
+        regressionMetrics: sub.regressionMetrics,
+        quizScore: sub.quizScore,
+        conclusionText: sub.conclusionText,
+      });
+    sub.autoRubric = rubric;
+    sub.rubricJson = sub.rubricJson || serializeRubricJson(rubric);
+    sub.schoolId = schoolId;
 
-  const submissionStore = new AsyncSubmissionStore<LabSubmissionRecord>(
-    SUBMISSIONS_FILE,
-    initialSubmissionsSeed
-  );
-  const submissionsList: LabSubmissionRecord[] = await submissionStore.init();
-  if (submissionsList.length === 0 && initialSubmissionsSeed.length > 0) {
-    submissionsList.push(...initialSubmissionsSeed);
-  }
-
-  // Merge any persisted SQLite repository submissions and ensure gradebook sync
-  const dbSubmissions = state.repository.listSubmissions();
-  const seenIds = new Set(submissionsList.map((s) => s.id));
-  for (const row of dbSubmissions) {
-    if (!seenIds.has(row.id)) {
-      try {
-        const parsed = JSON.parse(row.payload_json) as LabSubmissionRecord;
-        submissionsList.push({
-          ...parsed,
-          schoolId: row.school_id || parsed.schoolId || DEFAULT_SCHOOL_ID,
-        });
-        seenIds.add(row.id);
-      } catch {
-        // Ignore malformed legacy payload_json
-      }
-    }
-  }
-
-  for (const sub of submissionsList) {
-    if (!sub.schoolId) {
-      sub.schoolId = DEFAULT_SCHOOL_ID;
-    }
-    if (!sub.autoRubric) {
-      sub.autoRubric =
-        parseRubricJson(sub.rubricJson) ??
-        evaluateSubmissionRubric({
-          moduleId: sub.moduleId,
-          domain: sub.domain,
-          hypothesisText: sub.hypothesisText,
-          observationData: sub.observationData,
-          regressionMetrics: sub.regressionMetrics,
-          quizScore: sub.quizScore,
-          conclusionText: sub.conclusionText,
-        });
-      sub.rubricJson = serializeRubricJson(sub.autoRubric);
-    }
-    state.repository.upsertSubmission({
+    const score = sub.teacherGrade?.score ?? rubric.score;
+    const submissionInput = {
       id: sub.id,
-      schoolId: sub.schoolId,
+      schoolId,
       roomId: sub.roomId || 'LAB-ALPHA',
       studentId: sub.studentId || null,
       studentName: sub.studentName,
       domain: sub.domain,
       moduleId: sub.moduleId,
-      score: sub.teacherGrade?.score ?? sub.autoRubric.score,
+      score,
       payloadJson: JSON.stringify(sub),
       submittedAt: sub.submittedAt,
-    });
+    };
+
+    state.repository.upsertSubmission(submissionInput);
+    if (state.asyncRepository.driver === 'postgres') {
+      await state.asyncRepository.upsertSubmission(submissionInput);
+    }
+
     state.saveGradebookEntry({
       id: sub.id,
-      schoolId: sub.schoolId,
+      schoolId,
       roomPin: sub.roomPin || sub.roomId || 'LAB-ALPHA',
       studentId: sub.studentId || 'stu-anon',
       studentName: sub.studentName,
       moduleId: sub.moduleId,
-      score: sub.teacherGrade?.score ?? sub.autoRubric.score,
-      rubricJson: sub.rubricJson || serializeRubricJson(sub.autoRubric),
+      score,
+      rubricJson: sub.rubricJson,
       submittedAt: Number.isFinite(Date.parse(sub.submittedAt))
         ? Date.parse(sub.submittedAt)
         : Date.now(),
     });
+  };
+
+  // Single-source-of-truth startup migration:
+  // If consolidated SQLite `submissions` table is empty, import legacy `data/submissions.json` once
+  // (read-only migration, never writing JSON back). If no legacy data exists, insert initial demo seed.
+  const existingDbRows = state.repository.listSubmissions();
+  if (existingDbRows.length === 0) {
+    const legacyJsonPath = path.join(rootDir, 'data', 'submissions.json');
+    let migratedRecords: LabSubmissionRecord[] = [];
+    if (fs.existsSync(legacyJsonPath)) {
+      try {
+        const raw = await fs.promises.readFile(legacyJsonPath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          migratedRecords = parsed.filter(
+            (item): item is LabSubmissionRecord =>
+              Boolean(item && typeof item === 'object' && typeof item.id === 'string')
+          );
+          logger.info('Imported legacy submissions.json into consolidated SQLite database', {
+            importedCount: migratedRecords.length,
+          });
+        }
+      } catch (err) {
+        logger.warn('Skipping malformed legacy submissions.json during startup import', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    const bootstrapRecords =
+      migratedRecords.length > 0 ? migratedRecords : initialSubmissionsSeed;
+    for (const sub of bootstrapRecords) {
+      await persistSingleSubmissionToDb(sub);
+    }
   }
 
-  const persistSubmissions = (): Promise<void> => submissionStore.enqueuePersist();
-
-  router.post('/api/submissions', (req, res) => {
+  router.post('/api/submissions', async (req, res) => {
     try {
       const headerIdemKey = req.headers['x-idempotency-key'];
       const rawBodyObj =
@@ -282,7 +321,10 @@ export async function createSubmissionRouter({
           ? (req.body as Record<string, unknown>)
           : null;
       const bodyWithIdem =
-        rawBodyObj && !rawBodyObj.clientMutationId && typeof headerIdemKey === 'string' && headerIdemKey.trim()
+        rawBodyObj &&
+        !rawBodyObj.clientMutationId &&
+        typeof headerIdemKey === 'string' &&
+        headerIdemKey.trim()
           ? { ...rawBodyObj, clientMutationId: headerIdemKey.trim() }
           : req.body;
 
@@ -293,10 +335,10 @@ export async function createSubmissionRouter({
       }
 
       const payload = check.data;
-      const schoolId = payload.schoolId || DEFAULT_SCHOOL_ID;
+      const schoolId = req.authSession?.schoolId || payload.schoolId || DEFAULT_SCHOOL_ID;
 
       if (payload.clientMutationId) {
-        const existingIdem = state.repository.getIdempotencyKey(
+        const existingIdem = await state.asyncRepository.getIdempotencyKey(
           payload.clientMutationId,
           schoolId,
           'POST /api/submissions'
@@ -314,6 +356,7 @@ export async function createSubmissionRouter({
           }
         }
       }
+
       const id =
         payload.id ||
         `SUB-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
@@ -354,35 +397,7 @@ export async function createSubmissionRouter({
         },
       };
 
-      submissionsList.unshift(newSubmission);
-      persistSubmissions();
-
-      // Persist to SQLite `submissions` and `gradebook_entries` via LabRepository
-      state.repository.upsertSubmission({
-        id: newSubmission.id,
-        schoolId,
-        roomId: newSubmission.roomId || 'LAB-ALPHA',
-        studentId: newSubmission.studentId || null,
-        studentName: newSubmission.studentName,
-        domain: newSubmission.domain,
-        moduleId: newSubmission.moduleId,
-        score: newSubmission.teacherGrade?.score ?? autoRubric.score,
-        payloadJson: JSON.stringify(newSubmission),
-        submittedAt: newSubmission.submittedAt,
-      });
-      state.saveGradebookEntry({
-        id: newSubmission.id,
-        schoolId,
-        roomPin: newSubmission.roomId || 'LAB-ALPHA',
-        studentId: newSubmission.studentId || 'stu-anon',
-        studentName: newSubmission.studentName,
-        moduleId: newSubmission.moduleId,
-        score: newSubmission.teacherGrade?.score ?? autoRubric.score,
-        rubricJson,
-        submittedAt: Number.isFinite(Date.parse(newSubmission.submittedAt))
-          ? Date.parse(newSubmission.submittedAt)
-          : Date.now(),
-      });
+      await persistSingleSubmissionToDb(newSubmission);
 
       const notif: ServerNotification = {
         id: `notif-sub-${Date.now()}`,
@@ -398,7 +413,8 @@ export async function createSubmissionRouter({
       };
       state.notifications.unshift(notif);
       state.persistServerState();
-      broadcastAll({
+
+      emitSchoolEvent(schoolId, {
         type: 'submission:created',
         payload: { submission: newSubmission, notification: notif },
       });
@@ -411,12 +427,16 @@ export async function createSubmissionRouter({
         autoRubric,
       };
       if (payload.clientMutationId) {
-        state.repository.saveIdempotencyKey({
+        const idemRecord = {
           key: payload.clientMutationId,
           schoolId,
           endpoint: 'POST /api/submissions',
           responseJson: JSON.stringify(responseBody),
-        });
+        };
+        state.repository.saveIdempotencyKey(idemRecord);
+        if (state.asyncRepository.driver === 'postgres') {
+          await state.asyncRepository.saveIdempotencyKey(idemRecord);
+        }
       }
 
       res.status(201).json(responseBody);
@@ -429,34 +449,95 @@ export async function createSubmissionRouter({
     }
   });
 
-  router.get('/api/submissions', (req, res) => {
-    const check = validateSubmissionsQuery(req.query);
-    if (!check.ok) {
-      res.status(400).json(formatValidationErrorResponse(check));
-      return;
+  router.get('/api/submissions', async (req, res) => {
+    try {
+      const check = validateSubmissionsQuery(req.query);
+      if (!check.ok) {
+        res.status(400).json(formatValidationErrorResponse(check));
+        return;
+      }
+
+      const session = req.authSession;
+      const effectiveSchoolId = session ? session.schoolId : check.data.schoolId;
+      const effectiveStudentId =
+        session && session.role === 'student' ? session.sub : check.data.studentId;
+
+      const normalizedSortBy: 'submittedAt' | 'score' | 'studentName' | undefined =
+        check.data.sortBy === 'student_name'
+          ? 'studentName'
+          : check.data.sortBy === 'submitted_at'
+          ? 'submittedAt'
+          : check.data.sortBy;
+
+      const paginated = await state.asyncRepository.querySubmissionsPaginated({
+        schoolId: effectiveSchoolId,
+        roomId: check.data.roomId,
+        studentId: effectiveStudentId,
+        domain: check.data.domain,
+        moduleId: check.data.moduleId,
+        status: check.data.status,
+        search: check.data.search,
+        sortBy: normalizedSortBy,
+        sortDir: check.data.sortDir,
+        limit: check.data.limit ?? 50,
+        offset: check.data.offset ?? 0,
+      });
+
+      const submissions: LabSubmissionRecord[] = [];
+      for (const row of paginated.items) {
+        const hydrated = hydrateSubmissionFromRow(row);
+        if (hydrated) submissions.push(hydrated);
+      }
+
+      res.json({
+        submissions,
+        pagination: paginated.pagination,
+      });
+    } catch (err) {
+      logger.error('Error querying submissions', {
+        requestId: res.locals?.requestId,
+        error: err,
+      });
+      res.status(500).json({ error: 'Gagal memuat daftar laporan praktikum' });
     }
-    const requestedSchoolId = check.data.schoolId;
-    if (!requestedSchoolId) {
-      res.json({ submissions: submissionsList });
-      return;
-    }
-    const filtered = submissionsList.filter(
-      (s) => (s.schoolId || DEFAULT_SCHOOL_ID) === requestedSchoolId
-    );
-    res.json({ submissions: filtered });
   });
 
-  router.get('/api/gradebook', (req, res) => {
-    const check = validateGradebookQuery(req.query);
-    if (!check.ok) {
-      res.status(400).json(formatValidationErrorResponse(check));
-      return;
+  router.get('/api/gradebook', async (req, res) => {
+    try {
+      const check = validateGradebookQuery(req.query);
+      if (!check.ok) {
+        res.status(400).json(formatValidationErrorResponse(check));
+        return;
+      }
+
+      const session = req.authSession;
+      const effectiveSchoolId = session ? session.schoolId : check.data.schoolId;
+      const effectiveRoomPin = check.data.roomPin
+        ? state.activeLabRooms.get(check.data.roomPin.toUpperCase())?.pin || check.data.roomPin
+        : undefined;
+
+      const paginated = await state.asyncRepository.queryGradebookPaginated({
+        roomPin: effectiveRoomPin,
+        schoolId: effectiveSchoolId,
+        moduleId: check.data.moduleId,
+        limit: check.data.limit ?? 50,
+        offset: check.data.offset ?? 0,
+      });
+
+      res.json({
+        entries: paginated.items,
+        pagination: paginated.pagination,
+      });
+    } catch (err) {
+      logger.error('Error querying gradebook', {
+        requestId: res.locals?.requestId,
+        error: err,
+      });
+      res.status(500).json({ error: 'Gagal memuat data buku nilai' });
     }
-    const entries = state.getGradebookEntries(check.data.roomPin, check.data.schoolId);
-    res.json({ entries });
   });
 
-  router.patch('/api/submissions/:id/grade', (req, res) => {
+  router.patch('/api/submissions/:id/grade', requireTeacherAuthMiddleware, async (req, res) => {
     try {
       const check = validateGradeSubmissionPayload(req.params.id, req.body);
       if (!check.ok) {
@@ -464,51 +545,49 @@ export async function createSubmissionRouter({
         return;
       }
 
-      const { id, score, feedback, schoolId } = check.data;
-      const item = submissionsList.find((s) => s.id === id);
-      if (!item) {
-        res.status(404).json({ error: 'Laporan tidak ditemukan' });
-        return;
-      }
-      if ((item.schoolId || DEFAULT_SCHOOL_ID) !== schoolId) {
+      const session = req.authSession!;
+      const { id, score, feedback } = check.data;
+      const schoolId = session.schoolId;
+
+      const row = await state.asyncRepository.getSubmissionById(id, schoolId);
+      if (!row) {
         res.status(404).json({ error: 'Laporan tidak ditemukan pada sekolah ini' });
         return;
       }
 
+      const item = hydrateSubmissionFromRow(row);
+      if (!item) {
+        res.status(500).json({ error: 'Data laporan tidak dapat dibaca' });
+        return;
+      }
+
+      const previousScore = item.teacherGrade?.score ?? null;
       item.teacherGrade = {
         score,
         feedback,
         gradedAt: new Date().toISOString(),
       };
-      persistSubmissions();
 
-      state.repository.upsertSubmission({
-        id: item.id,
-        schoolId: item.schoolId || DEFAULT_SCHOOL_ID,
-        roomId: item.roomId || 'LAB-ALPHA',
-        studentId: item.studentId || null,
-        studentName: item.studentName,
-        domain: item.domain,
-        moduleId: item.moduleId,
-        score,
-        payloadJson: JSON.stringify(item),
-        submittedAt: item.submittedAt,
-      });
-      state.saveGradebookEntry({
-        id: item.id,
-        schoolId: item.schoolId || DEFAULT_SCHOOL_ID,
-        roomPin: item.roomId || 'LAB-ALPHA',
-        studentId: item.studentId || 'stu-anon',
-        studentName: item.studentName,
-        moduleId: item.moduleId,
-        score,
-        rubricJson:
-          item.rubricJson ||
-          (item.autoRubric ? serializeRubricJson(item.autoRubric) : '{}'),
-        submittedAt: Date.now(),
+      await persistSingleSubmissionToDb(item);
+
+      state.recordAuditLog({
+        schoolId,
+        actorId: session.sub,
+        actorName: session.displayName,
+        actorRole: session.role,
+        action: 'SUBMISSION_GRADED',
+        targetType: 'submission',
+        targetId: item.id,
+        metadata: {
+          studentName: item.studentName,
+          moduleId: item.moduleId,
+          previousScore,
+          newScore: score,
+        },
+        ipAddress: rateLimitKeyGenerator(req),
       });
 
-      broadcastAll({
+      emitSchoolEvent(schoolId, {
         type: 'submission:graded',
         payload: { submission: item },
       });
@@ -523,102 +602,106 @@ export async function createSubmissionRouter({
     }
   });
 
-  router.post('/api/submissions/batch-grade', (req, res) => {
-    try {
-      const check = validateBatchGradeSubmissionsPayload(req.body);
-      if (!check.ok) {
-        res.status(400).json(formatValidationErrorResponse(check));
-        return;
-      }
+  router.post(
+    '/api/submissions/batch-grade',
+    requireTeacherAuthMiddleware,
+    async (req, res) => {
+      try {
+        const check = validateBatchGradeSubmissionsPayload(req.body);
+        if (!check.ok) {
+          res.status(400).json(formatValidationErrorResponse(check));
+          return;
+        }
 
-      const { submissionIds, onlyUngraded, feedbackPrefix, schoolId } = check.data;
-      const targetIdSet = submissionIds ? new Set(submissionIds) : null;
+        const session = req.authSession!;
+        const schoolId = session.schoolId;
+        const { submissionIds, onlyUngraded, feedbackPrefix } = check.data;
+        const targetIdSet = submissionIds ? new Set(submissionIds) : null;
 
-      const targets = submissionsList.filter((item) => {
-        if ((item.schoolId || DEFAULT_SCHOOL_ID) !== schoolId) return false;
-        if (targetIdSet && !targetIdSet.has(item.id)) return false;
-        if (onlyUngraded && item.teacherGrade) return false;
-        return true;
-      });
+        const queried = await state.asyncRepository.querySubmissionsPaginated({
+          schoolId,
+          status: onlyUngraded ? 'ungraded' : 'all',
+          limit: 200,
+          offset: 0,
+        });
 
-      const gradedAt = new Date().toISOString();
-      const updatedItems: LabSubmissionRecord[] = [];
+        const targets: LabSubmissionRecord[] = [];
+        for (const row of queried.items) {
+          if (targetIdSet && !targetIdSet.has(row.id)) continue;
+          const hydrated = hydrateSubmissionFromRow(row);
+          if (!hydrated) continue;
+          if (onlyUngraded && hydrated.teacherGrade) continue;
+          targets.push(hydrated);
+        }
 
-      for (const item of targets) {
-        const rubric =
-          item.autoRubric ??
-          parseRubricJson(item.rubricJson) ??
-          evaluateSubmissionRubric({
-            moduleId: item.moduleId,
-            domain: item.domain,
-            hypothesisText: item.hypothesisText,
-            observationData: item.observationData,
-            regressionMetrics: item.regressionMetrics,
-            quizScore: item.quizScore,
-            conclusionText: item.conclusionText,
+        const gradedAt = new Date().toISOString();
+        const updatedItems: LabSubmissionRecord[] = [];
+
+        for (const item of targets) {
+          const rubric =
+            item.autoRubric ??
+            parseRubricJson(item.rubricJson) ??
+            evaluateSubmissionRubric({
+              moduleId: item.moduleId,
+              domain: item.domain,
+              hypothesisText: item.hypothesisText,
+              observationData: item.observationData,
+              regressionMetrics: item.regressionMetrics,
+              quizScore: item.quizScore,
+              conclusionText: item.conclusionText,
+            });
+          item.autoRubric = rubric;
+          item.rubricJson = serializeRubricJson(rubric);
+
+          const feedbackText = feedbackPrefix
+            ? `${feedbackPrefix} — ${rubric.summaryFeedback}`
+            : rubric.summaryFeedback;
+
+          item.teacherGrade = {
+            score: rubric.score,
+            feedback: feedbackText,
+            gradedAt,
+          };
+
+          await persistSingleSubmissionToDb(item);
+
+          emitSchoolEvent(schoolId, {
+            type: 'submission:graded',
+            payload: { submission: item },
           });
-        item.autoRubric = rubric;
-        item.rubricJson = serializeRubricJson(rubric);
+          updatedItems.push(item);
+        }
 
-        const feedbackText = feedbackPrefix
-          ? `${feedbackPrefix} — ${rubric.summaryFeedback}`
-          : rubric.summaryFeedback;
-
-        item.teacherGrade = {
-          score: rubric.score,
-          feedback: feedbackText,
-          gradedAt,
-        };
-
-        state.repository.upsertSubmission({
-          id: item.id,
-          schoolId: item.schoolId || DEFAULT_SCHOOL_ID,
-          roomId: item.roomId || 'LAB-ALPHA',
-          studentId: item.studentId || null,
-          studentName: item.studentName,
-          domain: item.domain,
-          moduleId: item.moduleId,
-          score: rubric.score,
-          payloadJson: JSON.stringify(item),
-          submittedAt: item.submittedAt,
-        });
-        state.saveGradebookEntry({
-          id: item.id,
-          schoolId: item.schoolId || DEFAULT_SCHOOL_ID,
-          roomPin: item.roomId || 'LAB-ALPHA',
-          studentId: item.studentId || 'stu-anon',
-          studentName: item.studentName,
-          moduleId: item.moduleId,
-          score: rubric.score,
-          rubricJson: item.rubricJson,
-          submittedAt: Date.now(),
+        state.recordAuditLog({
+          schoolId,
+          actorId: session.sub,
+          actorName: session.displayName,
+          actorRole: session.role,
+          action: 'SUBMISSION_BATCH_GRADED',
+          targetType: 'submission',
+          targetId: `${updatedItems.length} submissions`,
+          metadata: {
+            gradedCount: updatedItems.length,
+            submissionIds: updatedItems.map((i) => i.id).slice(0, 50),
+          },
+          ipAddress: rateLimitKeyGenerator(req),
         });
 
-        broadcastAll({
-          type: 'submission:graded',
-          payload: { submission: item },
+        res.json({
+          ok: true,
+          success: true,
+          gradedCount: updatedItems.length,
+          submissions: updatedItems,
         });
-        updatedItems.push(item);
+      } catch (err) {
+        logger.error('Error batch grading submissions', {
+          requestId: res.locals?.requestId,
+          error: err,
+        });
+        res.status(500).json({ error: 'Gagal menerapkan penilaian rubrik massal' });
       }
-
-      if (updatedItems.length > 0) {
-        persistSubmissions();
-      }
-
-      res.json({
-        ok: true,
-        success: true,
-        gradedCount: updatedItems.length,
-        submissions: updatedItems,
-      });
-    } catch (err) {
-      logger.error('Error batch grading submissions', {
-        requestId: res.locals?.requestId,
-        error: err,
-      });
-      res.status(500).json({ error: 'Gagal menerapkan penilaian rubrik massal' });
     }
-  });
+  );
 
   return router;
 }

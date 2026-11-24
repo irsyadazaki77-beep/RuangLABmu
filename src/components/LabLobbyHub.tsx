@@ -1,6 +1,17 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { BookOpen, Compass, Layers, Play, SearchX, Star } from 'lucide-react';
+import {
+  BookOpen,
+  ChevronDown,
+  Compass,
+  Layers,
+  Play,
+  Search,
+  SearchX,
+  SlidersHorizontal,
+  Star,
+  X,
+} from 'lucide-react';
 import { SPRING_LAYOUT_PILL, SPRING_TACTILE } from '../styles/motionPresets';
 import {
   ExperimentModule,
@@ -82,6 +93,8 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | 1 | 2 | 3>('all');
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => loadBookmarkedModuleIds());
   const [detailChapter, setDetailChapter] = useState<CurriculumChapter | null>(null);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState<boolean>(false);
+  const inlineSearchRef = useRef<HTMLInputElement | null>(null);
 
   const handleToggleBookmark = (moduleId: string) => {
     setBookmarkedIds((prev) => {
@@ -185,6 +198,27 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [detailChapter]);
 
+  // Global '/' shortcut to focus Lobby inline search
+  useEffect(() => {
+    const onSlashKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.tagName === 'SELECT' ||
+          activeEl.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      inlineSearchRef.current?.focus();
+    };
+    window.addEventListener('keydown', onSlashKey);
+    return () => window.removeEventListener('keydown', onSlashKey);
+  }, []);
+
   const lastOpenedModule = useMemo(() => {
     if (!lastModuleId) return null;
     return getExperimentById(lastModuleId) || null;
@@ -275,6 +309,22 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
 
   const continueTargetModule = lastOpenedModule || EXPERIMENT_CATALOG[0];
   const cardTierLabel = jenjangFilter === 'all' ? activeTier : jenjangFilter;
+  const hasActiveFilters = Boolean(
+    lobbySearchQuery.trim() ||
+      lobbySelectedDomain !== 'all' ||
+      jenjangFilter !== 'all' ||
+      statusFilter !== 'all' ||
+      difficultyFilter !== 'all'
+  );
+
+  const handleResetAllFilters = () => {
+    labSound.playClick();
+    setLobbySearchQuery('');
+    setLobbySelectedDomain('all');
+    setJenjangFilter('all');
+    setStatusFilter('all');
+    setDifficultyFilter('all');
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-5 select-text">
@@ -308,14 +358,14 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
       {activeCustomMission && (
         <div
           data-testid="active-room-custom-mission-card"
-          className="rounded-xl bg-[var(--comfort-surface)] border border-indigo-500/45 p-4 sm:p-5 text-[var(--comfort-text)] space-y-3 shadow-xs"
+          className="rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-accent-border)] p-4 sm:p-5 text-[var(--comfort-text)] space-y-3 shadow-xs"
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1 max-w-3xl">
-              <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-indigo-700 dark:text-indigo-300 font-semibold">
+              <div className="flex flex-wrap items-center gap-2 text-2xs font-mono text-[var(--comfort-accent)] font-semibold">
                 <span>Misi Studi Kasus AI · Room {activeCustomMission.roomId}</span>
                 <span aria-hidden="true">·</span>
-                <span className="text-emerald-700 dark:text-emerald-300 tabular-nums">
+                <span className="text-[var(--comfort-text)] tabular-nums">
                   Target {activeCustomMission.targetVariable.variableLabel}:{' '}
                   {activeCustomMission.targetVariable.minSuccessValue}–
                   {activeCustomMission.targetVariable.maxSuccessValue}{' '}
@@ -339,7 +389,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                   getExperimentById(activeCustomMission.moduleId) || EXPERIMENT_CATALOG[0];
                 handleSelectAndTrackExperiment(targetMod);
               }}
-              className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer shrink-0 transition-colors whitespace-nowrap"
+              className="px-4 py-2 rounded-lg comfort-btn-primary font-semibold text-xs cursor-pointer shrink-0 transition-colors whitespace-nowrap"
             >
               Kerjakan Misi Ini →
             </button>
@@ -364,7 +414,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                 labSound.playClick();
                 handleSelectAndTrackExperiment(continueTargetModule);
               }}
-              className="max-w-full min-w-0 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs flex items-center gap-2 cursor-pointer transition-colors"
+              className="max-w-full min-w-0 min-h-[38px] px-4 py-2 rounded-lg comfort-btn-primary font-semibold text-xs flex items-center gap-2 cursor-pointer transition-colors shadow-2xs"
             >
               <Play className="w-3.5 h-3.5 fill-current shrink-0" aria-hidden="true" />
               <span className="truncate">
@@ -378,7 +428,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               type="button"
               data-testid="daily-lab-challenge-btn"
               onClick={handleStartDailyLabChallenge}
-              className="px-3 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-medium text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
+              className="min-h-[38px] px-3 py-2 rounded-lg comfort-btn-secondary font-medium text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
             >
               <span>Tantangan Sains</span>
             </button>
@@ -393,7 +443,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                 }
                 openModal('ai-mission-builder');
               }}
-              className="px-3 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-medium text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
+              className="min-h-[38px] px-3 py-2 rounded-lg comfort-btn-secondary font-medium text-xs flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
             >
               <Compass className="w-3.5 h-3.5 text-[var(--comfort-text-muted)]" aria-hidden="true" />
               <span>Misi AI Guru</span>
@@ -406,7 +456,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                   labSound.playClick();
                   onOpenMysteryExam();
                 }}
-                className="px-3 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-medium text-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                className="min-h-[38px] px-3 py-2 rounded-lg comfort-btn-secondary font-medium text-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
                 <span>Ujian Sampel →</span>
               </button>
@@ -416,18 +466,18 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
           {/* Unboxed Tabular KPI Readout */}
           <div className="flex flex-wrap items-center gap-3 shrink-0 self-start lg:self-center text-xs text-[var(--comfort-text-muted)] tabular-nums">
             {dailyChallengeToast && (
-              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="text-xs font-medium text-[var(--comfort-success)]">
                 {dailyChallengeToast}
               </span>
             )}
-            <div className="flex items-center gap-2 font-mono text-[11px]">
+            <div className="flex items-center gap-2 font-mono text-2xs">
               <span>
                 <strong className="text-[var(--comfort-text)]">{completedModuleIds.length}</strong>{' '}
                 Selesai
               </span>
               <span aria-hidden="true" className="opacity-35">·</span>
               <span>
-                <strong className="text-sky-600 dark:text-sky-400">{recordsCount}</strong> Data
+                <strong className="text-[var(--comfort-accent)]">{recordsCount}</strong> Data
               </span>
               <span aria-hidden="true" className="opacity-35">·</span>
               <span>
@@ -440,11 +490,58 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
           </div>
         </div>
 
-        {/* Row 2: Flat Compact Filter Bar */}
+        {/* Row 2: Flat Compact Filter & Inline Search Bar */}
         <div
           data-testid="lobby-compact-filter-bar"
           className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 px-3 py-2 bg-[var(--comfort-surface-subtle)]/50"
         >
+          {/* Inline Quick Search Input (Shortcut '/') */}
+          <div className="relative flex items-center w-full lg:w-56 xl:w-64 shrink-0">
+            <Search
+              className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] absolute left-2.5 pointer-events-none"
+              aria-hidden="true"
+            />
+            <input
+              ref={inlineSearchRef}
+              type="text"
+              data-testid="lobby-inline-search-input"
+              value={lobbySearchQuery}
+              onChange={(e) => setLobbySearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setLobbySearchQuery('');
+                  inlineSearchRef.current?.blur();
+                }
+              }}
+              placeholder="Cari modul, rumus, bab..."
+              aria-label="Cari modul praktikum di lobi"
+              className="w-full min-h-[36px] pl-8 pr-8 py-1.5 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] focus:border-[var(--comfort-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--comfort-accent)]/25 text-xs text-[var(--comfort-text)] placeholder-[var(--comfort-text-muted)] transition-colors"
+            />
+            {lobbySearchQuery ? (
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setLobbySearchQuery('');
+                  inlineSearchRef.current?.focus();
+                }}
+                aria-label="Hapus kata kunci pencarian"
+                className="absolute right-1.5 p-1 rounded-md text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            ) : (
+              <kbd
+                aria-hidden="true"
+                className="hidden sm:inline-block absolute right-2 px-1.5 py-0.5 rounded bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] font-mono text-2xs text-[var(--comfort-text-muted)] leading-none pointer-events-none"
+              >
+                /
+              </kbd>
+            )}
+          </div>
+
+          <span className="hidden lg:block w-px h-4 bg-[var(--comfort-border)] shrink-0" aria-hidden="true" />
+
           {/* View Mode Segmented Control */}
           <div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar">
             {(
@@ -472,7 +569,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                     <motion.span
                       layoutId="lobby-view-mode-pill"
                       transition={SPRING_LAYOUT_PILL}
-                      className="absolute inset-0 rounded-lg bg-sky-600"
+                      className="absolute inset-0 rounded-lg bg-[var(--comfort-accent-solid)]"
                     />
                   )}
                   <Icon className="w-3.5 h-3.5 relative z-10" aria-hidden="true" />
@@ -504,7 +601,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                   }}
                   className={`relative px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                     isSelected
-                      ? 'text-sky-700 dark:text-sky-300'
+                      ? 'text-[var(--comfort-accent)]'
                       : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                   }`}
                 >
@@ -512,7 +609,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                     <motion.span
                       layoutId="lobby-domain-active-pill"
                       transition={SPRING_LAYOUT_PILL}
-                      className="absolute inset-0 rounded-lg bg-sky-500/12 border border-sky-500/30"
+                      className="absolute inset-0 rounded-lg bg-[var(--comfort-accent-soft)] border border-[var(--comfort-accent-border)]"
                     />
                   )}
                   <span className="relative z-10">{tab.label}</span>
@@ -546,7 +643,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                   }}
                   className={`relative px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                     active
-                      ? 'text-sky-700 dark:text-sky-300'
+                      ? 'text-[var(--comfort-accent)]'
                       : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                   }`}
                 >
@@ -554,37 +651,61 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                     <motion.span
                       layoutId="lobby-tier-active-pill"
                       transition={SPRING_LAYOUT_PILL}
-                      className="absolute inset-0 rounded-lg bg-sky-500/12 border border-sky-500/30"
+                      className="absolute inset-0 rounded-lg bg-[var(--comfort-accent-soft)] border border-[var(--comfort-accent-border)]"
                     />
                   )}
                   <span className="relative z-10">{tierLabel}</span>
                 </button>
               );
             })}
+
+            <button
+              type="button"
+              data-testid="lobby-advanced-filters-toggle"
+              onClick={() => {
+                labSound.playClick();
+                setAdvancedFiltersOpen((prev) => !prev);
+              }}
+              aria-expanded={advancedFiltersOpen || statusFilter !== 'all' || difficultyFilter !== 'all'}
+              className={`ml-auto inline-flex items-center gap-1.5 min-h-[34px] px-2.5 py-1.5 rounded-lg border text-2xs font-semibold transition-colors duration-150 cursor-pointer whitespace-nowrap shrink-0 ${
+                advancedFiltersOpen || statusFilter !== 'all' || difficultyFilter !== 'all'
+                  ? 'comfort-accent-soft'
+                  : 'border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] hover:border-[var(--comfort-accent-border)]'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
+              <span>
+                Progres &amp; Filter
+                {statusFilter !== 'all' || difficultyFilter !== 'all'
+                  ? ' •'
+                  : ` (${domainCurriculumProgress.overallPct}%)`}
+              </span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                  advancedFiltersOpen || statusFilter !== 'all' || difficultyFilter !== 'all'
+                    ? 'rotate-180'
+                    : ''
+                }`}
+                aria-hidden="true"
+              />
+            </button>
           </div>
         </div>
 
-        {/* Row 3: Domain Curriculum Progress & Status/Difficulty Micro-Filters */}
-        <div
-          data-testid="lobby-domain-progress-strip"
-          className="px-4 py-2.5 flex flex-col xl:flex-row xl:items-center justify-between gap-3 text-xs bg-[var(--comfort-surface)]"
-        >
+        {/* Row 3: Domain Curriculum Progress & Status/Difficulty Micro-Filters (collapsed by default) */}
+        {(advancedFiltersOpen || statusFilter !== 'all' || difficultyFilter !== 'all') && (
+          <div
+            data-testid="lobby-domain-progress-strip"
+            className="px-4 py-2.5 flex flex-col xl:flex-row xl:items-center justify-between gap-3 text-xs bg-[var(--comfort-surface)]"
+          >
           {/* Per-domain Curriculum Progress Bars */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span className="text-[11px] font-mono font-semibold text-[var(--comfort-text-muted)] tabular-nums shrink-0">
+            <span className="text-2xs font-mono font-semibold text-[var(--comfort-text-muted)] tabular-nums shrink-0">
               Kurikulum {domainCurriculumProgress.totalCompleted}/{domainCurriculumProgress.totalModules} ({domainCurriculumProgress.overallPct}%)
             </span>
             <div className="flex flex-wrap items-center gap-3">
               {domainCurriculumProgress.domains.map((dom) => {
                 const isActive = lobbySelectedDomain === dom.domain;
-                const barColor =
-                  dom.domain === 'fisika'
-                    ? 'bg-sky-500'
-                    : dom.domain === 'kimia'
-                    ? 'bg-emerald-500'
-                    : dom.domain === 'biologi'
-                    ? 'bg-rose-500'
-                    : 'bg-amber-500';
                 return (
                   <button
                     key={dom.domain}
@@ -595,21 +716,21 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                     }}
                     className={`flex items-center gap-2 px-2 py-1 rounded-lg border transition-colors cursor-pointer ${
                       isActive
-                        ? 'border-sky-500/45 bg-sky-500/10 text-[var(--comfort-text)]'
+                        ? 'comfort-accent-soft text-[var(--comfort-text)]'
                         : 'border-transparent hover:bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)]'
                     }`}
                     title={`Filter domain ${dom.label} (${dom.completedCount}/${dom.totalCount} selesai)`}
                   >
-                    <span className="font-semibold text-[11px] text-[var(--comfort-text)]">
+                    <span className="font-semibold text-2xs text-[var(--comfort-text)]">
                       {dom.label}
                     </span>
                     <div className="w-12 h-1.5 rounded-full bg-[var(--comfort-surface-subtle)] overflow-hidden border border-[var(--comfort-border)]">
                       <div
-                        className={`h-full rounded-full ${barColor} transition-all`}
+                        className="h-full rounded-full bg-[var(--comfort-accent-solid)] transition-all"
                         style={{ width: `${dom.pct}%` }}
                       />
                     </div>
-                    <span className="font-mono text-[10px] tabular-nums">
+                    <span className="font-mono text-2xs tabular-nums">
                       {dom.completedCount}/{dom.totalCount}
                     </span>
                   </button>
@@ -644,9 +765,9 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                       setLobbyViewMode('all');
                     }
                   }}
-                  className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap inline-flex items-center gap-1 ${
+                  className={`px-2 py-1 rounded-md text-2xs font-semibold transition-colors cursor-pointer whitespace-nowrap inline-flex items-center gap-1 ${
                     statusFilter === item.id
-                      ? 'bg-sky-600 text-white'
+                      ? 'comfort-tab-active'
                       : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                   }`}
                 >
@@ -670,7 +791,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                   setLobbyViewMode('all');
                 }
               }}
-              className="px-2.5 py-1 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[11px] font-semibold text-[var(--comfort-text)] cursor-pointer"
+              className="px-2.5 py-1 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-2xs font-semibold text-[var(--comfort-text)] cursor-pointer"
             >
               <option value="all">Semua Level</option>
               <option value="1">Dasar</option>
@@ -679,6 +800,44 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
             </select>
           </div>
         </div>
+        )}
+
+        {/* Active Filter Summary Strip (only visible when filtering/searching) */}
+        {hasActiveFilters && (
+          <div
+            data-testid="lobby-active-filter-strip"
+            className="px-4 py-2 flex flex-wrap items-center justify-between gap-2 bg-[var(--comfort-surface-subtle)]/70 text-2xs"
+          >
+            <div className="flex flex-wrap items-center gap-2 text-[var(--comfort-text-muted)]">
+              <span className="font-mono font-semibold text-[var(--comfort-text)] tabular-nums">
+                Menampilkan {lobbyViewMode === 'chapters' ? `${filteredChapters.length} bab` : `${filteredModules.length} modul`}
+              </span>
+              {lobbySearchQuery.trim() && (
+                <span>
+                  · Kata kunci: <strong className="text-[var(--comfort-accent)]">&ldquo;{lobbySearchQuery.trim()}&rdquo;</strong>
+                </span>
+              )}
+              {lobbySelectedDomain !== 'all' && (
+                <span className="capitalize">
+                  · Domain: <strong className="text-[var(--comfort-text)]">{lobbySelectedDomain}</strong>
+                </span>
+              )}
+              {jenjangFilter !== 'all' && (
+                <span>
+                  · Jenjang: <strong className="text-[var(--comfort-text)]">{jenjangFilter}</strong>
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleResetAllFilters}
+              className="px-2.5 py-1 rounded-lg comfort-btn-secondary text-2xs font-semibold cursor-pointer inline-flex items-center gap-1 whitespace-nowrap"
+            >
+              <X className="w-3 h-3" aria-hidden="true" />
+              <span>Reset Filter</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {badges.length > 0 && <AchievementBadgesStrip badges={badges} />}
@@ -704,7 +863,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                   setJenjangFilter('all');
                   setLobbySearchQuery('');
                 }}
-                className="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold rounded-lg comfort-btn-primary cursor-pointer"
               >
                 Reset Filter
               </button>
@@ -766,7 +925,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
               setStatusFilter('all');
               setDifficultyFilter('all');
             }}
-            className="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
+            className="px-4 py-2 text-xs font-semibold rounded-lg comfort-btn-primary cursor-pointer"
           >
             Tampilkan Semua Modul
           </button>

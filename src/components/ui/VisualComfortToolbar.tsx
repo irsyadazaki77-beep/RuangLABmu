@@ -77,15 +77,15 @@ export function getComfortChartPalette(
   }
 
   return {
-    primary: isDark ? '#38BDF8' : '#0284C7',
-    secondary: isDark ? '#34D399' : '#059669',
-    warning: isDark ? '#FBBF24' : '#D97706',
-    critical: isDark ? '#FB7185' : '#E11D48',
-    canvasBg: isDark ? '#111620' : isSepia ? '#F7F1E3' : '#FCFBF7',
+    primary: isDark ? '#56C5D1' : isSepia ? '#135D66' : '#0F6B75',
+    secondary: isDark ? '#52C493' : '#2D7D63',
+    warning: isDark ? '#E5A952' : '#B8731E',
+    critical: isDark ? '#E87A86' : '#B83B4B',
+    canvasBg: isDark ? '#11161F' : isSepia ? '#F7F1E4' : '#FCFBF8',
     gridStroke: isDark ? '#243044' : isSepia ? '#DDD2BE' : '#E2DDD1',
     axisStroke: isDark ? '#4B5C78' : isSepia ? '#8C7B65' : '#64748B',
-    labelFill: isDark ? '#9AA8BD' : isSepia ? '#5C4E3F' : '#475569',
-    pointStroke: isDark ? '#182030' : '#FCFBF7',
+    labelFill: isDark ? '#97A5BA' : isSepia ? '#5C4E3F' : '#4E5868',
+    pointStroke: isDark ? '#18202E' : '#FCFBF8',
   };
 }
 
@@ -327,11 +327,11 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
 
   const themeIcon =
     preferences.theme === 'dark' ? (
-      <Moon className="w-3.5 h-3.5 text-sky-400" />
+      <Moon className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
     ) : preferences.theme === 'sepia' ? (
-      <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+      <BookOpen className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
     ) : (
-      <Sun className="w-3.5 h-3.5 text-amber-400" />
+      <Sun className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
     );
 
   const themeLabel =
@@ -358,14 +358,14 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
           }
           className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
             zenMode
-              ? 'bg-emerald-600 border-emerald-500 text-white'
+              ? 'comfort-btn-primary'
               : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)]'
           }`}
         >
           {zenMode ? (
             <Minimize2 className="w-3.5 h-3.5" />
           ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <Maximize2 className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
           )}
           <span className="hidden lg:inline">{zenMode ? 'Mode Fokus Aktif' : 'Mode Fokus'}</span>
         </button>
@@ -381,7 +381,7 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
         title="Pengaturan Kenyamanan Mata, Ukuran Font & Aksesibilitas"
         className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
           popoverOpen
-            ? 'bg-sky-600 border-sky-500 text-white'
+            ? 'comfort-btn-primary'
             : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)]'
         }`}
       >
@@ -392,7 +392,7 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
         {eyeRestEnabled && !compactTrigger && (
           <>
             <span className="hidden 2xl:inline-block w-px h-3.5 bg-[var(--comfort-border)]" aria-hidden="true" />
-            <span className="hidden 2xl:inline font-mono text-[10px] text-[var(--comfort-text-muted)] tabular-nums">
+            <span className="hidden 2xl:inline font-mono text-2xs text-[var(--comfort-text-muted)] tabular-nums">
               {formatMinutes(secondsUntilRest)}
             </span>
           </>
@@ -420,12 +420,12 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
             >
               <div className="flex items-center justify-between border-b border-[var(--comfort-border)] pb-2.5">
                 <div className="flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                  <Eye className="w-4 h-4 text-[var(--comfort-accent)]" />
                   <div>
                     <div className="font-bold text-[var(--comfort-text)] text-xs">
                       Kenyamanan Visual &amp; Ergonomi Belajar
                     </div>
-                    <div className="text-[11px] text-[var(--comfort-text-muted)]">
+                    <div className="text-2xs text-[var(--comfort-text-muted)]">
                       Kalibrasi luminansi, tipografi &amp; reduksi beban kognitif
                     </div>
                   </div>
@@ -442,9 +442,9 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
 
               {/* 1. Adaptive Eye-Comfort Theme (3 Modes) */}
               <div className="space-y-1.5">
-                <div className="text-[11px] font-semibold text-[var(--comfort-text)] flex items-center justify-between">
+                <div className="text-2xs font-semibold text-[var(--comfort-text)] flex items-center justify-between">
                   <span>1. Mode Luminansi Layar (Eye-Comfort)</span>
-                  <span className="font-mono text-[10px] text-sky-600 dark:text-sky-400">Anti-Silau</span>
+                  <span className="font-mono text-2xs text-[var(--comfort-accent)]">Anti-Silau</span>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5">
                   {(
@@ -452,20 +452,20 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                       {
                         id: 'light',
                         label: 'Terang Hangat',
-                        sub: 'Kertas #F6F3EB',
-                        swatch: 'bg-[#F6F3EB] text-slate-900 border-[#DDD6C7]',
+                        sub: 'Kertas #F6F3EC',
+                        swatch: 'bg-[#F6F3EC] text-slate-900 border-[#DCD5C6]',
                       },
                       {
                         id: 'sepia',
                         label: 'Sepia Kertas',
-                        sub: 'Baca LKS #EFE7D6',
-                        swatch: 'bg-[#EFE7D6] text-[#2C231A] border-[#D8CCB6]',
+                        sub: 'Baca LKS #EFE7D7',
+                        swatch: 'bg-[#EFE7D7] text-[#2B231B] border-[#D5C8B1]',
                       },
                       {
                         id: 'dark',
                         label: 'Gelap Redup',
-                        sub: 'Fokus 3D #111620',
-                        swatch: 'bg-[#111620] text-slate-100 border-[#2A374F]',
+                        sub: 'Fokus 3D #11161F',
+                        swatch: 'bg-[#11161F] text-slate-100 border-[#2B384F]',
                       },
                     ] as const
                   ).map((mode) => {
@@ -477,20 +477,20 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                         onClick={() => updatePref({ theme: mode.id })}
                         className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1 ${
                           active
-                            ? 'border-sky-500 ring-2 ring-sky-500/25 bg-[var(--comfort-surface-subtle)]'
-                            : 'border-[var(--comfort-border)] bg-[var(--comfort-surface)] hover:border-sky-500/40'
+                            ? 'border-[var(--comfort-accent)] bg-[var(--comfort-accent-soft)]'
+                            : 'border-[var(--comfort-border)] bg-[var(--comfort-surface)] hover:border-[var(--comfort-accent-border)]'
                         }`}
                       >
                         <div className="flex items-center justify-between">
                           <span
                             className={`w-4 h-4 rounded-full border ${mode.swatch}`}
                           />
-                          {active && <Check className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />}
+                          {active && <Check className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />}
                         </div>
-                        <div className="font-bold text-[var(--comfort-text)] text-[11px] leading-tight">
+                        <div className="font-bold text-[var(--comfort-text)] text-2xs leading-tight">
                           {mode.label}
                         </div>
-                        <div className="text-[10px] font-mono text-[var(--comfort-text-muted)]">
+                        <div className="text-2xs font-mono text-[var(--comfort-text-muted)]">
                           {mode.sub}
                         </div>
                       </button>
@@ -502,8 +502,8 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
               {/* 2. Font Scale & Line Spacing */}
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[var(--comfort-border)]">
                 <div className="space-y-1.5">
-                  <div className="text-[11px] font-semibold text-[var(--comfort-text)] flex items-center gap-1">
-                    <Type className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                  <div className="text-2xs font-semibold text-[var(--comfort-text)] flex items-center gap-1">
+                    <Type className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
                     <span>Ukuran Teks</span>
                   </div>
                   <div className="flex items-center bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-xl p-0.5">
@@ -518,9 +518,9 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                         key={fs.id}
                         type="button"
                         onClick={() => updatePref({ fontScale: fs.id })}
-                        className={`flex-1 py-1 rounded-lg font-mono text-[11px] font-semibold transition-colors cursor-pointer ${
+                        className={`flex-1 py-1 rounded-lg font-mono text-2xs font-semibold transition-colors cursor-pointer ${
                           preferences.fontScale === fs.id
-                            ? 'bg-sky-600 text-white'
+                            ? 'comfort-tab-active'
                             : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                         }`}
                       >
@@ -531,7 +531,7 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="text-[11px] font-semibold text-[var(--comfort-text)]">
+                  <div className="text-2xs font-semibold text-[var(--comfort-text)]">
                     Spasi Baris Baca
                   </div>
                   <div className="flex items-center bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-xl p-0.5">
@@ -545,9 +545,9 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                         key={ls.id}
                         type="button"
                         onClick={() => updatePref({ lineSpacing: ls.id })}
-                        className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                        className={`flex-1 py-1 rounded-lg text-2xs font-semibold transition-colors cursor-pointer ${
                           preferences.lineSpacing === ls.id
-                            ? 'bg-sky-600 text-white'
+                            ? 'comfort-tab-active'
                             : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                         }`}
                       >
@@ -564,7 +564,7 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                   <div className="font-semibold text-[var(--comfort-text)] text-xs">
                     Mode Ramah Buta Warna (Okabe-Ito)
                   </div>
-                  <div className="text-[11px] text-[var(--comfort-text-muted)]">
+                  <div className="text-2xs text-[var(--comfort-text-muted)]">
                     Kontras tinggi Biru/Amber + simbol eksplisit (● / ▲ / ✖)
                   </div>
                 </div>
@@ -577,8 +577,8 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                   }
                   className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer shrink-0 ${
                     preferences.colorBlindSafe
-                      ? 'bg-sky-600 text-white'
-                      : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                      ? 'comfort-btn-primary'
+                      : 'comfort-btn-secondary text-[var(--comfort-text-muted)]'
                   }`}
                 >
                   {preferences.colorBlindSafe ? 'Aktif' : 'Nonaktif'}
@@ -589,12 +589,12 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
               <div className="pt-2 border-t border-[var(--comfort-border)] space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <Clock className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
                     <div>
                       <div className="font-semibold text-[var(--comfort-text)] text-xs">
                         Pengingat Istirahat Mata 20-20-20
                       </div>
-                      <div className="text-[11px] text-[var(--comfort-text-muted)]">
+                      <div className="text-2xs text-[var(--comfort-text-muted)]">
                         Tiap 20 menit, tatap objek jauh selama 20 detik
                       </div>
                     </div>
@@ -607,10 +607,10 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                         eyeRestTimerEnabled: !eyeRestEnabled,
                       })
                     }
-                    className={`px-2.5 py-1 rounded-xl font-bold text-[11px] transition-colors cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-xl font-bold text-2xs transition-colors cursor-pointer ${
                       eyeRestEnabled
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text-muted)]'
+                        ? 'comfort-btn-primary'
+                        : 'comfort-btn-secondary text-[var(--comfort-text-muted)]'
                     }`}
                   >
                     {eyeRestEnabled ? 'Aktif' : 'Mati'}
@@ -618,10 +618,10 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                 </div>
 
                 {eyeRestEnabled && (
-                  <div className="flex items-center justify-between bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-xl px-3 py-2 text-[11px]">
+                  <div className="flex items-center justify-between bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-xl px-3 py-2 text-2xs">
                     <span className="font-mono text-[var(--comfort-text-muted)] tabular-nums">
                       Jeda berikutnya:{' '}
-                      <strong className="text-emerald-700 dark:text-emerald-400">
+                      <strong className="text-[var(--comfort-accent)]">
                         {formatMinutes(secondsUntilRest)}
                       </strong>
                     </span>
@@ -644,7 +644,7 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                           setActiveRestCountdown(20);
                           setPopoverOpen(false);
                         }}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 font-semibold cursor-pointer"
+                        className="px-2.5 py-1 rounded-lg border comfort-accent-soft font-semibold cursor-pointer"
                       >
                         Istirahat 20d Sekarang
                       </button>
@@ -657,10 +657,10 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
               <div className="pt-2 border-t border-[var(--comfort-border)] flex items-center justify-between gap-3">
                 <div>
                   <div className="font-semibold text-[var(--comfort-text)] text-xs flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <Zap className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
                     <span>Mode Hemat Daya 3T (Lite GPU 30 FPS)</span>
                   </div>
-                  <div className="text-[11px] text-[var(--comfort-text-muted)]">
+                  <div className="text-2xs text-[var(--comfort-text-muted)]">
                     Optimalkan untuk Chromebook &amp; HP RAM 2GB-4GB (hemat baterai 50%)
                   </div>
                 </div>
@@ -675,8 +675,8 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                   }}
                   className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer shrink-0 ${
                     liteDeviceMode
-                      ? 'bg-amber-500 text-slate-950 font-bold'
-                      : 'bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                      ? 'comfort-btn-primary'
+                      : 'comfort-btn-secondary text-[var(--comfort-text-muted)]'
                   }`}
                 >
                   {liteDeviceMode ? 'Aktif' : 'Mati'}
@@ -704,7 +704,7 @@ export const VisualComfortToolbar: React.FC<VisualComfortToolbarProps> = ({
                 <Eye className="w-3.5 h-3.5" />
                 <span>Jeda Ergonomi Mata 20-20-20</span>
               </div>
-              <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed">
+              <p className="comfort-prose text-xs text-[var(--comfort-text-muted)]">
                 Alihkan pandangan sejauh 6 meter (20 kaki) selama{' '}
                 <strong className="font-mono text-[var(--comfort-text)] tabular-nums">
                   {activeRestCountdown} detik

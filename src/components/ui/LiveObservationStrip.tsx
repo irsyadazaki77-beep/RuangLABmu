@@ -55,19 +55,19 @@ export const ActiveHypothesisBanner: React.FC<ActiveHypothesisBannerProps> = ({
         >
           <Lightbulb className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${accent.badgeTextClass}`} />
           <div className="min-w-0 flex-1">
-            <span className={`block text-[10px] font-bold uppercase tracking-wider ${accent.badgeTextClass}`}>
+            <span className={`block text-2xs font-bold uppercase tracking-wider ${accent.badgeTextClass}`}>
               Hipotesis yang Diuji
             </span>
             {trimmed ? (
               <p
-                className={`text-[11px] text-[var(--comfort-text)] leading-snug ${
+                className={`text-2xs text-[var(--comfort-text)] leading-snug ${
                   expanded ? '' : 'line-clamp-2'
                 }`}
               >
                 &ldquo;{trimmed}&rdquo;
               </p>
             ) : (
-              <p className="text-[11px] italic text-[var(--comfort-text-muted)] leading-snug">
+              <p className="text-2xs italic text-[var(--comfort-text-muted)] leading-snug">
                 Belum ada dugaan awal tercatat dari Tahap 1.
               </p>
             )}
@@ -145,7 +145,7 @@ export const LiveObservationFeedCard: React.FC<LiveObservationFeedCardProps> = (
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span
-            className={`font-mono text-[10px] font-bold tabular-nums ${
+            className={`font-mono text-2xs font-bold tabular-nums ${
               readiness.isReady
                 ? 'text-emerald-700 dark:text-emerald-400'
                 : 'text-amber-700 dark:text-amber-400'
@@ -174,7 +174,7 @@ export const LiveObservationFeedCard: React.FC<LiveObservationFeedCardProps> = (
       {!collapsed && (
         <div className="space-y-2 pt-0.5">
           {recentRows.length === 0 ? (
-            <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed bg-[var(--comfort-surface-subtle)] rounded-lg px-2.5 py-2 border border-dashed border-[var(--comfort-border)]">
+            <p className="text-2xs text-[var(--comfort-text-muted)] leading-relaxed bg-[var(--comfort-surface-subtle)] rounded-lg px-2.5 py-2 border border-dashed border-[var(--comfort-border)]">
               {readiness.guidanceText}
             </p>
           ) : (
@@ -185,13 +185,13 @@ export const LiveObservationFeedCard: React.FC<LiveObservationFeedCardProps> = (
                   className="flex items-center justify-between gap-2 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-2.5 py-1.5"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--comfort-text-muted)]">
+                    <div className="flex items-center gap-1.5 text-2xs font-mono text-[var(--comfort-text-muted)]">
                       <span className="font-bold text-[var(--comfort-text)] tabular-nums">
                         #{domainRecords.length - idx}
                       </span>
                       <span className="truncate">{rec.parametersSummary}</span>
                     </div>
-                    <div className="text-[11px] font-semibold text-[var(--comfort-text)] truncate">
+                    <div className="text-2xs font-semibold text-[var(--comfort-text)] truncate">
                       {formatDomainPrimaryMetric(rec)}
                     </div>
                   </div>
@@ -222,7 +222,7 @@ export const LiveObservationFeedCard: React.FC<LiveObservationFeedCardProps> = (
                 labSound.playClick(680);
                 onProceedToAnalysis();
               }}
-              className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-2xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
               <span>Data Cukup ({effectiveCount}) — Lanjut Grafik &amp; LKS</span>

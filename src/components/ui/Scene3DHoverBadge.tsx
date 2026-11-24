@@ -34,7 +34,7 @@ export const Scene3DHoverBadge: React.FC<Scene3DHoverBadgeProps> = ({
     >
       <Hand className="h-3.5 w-3.5 shrink-0 opacity-90" />
       <span className="font-semibold tracking-wide truncate">{hoveredLabel}</span>
-      <span className="hidden text-[10px] opacity-75 shrink-0 sm:inline">
+      <span className="hidden text-2xs opacity-75 shrink-0 sm:inline">
         · Seret vertikal untuk ubah parameter
       </span>
     </div>

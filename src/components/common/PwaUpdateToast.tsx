@@ -88,7 +88,7 @@ export const PwaUpdateToast: React.FC = () => {
         <div className="text-xs font-bold text-[var(--comfort-text)]">
           Pembaruan Aplikasi Tersedia
         </div>
-        <p className="text-[11px] text-[var(--comfort-text-muted)] leading-snug">
+        <p className="text-2xs text-[var(--comfort-text-muted)] leading-snug">
           Versi baru RuangLABmu siap digunakan. Muat ulang saat Anda selesai menyimpan pengamatan.
         </p>
         <div className="flex items-center gap-2 pt-0.5">

@@ -231,7 +231,7 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
                 <span className="w-7 h-7 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center">
                   {getStepIcon(currentStep.stepNumber)}
                 </span>
-                <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">
+                <span className="text-2xs font-mono font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">
                   Panduan UI · Langkah {currentStep.stepNumber} / {LAB_ONBOARDING_STEPS.length}
                 </span>
               </div>
@@ -263,7 +263,7 @@ export const LabOnboardingTour: React.FC<LabOnboardingTourProps> = ({
             </div>
 
             {/* Shortcut / Tip Callout */}
-            <div className="rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-3 py-2 text-[11px] font-mono text-sky-700 dark:text-sky-300 flex items-center gap-2">
+            <div className="rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-3 py-2 text-2xs font-mono text-sky-700 dark:text-sky-300 flex items-center gap-2">
               <Compass className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
               <span>{currentStep.shortcutHint}</span>
             </div>

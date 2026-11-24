@@ -63,22 +63,22 @@ function AppLabThemeSkeleton() {
       <div className="h-12 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] px-4 flex items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-lg bg-sky-500/20 animate-pulse" />
-          <div className="h-3.5 w-36 rounded-md bg-[var(--comfort-surface-muted)] animate-pulse" />
+          <div className="h-3.5 w-36 rounded-md bg-[var(--comfort-surface-subtle)] animate-pulse" />
         </div>
         <div className="hidden sm:flex items-center gap-2">
-          <div className="h-7 w-20 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
-          <div className="h-7 w-24 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
-          <div className="h-7 w-20 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
+          <div className="h-7 w-20 rounded-lg bg-[var(--comfort-surface-subtle)] animate-pulse" />
+          <div className="h-7 w-24 rounded-lg bg-[var(--comfort-surface-subtle)] animate-pulse" />
+          <div className="h-7 w-20 rounded-lg bg-[var(--comfort-surface-subtle)] animate-pulse" />
         </div>
       </div>
 
       {/* Spatial 3-column Studio shell skeleton */}
       <div className="flex-1 min-h-[420px] grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="hidden lg:flex lg:col-span-3 flex-col gap-3 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4">
-          <div className="h-4 w-28 rounded bg-[var(--comfort-surface-muted)] animate-pulse" />
-          <div className="h-24 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
-          <div className="h-24 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
-          <div className="flex-1 rounded-lg bg-[var(--comfort-surface-muted)]/70 animate-pulse" />
+          <div className="h-4 w-28 rounded bg-[var(--comfort-surface-subtle)] animate-pulse" />
+          <div className="h-24 rounded-lg bg-[var(--comfort-surface-subtle)] animate-pulse" />
+          <div className="h-24 rounded-lg bg-[var(--comfort-surface-subtle)] animate-pulse" />
+          <div className="flex-1 rounded-lg bg-[var(--comfort-surface-subtle)]/75 animate-pulse" />
         </div>
 
         <div className="lg:col-span-6 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] flex flex-col items-center justify-center p-6 text-center space-y-3 shadow-sm">
@@ -92,10 +92,10 @@ function AppLabThemeSkeleton() {
         </div>
 
         <div className="hidden lg:flex lg:col-span-3 flex-col gap-3 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-4">
-          <div className="h-4 w-32 rounded bg-[var(--comfort-surface-muted)] animate-pulse" />
-          <div className="h-20 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
-          <div className="h-32 rounded-lg bg-[var(--comfort-surface-muted)] animate-pulse" />
-          <div className="flex-1 rounded-lg bg-[var(--comfort-surface-muted)]/70 animate-pulse" />
+          <div className="h-4 w-32 rounded bg-[var(--comfort-surface-subtle)] animate-pulse" />
+          <div className="h-20 rounded-lg bg-[var(--comfort-surface-subtle)] animate-pulse" />
+          <div className="h-32 rounded-lg bg-[var(--comfort-surface-subtle)] animate-pulse" />
+          <div className="flex-1 rounded-lg bg-[var(--comfort-surface-subtle)]/75 animate-pulse" />
         </div>
       </div>
     </div>
@@ -360,7 +360,7 @@ export default function App() {
                     type="button"
                     onClick={() => void retryPendingExamSubmissions()}
                     disabled={examBanner.status === 'retrying'}
-                    className="px-3 py-1 rounded-lg bg-slate-950 text-white hover:bg-slate-800 disabled:opacity-60 font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-amber-950 text-amber-50 hover:bg-amber-900 disabled:opacity-60 font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <RefreshCw
                       className={`w-3.5 h-3.5 ${examBanner.status === 'retrying' ? 'animate-spin' : ''}`}

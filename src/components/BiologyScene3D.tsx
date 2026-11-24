@@ -635,7 +635,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
               : `${showRuler3D ? 'bottom-[162px] lg:bottom-[148px]' : 'bottom-[118px] lg:bottom-[104px]'} ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
           }`}
         >
-          <div className="flex items-center justify-between gap-1.5 px-1 pb-0.5 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold">
+          <div className="flex items-center justify-between gap-1.5 px-1 pb-0.5 text-emerald-700 dark:text-emerald-400 text-2xs font-semibold">
             <span className="flex items-center gap-1.5">
               <Focus className="w-3 h-3 shrink-0" />
               <span>Fokus Lensa Mikroskop</span>

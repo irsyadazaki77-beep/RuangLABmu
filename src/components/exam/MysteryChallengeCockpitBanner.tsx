@@ -80,10 +80,10 @@ export const MysteryChallengeCockpitBanner: React.FC<
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-amber-800 dark:text-amber-300 font-mono text-[10px] font-bold">
+              <span className="px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-amber-800 dark:text-amber-300 font-mono text-2xs font-bold">
                 {challenge.codename}
               </span>
-              <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider">
+              <span className="text-2xs font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider">
                 Ujian Forensik Aktif ({challenge.difficulty})
               </span>
             </div>
@@ -153,13 +153,13 @@ export const MysteryChallengeCockpitBanner: React.FC<
                         labSound.playClick();
                         setRevealedCluesCount((c) => Math.min(challenge.clues.length, c + 1));
                       }}
-                      className="text-[10px] font-bold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                      className="text-2xs font-bold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
                     >
                       + Buka Petunjuk Berikutnya
                     </button>
                   )}
                 </div>
-                <ul className="list-disc pl-4 space-y-1 text-[11px] text-[var(--comfort-text-muted)]">
+                <ul className="list-disc pl-4 space-y-1 text-2xs text-[var(--comfort-text-muted)]">
                   {challenge.clues.slice(0, revealedCluesCount).map((clue, idx) => (
                     <li key={idx}>{clue}</li>
                   ))}
@@ -170,7 +170,7 @@ export const MysteryChallengeCockpitBanner: React.FC<
                 <div className="font-bold text-[var(--comfort-text)]">
                   Prosedur Investigasi Disarankan
                 </div>
-                <div className="space-y-0.5 text-[11px] text-[var(--comfort-text-muted)]">
+                <div className="space-y-0.5 text-2xs text-[var(--comfort-text-muted)]">
                   {challenge.suggestedProcedure.map((step, idx) => (
                     <div key={idx}>{step}</div>
                   ))}
@@ -206,7 +206,7 @@ export const MysteryChallengeCockpitBanner: React.FC<
               </label>
 
               {validationError && (
-                <div className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold">
+                <div className="text-2xs text-rose-600 dark:text-rose-400 font-semibold">
                   {validationError}
                 </div>
               )}
@@ -214,7 +214,7 @@ export const MysteryChallengeCockpitBanner: React.FC<
 
             {lastResult && (
               <div
-                className={`p-2.5 rounded-lg border text-[11px] space-y-1 ${
+                className={`p-2.5 rounded-lg border text-2xs space-y-1 ${
                   lastResult.passed
                     ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-800 dark:text-emerald-200'
                     : 'bg-rose-500/10 border-rose-500/40 text-rose-800 dark:text-rose-200'
@@ -247,7 +247,7 @@ export const MysteryChallengeCockpitBanner: React.FC<
                       `Bantu saya menganalisis kasus Mystery Sample "${challenge.title}" (${challenge.codename}) untuk menemukan ${challenge.hiddenParamLabel} (${challenge.hiddenParamUnit}). Jangan langsung beri jawaban angka, pandu saya secara Sokratik langkah demi langkah!`
                     );
                   }}
-                  className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-2xs font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <HelpCircle className="w-3.5 h-3.5" />
                   <span>Minta Panduan Sokratik Dr. LabMu</span>
@@ -258,7 +258,7 @@ export const MysteryChallengeCockpitBanner: React.FC<
                 <button
                   type="button"
                   onClick={() => setShowSolution((s) => !s)}
-                  className="text-[11px] font-bold text-amber-700 dark:text-amber-300 hover:underline cursor-pointer"
+                  className="text-2xs font-bold text-amber-700 dark:text-amber-300 hover:underline cursor-pointer"
                 >
                   {showSolution ? 'Sembunyikan Kunci Solusi' : 'Lihat Pembahasan Kunci'}
                 </button>
@@ -266,7 +266,7 @@ export const MysteryChallengeCockpitBanner: React.FC<
             </div>
 
             {showSolution && lastResult && (
-              <div className="p-2 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[11px] text-[var(--comfort-text)]">
+              <div className="p-2 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-2xs text-[var(--comfort-text)]">
                 <strong>Pembahasan Ilmiah:</strong> {challenge.explanationSolution}
               </div>
             )}

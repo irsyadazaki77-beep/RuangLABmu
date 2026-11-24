@@ -56,7 +56,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
             </button>
           )}
         </div>
-        <p className="text-[var(--comfort-text-muted)] leading-relaxed">
+        <p className="text-[var(--comfort-text-muted)] comfort-report-prose">
           Rekam minimal <strong>2 titik data eksperimen</strong> di simulasi 3D untuk membandingkan perubahan parameter (ΔX) dan respons terukur (ΔY) secara berdampingan.
         </p>
       </div>
@@ -96,7 +96,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
             <h3 className="font-bold text-[var(--comfort-text)] text-xs sm:text-sm">
               Perbandingan 2 Eksperimen Berdampingan (Side-by-Side Diff)
             </h3>
-            <p className="text-[11px] text-[var(--comfort-text-muted)]">
+            <p className="text-2xs text-[var(--comfort-text-muted)]">
               Analisis kausalitas perubahan parameter input terhadap metrik output terukur
             </p>
           </div>
@@ -116,7 +116,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
       {/* Selector Row: Percobaan A vs Percobaan B */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-1.5">
-          <label className="text-[11px] font-mono font-bold text-sky-600 dark:text-sky-400 block">
+          <label className="text-2xs font-mono font-bold text-sky-600 dark:text-sky-400 block">
             PERCOBAAN ACUAN (A)
           </label>
           <select
@@ -133,13 +133,13 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
               </option>
             ))}
           </select>
-          <div className="font-mono text-[11px] text-[var(--comfort-text-muted)]">
+          <div className="font-mono text-2xs text-[var(--comfort-text-muted)]">
             Parameter: {recordA.parametersSummary}
           </div>
         </div>
 
         <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-1.5">
-          <label className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 block">
+          <label className="text-2xs font-mono font-bold text-emerald-600 dark:text-emerald-400 block">
             PERCOBAAN PEMBANDING (B)
           </label>
           <select
@@ -156,7 +156,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
               </option>
             ))}
           </select>
-          <div className="font-mono text-[11px] text-[var(--comfort-text-muted)]">
+          <div className="font-mono text-2xs text-[var(--comfort-text-muted)]">
             Parameter: {recordB.parametersSummary}
           </div>
         </div>
@@ -165,7 +165,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
       {/* Quantitative Delta KPI Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-          <div className="text-[11px] text-[var(--comfort-text-muted)]">
+          <div className="text-2xs text-[var(--comfort-text-muted)]">
             Perubahan Variabel Bebas (ΔX = X_B - X_A)
           </div>
           <div className="mt-1 font-mono font-bold text-base text-[var(--comfort-text)] tabular-nums">
@@ -183,7 +183,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
         </div>
 
         <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-          <div className="text-[11px] text-[var(--comfort-text-muted)]">
+          <div className="text-2xs text-[var(--comfort-text-muted)]">
             Selisih Respons Utama (ΔY₁ = Y₁_B - Y₁_A)
           </div>
           <div className="mt-1 font-mono font-bold text-base text-sky-600 dark:text-sky-400 tabular-nums">
@@ -203,7 +203,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
         </div>
 
         <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-          <div className="text-[11px] text-[var(--comfort-text-muted)]">
+          <div className="text-2xs text-[var(--comfort-text-muted)]">
             Selisih Respons Sekunder (ΔY₂)
           </div>
           <div className="mt-1 font-mono font-bold text-base text-amber-600 dark:text-amber-400 tabular-nums">
@@ -225,7 +225,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
       <div className="overflow-x-auto rounded-xl border border-[var(--comfort-border)]">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
-            <tr className="bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] font-mono text-[11px]">
+            <tr className="bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] font-mono text-2xs">
               <th className="py-2 px-3">Besaran Terukur</th>
               <th className="py-2 px-3">Percobaan A ({recordA.id})</th>
               <th className="py-2 px-3">Percobaan B ({recordB.id})</th>
@@ -273,9 +273,9 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
       </div>
 
       {/* Automatic Causal Interpretation Footer */}
-      <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/25 text-xs text-[var(--comfort-text)] flex items-start gap-2">
+      <div className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/25 text-[var(--comfort-text)] flex items-start gap-2.5">
         <FileSpreadsheet className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
-        <div>
+        <p className="comfort-report-prose">
           <strong>Sintesis Kausalitas:</strong> Ketika parameter diubah dari{' '}
           <span className="font-mono">{recordA.id}</span> ke{' '}
           <span className="font-mono">{recordB.id}</span> (ΔX ={' '}
@@ -284,7 +284,7 @@ export const ExperimentTrialComparePanel: React.FC<ExperimentTrialComparePanelPr
             {dy1 ?? 0} ({pctChangeY1 !== null ? `${pctChangeY1}%` : '0%'})
           </span>
           . Gunakan temuan ini untuk menjawab LKS dan menyusun kesimpulan laporan!
-        </div>
+        </p>
       </div>
     </div>
   );

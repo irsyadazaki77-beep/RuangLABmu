@@ -718,7 +718,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       {/* Visual Scale Comparison Caption for Orbital Readability */}
       <div
         data-testid="astronomy-scale-badge"
-        className={`pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-lg bg-slate-950/75 border border-slate-700/60 px-2.5 py-1 text-[10px] font-mono text-slate-300 shadow-md max-w-[calc(100vw-24px)] ${
+        className={`pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-lg bg-slate-950/75 border border-slate-700/60 px-2.5 py-1 text-2xs font-mono text-slate-300 shadow-md max-w-[calc(100vw-24px)] ${
           isFullscreen
             ? 'bottom-16 left-3'
             : `bottom-[118px] lg:bottom-[104px] ${

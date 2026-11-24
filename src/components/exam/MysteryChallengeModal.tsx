@@ -70,7 +70,7 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
               <FlaskConical className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+              <div className="text-2xs font-mono font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
                 Ujian Forensik Sains &amp; Blind Sample Verification
               </div>
               <h2
@@ -119,7 +119,7 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
               );
             })}
           </div>
-          <div className="text-[11px] text-[var(--comfort-text-muted)] flex items-center gap-1.5">
+          <div className="text-2xs text-[var(--comfort-text-muted)] flex items-center gap-1.5">
             <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
             <span>Simulasi membuka modul praktikum &amp; memeriksa ketepatan kalkulasi Anda</span>
           </div>
@@ -141,15 +141,15 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/35 text-amber-800 dark:text-amber-300 font-mono text-[10px] font-bold">
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/35 text-amber-800 dark:text-amber-300 font-mono text-2xs font-bold">
                         {ch.codename}
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-700 dark:text-sky-300 text-[10px] font-bold">
+                      <span className="px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-700 dark:text-sky-300 text-2xs font-bold">
                         {ch.domain}
                       </span>
                     </div>
                     <span
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                      className={`px-2 py-0.5 rounded-md text-2xs font-bold border ${
                         DIFFICULTY_BADGE_MAP[ch.difficulty]
                       }`}
                     >
@@ -165,7 +165,7 @@ export const MysteryChallengeModal: React.FC<MysteryChallengeModalProps> = ({
                     {ch.storyDescription}
                   </p>
 
-                  <div className="p-2.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[11px] flex items-center justify-between gap-2">
+                  <div className="p-2.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-2xs flex items-center justify-between gap-2">
                     <span className="text-[var(--comfort-text-muted)] flex items-center gap-1">
                       <Target className="w-3.5 h-3.5 text-amber-500" />
                       Target Pengukuran:

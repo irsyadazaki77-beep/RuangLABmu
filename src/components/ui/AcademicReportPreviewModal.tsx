@@ -75,12 +75,12 @@ export const AcademicReportPreviewModal: React.FC<
                 <h3 className="text-sm font-bold text-[var(--comfort-text)]">
                   Pratinjau Laporan Resmi Praktikum (Format Standar A4)
                 </h3>
-                <span className="text-[11px] font-mono font-semibold text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
+                <span className="text-2xs font-mono font-semibold text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" />
                   Siap Cetak / PDF
                 </span>
               </div>
-              <p className="text-[11px] text-[var(--comfort-text-muted)]">
+              <p className="text-xs leading-snug text-[var(--comfort-text-muted)]">
                 {reportData.experimentTitle} · Praktikan: {reportData.studentName} ({reportData.groupId}) · {reportData.records.length} Data Uji
               </p>
             </div>

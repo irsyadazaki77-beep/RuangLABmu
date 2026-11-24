@@ -47,7 +47,7 @@ export function handleRoomSetCustomMission(
   payload: WsPayloadOf<'ROOM_SET_CUSTOM_MISSION'>,
   services: WsHandlerServices
 ): void {
-  const { state, broadcastAll, broadcastRoom } = services;
+  const { state, broadcastRoom } = services;
   const targetRoomId = String(payload.roomId || ws.roomId || 'LAB-ALPHA')
     .toUpperCase()
     .trim();
@@ -79,7 +79,19 @@ export function handleRoomSetCustomMission(
   state.pruneIdleRooms();
   const sanitizedRoom = sanitizeRoomForBroadcast(updatedRoom);
 
-  broadcastAll({
+  state.recordAuditLog({
+    schoolId: updatedRoom.schoolId || ws.schoolId || 'default-school',
+    actorId: ws.sessionClaims?.sub || ws.userId || ws.socketId,
+    actorName: teacherName || ws.userName || 'Pengajar',
+    actorRole: 'teacher',
+    action: 'MISSION_PUBLISHED',
+    targetType: 'room',
+    targetId: updatedRoom.roomId,
+    metadata: { missionId: updatedRoom.customMission?.id || null },
+    ipAddress: ws.remoteIp,
+  });
+
+  broadcastRoom(updatedRoom.roomId, {
     type: 'ROOM_MISSION_UPDATED',
     payload: {
       roomId: updatedRoom.roomId,
@@ -115,6 +127,18 @@ export function handleTeacherFreezeToggle(
     typeof payload.teacherName === 'string' && payload.teacherName.trim()
       ? payload.teacherName.trim()
       : ws.userName || auth.room.teacherName || 'Guru';
+
+  state.recordAuditLog({
+    schoolId: auth.room.schoolId || ws.schoolId || 'default-school',
+    actorId: ws.sessionClaims?.sub || ws.userId || ws.socketId,
+    actorName: teacherName,
+    actorRole: 'teacher',
+    action: 'TEACHER_FREEZE_TOGGLE',
+    targetType: 'room',
+    targetId: auth.targetRoomId,
+    metadata: { isFrozen: auth.room.isFrozenByTeacher },
+    ipAddress: ws.remoteIp,
+  });
 
   broadcastRoom(auth.targetRoomId, {
     type: 'TEACHER_FREEZE_TOGGLE',

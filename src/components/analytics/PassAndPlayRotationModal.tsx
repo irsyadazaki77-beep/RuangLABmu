@@ -63,7 +63,7 @@ export const PassAndPlayRotationModal: React.FC<PassAndPlayRotationModalProps> =
               <h3 className="font-extrabold text-sm sm:text-base text-[var(--comfort-text)]">
                 Gilir Kelompok di 1 Komputer (Pass-and-Play)
               </h3>
-              <p className="text-[11px] text-[var(--comfort-text-muted)]">
+              <p className="text-2xs text-[var(--comfort-text-muted)]">
                 Solusi praktikum 3T saat 1 komputer digunakan bergantian oleh beberapa kelompok siswa.
               </p>
             </div>
@@ -81,20 +81,20 @@ export const PassAndPlayRotationModal: React.FC<PassAndPlayRotationModalProps> =
 
         {/* Current Group Summary */}
         <div className="p-3.5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs space-y-1.5">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--comfort-text-muted)]">
+          <div className="text-2xs font-bold uppercase tracking-wider text-[var(--comfort-text-muted)]">
             Laporan Kelompok Selesai yang Disimpan Permanen:
           </div>
           <div className="font-bold text-[var(--comfort-text)] text-sm">
             {activeGroupId} · {activeStudentName}
           </div>
-          <div className="text-[11px] text-[var(--comfort-text-muted)] space-y-0.5">
+          <div className="text-2xs text-[var(--comfort-text-muted)] space-y-0.5">
             <div>
               ✓ <strong>{observationCount} Titik Data</strong> observasi terlampir & tersimpan
             </div>
             <div>
               ✓ <strong>Jawaban LKS & Kesimpulan</strong> aman tercatat di daftar laporan
             </div>
-            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+            <div className="text-2xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
               *Data kelompok ini TIDAK akan terhapus saat meja direset untuk kelompok berikutnya.
             </div>
           </div>
@@ -102,12 +102,12 @@ export const PassAndPlayRotationModal: React.FC<PassAndPlayRotationModalProps> =
 
         {/* Next Group Selection Form */}
         <div className="space-y-3 text-xs">
-          <div className="text-[11px] font-bold text-[var(--comfort-text)]">
+          <div className="text-2xs font-bold text-[var(--comfort-text)]">
             Tentukan Kelompok & Siswa Berikutnya:
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] mb-1">
+              <label className="block text-2xs font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] mb-1">
                 Nama Kelompok Berikutnya:
               </label>
               <input
@@ -119,7 +119,7 @@ export const PassAndPlayRotationModal: React.FC<PassAndPlayRotationModalProps> =
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] mb-1">
+              <label className="block text-2xs font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] mb-1">
                 Nama Siswa / Perwakilan:
               </label>
               <input

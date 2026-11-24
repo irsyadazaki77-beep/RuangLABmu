@@ -152,7 +152,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   if (hudStatusBadge) {
     hudStatusBadge.setAttribute('data-testid', 'hud-performance-tier-badge');
     hudStatusBadge.style.cssText =
-      'position:absolute;bottom:144px;left:50%;transform:translateX(-50%);z-index:12;pointer-events:none;padding:3px 10px;border-radius:8px;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:700;background:rgba(15,23,42,0.92);border:1px solid rgba(56,189,248,0.35);color:#bae6fd;display:none;align-items:center;gap:6px;white-space:nowrap;';
+      'position:absolute;bottom:144px;left:50%;transform:translateX(-50%);z-index:12;pointer-events:none;padding:3px 10px;border-radius:8px;font-family:"IBM Plex Mono",monospace;font-size:0.6875rem;line-height:1.45;font-weight:700;background:rgba(15,23,42,0.92);border:1px solid rgba(56,189,248,0.35);color:#bae6fd;display:none;align-items:center;gap:6px;white-space:nowrap;';
     container.appendChild(hudStatusBadge);
   }
 

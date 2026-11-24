@@ -222,7 +222,7 @@ export const Simulation2DFallbackView: React.FC<Simulation2DFallbackViewProps> =
             <Activity className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           </span>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-sky-700 dark:text-sky-300">
+            <div className="flex items-center gap-1.5 text-2xs font-mono uppercase tracking-wider text-sky-700 dark:text-sky-300">
               <Cpu className="w-3 h-3" />
               <span>Mode Ringan 2D · Hemat GPU 3T</span>
             </div>
@@ -246,7 +246,7 @@ export const Simulation2DFallbackView: React.FC<Simulation2DFallbackViewProps> =
       </div>
 
       {contextLostReason && (
-        <p className="text-[11px] font-mono text-amber-800 dark:text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-1.5">
+        <p className="text-2xs font-mono text-amber-800 dark:text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-1.5">
           {contextLostReason}
         </p>
       )}
@@ -254,7 +254,7 @@ export const Simulation2DFallbackView: React.FC<Simulation2DFallbackViewProps> =
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 flex-1 items-stretch">
         {/* Domain 2D Schematic Diagram */}
         <div className="xl:col-span-5 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] p-3 flex flex-col justify-between">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--comfort-text-muted)] mb-1">
+          <div className="text-2xs font-mono uppercase tracking-wider text-[var(--comfort-text-muted)] mb-1">
             Skema Aparatus 2D ({resolvedDomain})
           </div>
           <svg
@@ -302,7 +302,7 @@ export const Simulation2DFallbackView: React.FC<Simulation2DFallbackViewProps> =
               </>
             )}
           </svg>
-          <div className="flex items-center justify-between text-[11px] font-mono text-[var(--comfort-text-muted)] mt-1.5">
+          <div className="flex items-center justify-between text-2xs font-mono text-[var(--comfort-text-muted)] mt-1.5">
             <span>t = {model.latestTime.toFixed(2)} s</span>
             <span style={{ color: primaryStroke }} className="font-bold">
               y = {model.latestPrimary.toFixed(3)}
@@ -312,7 +312,7 @@ export const Simulation2DFallbackView: React.FC<Simulation2DFallbackViewProps> =
 
         {/* Live Telemetry Curve from SimulationRingBuffer */}
         <div className="xl:col-span-7 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] p-3 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-[var(--comfort-text-muted)] mb-1">
+          <div className="flex items-center justify-between text-2xs font-mono uppercase tracking-wider text-[var(--comfort-text-muted)] mb-1">
             <span>Kurva Real-Time (RingBuffer 2D)</span>
             <span className="text-[var(--comfort-text)]">
               [{model.minPrimary.toFixed(2)} .. {model.maxPrimary.toFixed(2)}]
@@ -349,14 +349,14 @@ export const Simulation2DFallbackView: React.FC<Simulation2DFallbackViewProps> =
               model.paramEntries.map((entry) => (
                 <span
                   key={entry.label}
-                  className="px-2 py-0.5 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[10px] font-mono text-[var(--comfort-text-muted)]"
+                  className="px-2 py-0.5 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-2xs font-mono text-[var(--comfort-text-muted)]"
                 >
                   {entry.label}: <b className="text-[var(--comfort-text)]">{entry.value}</b>
                   {entry.unit ? ` ${entry.unit}` : ''}
                 </span>
               ))
             ) : (
-              <span className="text-[11px] font-mono text-[var(--comfort-text-muted)]">
+              <span className="text-2xs font-mono text-[var(--comfort-text-muted)]">
                 Parameter & kalkulator numerik aktif di panel variabel — siap mencatat percobaan.
               </span>
             )}

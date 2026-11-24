@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PanelLeftClose, Sliders } from 'lucide-react';
+import { AlertTriangle, BookOpen, PanelLeftClose, Sliders } from 'lucide-react';
 import { DRAWER_LEFT_VARIANTS } from '../../../styles/motionPresets';
+import { Accordion } from '../../ui/Accordion';
 
 export interface SpatialParameterDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   hypothesisText?: string;
+  theorySummary?: string;
+  keyTakeaways?: string[];
+  safetyNotes?: string[];
   sidebar: React.ReactNode;
 }
 
@@ -14,9 +18,25 @@ export const SpatialParameterDrawer: React.FC<SpatialParameterDrawerProps> = ({
   isOpen,
   onClose,
   hypothesisText,
+  theorySummary,
+  keyTakeaways = [],
+  safetyNotes = [],
   sidebar,
 }) => {
   const [hypothesisExpanded, setHypothesisExpanded] = useState(false);
+
+  const primaryTakeaway =
+    keyTakeaways[0] ||
+    (theorySummary ? theorySummary.split(/(?<=[.!?])\s+/)[0]?.trim() : '');
+  const primarySafety = safetyNotes[0] || '';
+  const extraTakeaways = keyTakeaways.slice(1);
+  const extraSafety = safetyNotes.slice(1);
+  const hasQuickRef = Boolean(primaryTakeaway || primarySafety);
+  const hasExtraRef =
+    Boolean(theorySummary && theorySummary.length > (primaryTakeaway?.length ?? 0) + 12) ||
+    extraTakeaways.length > 0 ||
+    extraSafety.length > 0;
+  const hiddenRefCount = extraTakeaways.length + extraSafety.length;
 
   return (
     <AnimatePresence initial={false}>
@@ -32,8 +52,8 @@ export const SpatialParameterDrawer: React.FC<SpatialParameterDrawerProps> = ({
           className="hidden lg:flex flex-col absolute top-16 bottom-16 left-3 w-[312px] xl:w-[324px] z-20 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
         >
           <div className="px-3.5 py-2.5 border-b border-[var(--comfort-border)] flex items-center justify-between shrink-0">
-            <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 text-[var(--comfort-text)]">
-              <Sliders className="w-3.5 h-3.5 text-sky-500 shrink-0" aria-hidden="true" />
+            <span className="text-2xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-[var(--comfort-text)]">
+              <Sliders className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
               <span>Parameter Eksperimen</span>
             </span>
             <button
@@ -50,21 +70,21 @@ export const SpatialParameterDrawer: React.FC<SpatialParameterDrawerProps> = ({
             {hypothesisText && (
               <div className="p-2.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                  <span className="font-mono text-2xs font-bold uppercase tracking-wider text-[var(--comfort-accent)]">
                     Hipotesis Awal
                   </span>
                   {hypothesisText.length > 90 && (
                     <button
                       type="button"
                       onClick={() => setHypothesisExpanded((prev) => !prev)}
-                      className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                      className="text-2xs font-semibold text-[var(--comfort-accent)] hover:underline cursor-pointer"
                     >
                       {hypothesisExpanded ? 'Ringkas' : 'Selengkapnya'}
                     </button>
                   )}
                 </div>
                 <p
-                  className={`text-[11px] italic text-[var(--comfort-text-muted)] leading-relaxed ${
+                  className={`text-2xs italic text-[var(--comfort-text-muted)] leading-relaxed ${
                     hypothesisExpanded ? '' : 'line-clamp-2'
                   }`}
                 >
@@ -74,6 +94,80 @@ export const SpatialParameterDrawer: React.FC<SpatialParameterDrawerProps> = ({
             )}
 
             {sidebar}
+
+            {hasQuickRef && (
+              <Accordion
+                title="Ringkasan Teori & K3"
+                icon={<BookOpen className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />}
+                variant="subtle"
+                compact
+                collapsedLabel="Lihat Detail"
+                expandedLabel="Ringkas"
+                hiddenCount={hiddenRefCount > 0 ? hiddenRefCount : undefined}
+                testId="spatial-theory-k3-accordion"
+                toggleTestId="spatial-theory-k3-toggle"
+                preview={
+                  <ul className="space-y-1.5 text-2xs leading-relaxed text-[var(--comfort-text)]">
+                    {primaryTakeaway && (
+                      <li className="flex items-start gap-1.5">
+                        <span className="font-mono font-bold text-[var(--comfort-accent)] shrink-0">
+                          01.
+                        </span>
+                        <span className="line-clamp-2">{primaryTakeaway}</span>
+                      </li>
+                    )}
+                    {primarySafety && (
+                      <li className="flex items-start gap-1.5 text-[var(--comfort-text-muted)]">
+                        <AlertTriangle
+                          className="w-3 h-3 text-[var(--comfort-warning)] shrink-0 mt-0.5"
+                          aria-hidden="true"
+                        />
+                        <span className="line-clamp-2">{primarySafety}</span>
+                      </li>
+                    )}
+                  </ul>
+                }
+              >
+                {hasExtraRef ? (
+                  <div className="space-y-2.5 text-2xs leading-relaxed text-[var(--comfort-text-muted)]">
+                    {theorySummary && (
+                      <div className="space-y-1">
+                        <div className="font-bold text-[var(--comfort-text)]">Dasar Teori</div>
+                        <p className="comfort-prose">{theorySummary}</p>
+                      </div>
+                    )}
+                    {extraTakeaways.length > 0 && (
+                      <ul className="space-y-1">
+                        {extraTakeaways.map((point, idx) => (
+                          <li key={idx} className="flex items-start gap-1.5">
+                            <span className="font-mono font-bold text-[var(--comfort-accent)] shrink-0">
+                              0{idx + 2}.
+                            </span>
+                            <span>{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {extraSafety.length > 0 && (
+                      <div className="pt-2 border-t border-[var(--comfort-border)] space-y-1">
+                        <div className="font-bold text-[var(--comfort-text)]">Aturan K3 Lainnya</div>
+                        <ul className="space-y-1">
+                          {extraSafety.map((note, idx) => (
+                            <li key={idx} className="flex items-start gap-1.5">
+                              <AlertTriangle
+                                className="w-3 h-3 text-[var(--comfort-warning)] shrink-0 mt-0.5"
+                                aria-hidden="true"
+                              />
+                              <span>{note}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </Accordion>
+            )}
           </div>
         </motion.aside>
       )}

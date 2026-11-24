@@ -44,12 +44,12 @@ export const CollabRoomPopover: React.FC<CollabRoomPopoverProps> = ({
           onToggle();
         }}
         aria-expanded={isOpen}
-        className={`h-8 px-2.5 flex items-center gap-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
+        className={`h-8 px-2.5 flex items-center gap-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
           activeRoomId
-            ? 'bg-emerald-500/12 border-emerald-500/35 text-emerald-700 dark:text-emerald-300'
+            ? 'bg-[var(--comfort-success-soft)] border-[var(--comfort-success)]/35 text-[var(--comfort-success)]'
             : isOpen
-            ? 'bg-sky-600 text-white border-sky-600'
-            : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500/50'
+            ? 'comfort-tab-active border-transparent'
+            : 'comfort-btn-secondary'
         }`}
       >
         <Users className="w-3.5 h-3.5 shrink-0" />
@@ -57,7 +57,7 @@ export const CollabRoomPopover: React.FC<CollabRoomPopoverProps> = ({
           {activeRoomId ? `Room: ${activeRoomId}` : 'Meja Bersama'}
         </span>
         {activeRoomId && (
-          <span className="font-mono text-[11px] font-bold tabular-nums opacity-85">
+          <span className="font-mono text-2xs font-bold tabular-nums opacity-85">
             · {memberCount}
           </span>
         )}
@@ -76,7 +76,7 @@ export const CollabRoomPopover: React.FC<CollabRoomPopoverProps> = ({
           >
             <div className="flex items-center justify-between border-b border-[var(--comfort-border)] pb-2">
               <div className="flex items-center gap-2 font-semibold">
-                <Users className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                <Users className="w-4 h-4 text-[var(--comfort-accent)]" />
                 <span>Meja Bersama (Kolaborasi)</span>
               </div>
               <button
@@ -90,13 +90,13 @@ export const CollabRoomPopover: React.FC<CollabRoomPopoverProps> = ({
             </div>
 
             {activeRoomId ? (
-              <div className="p-2.5 rounded-lg bg-emerald-500/8 border border-emerald-500/25 space-y-2">
-                <div className="flex items-center justify-between font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">
+              <div className="p-2.5 rounded-lg bg-[var(--comfort-success-soft)] border border-[var(--comfort-success)]/30 space-y-2">
+                <div className="flex items-center justify-between font-mono text-2xs font-bold text-[var(--comfort-success)] tabular-nums">
                   <span>Room: {activeRoomId}</span>
                   <span>{memberCount} Peserta</span>
                 </div>
                 {roomPin && (
-                  <div className="text-[11px] font-mono text-[var(--comfort-text-muted)] tabular-nums">
+                  <div className="text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
                     PIN Meja: <strong className="text-[var(--comfort-text)]">{roomPin}</strong>
                   </div>
                 )}
@@ -108,13 +108,17 @@ export const CollabRoomPopover: React.FC<CollabRoomPopoverProps> = ({
                         labSound.playClick(540);
                         onToggleTeacherFreeze(!isFrozenByTeacher);
                       }}
-                      className={`flex-1 py-1.5 px-2 rounded-lg font-semibold text-[11px] flex items-center justify-center gap-1 cursor-pointer ${
+                      className={`flex-1 py-1.5 px-2 rounded-lg font-semibold text-2xs flex items-center justify-center gap-1 cursor-pointer ${
                         isFrozenByTeacher
-                          ? 'bg-rose-600 hover:bg-rose-500 text-white'
-                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                          ? 'bg-rose-700 hover:bg-rose-600 text-white'
+                          : 'comfort-btn-secondary'
                       }`}
                     >
-                      {isFrozenByTeacher ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                      {isFrozenByTeacher ? (
+                        <Unlock className="w-3 h-3" />
+                      ) : (
+                        <Lock className="w-3 h-3 text-[var(--comfort-warning)]" />
+                      )}
                       <span>{isFrozenByTeacher ? 'Buka Kunci' : 'Kunci Layar'}</span>
                     </button>
                   )}
@@ -126,7 +130,7 @@ export const CollabRoomPopover: React.FC<CollabRoomPopoverProps> = ({
                         onLeaveRoom();
                         onClose();
                       }}
-                      className="py-1.5 px-2.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] hover:text-rose-600 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                      className="py-1.5 px-2.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] hover:text-rose-600 text-2xs font-semibold flex items-center gap-1 cursor-pointer"
                     >
                       <LogOut className="w-3 h-3" />
                       <span>Keluar</span>
@@ -135,7 +139,7 @@ export const CollabRoomPopover: React.FC<CollabRoomPopoverProps> = ({
                 </div>
               </div>
             ) : (
-              <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed">
+              <p className="text-2xs text-[var(--comfort-text-muted)] leading-relaxed">
                 Gabung meja praktikum kelompok dengan PIN atau buat ruangan baru via Internet maupun Hotspot LAN kelas.
               </p>
             )}
@@ -148,9 +152,9 @@ export const CollabRoomPopover: React.FC<CollabRoomPopoverProps> = ({
                   onClose();
                   onOpenRoomModal('join');
                 }}
-                className="py-2 px-2.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
+                className="py-2 px-2.5 rounded-lg comfort-btn-secondary font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
               >
-                <KeyRound className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                <KeyRound className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" />
                 <span>Masuk dengan PIN</span>
               </button>
 
@@ -161,7 +165,7 @@ export const CollabRoomPopover: React.FC<CollabRoomPopoverProps> = ({
                   onClose();
                   onOpenRoomModal('create');
                 }}
-                className="py-2 px-2.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
+                className="py-2 px-2.5 rounded-lg comfort-btn-primary font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
               >
                 <Plus className="w-3.5 h-3.5 shrink-0" />
                 <span>+ Buat Room</span>

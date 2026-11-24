@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   ArrowRight,
   Award,
   BadgeCheck,
   Calculator,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Factory,
   GraduationCap,
   HelpCircle,
@@ -21,6 +19,7 @@ import {
 } from '../../services/labLicenseEngine';
 import { extractConceptHint, formatCleanEquation } from '../../utils/spatialHudHelpers';
 import { labSound } from '../../utils/soundEngine';
+import { Accordion, AccordionGroup } from '../ui/Accordion';
 import { DIYLocalWisdomCard } from '../ui/DIYLocalWisdomCard';
 import { InteractiveFormulaPrimer } from '../ui/InteractiveFormulaPrimer';
 import { SciFormula } from '../ui/ScientificNotation';
@@ -29,14 +28,45 @@ interface PreLabInsightsPanelProps {
   experiment: ExperimentModule;
 }
 
-export const PreLabInsightsPanel: React.FC<PreLabInsightsPanelProps> = ({ experiment }) => {
-  const [showMisconceptions, setShowMisconceptions] = useState(true);
-  const [showIndustryApps, setShowIndustryApps] = useState(false);
-  const [showDeepDive, setShowDeepDive] = useState(false);
+const renderMisconceptionItem = (item: string, idx: number) => {
+  const parts = item.split(/Faktanya:|Fakta:/i);
+  const misconception = parts[0]?.trim() || item;
+  const fact = parts[1]?.trim() || '';
 
   return (
-    <div className="space-y-5">
-      <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-5 sm:p-6 space-y-4">
+    <div key={idx} className="py-3 first:pt-0 last:pb-0 space-y-2 text-xs">
+      <div className="flex items-start gap-2.5">
+        <XCircle className="w-4 h-4 shrink-0 mt-0.5 text-[var(--comfort-danger)]" aria-hidden="true" />
+        <div className="leading-relaxed comfort-prose">
+          <span className="font-bold text-[var(--comfort-danger)]">Mitos: </span>
+          <span className="text-[var(--comfort-text)]">{misconception}</span>
+        </div>
+      </div>
+      {fact && (
+        <div className="flex items-start gap-2.5 pl-6">
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[var(--comfort-success)]" aria-hidden="true" />
+          <div className="leading-relaxed comfort-prose">
+            <span className="font-bold text-[var(--comfort-success)]">Fakta: </span>
+            <span className="text-[var(--comfort-text-muted)]">{fact}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const PreLabInsightsPanel: React.FC<PreLabInsightsPanelProps> = ({ experiment }) => {
+  const misconceptions = experiment.commonMisconceptions ?? [];
+  const coreMisconceptions = misconceptions.slice(0, 1);
+  const extraMisconceptions = misconceptions.slice(1);
+
+  const industryApps = experiment.realWorldApplications ?? [];
+  const coreApps = industryApps.slice(0, 1);
+  const extraApps = industryApps.slice(1);
+
+  return (
+    <AccordionGroup className="space-y-4">
+      <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-5 space-y-4">
         <InteractiveFormulaPrimer
           moduleId={experiment.id}
           domain={experiment.domain}
@@ -50,188 +80,124 @@ export const PreLabInsightsPanel: React.FC<PreLabInsightsPanelProps> = ({ experi
         />
       </div>
 
-      {experiment.commonMisconceptions && experiment.commonMisconceptions.length > 0 && (
-        <section className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowMisconceptions((prev) => !prev)}
-            aria-expanded={showMisconceptions}
-            className="w-full px-5 py-4 flex items-center justify-between gap-3 text-left hover:bg-[var(--comfort-surface-subtle)] transition-colors cursor-pointer"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-bold text-[var(--comfort-text)]">
-                <Lightbulb className="w-4 h-4 text-amber-500 shrink-0" aria-hidden="true" />
-                <span>Klinik Miskonsepsi: Mitos vs Fakta Ilmiah</span>
-              </div>
-              <div className="text-[11px] text-[var(--comfort-text-muted)] mt-0.5">
-                Klarifikasi konsep · {experiment.commonMisconceptions.length} poin penting
-              </div>
+      {misconceptions.length > 0 && (
+        <Accordion
+          title="Klinik Miskonsepsi: Mitos vs Fakta"
+          meta={`${misconceptions.length} poin`}
+          icon={<Lightbulb className="w-4 h-4 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />}
+          collapsedLabel="Lihat miskonsepsi lainnya"
+          expandedLabel="Tampilkan 1 poin utama"
+          hiddenCount={extraMisconceptions.length > 0 ? extraMisconceptions.length : undefined}
+          testId="prelab-misconceptions-accordion"
+          preview={
+            <div className="divide-y divide-[var(--comfort-border)]">
+              {coreMisconceptions.map((item, idx) => renderMisconceptionItem(item, idx))}
             </div>
-            {showMisconceptions ? (
-              <ChevronUp className="w-4 h-4 text-[var(--comfort-text-muted)] shrink-0" aria-hidden="true" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-[var(--comfort-text-muted)] shrink-0" aria-hidden="true" />
-            )}
-          </button>
-
-          {showMisconceptions && (
-            <div className="px-5 pb-5 pt-2 border-t border-[var(--comfort-border)] space-y-3">
-              {experiment.commonMisconceptions.map((item, idx) => {
-                const parts = item.split(/Faktanya:|Fakta:/i);
-                const misconception = parts[0]?.trim() || item;
-                const fact = parts[1]?.trim() || '';
-
-                return (
-                  <div
-                    key={idx}
-                    className="p-3.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-2.5 text-xs"
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <XCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" aria-hidden="true" />
-                      <div>
-                        <span className="font-bold text-rose-600 dark:text-rose-400">
-                          Mitos Umum:{' '}
-                        </span>
-                        <span className="text-[var(--comfort-text)]">{misconception}</span>
-                      </div>
-                    </div>
-                    {fact && (
-                      <div className="flex items-start gap-2.5 pt-2 border-t border-[var(--comfort-border)]">
-                        <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" aria-hidden="true" />
-                        <div>
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                            Fakta Ilmiah:{' '}
-                          </span>
-                          <span className="text-[var(--comfort-text-muted)] leading-relaxed">
-                            {fact}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+          }
+        >
+          {extraMisconceptions.length > 0 ? (
+            <div className="divide-y divide-[var(--comfort-border)]">
+              {extraMisconceptions.map((item, idx) => renderMisconceptionItem(item, idx + 1))}
             </div>
-          )}
-        </section>
+          ) : null}
+        </Accordion>
       )}
 
-      {experiment.realWorldApplications && experiment.realWorldApplications.length > 0 && (
-        <section className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowIndustryApps((prev) => !prev)}
-            aria-expanded={showIndustryApps}
-            className="w-full px-5 py-4 flex items-center justify-between gap-3 text-left hover:bg-[var(--comfort-surface-subtle)] transition-colors cursor-pointer"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-bold text-[var(--comfort-text)]">
-                <Factory className="w-4 h-4 text-emerald-500 shrink-0" aria-hidden="true" />
-                <span>Aplikasi Nyata &amp; Industri di Indonesia</span>
-              </div>
-              <div className="text-[11px] text-[var(--comfort-text-muted)] mt-0.5">
-                Konteks nasional &amp; industri · {experiment.realWorldApplications.length} studi kasus
-              </div>
-            </div>
-            {showIndustryApps ? (
-              <ChevronUp className="w-4 h-4 text-[var(--comfort-text-muted)] shrink-0" aria-hidden="true" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-[var(--comfort-text-muted)] shrink-0" aria-hidden="true" />
-            )}
-          </button>
-
-          {showIndustryApps && (
-            <div className="px-5 pb-5 pt-3 border-t border-[var(--comfort-border)] grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {experiment.realWorldApplications.map((appText, idx) => (
-                <div
-                  key={idx}
-                  className="p-3.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] flex flex-col justify-between text-xs space-y-2"
-                >
-                  <div className="font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                    0{idx + 1} · Aplikasi
-                  </div>
-                  <p className="text-[var(--comfort-text-muted)] leading-relaxed text-xs">
+      {industryApps.length > 0 && (
+        <Accordion
+          title="Aplikasi Nyata & Industri di Indonesia"
+          meta={`${industryApps.length} kasus`}
+          icon={<Factory className="w-4 h-4 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />}
+          collapsedLabel="Lihat kasus industri lainnya"
+          expandedLabel="Tampilkan 1 kasus utama"
+          hiddenCount={extraApps.length > 0 ? extraApps.length : undefined}
+          testId="prelab-industry-apps-accordion"
+          preview={
+            <div className="divide-y divide-[var(--comfort-border)] text-xs">
+              {coreApps.map((appText, idx) => (
+                <div key={idx} className="py-2 first:pt-0 last:pb-0 flex items-start gap-2.5">
+                  <span className="font-mono text-2xs font-bold text-[var(--comfort-accent)] tabular-nums mt-0.5 shrink-0">
+                    0{idx + 1}.
+                  </span>
+                  <p className="text-[var(--comfort-text-muted)] leading-relaxed comfort-prose">
                     {appText}
                   </p>
                 </div>
               ))}
             </div>
-          )}
-        </section>
+          }
+        >
+          {extraApps.length > 0 ? (
+            <div className="divide-y divide-[var(--comfort-border)] text-xs">
+              {extraApps.map((appText, idx) => (
+                <div key={idx} className="py-2.5 first:pt-0 last:pb-0 flex items-start gap-2.5">
+                  <span className="font-mono text-2xs font-bold text-[var(--comfort-accent)] tabular-nums mt-0.5 shrink-0">
+                    0{idx + 2}.
+                  </span>
+                  <p className="text-[var(--comfort-text-muted)] leading-relaxed comfort-prose">
+                    {appText}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </Accordion>
       )}
 
       {experiment.deepDiveContent && (
-        <section className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowDeepDive((prev) => !prev)}
-            aria-expanded={showDeepDive}
-            className="w-full px-5 py-4 flex items-center justify-between gap-3 text-left hover:bg-[var(--comfort-surface-subtle)] transition-colors cursor-pointer"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-bold text-[var(--comfort-text)]">
-                <GraduationCap className="w-4 h-4 text-indigo-500 shrink-0" aria-hidden="true" />
-                <span>Bedah Penurunan Rumus &amp; Sejarah Penemuan</span>
+        <Accordion
+          title="Penurunan Rumus & Sejarah Penemuan"
+          meta="Pengayaan"
+          icon={<GraduationCap className="w-4 h-4 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />}
+          defaultOpen={false}
+          testId="prelab-deep-dive-accordion"
+        >
+          <div className="space-y-4">
+            {experiment.deepDiveContent.historicalContext && (
+              <div className="text-xs space-y-1 text-[var(--comfort-text-muted)] leading-relaxed">
+                <div className="flex items-center gap-1.5 font-bold text-[var(--comfort-text)]">
+                  <History className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
+                  <span>Konteks Sejarah Sains</span>
+                </div>
+                <p className="comfort-prose">{experiment.deepDiveContent.historicalContext}</p>
               </div>
-              <div className="text-[11px] text-[var(--comfort-text-muted)] mt-0.5">
-                Pengayaan konseptual &amp; derivasi matematis
-              </div>
-            </div>
-            {showDeepDive ? (
-              <ChevronUp className="w-4 h-4 text-[var(--comfort-text-muted)] shrink-0" aria-hidden="true" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-[var(--comfort-text-muted)] shrink-0" aria-hidden="true" />
             )}
-          </button>
 
-          {showDeepDive && (
-            <div className="px-5 pb-5 pt-3 border-t border-[var(--comfort-border)] space-y-4">
-              {experiment.deepDiveContent.historicalContext && (
-                <div className="p-3.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs space-y-1.5 text-[var(--comfort-text-muted)] leading-relaxed">
-                  <div className="flex items-center gap-1.5 font-bold text-[var(--comfort-text)]">
-                    <History className="w-3.5 h-3.5 text-indigo-500" aria-hidden="true" />
-                    <span>Konteks Sejarah Sains:</span>
+            {experiment.deepDiveContent.derivationLatex &&
+              experiment.deepDiveContent.derivationLatex.length > 0 && (
+                <div className="pt-3 border-t border-[var(--comfort-border)] space-y-2">
+                  <div className="text-xs font-semibold text-[var(--comfort-text)] flex items-center gap-1.5">
+                    <Calculator className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
+                    <span>Langkah Penurunan Matematis</span>
                   </div>
-                  <p className="comfort-prose">{experiment.deepDiveContent.historicalContext}</p>
+                  <div className="space-y-1.5">
+                    {experiment.deepDiveContent.derivationLatex.map((step, idx) => (
+                      <div
+                        key={idx}
+                        className="py-1.5 px-2.5 rounded-lg bg-[var(--comfort-surface-subtle)] font-mono text-xs text-[var(--comfort-accent)] overflow-x-auto flex items-center gap-2"
+                      >
+                        <span className="text-[var(--comfort-text-muted)] font-mono text-2xs shrink-0 tabular-nums">
+                          [{idx + 1}]
+                        </span>
+                        <span className="font-semibold">
+                          <SciFormula text={formatCleanEquation(step)} wrap />
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {experiment.deepDiveContent.derivationLatex &&
-                experiment.deepDiveContent.derivationLatex.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-xs font-semibold text-[var(--comfort-text-muted)] flex items-center gap-1.5">
-                      <Calculator className="w-3.5 h-3.5 text-indigo-500" aria-hidden="true" />
-                      <span>Langkah Penurunan Matematis Eksak:</span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {experiment.deepDiveContent.derivationLatex.map((step, idx) => (
-                        <div
-                          key={idx}
-                          className="p-2.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] font-mono text-xs text-indigo-600 dark:text-indigo-300 overflow-x-auto flex items-center gap-2"
-                        >
-                          <span className="text-[var(--comfort-text-muted)] font-mono text-[10px] shrink-0 tabular-nums">
-                            [{idx + 1}]
-                          </span>
-                          <span className="font-semibold">
-                            <SciFormula text={formatCleanEquation(step)} wrap />
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              {experiment.deepDiveContent.advancedConcept && (
-                <div className="p-3.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs text-[var(--comfort-text-muted)] leading-relaxed comfort-prose">
-                  <strong className="text-[var(--comfort-text)]">Konsep Lanjutan &amp; Batasan: </strong>
-                  {experiment.deepDiveContent.advancedConcept}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+            {experiment.deepDiveContent.advancedConcept && (
+              <div className="pt-3 border-t border-[var(--comfort-border)] text-xs text-[var(--comfort-text-muted)] leading-relaxed comfort-prose">
+                <strong className="text-[var(--comfort-text)]">Konsep Lanjutan: </strong>
+                {experiment.deepDiveContent.advancedConcept}
+              </div>
+            )}
+          </div>
+        </Accordion>
       )}
-    </div>
+    </AccordionGroup>
   );
 };
 
@@ -255,7 +221,7 @@ export const PreLabSafetyLicenseCard: React.FC<PreLabSafetyLicenseCardProps> = (
           <BadgeCheck
             className={`w-4 h-4 shrink-0 ${
               activeLicense?.status === 'TERVERIFIKASI'
-                ? 'text-emerald-500'
+                ? 'text-[var(--comfort-success)]'
                 : 'text-[var(--comfort-text-muted)]'
             }`}
             aria-hidden="true"
@@ -263,21 +229,21 @@ export const PreLabSafetyLicenseCard: React.FC<PreLabSafetyLicenseCardProps> = (
           <span>SIM Laboratorium K3</span>
         </div>
         <span
-          className={`font-mono text-[10px] font-bold uppercase tracking-wider ${
+          className={`font-mono text-2xs font-bold uppercase tracking-wider ${
             activeLicense?.status === 'TERVERIFIKASI'
-              ? 'text-emerald-600 dark:text-emerald-400'
-              : 'text-amber-600 dark:text-amber-400'
+              ? 'text-[var(--comfort-success)]'
+              : 'text-[var(--comfort-warning)]'
           }`}
         >
           {activeLicense?.status === 'TERVERIFIKASI' ? 'Terverifikasi' : 'Menunggu Syarat'}
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-[11px] text-[var(--comfort-text-muted)]">
+      <div className="grid grid-cols-2 gap-2 text-2xs text-[var(--comfort-text-muted)]">
         <div className="flex items-center gap-1.5">
           <CheckCircle2
             className={`w-3.5 h-3.5 shrink-0 ${
-              k3Complied ? 'text-emerald-500' : 'text-[var(--comfort-text-muted)]'
+              k3Complied ? 'text-[var(--comfort-success)]' : 'text-[var(--comfort-text-muted)]'
             }`}
             aria-hidden="true"
           />
@@ -287,7 +253,7 @@ export const PreLabSafetyLicenseCard: React.FC<PreLabSafetyLicenseCardProps> = (
           <Award
             className={`w-3.5 h-3.5 shrink-0 ${
               quizScorePct >= MIN_PASSING_PRELAB_SCORE
-                ? 'text-emerald-500'
+                ? 'text-[var(--comfort-success)]'
                 : 'text-[var(--comfort-text-muted)]'
             }`}
             aria-hidden="true"
@@ -305,13 +271,13 @@ export const PreLabSafetyLicenseCard: React.FC<PreLabSafetyLicenseCardProps> = (
             labSound.playSuccessChime();
             onOpenLicenseModal();
           }}
-          className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+          className="w-full py-2 px-3 rounded-lg comfort-btn-primary font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
         >
           <BadgeCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
           <span>Buka &amp; Cetak SIM Lab ({activeLicense.licenseId})</span>
         </button>
       ) : (
-        <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed">
+        <p className="text-2xs text-[var(--comfort-text-muted)] leading-relaxed">
           Klik <strong className="text-[var(--comfort-text)]">&quot;Saya Patuh K3&quot;</strong> dan selesaikan Kuis Pra-Lab (minimal skor {MIN_PASSING_PRELAB_SCORE}%) untuk menerbitkan kartu SIM Lab ber-QR Code.
         </p>
       )}
@@ -368,7 +334,7 @@ export const PreLabQuizCard: React.FC<PreLabQuizCardProps> = ({
         </div>
         {quizResult && (
           <div className="text-right font-mono tabular-nums">
-            <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="text-base font-bold text-[var(--comfort-success)]">
               {quizResult.correct}/{quizResult.total}
             </span>
             <span className="text-xs text-[var(--comfort-text-muted)] ml-1">
@@ -401,16 +367,17 @@ export const PreLabQuizCard: React.FC<PreLabQuizCardProps> = ({
                 <button
                   type="button"
                   onClick={() => onToggleHint(q.id)}
-                  className="px-2 py-0.5 rounded-md bg-amber-500/12 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-semibold text-[10px] flex items-center gap-1 shrink-0 cursor-pointer whitespace-nowrap"
+                  className="px-2 py-0.5 rounded-md comfort-btn-secondary font-semibold text-2xs flex items-center gap-1 shrink-0 cursor-pointer whitespace-nowrap"
                 >
-                  <Lightbulb className="w-3 h-3 shrink-0" aria-hidden="true" />
+                  <Lightbulb className="w-3 h-3 text-[var(--comfort-warning)] shrink-0" aria-hidden="true" />
                   <span>{hintOpen ? 'Tutup Petunjuk' : 'Petunjuk'}</span>
                 </button>
               </div>
 
               {hintOpen && (
-                <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-[var(--comfort-text)] leading-relaxed">
-                  <strong>Petunjuk Konsep:</strong> {extractConceptHint(q.explanation)}
+                <div className="p-2.5 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-2xs text-[var(--comfort-text)] leading-relaxed">
+                  <strong className="text-[var(--comfort-accent)]">Petunjuk Konsep:</strong>{' '}
+                  {extractConceptHint(q.explanation)}
                 </div>
               )}
 
@@ -418,19 +385,18 @@ export const PreLabQuizCard: React.FC<PreLabQuizCardProps> = ({
                 {q.options.map((opt, optIdx) => {
                   const isChoice = selected === optIdx;
                   let btnStyle =
-                    'bg-[var(--comfort-surface)] border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500';
+                    'bg-[var(--comfort-surface)] border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-[var(--comfort-accent-border)]';
 
                   if (quizSubmitted) {
                     if (optIdx === q.correctIndex) {
                       btnStyle =
-                        'bg-emerald-500/18 border-emerald-500 text-emerald-700 dark:text-emerald-300 font-bold';
+                        'bg-[var(--comfort-success-soft)] border-[var(--comfort-success)] text-[var(--comfort-success)] font-bold';
                     } else if (isChoice && !isCorrect) {
                       btnStyle =
-                        'bg-rose-500/18 border-rose-500 text-rose-700 dark:text-rose-300';
+                        'bg-[var(--comfort-danger-soft)] border-[var(--comfort-danger)] text-[var(--comfort-danger)]';
                     }
                   } else if (isChoice) {
-                    btnStyle =
-                      'bg-sky-500/18 border-sky-500 text-sky-700 dark:text-sky-300 font-bold';
+                    btnStyle = 'comfort-accent-soft font-bold';
                   }
 
                   return (
@@ -450,7 +416,7 @@ export const PreLabQuizCard: React.FC<PreLabQuizCardProps> = ({
               </div>
 
               {quizSubmitted && (
-                <div className="pt-1 text-[11px] text-[var(--comfort-text-muted)]">
+                <div className="pt-1 text-2xs text-[var(--comfort-text-muted)]">
                   <strong className="text-[var(--comfort-text)]">Penjelasan:</strong> {q.explanation}
                 </div>
               )}
@@ -465,7 +431,7 @@ export const PreLabQuizCard: React.FC<PreLabQuizCardProps> = ({
             type="button"
             onClick={onSubmitQuiz}
             disabled={Object.keys(selectedAnswers).length < experiment.preLabQuiz.length}
-            className="w-full py-2.5 px-4 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-colors disabled:opacity-40 cursor-pointer"
+            className="w-full py-2.5 px-4 rounded-lg comfort-btn-primary font-semibold text-xs transition-colors disabled:opacity-40 cursor-pointer"
           >
             Periksa Jawaban Kuis Pra-Lab
           </button>
@@ -489,7 +455,9 @@ export const PreLabQuizCard: React.FC<PreLabQuizCardProps> = ({
         <button
           type="button"
           onClick={onProceedToSimulation}
-          className="w-full py-3 px-5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+          className={`w-full py-3 px-5 rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer ${
+            quizSubmitted ? 'comfort-btn-primary shadow-sm' : 'comfort-btn-secondary'
+          }`}
         >
           <span>{readyOpen3DLabel}</span>
           <ArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />

@@ -33,7 +33,7 @@ export const ConceptLabelToggleButton: React.FC<ConceptLabelToggleButtonProps> =
           ? 'Sembunyikan Label & Panah Konsep 3D'
           : 'Tampilkan Label & Panah Konsep 3D'
       }
-      className={`px-2 py-1 text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+      className={`px-2 py-1 text-2xs rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
         showConceptLabels
           ? accentClass
           : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10 font-medium'
@@ -116,7 +116,7 @@ const ConceptLabelSlotItem: React.FC<ConceptLabelSlotItemProps> = React.memo(
               type="button"
               onClick={handleClick}
               title="Klik untuk inspeksi konsep & rumus terkait"
-              className="pointer-events-auto cursor-pointer pl-2 pr-2.5 py-1 rounded-md studio-hud-surface hover:border-sky-500/70 text-[10px] font-mono font-semibold tabular-nums text-[var(--comfort-hud-text)] whitespace-nowrap shadow-md flex items-center gap-1.5 transition-colors"
+              className="pointer-events-auto cursor-pointer pl-2 pr-2.5 py-1 rounded-md studio-hud-surface hover:border-sky-500/70 text-2xs font-mono font-semibold tabular-nums text-[var(--comfort-hud-text)] whitespace-nowrap shadow-md flex items-center gap-1.5 transition-colors"
             >
               <span
                 aria-hidden="true"
@@ -126,7 +126,7 @@ const ConceptLabelSlotItem: React.FC<ConceptLabelSlotItemProps> = React.memo(
               <span data-concept-text />
             </button>
           ) : (
-            <div className="pl-2 pr-2.5 py-1 rounded-md studio-hud-surface text-[10px] font-mono font-semibold tabular-nums text-[var(--comfort-hud-text)] whitespace-nowrap shadow-md flex items-center gap-1.5">
+            <div className="pl-2 pr-2.5 py-1 rounded-md studio-hud-surface text-2xs font-mono font-semibold tabular-nums text-[var(--comfort-hud-text)] whitespace-nowrap shadow-md flex items-center gap-1.5">
               <span
                 aria-hidden="true"
                 className="w-[2.5px] h-3 rounded-xs shrink-0"

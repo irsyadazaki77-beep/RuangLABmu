@@ -22,7 +22,7 @@ export const GradebookSubmissionsList: React.FC<GradebookSubmissionsListProps> =
   onOpenReplay,
 }) => {
   return (
-    <div className="w-full md:w-1/2 border-b md:border-b-0 md:border-r border-[var(--comfort-border)] overflow-y-auto divide-y divide-[var(--comfort-border)]">
+    <div className="w-full flex-1 border-b md:border-b-0 md:border-r border-[var(--comfort-border)] overflow-y-auto divide-y divide-[var(--comfort-border)]">
       {isLoading && submissions.length === 0 ? (
         <div className="p-8 text-center text-[var(--comfort-text-muted)] space-y-2">
           <Clock className="w-7 h-7 mx-auto opacity-60" aria-hidden="true" />
@@ -58,17 +58,17 @@ export const GradebookSubmissionsList: React.FC<GradebookSubmissionsListProps> =
                     {sub.id.startsWith('RLAB-') && (
                       <span
                         data-testid="offline-submission-badge"
-                        className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30"
+                        className="inline-flex items-center gap-1 text-2xs font-bold px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30"
                       >
                         <Package className="w-2.5 h-2.5" />
                         <span>Luring (.rlab)</span>
                       </span>
                     )}
-                    <span className="text-[11px] font-mono text-[var(--comfort-text-muted)]">
+                    <span className="text-2xs font-mono text-[var(--comfort-text-muted)]">
                       · {sub.id}
                     </span>
                   </div>
-                  <p className="text-[11px] text-[var(--comfort-text-muted)] font-medium mt-0.5">
+                  <p className="text-2xs text-[var(--comfort-text-muted)] font-medium mt-0.5">
                     Modul: {sub.moduleId} ({sub.domain})
                   </p>
                 </div>
@@ -85,7 +85,7 @@ export const GradebookSubmissionsList: React.FC<GradebookSubmissionsListProps> =
                       <span>Rubrik: {rubric.score}/100</span>
                     </span>
                   )}
-                  <div className="text-[10px] text-[var(--comfort-text-muted)] mt-0.5 tabular-nums">
+                  <div className="text-2xs text-[var(--comfort-text-muted)] mt-0.5 tabular-nums">
                     Kuis: {sub.quizScore}/100 · RK4: {rubric.score}/100
                   </div>
                 </div>
@@ -104,7 +104,7 @@ export const GradebookSubmissionsList: React.FC<GradebookSubmissionsListProps> =
                     onOpenReplay(sub);
                   }}
                   aria-label={`Lihat Replay Praktikum ${sub.studentName}`}
-                  className="px-2.5 py-1 min-h-[32px] rounded-lg bg-sky-500/10 hover:bg-sky-600 hover:text-white text-sky-700 dark:text-sky-300 border border-sky-500/30 text-[11px] font-semibold flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+                  className="px-2.5 py-1 min-h-[32px] rounded-lg bg-sky-500/10 hover:bg-sky-600 hover:text-white text-sky-700 dark:text-sky-300 border border-sky-500/30 text-2xs font-semibold flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
                 >
                   <PlayCircle className="w-3.5 h-3.5" />
                   <span>Lihat Replay Praktikum</span>

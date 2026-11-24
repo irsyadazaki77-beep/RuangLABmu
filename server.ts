@@ -14,6 +14,9 @@ import {
   openBrowserUrl,
 } from './server/utils/lanNetwork';
 import { createCollabSocketServer } from './server/ws/collabSocketServer';
+import { attachSessionMiddleware } from './server/auth/sessionToken';
+import { createAuthRouter } from './server/routes/authRoutes';
+import { createAdminRouter } from './server/routes/adminRoutes';
 import { createLabRouter } from './server/routes/labRoutes';
 import { createSubmissionRouter } from './server/routes/submissionRoutes';
 import { createAiRouter } from './server/routes/aiRoutes';
@@ -204,7 +207,6 @@ export function createGracefulShutdownHandler(deps: {
           signal,
         });
         state.database.checkpointWalTruncate();
-        state.sqliteStore.checkpointWalTruncate();
         state.dispose();
         exitFn(0);
         resolve();
@@ -227,7 +229,6 @@ export function createGracefulShutdownHandler(deps: {
       const finalize = () => {
         clearTimeout(forceExitTimer);
         state.database.checkpointWalTruncate();
-        state.sqliteStore.checkpointWalTruncate();
         state.dispose();
         logger.info('Graceful shutdown completed cleanly', {
           signal,
@@ -340,10 +341,20 @@ async function startServer() {
 
   const state = createLabServerState();
   await state.hydrateServerState();
+  state.backupService.startScheduler();
 
   const server = http.createServer(app);
-  const { wss, broadcastAll, broadcastRoom, getBackpressureStats } =
-    createCollabSocketServer(server, state);
+  const {
+    wss,
+    broadcastAll,
+    broadcastRoom,
+    broadcastSchool,
+    broadcastSchoolTeachers,
+    getBackpressureStats,
+  } = createCollabSocketServer(server, state, {
+    isOriginAllowed: (origin) =>
+      isOriginAllowed(origin, allowedOrigins, isProduction, isPortableBinary),
+  });
 
   // SRE Probes (/healthz, /readyz, /metrics) registered BEFORE rate limiters & SPA static fallback
   app.use(
@@ -398,9 +409,65 @@ async function startServer() {
   });
   app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMITS.standard }));
 
+  // Attach verified HMAC session claims (if Authorization: Bearer <token> is provided)
+  app.use('/api', attachSessionMiddleware);
+
+  app.use(createAuthRouter({ state }));
+  app.use(createAdminRouter({ state }));
   app.use(createLabRouter({ state, getPort: () => activePort }));
-  app.use(await createSubmissionRouter({ rootDir: ROOT_DIR, state, broadcastAll }));
+  app.use(
+    await createSubmissionRouter({
+      rootDir: ROOT_DIR,
+      state,
+      broadcastAll,
+      broadcastSchool,
+      broadcastSchoolTeachers,
+    })
+  );
   app.use(createAiRouter({ state, broadcastAll, broadcastRoom }));
+
+  // Global Express API error handler (structured JSON + request correlation ID)
+  app.use(
+    (
+      err: unknown,
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction
+    ) => {
+      if (res.headersSent) {
+        next(err);
+        return;
+      }
+      const status =
+        typeof (err as { status?: unknown })?.status === 'number'
+          ? (err as { status: number }).status
+          : 500;
+      const code =
+        typeof (err as { code?: unknown })?.code === 'string'
+          ? (err as { code: string }).code
+          : status >= 500
+          ? 'INTERNAL_SERVER_ERROR'
+          : 'REQUEST_ERROR';
+      logger.error('Unhandled Express API error', {
+        requestId: res.locals?.requestId,
+        method: req.method,
+        path: req.path,
+        status,
+        error: err,
+      });
+      res.status(status).json({
+        error: code,
+        code,
+        message:
+          status >= 500
+            ? 'Terjadi kesalahan internal pada server RuangLABmu.'
+            : err instanceof Error
+            ? err.message
+            : 'Permintaan tidak dapat diproses.',
+        requestId: res.locals?.requestId,
+      });
+    }
+  );
 
   const shutdownHandler = createGracefulShutdownHandler({
     server,

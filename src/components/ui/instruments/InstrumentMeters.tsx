@@ -122,13 +122,13 @@ export const CircularGaugeMeter: React.FC<CircularGaugeMeterProps> = ({
           >
             {formattedValue}
           </span>
-          <span className="font-mono text-[10px] text-[var(--comfort-text-muted)] leading-none mt-0.5">
+          <span className="font-mono text-2xs text-[var(--comfort-text-muted)] leading-none mt-0.5">
             <SciFormula text={unit} />
           </span>
         </div>
       </div>
 
-      <div className="flex items-center gap-1 text-[11px] font-medium text-[var(--comfort-text)] text-center leading-tight line-clamp-1">
+      <div className="flex items-center gap-1 text-2xs font-medium text-[var(--comfort-text)] text-center leading-tight line-clamp-1">
         {isWarning && <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />}
         <span className="truncate max-w-[110px]">
           <SciFormula text={label} />
@@ -136,7 +136,7 @@ export const CircularGaugeMeter: React.FC<CircularGaugeMeterProps> = ({
       </div>
 
       {badgeText && (
-        <span className="mt-1 text-[10px] font-mono font-semibold text-emerald-700 dark:text-emerald-300">
+        <span className="mt-1 text-2xs font-mono font-semibold text-emerald-700 dark:text-emerald-300">
           ● {badgeText}
         </span>
       )}
@@ -228,7 +228,7 @@ export const LiquidColumnMeter: React.FC<LiquidColumnMeterProps> = ({
       </div>
 
       <div className="flex flex-col justify-between min-w-[76px]">
-        <span className="text-[11px] font-medium text-[var(--comfort-text)] leading-tight">
+        <span className="text-2xs font-medium text-[var(--comfort-text)] leading-tight">
           <SciFormula text={label} />
         </span>
         <div className="my-1 flex items-baseline gap-1">
@@ -238,11 +238,11 @@ export const LiquidColumnMeter: React.FC<LiquidColumnMeterProps> = ({
           >
             {safeVal.toFixed(variant === 'ph' ? 2 : 1)}
           </span>
-          <span className="text-[10px] font-mono text-[var(--comfort-text-muted)]">
+          <span className="text-2xs font-mono text-[var(--comfort-text-muted)]">
             <SciFormula text={unit} />
           </span>
         </div>
-        <div className="text-[10px] font-mono text-[var(--comfort-text-muted)]">
+        <div className="text-2xs font-mono text-[var(--comfort-text-muted)]">
           {variant === 'ph'
             ? safeVal < 6.8
               ? 'Asam'
@@ -331,7 +331,7 @@ export const AnimatedNumberReadout: React.FC<AnimatedNumberReadoutProps> = ({
         transition={{ duration: 0.18 }}
         className={`p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] flex flex-col justify-between ${className}`}
       >
-        <span className="text-[11px] font-medium text-[var(--comfort-text-muted)] truncate">
+        <span className="text-2xs font-medium text-[var(--comfort-text-muted)] truncate">
           {label}
         </span>
         <div className="mt-1 flex items-baseline gap-1 font-mono tabular-nums">
@@ -496,7 +496,7 @@ export const LiveTelemetryOscilloscope: React.FC<
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <Activity className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--comfort-text)]">
+          <span className="text-2xs font-bold uppercase tracking-wider text-[var(--comfort-text)]">
             Osiloskop Telemetri ({domain})
           </span>
         </div>
@@ -515,7 +515,7 @@ export const LiveTelemetryOscilloscope: React.FC<
                 labSound.playClick();
                 setChannelMode(m.id);
               }}
-              className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold transition-colors cursor-pointer ${
+              className={`px-2 py-0.5 rounded text-2xs font-mono font-semibold transition-colors cursor-pointer ${
                 channelMode === m.id
                   ? 'bg-sky-600 text-white'
                   : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -530,7 +530,7 @@ export const LiveTelemetryOscilloscope: React.FC<
       {/* Dedicated dark CRT phosphor oscilloscope viewport */}
       <div className="relative rounded-lg overflow-hidden border border-slate-700/80 bg-[#090D16]">
         <canvas ref={canvasRef} width={320} height={86} className="w-full h-[86px] block" />
-        <div className="absolute bottom-1.5 left-2 right-2 flex items-center justify-between text-[10px] font-mono pointer-events-none">
+        <div className="absolute bottom-1.5 left-2 right-2 flex items-center justify-between text-2xs font-mono pointer-events-none">
           <span className="px-1.5 py-0.5 rounded bg-[#090D16]/85 border border-sky-500/40 text-sky-300 tabular-nums">
             CH1 {primaryLabel}: {Number(primaryValue).toFixed(2)} {primaryUnit}
           </span>
@@ -544,14 +544,14 @@ export const LiveTelemetryOscilloscope: React.FC<
         <Microscope className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+            <span className="text-2xs font-semibold text-amber-700 dark:text-amber-300">
               {microscopicStateLabel}
             </span>
-            <span className="text-[10px] font-mono text-[var(--comfort-text-muted)]">
+            <span className="text-2xs font-mono text-[var(--comfort-text-muted)]">
               Vektor &amp; Partikel
             </span>
           </div>
-          <p className="text-[11px] text-[var(--comfort-text-muted)] leading-snug mt-0.5">
+          <p className="text-2xs text-[var(--comfort-text-muted)] leading-snug mt-0.5">
             {microscopicDetail}
           </p>
         </div>

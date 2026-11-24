@@ -59,10 +59,15 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
   paramKey,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isInteracting, setIsInteracting] = useState(false);
+  const [hintPinned, setHintPinned] = useState(false);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const initialDefaultRef = useRef<number>(
     defaultValue ?? (Number.isFinite(value) ? value : min)
   );
+  const holdTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const latestValRef = useRef<number>(Number.isFinite(value) ? value : min);
   const storeAcademicLevel = useLabStore((s) => s.academicLevel);
   const highlightedParamKey = useLabStore((s) => s.highlightedParamKey);
   const setActiveAdjustedParam = useLabStore((s) => s.setActiveAdjustedParam);
@@ -80,8 +85,24 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
     educationLevel ?? storeAcademicLevel
   );
   const safeVal = Number.isFinite(value) ? value : min;
+  latestValRef.current = safeVal;
   const resolvedDefault = defaultValue ?? initialDefaultRef.current;
   const displayVarKey = symbol ? `${symbol} (${label})` : label;
+
+  const stopHoldRepeat = () => {
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+    if (holdIntervalRef.current) {
+      clearInterval(holdIntervalRef.current);
+      holdIntervalRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => stopHoldRepeat();
+  }, []);
 
   useEffect(() => {
     updateLiveParamSnapshot(displayVarKey, safeVal, unit);
@@ -91,10 +112,9 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
   }, [displayVarKey, safeVal, unit, updateLiveParamSnapshot, removeLiveParamSnapshot]);
 
   const feedbackText = dynamicFeedback ? dynamicFeedback(safeVal, effectiveLevel) : '';
-  const fillPct = Math.min(
-    100,
-    Math.max(0, ((safeVal - min) / Math.max(1e-6, max - min)) * 100)
-  );
+  const spanRange = Math.max(1e-6, max - min);
+  const fillPct = Math.min(100, Math.max(0, ((safeVal - min) / spanRange) * 100));
+  const defaultPct = Math.min(100, Math.max(0, ((resolvedDefault - min) / spanRange) * 100));
   const isLocked = Boolean(lockedBy);
   const resolvedLockRole =
     lockedByRole === 'Pengajar' ||
@@ -114,19 +134,57 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
       ? 1
       : 0;
 
-  const handleStep = (dir: -1 | 1) => {
+  const deltaFromDefault = safeVal - resolvedDefault;
+  const hasDelta = Math.abs(deltaFromDefault) >= Math.max(step * 0.1, 1e-6);
+
+  const applyStepDelta = (dir: -1 | 1, fine = false) => {
     if (isLocked) return;
+    const effectiveStep = fine ? step / 5 : step;
+    const precisionDigits = fine ? Math.min(4, decimals + 2) : decimals + 1;
+    const nextRaw = latestValRef.current + dir * effectiveStep;
+    const clamped = Math.min(max, Math.max(min, Number(nextRaw.toFixed(precisionDigits))));
+    if (Math.abs(clamped - latestValRef.current) < 1e-9) return;
+    latestValRef.current = clamped;
     labSound.playStep(dir > 0 ? 'up' : 'down');
-    const nextRaw = safeVal + dir * step;
-    const clamped = Math.min(max, Math.max(min, Number(nextRaw.toFixed(decimals + 1))));
     onChange(clamped);
     setActiveAdjustedParam({ label: displayVarKey, value: clamped, unit });
+  };
+
+  const handleStepPointerDown = (dir: -1 | 1, e: React.PointerEvent<HTMLButtonElement>) => {
+    if (isLocked) return;
+    const fine = e.shiftKey;
+    stopHoldRepeat();
+    setIsInteracting(true);
+    onFocusLock?.();
+    holdTimeoutRef.current = setTimeout(() => {
+      holdIntervalRef.current = setInterval(() => {
+        applyStepDelta(dir, fine);
+      }, 85);
+    }, 360);
+  };
+
+  const handleStepPointerUp = () => {
+    stopHoldRepeat();
+    setIsInteracting(false);
+    onBlurLock?.();
+  };
+
+  const handleRangeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isLocked || !e.shiftKey) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      applyStepDelta(1, true);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      applyStepDelta(-1, true);
+    }
   };
 
   const handleResetDefault = () => {
     if (isLocked) return;
     labSound.playClick();
     const clamped = Math.min(max, Math.max(min, Number(resolvedDefault.toFixed(decimals + 1))));
+    latestValRef.current = clamped;
     onChange(clamped);
     setActiveAdjustedParam({ label: displayVarKey, value: clamped, unit });
   };
@@ -138,6 +196,7 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
     const parsed = parseFloat(raw);
     if (Number.isFinite(parsed)) {
       const clamped = Math.min(max, Math.max(min, Number(parsed.toFixed(decimals + 1))));
+      latestValRef.current = clamped;
       onChange(clamped);
       setActiveAdjustedParam({ label: displayVarKey, value: clamped, unit });
     }
@@ -159,30 +218,27 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
       }}
       animate={{
         borderColor: isHighlighted
-          ? 'rgba(251, 191, 36, 0.95)'
-          : isHovered
-          ? 'rgba(14, 165, 233, 0.55)'
+          ? 'var(--comfort-warning)'
+          : isInteracting || isHovered
+          ? 'var(--comfort-accent-border)'
           : 'var(--comfort-border)',
       }}
       transition={{ type: 'spring', stiffness: 320, damping: 28, mass: 0.9 }}
-      className={`p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border space-y-2 transition-all ${
+      className={`p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border space-y-2 transition-colors ${
         isHighlighted
-          ? 'ring-2 ring-amber-400 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.45)]'
+          ? 'ring-2 ring-[var(--comfort-warning)] shadow-sm'
           : 'border-[var(--comfort-border)]'
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           {symbol && (
             <motion.span
               animate={{
-                scale: isHovered ? 1.06 : 1,
-                boxShadow: isHovered
-                  ? '0 0 10px rgba(14, 165, 233, 0.35)'
-                  : '0 0 0px rgba(0,0,0,0)',
+                scale: isHovered || isInteracting ? 1.04 : 1,
               }}
               transition={{ type: 'spring', stiffness: 320, damping: 28, mass: 0.9 }}
-              className="inline-flex items-center justify-center px-2 py-0.5 rounded-md font-mono font-bold text-xs bg-sky-500/12 text-sky-700 dark:text-sky-300 border border-sky-500/25 shrink-0"
+              className="inline-flex items-center justify-center px-2 py-0.5 rounded-md font-mono font-bold text-xs comfort-accent-soft border shrink-0"
             >
               <SciFormula text={symbol} serifVars />
             </motion.span>
@@ -197,18 +253,47 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
             <ScienceGlossaryTerm
               term={glossaryTerm}
               displayLabel="?"
-              className="px-1.5 py-0 rounded bg-sky-500/10 text-[10px] font-mono text-sky-700 dark:text-sky-300 border-b border-dotted border-sky-500/70 shrink-0"
+              className="px-1.5 py-0 rounded bg-[var(--comfort-accent-soft)] text-2xs font-mono text-[var(--comfort-accent)] border-b border-dotted border-[var(--comfort-accent)] shrink-0"
             />
           )}
           {badgeText && (
-            <span className="text-[10px] font-mono text-[var(--comfort-text-muted)]">
+            <span className="text-2xs font-mono text-[var(--comfort-text-muted)]">
               · <SciFormula text={badgeText} />
             </span>
+          )}
+          {hasDelta && !isLocked && (
+            <span
+              data-testid={id ? `${id}-delta` : undefined}
+              className="text-2xs font-mono font-semibold text-[var(--comfort-accent)] tabular-nums shrink-0"
+              title={`Selisih dari nilai awal (${resolvedDefault.toFixed(decimals)})`}
+            >
+              Δ{deltaFromDefault > 0 ? '+' : ''}
+              {deltaFromDefault.toFixed(decimals)}
+            </span>
+          )}
+          {feedbackText && (
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setHintPinned((prev) => !prev);
+              }}
+              aria-expanded={hintPinned || isInteracting || isHighlighted}
+              aria-label={`Catatan fisis untuk ${label}`}
+              title={hintPinned ? 'Sembunyikan catatan fisis' : 'Lihat catatan fisis'}
+              className={`p-1 rounded-md transition-colors cursor-pointer shrink-0 ${
+                hintPinned || isInteracting || isHighlighted
+                  ? 'text-[var(--comfort-accent)] bg-[var(--comfort-accent-soft)]'
+                  : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-accent)] hover:bg-[var(--comfort-accent-soft)]'
+              }`}
+            >
+              <Info className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
           )}
           {isHighlighted && (
             <span
               data-testid="dr-labmu-slider-highlight-badge"
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-700 dark:text-amber-300 border border-amber-400/50 shrink-0"
+              className="text-2xs font-bold px-1.5 py-0.5 rounded bg-[var(--comfort-warning-soft)] text-[var(--comfort-warning)] border border-[var(--comfort-warning-border)] shrink-0"
             >
               Fokus Dr. LabMu
             </span>
@@ -223,29 +308,34 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28, mass: 0.9 }}
-              className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/40 rounded px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-2xs font-mono text-[var(--comfort-warning)] bg-[var(--comfort-warning-soft)] border border-[var(--comfort-warning-border)] rounded px-2 py-0.5"
               title={`Parameter sedang dikendalikan oleh ${lockedBy} (${resolvedLockRole})`}
             >
               <Lock className="w-3 h-3" />
               <span>Diatur {lockedBy}</span>
-              <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-amber-500/20 font-bold">
-                {resolvedLockRole}
+              <span className="text-2xs uppercase font-bold opacity-85">
+                · {resolvedLockRole}
               </span>
             </motion.span>
           ) : (
             <motion.div key="controls" className="flex items-center gap-1 shrink-0">
               <motion.button
                 type="button"
-                whileTap={{ scale: 0.88 }}
+                whileTap={{ scale: 0.9 }}
                 disabled={isLocked || safeVal <= min}
                 aria-label={`Kurangi ${label}`}
-                onClick={() => handleStep(-1)}
-                className="p-1.5 min-w-[28px] min-h-[28px] flex items-center justify-center rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-sky-500 text-[var(--comfort-text)] disabled:opacity-40 transition-colors cursor-pointer"
+                title="Klik atau tahan untuk mengurangi (Shift+Klik untuk langkah halus)"
+                onClick={(e) => applyStepDelta(-1, e.shiftKey)}
+                onPointerDown={(e) => handleStepPointerDown(-1, e)}
+                onPointerUp={handleStepPointerUp}
+                onPointerLeave={handleStepPointerUp}
+                onPointerCancel={handleStepPointerUp}
+                className="min-w-[40px] min-h-[40px] lg:min-w-[34px] lg:min-h-[34px] flex items-center justify-center rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-[var(--comfort-accent-border)] text-[var(--comfort-text)] disabled:opacity-40 transition-colors cursor-pointer select-none touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
               >
-                <Minus className="w-3 h-3" />
+                <Minus className="w-3.5 h-3.5" aria-hidden="true" />
               </motion.button>
 
-              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] focus-within:border-sky-500">
+              <div className="inline-flex items-center gap-1 px-2 min-h-[40px] lg:min-h-[34px] rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] focus-within:border-[var(--comfort-accent)] focus-within:ring-1 focus-within:ring-[var(--comfort-accent)]/30">
                 <input
                   type="number"
                   min={min}
@@ -254,103 +344,139 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
                   disabled={isLocked}
                   value={Number(safeVal.toFixed(decimals))}
                   onFocus={() => {
+                    setIsInteracting(true);
                     onFocusLock?.();
                     setActiveAdjustedParam({ label: displayVarKey, value: safeVal, unit });
                   }}
                   onBlur={() => {
+                    setIsInteracting(false);
                     onBlurLock?.();
                     setActiveAdjustedParam(null);
                   }}
+                  onKeyDown={handleRangeKeyDown}
                   onChange={handleNumericInputChange}
                   aria-label={`Input numerik ${label}`}
                   className="w-14 bg-transparent font-mono font-bold text-xs text-[var(--comfort-text)] tabular-nums text-right focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
-                <span className="font-mono text-[10px] text-[var(--comfort-text-muted)]">
+                <span className="font-mono text-2xs text-[var(--comfort-text-muted)]">
                   <SciFormula text={unit} />
                 </span>
               </div>
 
               <motion.button
                 type="button"
-                whileTap={{ scale: 0.88 }}
+                whileTap={{ scale: 0.9 }}
                 disabled={isLocked || safeVal >= max}
                 aria-label={`Tambah ${label}`}
-                onClick={() => handleStep(1)}
-                className="p-1.5 min-w-[28px] min-h-[28px] flex items-center justify-center rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-sky-500 text-[var(--comfort-text)] disabled:opacity-40 transition-colors cursor-pointer"
+                title="Klik atau tahan untuk menambah (Shift+Klik untuk langkah halus)"
+                onClick={(e) => applyStepDelta(1, e.shiftKey)}
+                onPointerDown={(e) => handleStepPointerDown(1, e)}
+                onPointerUp={handleStepPointerUp}
+                onPointerLeave={handleStepPointerUp}
+                onPointerCancel={handleStepPointerUp}
+                className="min-w-[40px] min-h-[40px] lg:min-w-[34px] lg:min-h-[34px] flex items-center justify-center rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-[var(--comfort-accent-border)] text-[var(--comfort-text)] disabled:opacity-40 transition-colors cursor-pointer select-none touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
               >
-                <Plus className="w-3 h-3" />
+                <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               </motion.button>
 
               <motion.button
                 type="button"
-                whileTap={{ scale: 0.88 }}
-                disabled={isLocked || Math.abs(safeVal - resolvedDefault) < 1e-6}
+                whileTap={{ scale: 0.9 }}
+                disabled={isLocked || !hasDelta}
                 aria-label={`Reset ${label} ke nilai bawaan`}
                 title={`Reset ke bawaan (${resolvedDefault.toFixed(decimals)}${unit ? ` ${unit}` : ''})`}
                 onClick={handleResetDefault}
-                className="p-1.5 min-w-[28px] min-h-[28px] flex items-center justify-center rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-sky-500 text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] disabled:opacity-35 transition-colors cursor-pointer"
+                className="min-w-[40px] min-h-[40px] lg:min-w-[34px] lg:min-h-[34px] flex items-center justify-center rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-[var(--comfort-accent-border)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] disabled:opacity-35 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
               >
-                <RotateCcw className="w-3 h-3" />
+                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
               </motion.button>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Interactive Fill Bar + Native Range Input */}
-      <div className="relative flex items-center h-6">
-        <div className="pointer-events-none absolute inset-x-0 h-2 rounded-full bg-[var(--comfort-surface)] overflow-hidden border border-[var(--comfort-border)]">
+      {/* Interactive Fill Bar + Default Marker + Native Range Input + Scale Ticks */}
+      <div className="space-y-1">
+        <div className="relative flex items-center h-7">
+          <div className="pointer-events-none absolute inset-x-0 h-2 rounded-full bg-[var(--comfort-surface)] overflow-hidden border border-[var(--comfort-border)]">
+            <motion.div
+              className="h-full bg-[var(--comfort-accent-solid)] rounded-full"
+              initial={false}
+              animate={{ width: `${fillPct}%` }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+            />
+          </div>
+          {/* Default value reference notch */}
+          <span
+            aria-hidden="true"
+            style={{ left: `calc(${defaultPct}% - 1px)` }}
+            className="pointer-events-none absolute top-1/2 -translate-y-1/2 w-0.5 h-3.5 rounded-full bg-[var(--comfort-text-muted)]/45"
+          />
+          <input
+            id={id}
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={safeVal}
+            disabled={isLocked}
+            onPointerDown={() => {
+              setIsInteracting(true);
+              onHoverChange?.(true);
+              onFocusLock?.();
+            }}
+            onFocus={() => {
+              setIsInteracting(true);
+              onHoverChange?.(true);
+              onFocusLock?.();
+            }}
+            onPointerUp={() => {
+              setIsInteracting(false);
+              onHoverChange?.(false);
+              onBlurLock?.();
+            }}
+            onBlur={() => {
+              setIsInteracting(false);
+              onHoverChange?.(false);
+              onBlurLock?.();
+            }}
+            onKeyDown={handleRangeKeyDown}
+            onChange={(e) => {
+              const parsed = parseFloat(e.target.value);
+              latestValRef.current = parsed;
+              onChange(parsed);
+            }}
+            className="relative z-10 w-full h-7 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+          />
           <motion.div
-            className="h-full bg-gradient-to-r from-sky-500 to-emerald-500 rounded-full"
+            className="pointer-events-none absolute w-4 h-4 rounded-full bg-[var(--comfort-elevated)] border-2 border-[var(--comfort-accent)] shadow-sm"
             initial={false}
-            animate={{ width: `${fillPct}%` }}
-            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+            animate={{
+              left: `calc(${fillPct}% - 8px)`,
+              scale: isInteracting ? 1.2 : isHovered ? 1.12 : 1,
+            }}
+            transition={{ type: 'spring', stiffness: 340, damping: 26 }}
           />
         </div>
-        <input
-          id={id}
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={safeVal}
-          disabled={isLocked}
-          onPointerDown={() => {
-            onHoverChange?.(true);
-            onFocusLock?.();
-          }}
-          onFocus={() => {
-            onHoverChange?.(true);
-            onFocusLock?.();
-          }}
-          onPointerUp={() => {
-            onHoverChange?.(false);
-            onBlurLock?.();
-          }}
-          onBlur={() => {
-            onHoverChange?.(false);
-            onBlurLock?.();
-          }}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="relative z-10 w-full h-6 opacity-0 cursor-pointer disabled:cursor-not-allowed"
-        />
-        <motion.div
-          className="pointer-events-none absolute w-4 h-4 rounded-full bg-[var(--comfort-elevated)] border-2 border-sky-600 dark:border-sky-400 shadow-sm"
-          initial={false}
-          animate={{
-            left: `calc(${fillPct}% - 8px)`,
-            scale: isHovered ? 1.18 : 1,
-          }}
-          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-        />
+
+        {/* Scale Ticks & Min/Max Boundary Readout */}
+        <div className="flex items-center justify-between text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums px-0.5 select-none">
+          <span>{min.toFixed(decimals)}</span>
+          <div className="flex items-center gap-5 opacity-45" aria-hidden="true">
+            <span className="w-px h-1.5 bg-current" />
+            <span className="w-px h-2 bg-current" />
+            <span className="w-px h-1.5 bg-current" />
+          </div>
+          <span>{max.toFixed(decimals)}</span>
+        </div>
       </div>
 
-      {feedbackText && (
+      {feedbackText && (hintPinned || isInteracting || isHighlighted) && (
         <p
           data-testid={id ? `${id}-feedback` : 'parameter-micro-insight'}
-          className="text-[11px] leading-snug font-medium text-sky-700 dark:text-sky-300 flex items-start gap-1.5 pt-0.5"
+          className="text-2xs leading-snug font-medium text-[var(--comfort-accent)] flex items-start gap-1.5 pt-1 border-t border-[var(--comfort-border)]"
         >
-          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[var(--comfort-accent)]" aria-hidden="true" />
           <span>{feedbackText}</span>
         </p>
       )}
@@ -372,7 +498,7 @@ export const CollapsibleLabSection: React.FC<CollapsibleLabSectionProps> = ({
   subtitle,
   statusText,
   defaultOpen = false,
-  accentColor = '#0284c7',
+  accentColor = 'var(--comfort-accent)',
   children,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -399,7 +525,7 @@ export const CollapsibleLabSection: React.FC<CollapsibleLabSectionProps> = ({
             </span>
           </div>
           {subtitle && (
-            <p className="text-[11px] text-[var(--comfort-text-muted)] truncate mt-0.5 pl-3.5">
+            <p className="text-2xs text-[var(--comfort-text-muted)] truncate mt-0.5 pl-3.5">
               {subtitle}
             </p>
           )}
@@ -407,13 +533,13 @@ export const CollapsibleLabSection: React.FC<CollapsibleLabSectionProps> = ({
 
         <div className="flex items-center gap-2 shrink-0">
           {statusText && (
-            <span className="text-[10px] font-mono text-[var(--comfort-text-muted)] tabular-nums">
+            <span className="text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
               {statusText}
             </span>
           )}
           <ChevronDown
             className={`w-4 h-4 text-[var(--comfort-text-muted)] transition-transform duration-150 ${
-              isOpen ? 'rotate-180 text-sky-600 dark:text-sky-400' : ''
+              isOpen ? 'rotate-180 text-[var(--comfort-accent)]' : ''
             }`}
           />
         </div>

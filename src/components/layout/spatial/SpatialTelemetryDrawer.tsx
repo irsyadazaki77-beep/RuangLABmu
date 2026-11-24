@@ -58,8 +58,8 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
           className="hidden lg:flex flex-col absolute top-16 bottom-16 right-3 w-[328px] xl:w-[340px] z-20 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
         >
           <div className="px-3.5 py-2.5 border-b border-[var(--comfort-border)] flex items-center justify-between shrink-0">
-            <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 text-[var(--comfort-text)]">
-              <Activity className="w-3.5 h-3.5 text-emerald-500 shrink-0" aria-hidden="true" />
+            <span className="text-2xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-[var(--comfort-text)]">
+              <Activity className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
               <span>Telemetri &amp; Rumus</span>
             </span>
             <button
@@ -75,10 +75,10 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
           <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5">
             {oscilloscope && (
               <div className="rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-3 py-2 text-xs text-[var(--comfort-text)] space-y-0.5">
-                <div className="font-mono text-[11px] font-bold text-sky-700 dark:text-sky-300 truncate">
+                <div className="font-mono text-2xs font-bold text-[var(--comfort-accent)] truncate">
                   {oscilloscope.microscopicStateLabel}
                 </div>
-                <p className="text-[10px] text-[var(--comfort-text-muted)] line-clamp-2 leading-relaxed">
+                <p className="text-2xs text-[var(--comfort-text-muted)] line-clamp-2 leading-relaxed">
                   {oscilloscope.microscopicDetail}
                 </p>
               </div>
@@ -117,14 +117,14 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
             {recentRecords.length > 0 && (
               <div className="rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] p-2.5 space-y-1.5 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] tabular-nums">
+                  <span className="font-mono text-2xs font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] tabular-nums">
                     Data Tercatat ({recordsCount})
                   </span>
                   {onProceedToAnalysis && (
                     <button
                       type="button"
                       onClick={onProceedToAnalysis}
-                      className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer whitespace-nowrap"
+                      className="text-2xs font-bold text-[var(--comfort-accent)] hover:underline cursor-pointer whitespace-nowrap"
                     >
                       Grafik &amp; LKS →
                     </button>
@@ -134,9 +134,9 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
                   {recentRecords.slice(0, 4).map((rec, idx) => (
                     <div
                       key={rec.id}
-                      className="flex items-center justify-between gap-1.5 px-2 py-1 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] font-mono text-[10px]"
+                      className="flex items-center justify-between gap-1.5 px-2 py-1 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] font-mono text-2xs"
                     >
-                      <span className="font-bold text-sky-600 dark:text-sky-400 shrink-0 tabular-nums">
+                      <span className="font-bold text-[var(--comfort-accent)] shrink-0 tabular-nums">
                         #{idx + 1}
                       </span>
                       <span className="truncate flex-1 text-[var(--comfort-text)]">
@@ -147,7 +147,7 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
                           type="button"
                           onClick={() => onDeleteRecord(rec.id)}
                           aria-label={`Hapus data percobaan ${idx + 1}`}
-                          className="text-[var(--comfort-text-muted)] hover:text-rose-500 cursor-pointer shrink-0"
+                          className="text-[var(--comfort-text-muted)] hover:text-[var(--comfort-danger)] cursor-pointer shrink-0"
                         >
                           <Trash2 className="w-3 h-3" aria-hidden="true" />
                         </button>
@@ -164,7 +164,7 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
                 labSound.playClick();
                 onOpenDrLabMu();
               }}
-              className="w-full py-2 px-3 rounded-lg bg-sky-500/12 hover:bg-sky-500/20 border border-sky-500/35 text-sky-700 dark:text-sky-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              className="w-full py-2 px-3 rounded-lg comfort-accent-soft border text-xs font-bold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
             >
               <Bot className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>Diskusi Sokratik Dr. LabMu</span>

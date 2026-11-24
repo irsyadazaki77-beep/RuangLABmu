@@ -215,7 +215,7 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
                       {item.label}
                     </div>
                     <p
-                      className={`text-[11px] mt-0.5 line-clamp-1 ${
+                      className={`text-2xs mt-0.5 line-clamp-1 ${
                         isSelected
                           ? 'text-white/85'
                           : 'text-[var(--comfort-text-muted)]'
@@ -350,7 +350,7 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
                       </span>
                     )}
                     {exp.competencyLevel && (
-                      <span className="font-mono text-[11px] font-semibold text-[var(--comfort-text-muted)]">
+                      <span className="font-mono text-2xs font-semibold text-[var(--comfort-text-muted)]">
                         {exp.competencyLevel} ·
                       </span>
                     )}
@@ -365,7 +365,7 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
                     </span>
                   </div>
                   <span
-                    className={`font-mono text-[11px] shrink-0 ${
+                    className={`font-mono text-2xs shrink-0 ${
                       isSafetyVerified
                         ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
                         : 'text-amber-600 dark:text-amber-400'
@@ -386,7 +386,7 @@ export const ExperimentCatalogPicker: React.FC<ExperimentCatalogPickerProps> = (
                 </p>
 
                 {/* Subtle Curriculum Context Note */}
-                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                <div className="mt-2 flex items-center gap-1.5 text-2xs font-medium text-emerald-700 dark:text-emerald-400">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                   <span className="truncate">Miskonsepsi &amp; Konteks Industri Lengkap</span>
                 </div>

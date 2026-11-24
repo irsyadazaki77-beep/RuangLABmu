@@ -63,7 +63,7 @@ export const ConnectivityPopover: React.FC<ConnectivityPopoverProps> = ({
         }}
         aria-expanded={isOpen}
         aria-label={`Status Konektivitas: ${statusLabel}`}
-        className={`h-8 px-2 flex items-center gap-1.5 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-[11px] xl:text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${statusToneClass}`}
+        className={`h-8 px-2 flex items-center gap-1.5 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-2xs xl:text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${statusToneClass}`}
       >
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} aria-hidden="true" />
         <span className="font-medium text-[var(--comfort-text)]">{statusLabel}</span>
@@ -73,7 +73,7 @@ export const ConnectivityPopover: React.FC<ConnectivityPopoverProps> = ({
             outboxStatus.syncStatus === 'syncing' || outboxStatus.pendingCount > 0 || !isOnline
               ? 'hidden sm:inline'
               : 'hidden xl:inline'
-          } text-[11px] text-[var(--comfort-text-muted)] tabular-nums`}
+          } text-2xs text-[var(--comfort-text-muted)] tabular-nums`}
         >
           · {outboxStatus.label}
         </span>
@@ -114,7 +114,7 @@ export const ConnectivityPopover: React.FC<ConnectivityPopoverProps> = ({
                         ? 'Mode LAN Kelas (Tanpa Kuota)'
                         : 'Mode Luring Mandiri'}
                     </div>
-                    <div className="text-[11px] text-[var(--comfort-text-muted)] font-mono tabular-nums">
+                    <div className="text-2xs text-[var(--comfort-text-muted)] font-mono tabular-nums">
                       {hostname || 'localhost'} · {wsConnected ? 'Sync Aktif' : 'Cache Lokal'} · {outboxStatus.label}
                     </div>
                   </div>

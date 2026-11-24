@@ -110,7 +110,7 @@ export const AdaptiveNudgeToast: React.FC<AdaptiveNudgeToastProps> = ({
       className="pointer-events-auto flex flex-col items-end gap-2 max-w-md select-none"
     >
       {/* Compact Sandbox Port Docking & Adaptive Hint Trigger Bar */}
-      <div className="flex flex-wrap items-center gap-1.5 rounded-xl studio-hud-surface border px-2.5 py-1.5 shadow-lg text-[11px]">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-xl studio-hud-surface border px-2.5 py-1.5 shadow-lg text-2xs">
         <button
           type="button"
           data-testid="snap-dock-apparatus-btn"
@@ -133,7 +133,7 @@ export const AdaptiveNudgeToast: React.FC<AdaptiveNudgeToastProps> = ({
         {transferStats && transferStats.activeConnectionsCount > 0 && (
           <span
             data-testid="sandbox-transfer-badge"
-            className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 font-mono text-[10px] text-emerald-700 dark:text-emerald-300 tabular-nums"
+            className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 font-mono text-2xs text-emerald-700 dark:text-emerald-300 tabular-nums"
           >
             {transferStats.fluidTransferredMl > 0
               ? `ΔV = +${transferStats.fluidTransferredMl.toFixed(1)} mL`
@@ -187,7 +187,7 @@ export const AdaptiveNudgeToast: React.FC<AdaptiveNudgeToastProps> = ({
                 <div className="flex items-center gap-1.5">
                   <span
                     data-testid="scaffolding-tier-badge"
-                    className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-bold uppercase tracking-wider ${
+                    className={`px-1.5 py-0.5 rounded font-mono text-2xs font-bold uppercase tracking-wider ${
                       activeHint.condition === 'safety_violation'
                         ? 'bg-rose-500/20 text-rose-200'
                         : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
@@ -224,7 +224,7 @@ export const AdaptiveNudgeToast: React.FC<AdaptiveNudgeToastProps> = ({
 
           {/* Level 1: Reflective Nudge Message */}
           <p
-            className={`text-[11px] leading-relaxed ${
+            className={`text-2xs leading-relaxed ${
               activeHint.condition === 'safety_violation'
                 ? 'text-rose-100'
                 : 'text-[var(--comfort-hud-text)]'
@@ -244,7 +244,7 @@ export const AdaptiveNudgeToast: React.FC<AdaptiveNudgeToastProps> = ({
               }`}
             >
               <div
-                className={`flex items-center gap-1.5 text-[11px] font-bold ${
+                className={`flex items-center gap-1.5 text-2xs font-bold ${
                   activeHint.condition === 'safety_violation'
                     ? 'text-amber-200'
                     : 'text-amber-700 dark:text-amber-300'
@@ -254,7 +254,7 @@ export const AdaptiveNudgeToast: React.FC<AdaptiveNudgeToastProps> = ({
                 <span>Variabel Target: {activeHint.targetedVariable}</span>
               </div>
               <p
-                className={`text-[11px] ${
+                className={`text-2xs ${
                   activeHint.condition === 'safety_violation'
                     ? 'text-rose-100'
                     : 'text-[var(--comfort-hud-muted)]'
@@ -269,7 +269,7 @@ export const AdaptiveNudgeToast: React.FC<AdaptiveNudgeToastProps> = ({
           {activeHint.tier === 3 && (
             <div
               data-testid="scaffolding-visual-focus-status"
-              className="rounded-lg bg-sky-500/15 border border-sky-500/35 px-2.5 py-1.5 flex items-center justify-between text-[11px] text-sky-800 dark:text-sky-200"
+              className="rounded-lg bg-sky-500/15 border border-sky-500/35 px-2.5 py-1.5 flex items-center justify-between text-2xs text-sky-800 dark:text-sky-200"
             >
               <span className="flex items-center gap-1.5 font-medium">
                 <Crosshair className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -277,7 +277,7 @@ export const AdaptiveNudgeToast: React.FC<AdaptiveNudgeToastProps> = ({
                   Kamera 3D difokuskan ke: <b>{activeHint.instrumentId}</b>
                 </span>
               </span>
-              <span className="font-mono text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold">
+              <span className="font-mono text-2xs text-emerald-700 dark:text-emerald-300 font-semibold">
                 Fokus Aktif
               </span>
             </div>
@@ -289,7 +289,7 @@ export const AdaptiveNudgeToast: React.FC<AdaptiveNudgeToastProps> = ({
               <button
                 type="button"
                 onClick={handleFocusInstrumentLevel3}
-                className="px-2.5 py-1.5 rounded-lg studio-hud-subcard border hover:border-sky-500/50 text-sky-700 dark:text-sky-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg studio-hud-subcard border hover:border-sky-500/50 text-sky-700 dark:text-sky-300 text-2xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Crosshair className="w-3.5 h-3.5" />
                 <span>Fokus Kamera 3D (Level 3)</span>
@@ -300,7 +300,7 @@ export const AdaptiveNudgeToast: React.FC<AdaptiveNudgeToastProps> = ({
               type="button"
               data-testid="ask-dr-labmu-further-btn"
               onClick={handleAskDrLabMuFurther}
-              className="ml-auto px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              className="ml-auto px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-2xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
               <span>Tanya Dr. LabMu Lebih Lanjut</span>
               <ArrowUpRight className="w-3.5 h-3.5" />

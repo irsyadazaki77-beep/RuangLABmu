@@ -6,6 +6,8 @@ import {
   generateRandomRoomId,
 } from '../../src/utils/collabProtocol';
 import { verifyTeacherAuthorization } from '../../src/utils/submissionPersistence';
+import { verifySessionToken } from '../auth/sessionToken';
+import { DEFAULT_SCHOOL_ID } from '../db/LabRepository';
 import {
   generateSecureRoomPin,
   hashRoomPin,
@@ -105,10 +107,19 @@ export function handleRoomCreate(
       ? payload.roomId
       : generateRandomRoomId();
 
+  const tokenClaims =
+    typeof payload.sessionToken === 'string' && payload.sessionToken.trim()
+      ? verifySessionToken(payload.sessionToken.trim())
+      : ws.sessionClaims;
+  if (tokenClaims) {
+    ws.sessionClaims = tokenClaims;
+  }
+
   const schoolId =
-    typeof payload.schoolId === 'string' && payload.schoolId.trim()
+    tokenClaims?.schoolId ||
+    (typeof payload.schoolId === 'string' && payload.schoolId.trim()
       ? payload.schoolId.trim()
-      : 'default-school';
+      : ws.schoolId || DEFAULT_SCHOOL_ID);
   const roomId = customId.toUpperCase().trim();
   const now = Date.now();
   const newRoom: LabRoom & { pinHash?: string } = {
@@ -137,7 +148,20 @@ export function handleRoomCreate(
   state.activeLabRooms.set(roomId, newRoom);
   state.pruneIdleRooms(now);
   ws.roomId = roomId;
+  ws.schoolId = schoolId;
   ws.role = 'Pengajar';
+
+  state.recordAuditLog({
+    schoolId,
+    actorId: tokenClaims?.sub || teacherUserId,
+    actorName: teacherName,
+    actorRole: 'teacher',
+    action: 'ROOM_CREATED',
+    targetType: 'room',
+    targetId: roomId,
+    metadata: { domain, moduleId },
+    ipAddress: ws.remoteIp,
+  });
 
   // Send full room (including PIN) privately ONLY to the room creator
   const { pinHash: _pinHash, ...creatorRoomPayload } = newRoom;
@@ -243,6 +267,19 @@ export function handleRoomJoin(
       !isExistingRoomTeacherReconnect
   );
 
+  const joinTokenClaims =
+    typeof payload.sessionToken === 'string' && payload.sessionToken.trim()
+      ? verifySessionToken(payload.sessionToken.trim())
+      : ws.sessionClaims;
+  const isVerifiedTokenTeacher = Boolean(
+    joinTokenClaims &&
+      (joinTokenClaims.role === 'teacher' || joinTokenClaims.role === 'admin') &&
+      joinTokenClaims.schoolId === (room.schoolId || DEFAULT_SCHOOL_ID)
+  );
+  if (joinTokenClaims) {
+    ws.sessionClaims = joinTokenClaims;
+  }
+
   const teacherAuth = verifyTeacherAuthorization({
     socketId: ws.socketId,
     claimedRole: wantsTeacherRole ? 'Pengajar' : 'Siswa',
@@ -254,7 +291,7 @@ export function handleRoomJoin(
     roomPinHash: hasActiveOtherTeacher ? undefined : room.pinHash,
     roomTeacherSocketId: room.teacherSocketId,
     isSocketAlreadyVerifiedTeacher:
-      ws.role === 'Pengajar' || isExistingRoomTeacherReconnect,
+      ws.role === 'Pengajar' || isExistingRoomTeacherReconnect || isVerifiedTokenTeacher,
   });
 
   if (wantsTeacherRole && !teacherAuth.authorized) {
@@ -304,6 +341,7 @@ export function handleRoomJoin(
   room.clients[ws.socketId] = roomClient;
   state.touchLabRoom(roomId, now);
   ws.roomId = roomId;
+  ws.schoolId = room.schoolId || DEFAULT_SCHOOL_ID;
   ws.userId = roomClient.userId;
   ws.userName = roomClient.name;
   ws.groupId = roomClient.groupId;

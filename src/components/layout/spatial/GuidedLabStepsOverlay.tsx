@@ -52,10 +52,10 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
           >
             <div className="flex items-center gap-1.5 min-w-0">
               <Compass className="w-3.5 h-3.5 text-sky-500 shrink-0" aria-hidden="true" />
-              <span className="text-[11px] font-bold text-[var(--comfort-hud-text)] whitespace-nowrap tabular-nums">
+              <span className="text-2xs font-bold text-[var(--comfort-hud-text)] whitespace-nowrap tabular-nums">
                 Langkah {activeStepIdx + 1}/{steps.length}
               </span>
-              <span className="text-[11px] text-[var(--comfort-text-muted)] truncate hidden sm:inline">
+              <span className="text-2xs text-[var(--comfort-text-muted)] truncate hidden sm:inline">
                 · {cleanActiveStep}
               </span>
             </div>
@@ -80,7 +80,7 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
         </div>
 
         {expanded && (
-          <ol className="px-3 pb-2.5 pt-2 border-t border-[var(--comfort-border)] space-y-1.5 text-[11px] max-h-[190px] overflow-y-auto">
+          <ol className="px-3 pb-2.5 pt-2 border-t border-[var(--comfort-border)] space-y-1.5 text-2xs max-h-[190px] overflow-y-auto">
             {steps.map((raw, idx) => {
               const text = raw.replace(/^\d+\.\s*/, '');
               const isDone = idx < recordsCount;
@@ -97,7 +97,7 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
                   {isDone ? (
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" aria-hidden="true" />
                   ) : (
-                    <span className="font-mono font-bold text-[10px] text-sky-500 shrink-0 mt-0.5 tabular-nums">
+                    <span className="font-mono font-bold text-2xs text-sky-500 shrink-0 mt-0.5 tabular-nums">
                       0{idx + 1}.
                     </span>
                   )}

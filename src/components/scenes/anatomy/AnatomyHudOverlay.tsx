@@ -62,7 +62,7 @@ export const AnatomyHudOverlay: React.FC<AnatomyHudOverlayProps> = ({
               type="button"
               aria-pressed={layerMode === id}
               onClick={() => onChangeLayerMode(id)}
-              className={`px-2 py-1 rounded-lg text-[11px] font-medium transition flex items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+              className={`px-2 py-1 rounded-lg text-2xs font-medium transition flex items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
                 layerMode === id
                   ? `${activeBg} text-white shadow-sm`
                   : 'text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-sky-500/10'
@@ -81,7 +81,7 @@ export const AnatomyHudOverlay: React.FC<AnatomyHudOverlayProps> = ({
               type="button"
               aria-pressed={selectedPinId === pin.id}
               onClick={() => onSelectPin(pin)}
-              className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+              className={`px-2 py-1 rounded-lg text-2xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
                 selectedPinId === pin.id
                   ? 'bg-cyan-600 text-white shadow-sm'
                   : 'studio-hud-subcard border hover:border-cyan-500/50 text-[var(--comfort-hud-text)]'
@@ -99,7 +99,7 @@ export const AnatomyHudOverlay: React.FC<AnatomyHudOverlayProps> = ({
             aria-label="Reset View Kamera 3D"
             onClick={onResetCamera}
             title="Reset View ke Sudut 3D Awal"
-            className="px-2 py-1 rounded-lg text-[11px] font-medium text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-sky-500/10 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            className="px-2 py-1 rounded-lg text-2xs font-medium text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-sky-500/10 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
           >
             Reset
           </button>
@@ -116,13 +116,13 @@ export const AnatomyHudOverlay: React.FC<AnatomyHudOverlayProps> = ({
         >
           <div className="flex items-start justify-between gap-2 mb-1.5">
             <div>
-              <span className="inline-block text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 mb-1">
+              <span className="inline-block text-2xs font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 mb-1">
                 Pin #{selectedPin.num} · Inspeksi Organ 3D
               </span>
               <h4 className="text-sm font-bold text-[var(--comfort-hud-text)] leading-tight">
                 {selectedPin.name}
               </h4>
-              <p className="text-[11px] text-cyan-700 dark:text-cyan-300">{selectedPin.subtitle}</p>
+              <p className="text-2xs text-cyan-700 dark:text-cyan-300">{selectedPin.subtitle}</p>
             </div>
             <button
               type="button"

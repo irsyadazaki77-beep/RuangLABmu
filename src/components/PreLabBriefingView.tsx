@@ -206,7 +206,7 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
               labSound.playClick();
               onBackToLobby();
             }}
-            className="px-3.5 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:opacity-85 text-xs font-semibold transition-opacity cursor-pointer whitespace-nowrap min-h-[40px]"
+            className="px-3.5 py-2 rounded-lg comfort-btn-secondary text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap min-h-[40px]"
           >
             {t('controls.changeModule')}
           </button>
@@ -218,7 +218,7 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
               recordK3Compliance(experiment.id);
               onProceedToSimulation();
             }}
-            className="px-5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap shadow-sm min-h-[40px]"
+            className="px-5 py-2.5 rounded-lg comfort-btn-primary font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap shadow-sm min-h-[40px]"
           >
             <span>{t('controls.openSimulation')}</span>
             <ArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />
@@ -244,12 +244,12 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
             }}
             className={`px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer min-h-[38px] ${
               activeTab === 'overview'
-                ? 'bg-sky-600 text-white shadow-xs'
+                ? 'comfort-tab-active shadow-xs'
                 : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)]'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-            <span>Konsep, Analogi, Contoh Soal &amp; K3</span>
+            <span>Ringkasan Teori &amp; K3</span>
           </button>
 
           <button
@@ -263,18 +263,18 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
             }}
             className={`px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer min-h-[38px] ${
               activeTab === 'quiz'
-                ? 'bg-sky-600 text-white shadow-xs'
+                ? 'comfort-tab-active shadow-xs'
                 : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)]'
             }`}
           >
             <HelpCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-            <span>Bedah Rumus Interaktif, Wawasan &amp; Kuis ({experiment.preLabQuiz.length} Soal)</span>
+            <span>Rumus Interaktif &amp; Kuis ({experiment.preLabQuiz.length} Soal)</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-2 px-2 text-[11px] font-mono text-[var(--comfort-text-muted)] tabular-nums">
+        <div className="flex items-center gap-2 px-2 text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
           <ShieldCheck
-            className={`w-3.5 h-3.5 ${k3Complied ? 'text-emerald-500' : 'text-amber-500'}`}
+            className={`w-3.5 h-3.5 ${k3Complied ? 'text-[var(--comfort-success)]' : 'text-[var(--comfort-warning)]'}`}
             aria-hidden="true"
           />
           <span>
@@ -329,7 +329,7 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
                   labSound.playClick();
                   setActiveTab('quiz');
                 }}
-                className="w-full py-2.5 px-4 rounded-lg bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 border border-[var(--comfort-border)] text-xs font-semibold text-[var(--comfort-text)] flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                className="w-full py-2.5 px-4 rounded-lg comfort-btn-secondary text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
                 <HelpCircle className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
                 <span>Lanjut ke Kuis Pra-Lab &amp; Bedah Rumus</span>

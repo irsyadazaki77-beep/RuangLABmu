@@ -127,13 +127,13 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
                     Pertanyaan #{idx + 1}
                   </span>
                   <span className="text-[var(--comfort-border)]">·</span>
-                  <span className="text-[11px] font-medium text-[var(--comfort-text-muted)]">
+                  <span className="text-2xs font-medium text-[var(--comfort-text-muted)]">
                     {SOURCE_TAG_LABELS[q.sourceTag]}
                   </span>
                 </div>
                 {isSubmitted && (
                   <span
-                    className={`inline-flex items-center gap-1 text-[11px] font-bold ${
+                    className={`inline-flex items-center gap-1 text-2xs font-bold ${
                       isCorrect ? 'text-emerald-500' : 'text-rose-500'
                     }`}
                   >
@@ -191,7 +191,7 @@ export const PostLabMasteryQuiz: React.FC<PostLabMasteryQuizProps> = ({
               </div>
 
               {isSubmitted && (
-                <div className="p-2.5 rounded-lg bg-sky-500/10 border border-sky-500/25 text-[11px] text-[var(--comfort-text)] leading-relaxed">
+                <div className="p-2.5 rounded-lg bg-sky-500/10 border border-sky-500/25 text-2xs text-[var(--comfort-text)] leading-relaxed">
                   <strong>Pembahasan Ilmiah:</strong> {q.explanation}
                 </div>
               )}

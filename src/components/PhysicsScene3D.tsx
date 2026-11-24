@@ -689,7 +689,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
                 setFollowCamEnabled((prev) => !prev);
               }}
               title="Follow Cam: Ikuti lintasan proyektil secara halus"
-              className={`px-2 py-1 text-[10px] font-mono rounded-lg transition-colors cursor-pointer shrink-0 ${
+              className={`px-2 py-1 text-2xs font-mono rounded-lg transition-colors cursor-pointer shrink-0 ${
                 followCamEnabled
                   ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 font-semibold'
                   : 'text-[var(--comfort-hud-text)]/80 hover:text-[var(--comfort-hud-text)] hover:bg-sky-500/12'

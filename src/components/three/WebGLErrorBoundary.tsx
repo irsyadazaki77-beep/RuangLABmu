@@ -206,7 +206,7 @@ export class WebGLErrorBoundary extends Component<
             <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center mb-3 shadow-inner">
               <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-[10px] font-mono uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-2">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-2xs font-mono uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-2">
               <Cpu className="w-3 h-3" /> Proteksi Memori GPU 3T
             </div>
             <h3 className="text-sm font-bold text-[var(--comfort-hud-text)] mb-1">
@@ -217,12 +217,12 @@ export class WebGLErrorBoundary extends Component<
               dan lembar kerja pengamatan Anda tetap aman.
             </p>
             {this.state.preservedParamSummary && (
-              <p className="text-[11px] font-mono text-sky-700 dark:text-sky-300 bg-sky-500/12 px-3 py-1 rounded-lg border border-sky-500/30 mb-3 max-w-md truncate">
+              <p className="text-2xs font-mono text-sky-700 dark:text-sky-300 bg-sky-500/12 px-3 py-1 rounded-lg border border-sky-500/30 mb-3 max-w-md truncate">
                 Snapshot Aktif: {this.state.preservedParamSummary}
               </p>
             )}
             {this.state.errorMessage && (
-              <code className="text-[10px] font-mono text-amber-700 dark:text-amber-300 studio-hud-subcard px-3 py-1.5 rounded-lg border mb-4 max-w-sm truncate">
+              <code className="text-2xs font-mono text-amber-700 dark:text-amber-300 studio-hud-subcard px-3 py-1.5 rounded-lg border mb-4 max-w-sm truncate">
                 {this.state.errorMessage}
               </code>
             )}

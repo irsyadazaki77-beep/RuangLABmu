@@ -114,7 +114,7 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
 
       {/* Mini-3D PiP / Split Control Header Bar when in Step 3 or Step 4 */}
       {effectiveStep !== 2 && (
-        <div className="px-3 py-1.5 studio-hud-surface border-b border-[var(--comfort-hud-border)] flex items-center justify-between gap-2 text-[11px] text-[var(--comfort-hud-text)] shrink-0 z-20">
+        <div className="px-3 py-1.5 studio-hud-surface border-b border-[var(--comfort-hud-border)] flex items-center justify-between gap-2 text-2xs text-[var(--comfort-hud-text)] shrink-0 z-20">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="font-semibold text-[var(--comfort-hud-text)] truncate">
               Pratinjau 3D · {currentExperimentModule.title}
@@ -129,7 +129,7 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
                 onChangePip3DMode(pip3DMode === 'split' ? 'pip' : 'split');
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
               }}
-              className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold cursor-pointer transition-colors ${
+              className={`px-2 py-0.5 rounded font-mono text-2xs font-bold cursor-pointer transition-colors ${
                 pip3DMode === 'split'
                   ? 'bg-sky-600 text-white'
                   : 'studio-hud-subcard border hover:border-sky-500/50 text-[var(--comfort-hud-text)]'
@@ -146,7 +146,7 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
                 onChangePip3DMode(pip3DMode === 'minimized' ? 'pip' : 'minimized');
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
               }}
-              className="px-2 py-0.5 rounded studio-hud-subcard border hover:border-sky-500/50 text-[var(--comfort-hud-text)] font-mono text-[10px] cursor-pointer transition-colors"
+              className="px-2 py-0.5 rounded studio-hud-subcard border hover:border-sky-500/50 text-[var(--comfort-hud-text)] font-mono text-2xs cursor-pointer transition-colors"
             >
               {pip3DMode === 'minimized' ? 'Tampilkan 3D' : 'Kecilkan'}
             </button>
@@ -157,7 +157,7 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
                 labSound.playClick();
                 setWorkflowStep(2);
               }}
-              className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-[10px] font-bold cursor-pointer transition-colors"
+              className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-2xs font-bold cursor-pointer transition-colors"
             >
               Penuh
             </button>

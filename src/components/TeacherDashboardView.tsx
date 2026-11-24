@@ -13,6 +13,7 @@ import {
   Pause,
   RotateCcw,
   Send,
+  ChevronDown,
 } from 'lucide-react';
 import {
   ExperimentRecord,
@@ -82,6 +83,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
   const [quickBroadcastText, setQuickBroadcastText] = useState<string>('');
   const [broadcastSentNotice, setBroadcastSentNotice] = useState<boolean>(false);
+  const [classControlsOpen, setClassControlsOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isTimerRunning) return;
@@ -235,125 +237,98 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top 4-Column Summary KPI Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4">
-          <div className="flex items-center justify-between text-xs text-[var(--comfort-text-muted)]">
-            <span>Siswa Aktif di Laboratorium</span>
-            <Activity className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+    <div className="space-y-4">
+      {/* Compact Single-Row Scannable KPI Metric Bar */}
+      <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[var(--comfort-border)]">
+        <div
+          className="px-4 py-3 flex items-center justify-between gap-2"
+          title={`Terbagi dalam ${uniqueGroupCount} kelompok praktikum kolaboratif`}
+        >
+          <div>
+            <div className="text-2xs font-medium text-[var(--comfort-text-muted)]">Siswa Aktif</div>
+            <div className="flex items-baseline gap-1.5 mt-0.5 tabular-nums">
+              <span className="text-2xl font-mono font-bold text-[var(--comfort-text)]">
+                {students.length}
+              </span>
+              <span className="text-2xs font-mono text-[var(--comfort-text-muted)]">
+                · {uniqueGroupCount} kel.
+              </span>
+            </div>
           </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-3xl font-mono font-bold text-[var(--comfort-text)] tabular-nums">
-              {students.length}
-            </span>
-            <span className="text-xs font-mono text-[var(--comfort-text-muted)] ml-1.5">
-              SISWA ONLINE
-            </span>
-          </div>
-          <div className="mt-1 text-xs text-[var(--comfort-text-muted)] tabular-nums">
-            Terbagi dalam {uniqueGroupCount} kelompok praktikum kolaboratif
-          </div>
+          <Activity className="w-4 h-4 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
         </div>
 
-        <div className="bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4">
-          <div className="flex items-center justify-between text-xs text-[var(--comfort-text-muted)]">
-            <span>Rata-Rata Progres Modul</span>
-            <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+        <div
+          className="px-4 py-3 flex items-center justify-between gap-2"
+          title={`Domain aktif: ${activeDomainsLabel} · Target capaian 80%`}
+        >
+          <div>
+            <div className="text-2xs font-medium text-[var(--comfort-text-muted)]">Progres Modul</div>
+            <div className="flex items-baseline gap-1.5 mt-0.5 tabular-nums">
+              <span className="text-2xl font-mono font-bold text-[var(--comfort-success)]">
+                {avgCompletion}%
+              </span>
+              <span className="text-2xs font-mono text-[var(--comfort-text-muted)]">rata-rata</span>
+            </div>
           </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-3xl font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-              {avgCompletion}%
-            </span>
-            <span className="text-xs font-mono text-[var(--comfort-text-muted)] ml-1.5">
-              TERCAPAI
-            </span>
-          </div>
-          <div className="mt-1 text-xs text-[var(--comfort-text-muted)]">
-            Domain aktif: {activeDomainsLabel} · Target 80%
-          </div>
+          <Award className="w-4 h-4 text-[var(--comfort-success)] shrink-0" aria-hidden="true" />
         </div>
 
-        <div className="bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4">
-          <div className="flex items-center justify-between text-xs text-[var(--comfort-text-muted)]">
-            <span>Total Data Eksperimen Terekam</span>
-            <ClipboardList className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+        <div
+          className="px-4 py-3 flex items-center justify-between gap-2"
+          title="Total data percobaan siswa yang siap dievaluasi dan diekspor ke CSV"
+        >
+          <div>
+            <div className="text-2xs font-medium text-[var(--comfort-text-muted)]">Data Terekam</div>
+            <div className="flex items-baseline gap-1.5 mt-0.5 tabular-nums">
+              <span className="text-2xl font-mono font-bold text-[var(--comfort-text)]">
+                {totalTrials}
+              </span>
+              <span className="text-2xs font-mono text-[var(--comfort-text-muted)]">uji</span>
+            </div>
           </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-3xl font-mono font-bold text-[var(--comfort-text)] tabular-nums">
-              {totalTrials}
-            </span>
-            <span className="text-xs font-mono text-[var(--comfort-text-muted)] ml-1.5">
-              PERCOBAAN
-            </span>
-          </div>
-          <div className="mt-1 text-xs text-[var(--comfort-text-muted)]">
-            Siap dievaluasi dan diekspor ke CSV
-          </div>
+          <ClipboardList className="w-4 h-4 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
         </div>
 
-        <div className="bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4">
-          <div className="flex items-center justify-between text-xs text-[var(--comfort-text-muted)]">
-            <span>Status Bimbingan Siswa</span>
-            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+        <div
+          className="px-4 py-3 flex items-center justify-between gap-2"
+          title="Deteksi otomatis saat R² < 0.80 atau tertahan > 8 menit"
+        >
+          <div>
+            <div className="text-2xs font-medium text-[var(--comfort-text-muted)]">Perlu Arahan</div>
+            <div className="flex items-baseline gap-1.5 mt-0.5 tabular-nums">
+              <span className="text-2xl font-mono font-bold text-[var(--comfort-warning)]">
+                {studentsNeedingHelp}
+              </span>
+              <span className="text-2xs font-mono text-[var(--comfort-text-muted)]">siswa</span>
+            </div>
           </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-3xl font-mono font-bold text-amber-600 dark:text-amber-400 tabular-nums">
-              {studentsNeedingHelp}
-            </span>
-            <span className="text-xs font-mono text-[var(--comfort-text-muted)] ml-1.5">
-              PERLU ARAHAN
-            </span>
-          </div>
-          <div className="mt-1 text-xs text-[var(--comfort-text-muted)]">
-            Deteksi otomatis saat R² &lt; 0.80 atau tertahan &gt; 8 menit
-          </div>
+          <AlertTriangle className="w-4 h-4 text-[var(--comfort-warning)] shrink-0" aria-hidden="true" />
         </div>
       </div>
 
-      {/* Pengatur Waktu Praktikum (Countdown Timer) & Siaran Instruksi Cepat */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div
-          data-testid="teacher-countdown-timer"
-          className="lg:col-span-5 bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4 flex flex-wrap items-center justify-between gap-3"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-sky-600/12 border border-sky-500/25 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
-              <Timer className="w-4 h-4" aria-hidden="true" />
-            </div>
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-[var(--comfort-text-muted)] font-semibold">
-                Pengatur Waktu Praktikum
-              </div>
-              <div
-                data-testid="teacher-timer-display"
-                className={`text-2xl font-mono font-bold tabular-nums leading-tight ${
-                  remainingSeconds <= 60
-                    ? 'text-rose-600 dark:text-rose-400'
-                    : 'text-[var(--comfort-text)]'
-                }`}
-              >
-                {formattedTimer}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            {[5, 10, 15, 30].map((min) => (
-              <button
-                key={min}
-                type="button"
-                onClick={() => handleSelectTimerPreset(min)}
-                className={`px-2 py-1 rounded-lg text-[11px] font-mono font-semibold border cursor-pointer transition-colors ${
-                  timerPresetMin === min && !isTimerRunning && remainingSeconds === min * 60
-                    ? 'bg-sky-600 text-white border-sky-600'
-                    : 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] border-[var(--comfort-border)] hover:text-[var(--comfort-text)]'
-                }`}
-              >
-                {min}m
-              </button>
-            ))}
-
+      {/* Unified Collapsible Classroom Control Strip (Timer + Quick Broadcast) */}
+      <div
+        data-testid="teacher-countdown-timer"
+        className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl overflow-hidden"
+      >
+        <div className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Timer className="w-4 h-4 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
+            <span className="text-xs font-bold text-[var(--comfort-text)]">
+              Kontrol Kelas
+            </span>
+            <span aria-hidden="true" className="text-[var(--comfort-text-muted)] opacity-45">·</span>
+            <span
+              data-testid="teacher-timer-display"
+              className={`text-sm font-mono font-bold tabular-nums ${
+                remainingSeconds <= 60
+                  ? 'text-[var(--comfort-danger)]'
+                  : 'text-[var(--comfort-text)]'
+              }`}
+            >
+              {formattedTimer}
+            </span>
             <button
               type="button"
               data-testid="teacher-timer-toggle-btn"
@@ -364,80 +339,112 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
                 }
                 setIsTimerRunning((prev) => !prev);
               }}
-              className="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              className="comfort-btn-primary px-2.5 py-1 rounded-lg text-2xs font-semibold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
             >
               {isTimerRunning ? (
                 <>
-                  <Pause className="w-3.5 h-3.5" aria-hidden="true" />
+                  <Pause className="w-3 h-3" aria-hidden="true" />
                   <span>Jeda</span>
                 </>
               ) : (
                 <>
-                  <Play className="w-3.5 h-3.5" aria-hidden="true" />
+                  <Play className="w-3 h-3" aria-hidden="true" />
                   <span>Mulai</span>
                 </>
               )}
             </button>
-
-            <button
-              type="button"
-              aria-label="Reset Pengatur Waktu"
-              onClick={() => handleSelectTimerPreset(timerPresetMin)}
-              className="p-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-            </button>
+            {broadcastSentNotice && (
+              <span className="text-2xs font-semibold text-[var(--comfort-success)]">
+                · Instruksi tersiarkan
+              </span>
+            )}
           </div>
+
+          <button
+            type="button"
+            data-testid="teacher-class-controls-toggle"
+            aria-expanded={classControlsOpen}
+            onClick={() => {
+              labSound.playClick();
+              setClassControlsOpen((prev) => !prev);
+            }}
+            className="inline-flex items-center gap-1.5 min-h-[34px] px-2.5 py-1 rounded-lg text-xs font-semibold text-[var(--comfort-accent)] hover:bg-[var(--comfort-accent-soft)] transition-colors duration-150 cursor-pointer whitespace-nowrap"
+          >
+            <span>{classControlsOpen ? 'Sembunyikan' : 'Atur Timer & Siaran'}</span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                classControlsOpen ? 'rotate-180' : ''
+              }`}
+              aria-hidden="true"
+            />
+          </button>
         </div>
 
-        <form
-          onSubmit={handleQuickBroadcast}
-          className="lg:col-span-7 bg-[var(--comfort-surface)] lab-glass-panel border border-[var(--comfort-border)] rounded-xl p-4 flex flex-col justify-between gap-2.5"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-[11px] font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold">
-              Siaran Instruksi Cepat ke Seluruh Kelompok
-            </div>
-            <div className="flex items-center gap-2 text-[11px] font-mono text-[var(--comfort-text-muted)] tabular-nums">
-              <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
-                <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                Konvergen: {students.filter((s) => (s.rSquared ?? 0.95) >= 0.8).length}/{students.length}
+        {classControlsOpen && (
+          <div className="px-4 pb-4 pt-3 border-t border-[var(--comfort-border)] grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+            <div className="lg:col-span-5 flex flex-wrap items-center gap-1.5">
+              <span className="text-2xs font-semibold text-[var(--comfort-text-muted)] mr-1">
+                Durasi:
               </span>
-              {broadcastSentNotice && (
-                <span className="text-sky-600 dark:text-sky-400 font-semibold">
-                  · Instruksi tersiarkan
-                </span>
-              )}
+              {[5, 10, 15, 30].map((min) => (
+                <button
+                  key={min}
+                  type="button"
+                  onClick={() => handleSelectTimerPreset(min)}
+                  className={`px-2 py-1 rounded-lg text-2xs font-mono font-semibold border cursor-pointer transition-colors ${
+                    timerPresetMin === min && !isTimerRunning && remainingSeconds === min * 60
+                      ? 'comfort-tab-active border-transparent'
+                      : 'comfort-btn-secondary text-[var(--comfort-text-muted)]'
+                  }`}
+                >
+                  {min}m
+                </button>
+              ))}
+              <button
+                type="button"
+                aria-label="Reset Pengatur Waktu"
+                onClick={() => handleSelectTimerPreset(timerPresetMin)}
+                className="comfort-btn-secondary p-1.5 rounded-lg text-[var(--comfort-text-muted)] cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+              <span className="text-2xs font-mono text-[var(--comfort-success)] font-semibold ml-auto inline-flex items-center gap-1 tabular-nums">
+                <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                Konvergen {students.filter((s) => (s.rSquared ?? 0.95) >= 0.8).length}/{students.length}
+              </span>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              data-testid="teacher-quick-broadcast-input"
-              value={quickBroadcastText}
-              onChange={(e) => setQuickBroadcastText(e.target.value)}
-              placeholder="Contoh: Waktu tersisa 5 menit, segera catat minimal 5 titik data dan selesaikan LKS..."
-              className="flex-1 px-3 py-2 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-xs text-[var(--comfort-text)] focus:outline-none focus:border-sky-500"
-            />
-            <button
-              type="submit"
-              data-testid="teacher-quick-broadcast-btn"
-              disabled={!quickBroadcastText.trim()}
-              className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            <form
+              onSubmit={handleQuickBroadcast}
+              className="lg:col-span-7 flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
             >
-              <Send className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Siarkan</span>
-            </button>
+              <input
+                type="text"
+                data-testid="teacher-quick-broadcast-input"
+                value={quickBroadcastText}
+                onChange={(e) => setQuickBroadcastText(e.target.value)}
+                placeholder="Siarkan instruksi cepat ke seluruh kelompok..."
+                className="flex-1 min-h-[38px] px-3 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-xs text-[var(--comfort-text)] focus:outline-none focus:border-[var(--comfort-accent)]"
+              />
+              <button
+                type="submit"
+                data-testid="teacher-quick-broadcast-btn"
+                disabled={!quickBroadcastText.trim()}
+                className="comfort-btn-primary min-h-[38px] px-3.5 py-1.5 rounded-lg disabled:opacity-50 text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <Send className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Siarkan</span>
+              </button>
+            </form>
           </div>
-        </form>
+        )}
       </div>
 
       {/* Focused 3-Tab Switcher for Teacher Dashboard */}
       <div
         role="tablist"
         aria-label="Navigasi Dashboard Pengajar"
-        className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] shadow-xs"
+        className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] shadow-xs overflow-x-auto no-scrollbar"
       >
         <button
           type="button"
@@ -447,14 +454,14 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             labSound.playClick();
             setTeacherTab('radar');
           }}
-          className={`px-4 py-2 min-h-[38px] rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
+          className={`px-4 py-2 min-h-[40px] rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
             teacherTab === 'radar'
-              ? 'bg-sky-600 text-white shadow-xs'
+              ? 'comfort-tab-active'
               : 'text-[var(--comfort-text-muted)] hover:bg-[var(--comfort-surface-subtle)] hover:text-[var(--comfort-text)]'
           }`}
         >
           <Compass className="w-4 h-4 shrink-0" />
-          <span>1. Radar Progres Kelas (4 Tahap)</span>
+          <span>1. Radar Progres Kelas</span>
         </button>
 
         <button
@@ -465,14 +472,14 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             labSound.playClick();
             setTeacherTab('rubrik');
           }}
-          className={`px-4 py-2 min-h-[38px] rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
+          className={`px-4 py-2 min-h-[40px] rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
             teacherTab === 'rubrik'
-              ? 'bg-emerald-600 text-white shadow-xs'
+              ? 'comfort-tab-active'
               : 'text-[var(--comfort-text-muted)] hover:bg-[var(--comfort-surface-subtle)] hover:text-[var(--comfort-text)]'
           }`}
         >
           <FileCheck2 className="w-4 h-4 shrink-0" />
-          <span>2. Tabel Aktivitas &amp; Rubrik Nilai</span>
+          <span>2. Aktivitas &amp; Rubrik Nilai</span>
         </button>
 
         <button
@@ -483,14 +490,14 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             labSound.playClick();
             setTeacherTab('ujian-misteri');
           }}
-          className={`px-4 py-2 min-h-[38px] rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
+          className={`px-4 py-2 min-h-[40px] rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
             teacherTab === 'ujian-misteri'
-              ? 'bg-amber-500 text-slate-950 shadow-xs'
+              ? 'comfort-tab-active'
               : 'text-[var(--comfort-text-muted)] hover:bg-[var(--comfort-surface-subtle)] hover:text-[var(--comfort-text)]'
           }`}
         >
           <Radio className="w-4 h-4 shrink-0" />
-          <span>3. Ujian Sampel Misterius &amp; Broadcast Arahan</span>
+          <span>3. Ujian Sampel Misterius</span>
         </button>
       </div>
 

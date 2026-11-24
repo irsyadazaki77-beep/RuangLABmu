@@ -97,7 +97,7 @@ export const DualRealityLabViewport: React.FC<DualRealityLabViewportProps> = ({
           </span>
           <span
             data-testid="dual-3d-lite-badge"
-            className="hidden xl:inline-flex items-center gap-1 text-[11px] text-[var(--comfort-text-muted)]"
+            className="hidden xl:inline-flex items-center gap-1 text-2xs text-[var(--comfort-text-muted)]"
             title="Kamera kedua panel tersinkron otomatis dengan mode hemat GPU"
           >
             <Camera className="w-3 h-3 text-sky-600 dark:text-sky-400" aria-hidden="true" />
@@ -183,7 +183,7 @@ export const DualRealityLabViewport: React.FC<DualRealityLabViewportProps> = ({
               <span className="text-xs font-bold text-sky-800 dark:text-sky-200">
                 Realitas A (Kontrol)
               </span>
-              <span className="font-mono text-[11px] font-semibold text-sky-700 dark:text-sky-300 tabular-nums truncate">
+              <span className="font-mono text-2xs font-semibold text-sky-700 dark:text-sky-300 tabular-nums truncate">
                 {realityASummary}
               </span>
             </div>
@@ -204,12 +204,12 @@ export const DualRealityLabViewport: React.FC<DualRealityLabViewportProps> = ({
               <span className="text-xs font-bold text-amber-800 dark:text-amber-200">
                 Realitas B (Uji Variabel)
               </span>
-              <span className="font-mono text-[11px] font-semibold text-amber-800 dark:text-amber-300 tabular-nums truncate">
+              <span className="font-mono text-2xs font-semibold text-amber-800 dark:text-amber-300 tabular-nums truncate">
                 {realityBSummary}
               </span>
             </div>
             {realityBControls && (
-              <div className="px-3 py-1.5 bg-[var(--comfort-surface-subtle)] border-b border-[var(--comfort-border)] flex flex-wrap items-center justify-between gap-2 text-[11px] shrink-0">
+              <div className="px-3 py-1.5 bg-[var(--comfort-surface-subtle)] border-b border-[var(--comfort-border)] flex flex-wrap items-center justify-between gap-2 text-2xs shrink-0">
                 {realityBControls}
               </div>
             )}

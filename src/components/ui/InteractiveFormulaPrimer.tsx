@@ -167,7 +167,7 @@ export const InteractiveFormulaPrimer: React.FC<InteractiveFormulaPrimerProps> =
         >
           <Sliders className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
           <span className="text-xs font-bold tracking-tight truncate">{model.title}</span>
-          <span className="text-[11px] text-[var(--comfort-text-muted)] hidden sm:inline">
+          <span className="text-2xs text-[var(--comfort-text-muted)] hidden sm:inline">
             · Eksplorasi Variabel Interaktif
           </span>
         </button>

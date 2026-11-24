@@ -9,6 +9,9 @@ import {
   GitCommitHorizontal,
   Layers,
   Check,
+  Copy,
+  RotateCcw,
+  Crosshair,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -71,7 +74,9 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
 
   const [excludedIndices, setExcludedIndices] = useState<Set<number>>(new Set());
   const [hoveredPointIdx, setHoveredPointIdx] = useState<number | null>(null);
+  const [selectedPointIdx, setSelectedPointIdx] = useState<number | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const [copiedEquation, setCopiedEquation] = useState<boolean>(false);
 
   // Advanced Scientific Chart Toggles
   const [showErrorBars, setShowErrorBars] = useState<boolean>(true);
@@ -81,6 +86,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
 
   const handleToggleOutlier = (idx: number) => {
     labSound.playClick(idx % 2 === 0 ? 560 : 700);
+    setSelectedPointIdx(idx);
     setExcludedIndices((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) {
@@ -90,6 +96,25 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
       }
       return next;
     });
+  };
+
+  const handleResetAllOutliers = () => {
+    labSound.playClick();
+    setExcludedIndices(new Set());
+  };
+
+  const handleCopyEquation = () => {
+    labSound.playClick();
+    const summaryText = `${regression.equationString} (R² = ${regression.rSquared.toFixed(4)}, RMSE = ${residualStats.rmse.toFixed(3)})`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(summaryText).then(() => {
+        setCopiedEquation(true);
+        setTimeout(() => setCopiedEquation(false), 1600);
+      });
+    } else {
+      setCopiedEquation(true);
+      setTimeout(() => setCopiedEquation(false), 1600);
+    }
   };
 
   const includedPoints = useMemo(() => {
@@ -297,13 +322,27 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
   const toResY = (resVal: number) =>
     resPadTop + resPlotH / 2 - (resVal / maxResBound) * (resPlotH / 2);
 
+  const inspectedIdx =
+    hoveredPointIdx !== null
+      ? hoveredPointIdx
+      : selectedPointIdx !== null && selectedPointIdx < points.length
+      ? selectedPointIdx
+      : null;
+  const inspectedPoint = inspectedIdx !== null ? points[inspectedIdx] : null;
+  const inspectedPredictedY =
+    inspectedPoint !== null ? regression.evaluateAt(inspectedPoint.x) : null;
+  const inspectedResidual =
+    inspectedPoint !== null && inspectedPredictedY !== null
+      ? inspectedPoint.y1 - inspectedPredictedY
+      : null;
+
   return (
     <div className="rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-5 shadow-sm space-y-4">
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--comfort-border)] pb-3">
         <div className="space-y-0.5 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+            <span className="w-7 h-7 rounded-lg comfort-accent-soft flex items-center justify-center shrink-0">
               <TrendingUp className="w-4 h-4" />
             </span>
             <h3 className="font-extrabold text-sm sm:text-base text-[var(--comfort-text)] truncate">
@@ -340,17 +379,17 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
               <span
                 className={`font-mono text-sm font-bold ${
                   regression.rSquared >= 0.95
-                    ? 'text-emerald-600 dark:text-emerald-400'
+                    ? 'text-[var(--comfort-success)]'
                     : regression.rSquared >= 0.85
-                    ? 'text-sky-600 dark:text-sky-400'
-                    : 'text-amber-600 dark:text-amber-400'
+                    ? 'text-[var(--comfort-accent)]'
+                    : 'text-[var(--comfort-warning)]'
                 }`}
               >
                 {regression.rSquared.toFixed(4)}
               </span>
             </div>
             <span className="text-[var(--comfort-border)]">·</span>
-            <span className="text-[11px] font-mono text-[var(--comfort-text-muted)]">
+            <span className="text-2xs font-mono text-[var(--comfort-text-muted)]">
               RMSE <strong className="text-[var(--comfort-text)]">{residualStats.rmse.toFixed(3)}</strong>
             </span>
           </div>
@@ -369,8 +408,8 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             }}
             className={`px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               showErrorBars
-                ? 'bg-sky-500/12 border-sky-500/40 text-sky-700 dark:text-sky-300'
-                : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)]'
+                ? 'comfort-accent-soft'
+                : 'comfort-btn-secondary text-[var(--comfort-text-muted)]'
             }`}
           >
             <GitCommitHorizontal className="w-3.5 h-3.5" aria-hidden="true" />
@@ -386,8 +425,8 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             }}
             className={`px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               showResidualPlot
-                ? 'bg-indigo-500/12 border-indigo-500/40 text-indigo-700 dark:text-indigo-300'
-                : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)]'
+                ? 'comfort-accent-soft'
+                : 'comfort-btn-secondary text-[var(--comfort-text-muted)]'
             }`}
           >
             <BarChart2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -404,8 +443,8 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
               }}
               className={`px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 showY2Curve
-                  ? 'bg-teal-500/12 border-teal-500/40 text-teal-700 dark:text-teal-300'
-                  : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text-muted)]'
+                  ? 'comfort-accent-soft'
+                  : 'comfort-btn-secondary text-[var(--comfort-text-muted)]'
               }`}
             >
               <Layers className="w-3.5 h-3.5" aria-hidden="true" />
@@ -422,11 +461,11 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             }}
             className={`px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               showBestFitPanel
-                ? 'bg-emerald-500/12 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
-                : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-emerald-500/40'
+                ? 'comfort-accent-soft'
+                : 'comfort-btn-secondary'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-500" aria-hidden="true" />
+            <Sparkles className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
             <span>Bandingkan 4 Model</span>
           </button>
         </div>
@@ -436,18 +475,18 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             type="button"
             data-testid="export-chart-png-btn"
             onClick={() => handleExportSvgOrPng('PNG')}
-            className="px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 text-[var(--comfort-text)] font-semibold cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+            className="comfort-btn-secondary px-2.5 py-1.5 rounded-lg font-semibold cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
           >
-            <Download className="w-3.5 h-3.5 text-sky-500" aria-hidden="true" />
+            <Download className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
             <span>PNG</span>
           </button>
           <button
             type="button"
             data-testid="export-chart-svg-btn"
             onClick={() => handleExportSvgOrPng('SVG')}
-            className="px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 text-[var(--comfort-text)] font-semibold cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+            className="comfort-btn-secondary px-2.5 py-1.5 rounded-lg font-semibold cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
           >
-            <Download className="w-3.5 h-3.5 text-indigo-500" aria-hidden="true" />
+            <Download className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
             <span>SVG</span>
           </button>
         </div>
@@ -470,7 +509,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                 labSound.playSuccessChime();
                 onChangeCurveModel(modelComparison.bestModel);
               }}
-              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold cursor-pointer flex items-center gap-1 whitespace-nowrap"
+              className="comfort-btn-primary px-3 py-1 rounded-lg text-2xs font-bold cursor-pointer flex items-center gap-1 whitespace-nowrap"
             >
               <Check className="w-3 h-3" />
               <span>Terapkan Model Terbaik</span>
@@ -489,23 +528,23 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                   }}
                   className={`text-left p-2.5 rounded-lg border transition-colors cursor-pointer space-y-1 ${
                     isSelected
-                      ? 'bg-[var(--comfort-surface)] border-sky-500 ring-1 ring-sky-500/30'
-                      : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] hover:border-sky-500/40'
+                      ? 'bg-[var(--comfort-surface)] border-[var(--comfort-accent)] ring-1 ring-[var(--comfort-accent-border)]'
+                      : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] hover:border-[var(--comfort-accent-border)]'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-1 text-[11px] font-bold text-[var(--comfort-text)]">
+                  <div className="flex items-center justify-between gap-1 text-2xs font-bold text-[var(--comfort-text)]">
                     <span className="truncate">{item.modelLabel}</span>
                     {item.isBest && (
-                      <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 shrink-0">
+                      <span className="text-2xs font-mono text-[var(--comfort-success)] shrink-0">
                         ★ Terbaik
                       </span>
                     )}
                   </div>
-                  <div className="font-mono text-[10px] text-[var(--comfort-text-muted)] truncate">
+                  <div className="font-mono text-2xs text-[var(--comfort-text-muted)] truncate">
                     {item.equationString}
                   </div>
-                  <div className="flex items-center justify-between text-[11px] font-mono tabular-nums pt-0.5">
-                    <span className="text-sky-600 dark:text-sky-400 font-bold">
+                  <div className="flex items-center justify-between text-2xs font-mono tabular-nums pt-0.5">
+                    <span className="text-[var(--comfort-accent)] font-bold">
                       R² {item.rSquared.toFixed(4)}
                     </span>
                     <span className="text-[var(--comfort-text-muted)]">
@@ -519,19 +558,38 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
         </div>
       )}
 
-      {/* Regression Equation Badge & Interactive Outlier Guide */}
+      {/* Regression Equation Badge & Copy + Interactive Outlier Guide */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs bg-[var(--comfort-surface-subtle)] p-3 rounded-xl border border-[var(--comfort-border)] font-mono">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[var(--comfort-text-muted)] font-sans font-bold">Persamaan:</span>
-          <span className="text-sky-600 dark:text-sky-300 font-bold">{regression.equationString}</span>
-          <span className="text-[11px] font-sans text-[var(--comfort-text-muted)]">
+          <span className="text-[var(--comfort-accent)] font-bold">{regression.equationString}</span>
+          <button
+            type="button"
+            data-testid="copy-equation-btn"
+            onClick={handleCopyEquation}
+            title="Salin persamaan regresi & nilai R² ke papan klip"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-[var(--comfort-border)] bg-[var(--comfort-surface)] hover:border-[var(--comfort-accent-border)] text-2xs font-sans font-semibold text-[var(--comfort-text)] cursor-pointer transition-colors"
+          >
+            {copiedEquation ? (
+              <>
+                <Check className="w-3 h-3 text-[var(--comfort-success)]" aria-hidden="true" />
+                <span className="text-[var(--comfort-success)]">Tersalin</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3 h-3 text-[var(--comfort-text-muted)]" aria-hidden="true" />
+                <span>Salin</span>
+              </>
+            )}
+          </button>
+          <span className="text-2xs font-sans text-[var(--comfort-text-muted)]">
             (<ScienceGlossaryTerm term="Slope/Gradien" />)
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-[11px] font-sans">
+        <div className="flex flex-wrap items-center gap-3 text-2xs font-sans">
           <span className="text-[var(--comfort-text-muted)] flex items-center gap-1">
-            <Info className="w-3.5 h-3.5 text-sky-400" />
+            <Info className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
             <span>
               Klik titik untuk Kecualikan / Sertakan <ScienceGlossaryTerm term="Outlier" />:
             </span>
@@ -778,18 +836,66 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
               );
             })}
 
+          {/* Live Precision Crosshair Projection Lines for Active/Inspected Point */}
+          {inspectedPoint !== null && (
+            <g data-testid="regression-crosshair" pointerEvents="none">
+              <line
+                x1={padLeft}
+                y1={toScreenY1(inspectedPoint.y1)}
+                x2={toScreenX(inspectedPoint.x)}
+                y2={toScreenY1(inspectedPoint.y1)}
+                stroke={palette.primary}
+                strokeWidth="1.2"
+                strokeDasharray="3 3"
+                opacity="0.7"
+              />
+              <line
+                x1={toScreenX(inspectedPoint.x)}
+                y1={toScreenY1(inspectedPoint.y1)}
+                x2={toScreenX(inspectedPoint.x)}
+                y2={svgHeight - padBottom}
+                stroke={palette.primary}
+                strokeWidth="1.2"
+                strokeDasharray="3 3"
+                opacity="0.7"
+              />
+              <circle
+                cx={toScreenX(inspectedPoint.x)}
+                cy={svgHeight - padBottom}
+                r="3"
+                fill={palette.primary}
+              />
+              <circle
+                cx={padLeft}
+                cy={toScreenY1(inspectedPoint.y1)}
+                r="3"
+                fill={palette.primary}
+              />
+            </g>
+          )}
+
           {/* Data Points */}
           {points.map((p, idx) => {
             const sx = toScreenX(p.x);
             const sy = toScreenY1(p.y1);
             const isExcluded = excludedIndices.has(idx);
-            const isHovered = hoveredPointIdx === idx;
+            const isHovered = hoveredPointIdx === idx || selectedPointIdx === idx;
 
             return (
               <g
                 key={`pt-${idx}`}
-                className="cursor-pointer transition-transform"
+                role="button"
+                tabIndex={0}
+                aria-label={`${p.label || `Titik ${idx + 1}`}: X=${p.x}, Y=${p.y1}${isExcluded ? ' (Outlier)' : ''}. Tekan Enter untuk ubah status outlier.`}
+                className="cursor-pointer transition-transform focus:outline-none"
                 onClick={() => handleToggleOutlier(idx)}
+                onFocus={() => setSelectedPointIdx(idx)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleToggleOutlier(idx);
+                  }
+                }}
                 onPointerEnter={(e) => {
                   const rect = e.currentTarget.ownerSVGElement?.getBoundingClientRect();
                   if (rect) {
@@ -913,7 +1019,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
         {/* Hover Tooltip Overlay */}
         {hoveredPointIdx !== null && tooltipPos && (
           <div
-            className="absolute pointer-events-none z-30 p-2.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] shadow-xl text-[11px] font-mono text-[var(--comfort-text)] transform -translate-x-1/2 -translate-y-full mb-3 space-y-1 min-w-[180px]"
+            className="absolute pointer-events-none z-30 p-2.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] shadow-xl text-2xs font-mono text-[var(--comfort-text)] transform -translate-x-1/2 -translate-y-full mb-3 space-y-1 min-w-[180px]"
             style={{
               left: `${Math.min(Math.max(tooltipPos.x, 95), svgWidth - 95)}px`,
               top: `${Math.max(tooltipPos.y - 12, 10)}px`,
@@ -952,7 +1058,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                 </span>
               </div>
             )}
-            <div className="pt-0.5 border-t border-[var(--comfort-border)] text-[10px]">
+            <div className="pt-0.5 border-t border-[var(--comfort-border)] text-2xs">
               <span className="text-[var(--comfort-text-muted)]">Residu (Δy): </span>
               <span
                 className="font-bold"
@@ -966,9 +1072,77 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                 {(points[hoveredPointIdx].y1 - regression.evaluateAt(points[hoveredPointIdx].x)).toFixed(3)}
               </span>
             </div>
-            <div className="text-[9px] text-[var(--comfort-text-muted)] pt-0.5">
+            <div className="text-2xs text-[var(--comfort-text-muted)] pt-0.5">
               *Klik titik untuk mengubah status outlier
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Touch-Friendly Point Inspection Readout Bar (Zero-Clipping on Mobile & Desktop) */}
+      <div
+        data-testid="regression-point-inspector"
+        className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-2xs"
+      >
+        {inspectedPoint !== null && inspectedIdx !== null ? (
+          <>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono tabular-nums">
+              <span className="inline-flex items-center gap-1 font-sans font-bold text-[var(--comfort-accent)]">
+                <Crosshair className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <span>{inspectedPoint.label || `Titik #${inspectedIdx + 1}`}</span>
+              </span>
+              <span>
+                <span className="text-[var(--comfort-text-muted)]">X: </span>
+                <strong className="text-[var(--comfort-text)]">{inspectedPoint.x}</strong>
+              </span>
+              <span>
+                <span className="text-[var(--comfort-text-muted)]">Y₁: </span>
+                <strong className="text-[var(--comfort-text)]">{inspectedPoint.y1}</strong>
+                {showErrorBars && residualStats.residuals[inspectedIdx] && (
+                  <span className="text-[var(--comfort-text-muted)]">
+                    {' '}±{residualStats.residuals[inspectedIdx].errorBarHalf}
+                  </span>
+                )}
+              </span>
+              {inspectedPredictedY !== null && (
+                <span>
+                  <span className="text-[var(--comfort-text-muted)]">ŷ: </span>
+                  <strong className="text-[var(--comfort-text)]">{inspectedPredictedY.toFixed(3)}</strong>
+                </span>
+              )}
+              {inspectedResidual !== null && (
+                <span>
+                  <span className="text-[var(--comfort-text-muted)]">Δy: </span>
+                  <strong
+                    className={
+                      Math.abs(inspectedResidual) > 2
+                        ? 'text-[var(--comfort-warning)]'
+                        : 'text-[var(--comfort-success)]'
+                    }
+                  >
+                    {inspectedResidual >= 0 ? '+' : ''}
+                    {inspectedResidual.toFixed(3)}
+                  </strong>
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleToggleOutlier(inspectedIdx)}
+              className={`min-h-[32px] px-2.5 py-1 rounded-lg border font-sans font-semibold cursor-pointer whitespace-nowrap transition-colors ${
+                excludedIndices.has(inspectedIdx)
+                  ? 'bg-[var(--comfort-success-soft)] border-[var(--comfort-success-border)] text-[var(--comfort-success)]'
+                  : 'bg-[var(--comfort-warning-soft)] border-[var(--comfort-warning-border)] text-[var(--comfort-warning)]'
+              }`}
+            >
+              {excludedIndices.has(inspectedIdx) ? 'Sertakan Kembali' : 'Tandai Outlier'}
+            </button>
+          </>
+        ) : (
+          <div className="flex items-center gap-1.5 text-[var(--comfort-text-muted)]">
+            <Crosshair className="w-3.5 h-3.5 shrink-0 text-[var(--comfort-accent)]" aria-hidden="true" />
+            <span>Arahkan kursor atau ketuk salah satu titik data pada grafik untuk inspeksi koordinat presisi &amp; status outlier.</span>
           </div>
         )}
       </div>
@@ -980,7 +1154,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
           className="rounded-xl border border-[var(--comfort-border)] p-3.5 space-y-2"
           style={{ backgroundColor: palette.canvasBg }}
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-2xs">
             <div className="font-bold text-[var(--comfort-text)]">
               Plot Residual (Δy = y_ukur − ŷ_model)
             </div>
@@ -1052,21 +1226,27 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
         <div
           className={`flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border text-xs ${
             poeEvaluation.isAccurate
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200'
-              : 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-200'
+              ? 'bg-[var(--comfort-success-soft)] border-[var(--comfort-success-border)] text-[var(--comfort-text)]'
+              : 'bg-[var(--comfort-warning-soft)] border-[var(--comfort-warning-border)] text-[var(--comfort-text)]'
           }`}
         >
           <div className="space-y-0.5">
             <div className="font-bold flex items-center gap-1.5">
               <span>◆ Evaluasi Prediksi POE (Predict–Observe–Explain):</span>
-              <span className="font-mono">
+              <span
+                className={`font-mono ${
+                  poeEvaluation.isAccurate
+                    ? 'text-[var(--comfort-success)]'
+                    : 'text-[var(--comfort-warning)]'
+                }`}
+              >
                 Selisih {poeEvaluation.deviationPct}%
               </span>
             </div>
-            <p className="text-[11px] opacity-90">
-              Pada X = <strong>{poeEvaluation.predictedX}</strong>, Anda memprediksi Y ={' '}
-              <strong>{poeEvaluation.predictedY}</strong>, sedangkan kurva regresi riil 3D menunjukkan Y ≈{' '}
-              <strong>{poeEvaluation.actualY}</strong>.{' '}
+            <p className="text-2xs text-[var(--comfort-text-muted)]">
+              Pada X = <strong className="text-[var(--comfort-text)]">{poeEvaluation.predictedX}</strong>, Anda memprediksi Y ={' '}
+              <strong className="text-[var(--comfort-text)]">{poeEvaluation.predictedY}</strong>, sedangkan kurva regresi riil 3D menunjukkan Y ≈{' '}
+              <strong className="text-[var(--comfort-text)]">{poeEvaluation.actualY}</strong>.{' '}
               {poeEvaluation.isAccurate
                 ? 'Intuisi dan perhitungan hipotesis Anda sangat akurat!'
                 : 'Terdapat selisih signifikan antara intuisi awal dengan kenyataan eksperimen—tinjau ulang faktor gaya/variabel non-liniernya.'}
@@ -1082,7 +1262,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
                   poeEvaluation.actualY
                 )
               }
-              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] cursor-pointer whitespace-nowrap shadow-2xs"
+              className="comfort-btn-primary px-3 py-1.5 rounded-lg font-bold text-2xs cursor-pointer whitespace-nowrap shadow-2xs"
             >
               Bedah Selisih dengan Dr. LabMu →
             </button>
@@ -1090,24 +1270,35 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
         </div>
       )}
 
-      {/* Outlier Alert & Dr. LabMu Advice */}
+      {/* Outlier Alert, Quick Restore & Dr. LabMu Advice */}
       {excludedIndices.size > 0 && (
-        <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[var(--comfort-warning-soft)] border border-[var(--comfort-warning-border)] text-[var(--comfort-text)] text-xs">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+            <AlertTriangle className="w-4 h-4 shrink-0 text-[var(--comfort-warning)]" />
             <span>
               <strong>{excludedIndices.size} Titik Outlier Dikecualikan:</strong> Nilai R² diperbarui secara otomatis tanpa memperhitungkan galat anomali tersebut.
             </span>
           </div>
-          {onAskDrLabMuAboutOutlier && (
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={onAskDrLabMuAboutOutlier}
-              className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-200 font-bold text-[11px] cursor-pointer whitespace-nowrap"
+              data-testid="restore-all-outliers-btn"
+              onClick={handleResetAllOutliers}
+              className="comfort-btn-secondary px-2.5 py-1 rounded-lg font-semibold text-2xs cursor-pointer inline-flex items-center gap-1 whitespace-nowrap"
             >
-              Konsultasi ke Dr. LabMu →
+              <RotateCcw className="w-3 h-3" aria-hidden="true" />
+              <span>Pulihkan Semua Titik</span>
             </button>
-          )}
+            {onAskDrLabMuAboutOutlier && (
+              <button
+                type="button"
+                onClick={onAskDrLabMuAboutOutlier}
+                className="comfort-btn-secondary px-2.5 py-1 rounded-lg font-bold text-2xs cursor-pointer whitespace-nowrap"
+              >
+                Konsultasi ke Dr. LabMu →
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

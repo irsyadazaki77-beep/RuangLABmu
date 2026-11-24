@@ -187,7 +187,7 @@ export const TimeScrubberBar: React.FC<TimeScrubberBarProps> = (props) => {
                 labSound.playClick();
                 setPlaybackSpeed(spd);
               }}
-              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+              className={`px-1.5 py-0.5 rounded text-2xs font-bold transition-colors cursor-pointer ${
                 Math.abs(playbackSpeed - spd) < 0.01
                   ? 'bg-sky-600 text-white'
                   : 'text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)]'

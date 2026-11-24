@@ -151,6 +151,20 @@ export const RoomMissionUpdateSchema = z.object({
   mission: RoomMissionObjectSchema.nullable().optional(),
 });
 
+const CoercedLimitSchema = z.coerce
+  .number()
+  .int('Parameter "limit" harus berupa bilangan bulat.')
+  .min(1, 'Parameter "limit" minimal 1.')
+  .max(100, 'Parameter "limit" maksimal 100.')
+  .optional();
+
+const CoercedOffsetSchema = z.coerce
+  .number()
+  .int('Parameter "offset" harus berupa bilangan bulat.')
+  .min(0, 'Parameter "offset" tidak boleh negatif.')
+  .max(100_000, 'Parameter "offset" melebihi batas maksimum.')
+  .optional();
+
 export const GradebookQuerySchema = z.object({
   roomPin: z
     .string({ error: 'Parameter query "roomPin" harus berupa string.' })
@@ -158,10 +172,53 @@ export const GradebookQuerySchema = z.object({
     .max(64, 'Parameter query "roomPin" melebihi batas 64 karakter.')
     .optional(),
   schoolId: SchoolIdSchema.optional(),
+  moduleId: z.string().trim().max(100).optional(),
+  limit: CoercedLimitSchema,
+  offset: CoercedOffsetSchema,
 });
 
 export const SubmissionsQuerySchema = z.object({
   schoolId: SchoolIdSchema.optional(),
+  roomId: z.string().trim().max(32).optional(),
+  studentId: z.string().trim().max(120).optional(),
+  domain: z.string().trim().max(50).optional(),
+  moduleId: z.string().trim().max(100).optional(),
+  status: z.enum(['all', 'graded', 'ungraded']).optional(),
+  search: z.string().trim().max(120).optional(),
+  sortBy: z.enum(['submitted_at', 'score', 'student_name']).optional(),
+  sortDir: z.enum(['asc', 'desc']).optional(),
+  limit: CoercedLimitSchema,
+  offset: CoercedOffsetSchema,
+});
+
+export const AuditLogsQuerySchema = z.object({
+  action: z.string().trim().max(80).optional(),
+  limit: CoercedLimitSchema,
+  offset: CoercedOffsetSchema,
+});
+
+export const AuthBootstrapTeacherSchema = z.object({
+  schoolId: SchoolIdSchema.optional().default('default-school'),
+  teacherName: z
+    .string({ error: 'Field "teacherName" wajib diisi.' })
+    .trim()
+    .min(2, 'Nama pengajar minimal 2 karakter.')
+    .max(120, 'Nama pengajar melebihi batas 120 karakter.'),
+  passcode: z
+    .string({ error: 'PIN/Passcode pengajar wajib diisi.' })
+    .trim()
+    .min(6, 'PIN/Passcode pengajar minimal 6 karakter.')
+    .max(128, 'PIN/Passcode pengajar melebihi batas 128 karakter.'),
+});
+
+export const AuthSessionRequestSchema = z.object({
+  role: z.enum(['teacher', 'student']).default('teacher'),
+  schoolId: SchoolIdSchema.optional().default('default-school'),
+  displayName: z.string().trim().max(120).optional(),
+  userId: z.string().trim().max(120).optional(),
+  roomId: z.string().trim().max(32).optional(),
+  passcode: z.string().trim().max(128).optional(),
+  pin: z.string().trim().max(128).optional(),
 });
 
 export const TelemetryAnalyticsSchema = z
@@ -357,4 +414,7 @@ export type SubmissionGradePayload = z.infer<typeof SubmissionGradeSchema>;
 export type SubmissionBatchGradePayload = z.infer<typeof SubmissionBatchGradeSchema>;
 export type GradebookQueryPayload = z.infer<typeof GradebookQuerySchema>;
 export type SubmissionsQueryPayload = z.infer<typeof SubmissionsQuerySchema>;
+export type AuditLogsQueryPayload = z.infer<typeof AuditLogsQuerySchema>;
+export type AuthBootstrapTeacherPayload = z.infer<typeof AuthBootstrapTeacherSchema>;
+export type AuthSessionRequestPayload = z.infer<typeof AuthSessionRequestSchema>;
 export type ValidationIssue = z.infer<typeof ValidationIssueSchema>;

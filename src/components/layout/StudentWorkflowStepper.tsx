@@ -1,8 +1,10 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import { CheckCircle2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { WorkflowStep } from '../../stores/useLabStore';
 import { labSound } from '../../utils/soundEngine';
+import { SPRING_LAYOUT_PILL } from '../../styles/motionPresets';
 
 export interface StudentWorkflowStepperProps {
   workflowStep: WorkflowStep;
@@ -61,44 +63,54 @@ export const StudentWorkflowStepper: React.FC<StudentWorkflowStepperProps> = ({
               labSound.playClick();
               setWorkflowStep(item.step);
             }}
+            aria-current={isActive ? 'step' : undefined}
             aria-label={`Pindah ke Tahap ${item.label}`}
             title={
               item.needsDataHint
                 ? `Disarankan catat minimal 3 titik data pengamatan terlebih dahulu (${recordsCount}/3 tercatat)`
                 : undefined
             }
-            className={`px-1.5 xl:px-2 py-1 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer shrink-0 ${
+            className={`relative px-2 xl:px-2.5 py-1 rounded-lg text-2xs font-semibold transition-colors flex items-center gap-1 whitespace-nowrap cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
               isActive
-                ? 'bg-sky-600 text-white shadow-xs'
+                ? 'text-white'
                 : item.done
-                ? 'text-emerald-700 dark:text-emerald-400 hover:bg-[var(--comfort-surface)]'
+                ? 'text-[var(--comfort-success)] hover:bg-[var(--comfort-surface)]'
                 : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface)]'
             }`}
           >
-            {item.done && !isActive && (
-              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            )}
-            <span>{item.label}</span>
-            {item.badge && (
-              <span
-                className={`font-mono text-[10px] px-1 rounded tabular-nums ${
-                  isAnalysisReady
-                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                    : isActive
-                    ? 'bg-sky-700 text-sky-100'
-                    : 'bg-[var(--comfort-surface)] text-[var(--comfort-text-muted)]'
-                }`}
-              >
-                {item.badge}
-              </span>
-            )}
-            {item.needsDataHint && !isActive && (
-              <span
-                data-testid="step3-readiness-dot"
-                className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"
-                aria-hidden="true"
+            {isActive && (
+              <motion.span
+                layoutId="student-workflow-active-pill"
+                transition={SPRING_LAYOUT_PILL}
+                className="absolute inset-0 rounded-lg bg-[var(--comfort-accent-solid)] shadow-xs"
               />
             )}
+            <span className="relative z-10 flex items-center gap-1">
+              {item.done && !isActive && (
+                <CheckCircle2 className="w-3 h-3 text-[var(--comfort-success)] shrink-0" />
+              )}
+              <span>{item.label}</span>
+              {item.badge && (
+                <span
+                  className={`font-mono text-2xs px-1 rounded tabular-nums ${
+                    isActive
+                      ? 'bg-white/20 text-white'
+                      : isAnalysisReady
+                      ? 'bg-[var(--comfort-success-soft)] text-[var(--comfort-success)]'
+                      : 'bg-[var(--comfort-surface)] text-[var(--comfort-text-muted)]'
+                  }`}
+                >
+                  {item.badge}
+                </span>
+              )}
+              {item.needsDataHint && !isActive && (
+                <span
+                  data-testid="step3-readiness-dot"
+                  className="w-1.5 h-1.5 rounded-full bg-[var(--comfort-warning)] shrink-0"
+                  aria-hidden="true"
+                />
+              )}
+            </span>
           </button>
         );
       })}

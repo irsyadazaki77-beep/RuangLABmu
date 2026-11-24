@@ -253,7 +253,7 @@ export const QuickChallengeMissionBanner: React.FC<QuickChallengeMissionBannerPr
             <div className="text-xs font-bold text-[var(--comfort-text)] truncate">
               Tantangan Kilat Laboratorium ({resolvedCompletedIds.length} Selesai)
             </div>
-            <div className="text-[11px] text-[var(--comfort-text-muted)] truncate">
+            <div className="text-2xs text-[var(--comfort-text-muted)] truncate">
               Uji ketelitian Anda mencapai target metrik tertentu di ruang 3D
             </div>
           </div>
@@ -302,7 +302,7 @@ export const QuickChallengeMissionBanner: React.FC<QuickChallengeMissionBannerPr
     >
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-0.5">
-          <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-amber-700 dark:text-amber-400">
+          <div className="flex items-center gap-1.5 text-2xs font-mono font-bold text-amber-700 dark:text-amber-400">
             <Target className="w-3.5 h-3.5 shrink-0" />
             <span>MISI TANTANGAN KILAT · +{activeChallenge.rewardPoints} POIN</span>
           </div>
@@ -316,27 +316,27 @@ export const QuickChallengeMissionBanner: React.FC<QuickChallengeMissionBannerPr
             type="button"
             onClick={handleStartNewChallenge}
             title="Acak tantangan baru"
-            className="p-1.5 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] text-[11px] cursor-pointer"
+            className="p-1.5 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] text-2xs cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
             onClick={() => setActiveChallenge(null)}
-            className="px-2 py-1 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] text-[10px] font-semibold cursor-pointer"
+            className="px-2 py-1 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] text-2xs font-semibold cursor-pointer"
           >
             Tutup
           </button>
         </div>
       </div>
 
-      <p className="text-[11px] text-[var(--comfort-text)] leading-relaxed">
+      <p className="text-2xs text-[var(--comfort-text)] leading-relaxed">
         {activeChallenge.instruction}
       </p>
 
       {/* Live Target Meter */}
       <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-lg p-2.5 space-y-1.5">
-        <div className="flex items-center justify-between text-[11px] font-mono tabular-nums">
+        <div className="flex items-center justify-between text-2xs font-mono tabular-nums">
           <span className="text-[var(--comfort-text-muted)]">
             Saat Ini ({activeChallenge.metricLabel}):{' '}
             <strong className="text-[var(--comfort-text)]">
@@ -359,7 +359,7 @@ export const QuickChallengeMissionBanner: React.FC<QuickChallengeMissionBannerPr
         </div>
 
         <div className="flex items-center justify-between pt-1">
-          <span className="text-[10px] text-[var(--comfort-text-muted)] italic truncate pr-2">
+          <span className="text-2xs text-[var(--comfort-text-muted)] italic truncate pr-2">
             Petunjuk: {activeChallenge.hint}
           </span>
 
@@ -368,7 +368,7 @@ export const QuickChallengeMissionBanner: React.FC<QuickChallengeMissionBannerPr
               type="button"
               disabled={justSolved}
               onClick={handleClaimChallenge}
-              className={`px-3 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer ${
+              className={`px-3 py-1 rounded-lg text-2xs font-bold flex items-center gap-1 shrink-0 cursor-pointer ${
                 justSolved
                   ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40'
                   : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs'
@@ -378,7 +378,7 @@ export const QuickChallengeMissionBanner: React.FC<QuickChallengeMissionBannerPr
               <span>{justSolved ? 'Tantangan Terverifikasi!' : 'Verifikasi Target (+Poin)'}</span>
             </button>
           ) : (
-            <span className="text-[10px] font-mono text-amber-700 dark:text-amber-400 shrink-0 tabular-nums">
+            <span className="text-2xs font-mono text-amber-700 dark:text-amber-400 shrink-0 tabular-nums">
               Selisih: {diff.toFixed(2)} {activeChallenge.unit}
             </span>
           )}
@@ -455,7 +455,7 @@ export const ABLiveComparisonWidget: React.FC<ABLiveComparisonWidgetProps> = ({
             <div className="text-xs font-bold text-[var(--comfort-text)] truncate">
               Simulasi Komparasi A/B ({domainLabel})
             </div>
-            <div className="text-[11px] text-[var(--comfort-text-muted)] truncate">
+            <div className="text-2xs text-[var(--comfort-text-muted)] truncate">
               Sematkan Percobaan A (Acuan) untuk melihat delta perubahan Percobaan B secara langsung
             </div>
           </div>
@@ -464,31 +464,31 @@ export const ABLiveComparisonWidget: React.FC<ABLiveComparisonWidgetProps> = ({
         <button
           type="button"
           onClick={handlePinCurrentAsBaseline}
-          className="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] transition-colors shrink-0 cursor-pointer"
+          className="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-2xs transition-colors shrink-0 cursor-pointer"
         >
           {baseline ? 'Perbarui Acuan (Run A)' : 'Sematkan Acuan (Run A)'}
         </button>
       </div>
 
       {!baseline ? (
-        <div className="text-[11px] text-[var(--comfort-text-muted)] bg-[var(--comfort-surface-subtle)] border border-dashed border-[var(--comfort-border)] rounded-lg p-3 text-center">
+        <div className="text-2xs text-[var(--comfort-text-muted)] bg-[var(--comfort-surface-subtle)] border border-dashed border-[var(--comfort-border)] rounded-lg p-3 text-center">
           Belum ada Percobaan A yang dikunci. Klik <strong>Sematkan Acuan (Run A)</strong> lalu ubah slider parameter untuk membandingkan hasilnya secara berdampingan.
         </div>
       ) : (
         <div className="space-y-2.5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-2xs font-mono">
             <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 truncate">
               <div className="font-bold">RUN A (Acuan · {baseline.timestamp})</div>
-              <div className="truncate text-[10px] opacity-90">{baseline.paramsSummary}</div>
+              <div className="truncate text-2xs opacity-90">{baseline.paramsSummary}</div>
             </div>
             <div className="p-2 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-800 dark:text-sky-300 truncate">
               <div className="font-bold">RUN B (Simulasi Aktif)</div>
-              <div className="truncate text-[10px] opacity-90">{resolvedSummary}</div>
+              <div className="truncate text-2xs opacity-90">{resolvedSummary}</div>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-[11px] font-mono tabular-nums">
+            <table className="w-full text-left border-collapse text-2xs font-mono tabular-nums">
               <thead>
                 <tr className="border-b border-[var(--comfort-border)] text-[var(--comfort-text-muted)]">
                   <th className="py-1.5 pr-2">Besaran Ukur</th>
@@ -549,7 +549,7 @@ export const ABLiveComparisonWidget: React.FC<ABLiveComparisonWidgetProps> = ({
                     onRestoreBaselineParams(baseline.params);
                   }
                 }}
-                className="px-2.5 py-1 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text)] text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text)] text-2xs font-semibold flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Pulihkan Parameter Run A</span>
@@ -558,7 +558,7 @@ export const ABLiveComparisonWidget: React.FC<ABLiveComparisonWidgetProps> = ({
             <button
               type="button"
               onClick={() => setBaseline(null)}
-              className="px-2.5 py-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-rose-500 text-[11px] font-medium cursor-pointer"
+              className="px-2.5 py-1 rounded-lg text-[var(--comfort-text-muted)] hover:text-rose-500 text-2xs font-medium cursor-pointer"
             >
               Reset A/B
             </button>
@@ -617,20 +617,20 @@ export const Scene3DTelemetryHUD: React.FC<Scene3DTelemetryHUDProps> = ({
 
       {/* Top-Left Live 3D Telemetry Readout HUD */}
       <div className="pointer-events-auto absolute top-4 left-4 z-20 hidden sm:flex flex-col gap-1.5 rounded-xl studio-hud-surface border px-3.5 py-2.5 shadow-xl min-w-[215px]">
-        <div className="flex items-center justify-between gap-3 text-[10px] font-mono text-sky-700 dark:text-sky-400 font-semibold">
+        <div className="flex items-center justify-between gap-3 text-2xs font-mono text-sky-700 dark:text-sky-400 font-semibold">
           <span>HUD TELEMETRI 3D · {domainTitle.toUpperCase()}</span>
         </div>
 
         <div className="flex items-stretch gap-3 pt-0.5">
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] text-[var(--comfort-hud-muted)] truncate">{primaryLabel}</div>
+            <div className="text-2xs text-[var(--comfort-hud-muted)] truncate">{primaryLabel}</div>
             <div className="text-xs font-mono font-bold text-[var(--comfort-hud-text)] tabular-nums">
               {primaryValue}
             </div>
           </div>
           <div className="w-px bg-[var(--comfort-hud-border)] shrink-0" aria-hidden="true" />
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] text-[var(--comfort-hud-muted)] truncate">{secondaryLabel}</div>
+            <div className="text-2xs text-[var(--comfort-hud-muted)] truncate">{secondaryLabel}</div>
             <div className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
               {secondaryValue}
             </div>
@@ -638,7 +638,7 @@ export const Scene3DTelemetryHUD: React.FC<Scene3DTelemetryHUDProps> = ({
         </div>
 
         <div className="space-y-1 pt-0.5">
-          <div className="flex items-center justify-between text-[9px] font-mono text-[var(--comfort-hud-muted)]">
+          <div className="flex items-center justify-between text-2xs font-mono text-[var(--comfort-hud-muted)]">
             <span>{energyBarLabel}</span>
             <span className="tabular-nums text-sky-700 dark:text-sky-300 font-semibold">
               {Math.max(0, Math.min(100, Math.round(energyBarRatio)))}%
@@ -666,7 +666,7 @@ export const Scene3DTelemetryHUD: React.FC<Scene3DTelemetryHUDProps> = ({
             <Camera className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
             <span>Ambil Foto 3D</span>
             {snapshotCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-700 dark:text-sky-300 text-[10px] tabular-nums">
+              <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-700 dark:text-sky-300 text-2xs tabular-nums">
                 {snapshotCount}
               </span>
             )}
@@ -800,7 +800,7 @@ export const AchievementBadgesStrip: React.FC<{
             <div className="flex items-center justify-between gap-1.5">
               <span className="text-xs font-bold truncate">{badge.title}</span>
               <span
-                className={`font-mono text-[10px] font-bold shrink-0 ${
+                className={`font-mono text-2xs font-bold shrink-0 ${
                   badge.unlocked
                     ? 'text-emerald-600 dark:text-emerald-400'
                     : 'text-[var(--comfort-text-muted)]'
@@ -809,7 +809,7 @@ export const AchievementBadgesStrip: React.FC<{
                 {badge.unlocked ? '✓ TERBUKA' : `+${badge.points}`}
               </span>
             </div>
-            <p className="text-[11px] text-[var(--comfort-text-muted)] leading-snug">
+            <p className="text-2xs text-[var(--comfort-text-muted)] leading-snug">
               {badge.description}
             </p>
           </div>

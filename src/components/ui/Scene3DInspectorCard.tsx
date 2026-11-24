@@ -72,7 +72,7 @@ export const Scene3DInspectorCard: React.FC<Scene3DInspectorCardProps> = ({
       <div className="pointer-events-auto w-full max-w-[420px] rounded-xl studio-hud-surface shadow-xl p-3.5 space-y-2.5 text-[var(--comfort-hud-text)]">
         <div className="flex items-start justify-between gap-2 pb-2 border-b border-[var(--comfort-border)]">
           <div className="min-w-0">
-            <div className="text-[10px] font-mono font-semibold text-sky-600 dark:text-sky-400">
+            <div className="text-2xs font-mono font-semibold text-sky-600 dark:text-sky-400">
               {info.category}
             </div>
             <h3 className="text-xs sm:text-sm font-bold leading-snug truncate">{info.title}</h3>
@@ -90,29 +90,29 @@ export const Scene3DInspectorCard: React.FC<Scene3DInspectorCardProps> = ({
           </button>
         </div>
 
-        <p className="text-[11px] leading-relaxed text-[var(--comfort-text-muted)]">
+        <p className="text-2xs leading-relaxed text-[var(--comfort-text-muted)]">
           <strong className="text-[var(--comfort-hud-text)]">Peran Alat: </strong>
           {info.roleSummary}
         </p>
 
-        <p className="text-[11px] leading-relaxed text-[var(--comfort-text-muted)]">
+        <p className="text-2xs leading-relaxed text-[var(--comfort-text-muted)]">
           <strong className="text-[var(--comfort-hud-text)]">Konsep Ilmiah: </strong>
           {info.scientificConcept}
         </p>
 
         <div className="px-2.5 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] flex flex-wrap items-center justify-between gap-2">
-          <div className="font-mono text-[11px] font-bold text-sky-700 dark:text-sky-300">
+          <div className="font-mono text-2xs font-bold text-sky-700 dark:text-sky-300">
             <SciFormula text={info.relatedFormula} wrap />
           </div>
           {liveMetricSummary && (
-            <span className="font-mono text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+            <span className="font-mono text-2xs font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
               {liveMetricSummary}
             </span>
           )}
         </div>
 
         <div className="flex items-center justify-between gap-2 pt-0.5">
-          <div className="flex items-center gap-1.5 text-[10px] text-[var(--comfort-text-muted)] min-w-0">
+          <div className="flex items-center gap-1.5 text-2xs text-[var(--comfort-text-muted)] min-w-0">
             <BookOpen className="w-3 h-3 text-amber-500 shrink-0" aria-hidden="true" />
             <span className="truncate">{info.interactionHint}</span>
           </div>
@@ -120,7 +120,7 @@ export const Scene3DInspectorCard: React.FC<Scene3DInspectorCardProps> = ({
           <button
             type="button"
             onClick={handleOpenParameters}
-            className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
+            className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-2xs font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
           >
             <Sliders className="w-3 h-3 shrink-0" aria-hidden="true" />
             <span>Atur Variabel</span>

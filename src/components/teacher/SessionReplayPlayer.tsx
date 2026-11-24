@@ -227,7 +227,7 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
         <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
           <div className="md:col-span-5 p-5 border-b md:border-b-0 md:border-r border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] overflow-y-auto space-y-4">
             <div className="space-y-1">
-              <span className="text-[11px] font-semibold text-sky-600 dark:text-sky-400">
+              <span className="text-2xs font-semibold text-sky-600 dark:text-sky-400">
                 Status Variabel pada Langkah #{currentIndex + 1}
               </span>
               <h3 className="text-sm font-bold text-[var(--comfort-text)]">
@@ -285,7 +285,7 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
                 <Clock className="w-3.5 h-3.5 text-sky-500" />
                 <span>Daftar Log Kejadian Kronologis (Klik untuk Melompat)</span>
               </h3>
-              <span className="text-[11px] text-[var(--comfort-text-muted)] font-mono tabular-nums">
+              <span className="text-2xs text-[var(--comfort-text-muted)] font-mono tabular-nums">
                 {events.length} Kejadian
               </span>
             </div>
@@ -331,7 +331,7 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
                         <div className="text-xs font-bold text-[var(--comfort-text)]">
                           {ev.note || `Mengubah parameter ${ev.parameterName}`}
                         </div>
-                        <div className="text-[11px] font-mono text-[var(--comfort-text-muted)]">
+                        <div className="text-2xs font-mono text-[var(--comfort-text-muted)]">
                           Parameter:{' '}
                           <strong className="text-[var(--comfort-text)]">{ev.parameterName}</strong> ={' '}
                           <strong className="text-sky-600 dark:text-sky-400 tabular-nums">
@@ -342,7 +342,7 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
                       </div>
                     </div>
 
-                    <span className="font-mono text-[11px] text-[var(--comfort-text-muted)] tabular-nums shrink-0">
+                    <span className="font-mono text-2xs text-[var(--comfort-text-muted)] tabular-nums shrink-0">
                       +{formatElapsed(relSec)}
                     </span>
                   </button>

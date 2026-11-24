@@ -126,12 +126,12 @@ export const FloatingLabAnalyticsDrawer: React.FC<
                 <div className="text-xs font-bold text-[var(--comfort-hud-text)] truncate">
                   Ringkasan Data {domain} ({domainRecords.length} Titik)
                 </div>
-                <div className="text-[11px] text-[var(--comfort-hud-muted)] truncate">
+                <div className="text-2xs text-[var(--comfort-hud-muted)] truncate">
                   {experimentTitle}
                 </div>
               </div>
               {regression && (
-                <div className="text-right font-mono text-[11px] shrink-0">
+                <div className="text-right font-mono text-2xs shrink-0">
                   <span className="text-[var(--comfort-hud-muted)] block">Akurasi R²</span>
                   <span
                     className={`font-bold tabular-nums ${
@@ -160,13 +160,13 @@ export const FloatingLabAnalyticsDrawer: React.FC<
                     className="p-2.5 flex items-start justify-between gap-2 text-xs hover:bg-sky-500/5"
                   >
                     <div className="min-w-0">
-                      <div className="font-mono text-[11px] text-sky-600 dark:text-sky-400 font-semibold">
+                      <div className="font-mono text-2xs text-sky-600 dark:text-sky-400 font-semibold">
                         {rec.id} · {rec.timestamp}
                       </div>
-                      <div className="text-[11px] text-[var(--comfort-hud-text)] truncate mt-0.5 font-mono">
+                      <div className="text-2xs text-[var(--comfort-hud-text)] truncate mt-0.5 font-mono">
                         {rec.parametersSummary}
                       </div>
-                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono mt-0.5 truncate">
+                      <div className="text-2xs text-emerald-600 dark:text-emerald-400 font-mono mt-0.5 truncate">
                         {Object.entries(rec.keyMetrics)
                           .slice(0, 2)
                           .map(([k, v]) => `${k}: ${v}`)

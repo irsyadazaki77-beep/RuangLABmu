@@ -222,7 +222,7 @@ export const ScienceGlossaryTerm: React.FC<ScienceGlossaryTermProps> = ({
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold">
+                <div className="flex items-center gap-1.5 text-2xs font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold">
                   <BookOpen className="w-3 h-3 shrink-0" />
                   <span>Kamus Mini · {entry.category}</span>
                 </div>
@@ -243,16 +243,16 @@ export const ScienceGlossaryTerm: React.FC<ScienceGlossaryTermProps> = ({
               </button>
             </div>
 
-            <p className="text-[11px] leading-relaxed">
+            <p className="text-2xs leading-relaxed">
               {entry.explanation}
             </p>
 
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 space-y-0.5">
-              <div className="flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+              <div className="flex items-center gap-1 text-2xs font-bold text-amber-700 dark:text-amber-300">
                 <Lightbulb className="w-3 h-3 shrink-0" />
                 <span>Analogi Sehari-hari</span>
               </div>
-              <p className={`text-[11px] leading-snug ${popoverMutedClass}`}>
+              <p className={`text-2xs leading-snug ${popoverMutedClass}`}>
                 {entry.analogy}
               </p>
             </div>

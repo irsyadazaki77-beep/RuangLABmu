@@ -143,7 +143,7 @@ export const TeacherMysteryExamTab: React.FC<TeacherMysteryExamTabProps> = ({
           <div className="space-y-2.5 text-xs">
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-[11px] font-medium text-[var(--comfort-text-muted)] mb-0.5">
+                <label className="block text-2xs font-medium text-[var(--comfort-text-muted)] mb-0.5">
                   Domain Lab
                 </label>
                 <select
@@ -159,7 +159,7 @@ export const TeacherMysteryExamTab: React.FC<TeacherMysteryExamTabProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] font-medium text-[var(--comfort-text-muted)] mb-0.5">
+                <label className="block text-2xs font-medium text-[var(--comfort-text-muted)] mb-0.5">
                   Kode Sampel
                 </label>
                 <input
@@ -172,7 +172,7 @@ export const TeacherMysteryExamTab: React.FC<TeacherMysteryExamTabProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-[var(--comfort-text-muted)] mb-0.5">
+              <label className="block text-2xs font-medium text-[var(--comfort-text-muted)] mb-0.5">
                 Judul Ujian Sampel
               </label>
               <input
@@ -185,7 +185,7 @@ export const TeacherMysteryExamTab: React.FC<TeacherMysteryExamTabProps> = ({
 
             <div className="grid grid-cols-3 gap-2 font-mono">
               <div>
-                <label className="block text-[10px] text-[var(--comfort-text-muted)] mb-0.5">
+                <label className="block text-2xs text-[var(--comfort-text-muted)] mb-0.5">
                   Nilai Rahasia
                 </label>
                 <input
@@ -197,7 +197,7 @@ export const TeacherMysteryExamTab: React.FC<TeacherMysteryExamTabProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-[var(--comfort-text-muted)] mb-0.5">
+                <label className="block text-2xs text-[var(--comfort-text-muted)] mb-0.5">
                   Satuan
                 </label>
                 <input
@@ -208,7 +208,7 @@ export const TeacherMysteryExamTab: React.FC<TeacherMysteryExamTabProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-[var(--comfort-text-muted)] mb-0.5">
+                <label className="block text-2xs text-[var(--comfort-text-muted)] mb-0.5">
                   Toleransi (%)
                 </label>
                 <input
@@ -222,7 +222,7 @@ export const TeacherMysteryExamTab: React.FC<TeacherMysteryExamTabProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-[var(--comfort-text-muted)] mb-0.5">
+              <label className="block text-2xs font-medium text-[var(--comfort-text-muted)] mb-0.5">
                 Instruksi Kasus untuk Siswa
               </label>
               <textarea
@@ -300,7 +300,7 @@ export const TeacherMysteryExamTab: React.FC<TeacherMysteryExamTabProps> = ({
                     <div className="font-sans font-semibold text-[var(--comfort-text)]">
                       {sub.codename} · Tebakan: {sub.studentGuess}
                     </div>
-                    <div className="text-[11px] text-[var(--comfort-text-muted)]">
+                    <div className="text-2xs text-[var(--comfort-text-muted)]">
                       Asli: {sub.actualValue} · Galat: {sub.errorPercentage}%
                     </div>
                   </div>

@@ -130,7 +130,7 @@ export const ChapterDetailModal: React.FC<ChapterDetailModalProps> = ({
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                           )}
                         </div>
-                        <div className="text-[11px] text-[var(--comfort-text-muted)] flex items-center gap-2">
+                        <div className="text-2xs text-[var(--comfort-text-muted)] flex items-center gap-2">
                           <span>{mod.subCategory}</span>
                           <span aria-hidden="true">·</span>
                           <span className="inline-flex items-center gap-1 font-mono tabular-nums">
@@ -139,7 +139,7 @@ export const ChapterDetailModal: React.FC<ChapterDetailModalProps> = ({
                           </span>
                         </div>
                       </div>
-                      <span className="px-2.5 py-1 rounded-md bg-sky-600 text-white text-[11px] font-semibold shrink-0 whitespace-nowrap">
+                      <span className="px-2.5 py-1 rounded-md bg-sky-600 text-white text-2xs font-semibold shrink-0 whitespace-nowrap">
                         Mulai →
                       </span>
                     </button>

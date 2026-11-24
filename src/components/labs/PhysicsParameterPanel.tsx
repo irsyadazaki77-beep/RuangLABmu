@@ -456,7 +456,7 @@ export const PhysicsParameterPanel: React.FC<PhysicsParameterPanelProps> = ({
 
       {/* Gravity Preset Switcher */}
       <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-2 text-xs">
-        <span className="font-bold text-[11px] text-[var(--comfort-text-muted)] uppercase tracking-wider block">
+        <span className="font-bold text-2xs text-[var(--comfort-text-muted)] uppercase tracking-wider block">
           Gravitasi Lingkungan (g):
         </span>
         <div className="grid grid-cols-3 gap-1.5">
@@ -469,7 +469,7 @@ export const PhysicsParameterPanel: React.FC<PhysicsParameterPanelProps> = ({
                 labSound.playClick();
                 onParamUpdate({ gravity: gp.g });
               }}
-              className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer whitespace-nowrap truncate ${
+              className={`py-1.5 px-2 rounded-lg text-2xs font-semibold border transition-all cursor-pointer whitespace-nowrap truncate ${
                 Math.abs(params.gravity - gp.g) < 0.1
                   ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
                   : 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] border-[var(--comfort-border)] hover:border-sky-500/50'

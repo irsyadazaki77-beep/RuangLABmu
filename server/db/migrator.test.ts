@@ -30,23 +30,25 @@ afterEach(() => {
 });
 
 describe('SQLite Versioned Migrations & VACUUM INTO Backup', () => {
-  it('applies 001_initial_schema.sql and 002_multitenant_and_idempotency.sql idempotently', () => {
+  it('applies 001_initial_schema.sql, 002_multitenant_and_idempotency.sql, and 003_consolidation_auth_audit.sql idempotently', () => {
     const tmpDir = createTempDir('ruanglabmu-migrator-init-');
     const dbFile = path.join(tmpDir, 'test.db');
 
     const dbInstance = new RuangLabDatabase(dbFile);
     try {
       const applied = listAppliedMigrations(dbInstance.db);
-      assert.equal(applied.length, 2);
+      assert.equal(applied.length, 3);
       assert.equal(applied[0].version, 1);
       assert.equal(applied[0].name, '001_initial_schema.sql');
       assert.equal(applied[1].version, 2);
       assert.equal(applied[1].name, '002_multitenant_and_idempotency.sql');
+      assert.equal(applied[2].version, 3);
+      assert.equal(applied[2].name, '003_consolidation_auth_audit.sql');
 
       // Re-running migrations is idempotent and applies 0 new migrations
       const secondRun = runMigrations(dbInstance.db);
       assert.equal(secondRun.length, 0);
-      assert.equal(listAppliedMigrations(dbInstance.db).length, 2);
+      assert.equal(listAppliedMigrations(dbInstance.db).length, 3);
     } finally {
       dbInstance.close();
     }
@@ -58,12 +60,12 @@ describe('SQLite Versioned Migrations & VACUUM INTO Backup', () => {
     fs.mkdirSync(migrationsDir, { recursive: true });
 
     fs.writeFileSync(
-      path.join(migrationsDir, '003_create_items.sql'),
+      path.join(migrationsDir, '010_create_items.sql'),
       'CREATE TABLE items (id INTEGER PRIMARY KEY, label TEXT NOT NULL);',
       'utf-8'
     );
     fs.writeFileSync(
-      path.join(migrationsDir, '004_seed_items.sql'),
+      path.join(migrationsDir, '011_seed_items.sql'),
       "INSERT INTO items (id, label) VALUES (1, 'Neraca Ohauss');",
       'utf-8'
     );
@@ -74,12 +76,12 @@ describe('SQLite Versioned Migrations & VACUUM INTO Backup', () => {
       assert.equal(applied1.length, 2);
       assert.deepEqual(
         applied1.map((m) => m.version),
-        [3, 4]
+        [10, 11]
       );
 
-      // Add a broken 005 migration that partially executes then fails
+      // Add a broken 012 migration that partially executes then fails
       fs.writeFileSync(
-        path.join(migrationsDir, '005_broken.sql'),
+        path.join(migrationsDir, '012_broken.sql'),
         "INSERT INTO items (id, label) VALUES (2, 'ShouldRollback'); INVALID SQL SYNTAX HERE;",
         'utf-8'
       );
@@ -88,7 +90,7 @@ describe('SQLite Versioned Migrations & VACUUM INTO Backup', () => {
         runMigrations(dbInstance.db, migrationsDir);
       });
 
-      // Row from 005 must have rolled back atomically and 005 must not be in schema_migrations
+      // Row from 012 must have rolled back atomically and 012 must not be in schema_migrations
       const countRow = dbInstance.db
         .prepare('SELECT COUNT(*) AS cnt FROM items WHERE id = 2')
         .get();
@@ -96,7 +98,7 @@ describe('SQLite Versioned Migrations & VACUUM INTO Backup', () => {
 
       const appliedAfterFail = listAppliedMigrations(dbInstance.db);
       assert.equal(
-        appliedAfterFail.some((m) => m.version === 5),
+        appliedAfterFail.some((m) => m.version === 12),
         false
       );
     } finally {
@@ -151,6 +153,47 @@ describe('SQLite Versioned Migrations & VACUUM INTO Backup', () => {
       assert.equal(migrations[0]?.version, 1);
     } finally {
       restoredDb.close();
+    }
+  });
+
+  it('migrates legacy pre-003 tables lacking school_id in place without data loss', async () => {
+    const tmpDir = createTempDir('ruanglabmu-legacy-v2-');
+    const dbFile = path.join(tmpDir, 'legacy.db');
+    const { DatabaseSync } = await import('node:sqlite');
+    const rawDb = new DatabaseSync(dbFile);
+    rawDb.exec(`
+      CREATE TABLE group_tasks (
+        id TEXT PRIMARY KEY,
+        room_id TEXT NOT NULL DEFAULT 'LAB-ALPHA',
+        group_id TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        completed INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        payload_json TEXT NOT NULL
+      );
+      CREATE TABLE parameter_locks (
+        lock_key TEXT PRIMARY KEY,
+        room_id TEXT NOT NULL,
+        group_id TEXT NOT NULL,
+        param_key TEXT NOT NULL,
+        locked_by_user_id TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        payload_json TEXT NOT NULL
+      );
+      INSERT INTO group_tasks (id, room_id, group_id, domain, completed, created_at, payload_json)
+      VALUES ('task-legacy-1', 'LAB-ALPHA', 'Kelompok 1', 'Fisika', 1, 1700000000000, '{"id":"task-legacy-1","title":"Kalibrasi Neraca","completed":true}');
+    `);
+    rawDb.close();
+
+    const upgraded = new RuangLabDatabase(dbFile);
+    try {
+      const collections = upgraded.loadLabCollections();
+      assert.equal(collections.tasks.length, 1);
+      assert.equal(collections.tasks[0].id, 'task-legacy-1');
+      assert.equal(collections.tasks[0].title, 'Kalibrasi Neraca');
+    } finally {
+      upgraded.close();
     }
   });
 });

@@ -167,13 +167,13 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
       data-testid="live-timeseries-chart"
       className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] p-2.5 space-y-2 shadow-xs"
     >
-      <div className="flex items-center justify-between gap-2 text-[11px]">
+      <div className="flex items-center justify-between gap-2 text-2xs">
         <div className="flex items-center gap-1.5 font-bold text-[var(--comfort-text)] truncate">
           <Activity className="w-3.5 h-3.5 shrink-0" style={{ color: palette.primary }} />
           <span className="truncate">Grafik Deret Waktu Real-Time</span>
         </div>
         <span
-          className="font-mono text-[10px] font-bold tabular-nums shrink-0"
+          className="font-mono text-2xs font-bold tabular-nums shrink-0"
           style={{ color: palette.primary }}
         >
           t = {timelineCurrentTime.toFixed(2)}s
@@ -185,7 +185,7 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
         style={{ backgroundColor: palette.canvasBg }}
       >
         {liveTelemetrySeries.length < 2 ? (
-          <div className="h-[96px] flex items-center justify-center text-[11px] font-mono text-[var(--comfort-text-muted)] px-3 text-center">
+          <div className="h-[96px] flex items-center justify-center text-2xs font-mono text-[var(--comfort-text-muted)] px-3 text-center">
             Menunggu aliran sampel simulasi 3D...
           </div>
         ) : (
@@ -289,7 +289,7 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
       </div>
 
       {/* Compact Legend */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-[var(--comfort-text-muted)]">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-2xs font-mono text-[var(--comfort-text-muted)]">
         <div className="flex items-center gap-2.5 min-w-0">
           <span className="inline-flex items-center gap-1 truncate">
             <span
@@ -318,7 +318,7 @@ export const LiveTimeSeriesChart: React.FC<LiveTimeSeriesChartProps> = ({
             </span>
           )}
         </div>
-        <span className="text-[9px] opacity-75">Klik grafik untuk seek</span>
+        <span className="text-2xs opacity-75">Klik grafik untuk seek</span>
       </div>
     </div>
   );

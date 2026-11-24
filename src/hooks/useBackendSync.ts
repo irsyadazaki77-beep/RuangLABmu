@@ -15,6 +15,7 @@ import {
 import { ServerToClientMessageSchema } from '../shared/contracts/wsContracts';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { DEFAULT_SCHOOL_ID, flushOfflineOutbox } from '../utils/offlineOutbox';
+import { useAuthStore } from '../stores/useAuthStore';
 
 export interface BackendSyncState {
   records: ExperimentRecord[];
@@ -363,6 +364,7 @@ export function useBackendSync(
         const userId = `user-${currentIdentity.studentName.replace(/\s+/g, '-').toLowerCase()}`;
 
         // 1. Identify client session
+        const authState = useAuthStore.getState();
         socket.send(
           JSON.stringify({
             type: 'client:identify',
@@ -373,6 +375,8 @@ export function useBackendSync(
               groupId: currentIdentity.groupId,
               domain: currentIdentity.domain,
               roomId: activeRoomId,
+              schoolId: authState.session?.schoolId || DEFAULT_SCHOOL_ID,
+              sessionToken: authState.token || undefined,
               teacherPin:
                 currentIdentity.role === 'Pengajar'
                   ? storeSnapshot.roomPin || activeRoomSessionRef.current?.pin || undefined
@@ -726,6 +730,7 @@ export function useBackendSync(
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
     const storeSnapshot = useCollabStore.getState();
     const userId = `user-${studentName.replace(/\s+/g, '-').toLowerCase()}`;
+    const authState = useAuthStore.getState();
     socket.send(
       JSON.stringify({
         type: 'client:identify',
@@ -736,6 +741,8 @@ export function useBackendSync(
           groupId,
           domain,
           roomId: storeSnapshot.activeRoomId,
+          schoolId: authState.session?.schoolId || DEFAULT_SCHOOL_ID,
+          sessionToken: authState.token || undefined,
           teacherPin:
             role === 'Pengajar'
               ? storeSnapshot.roomPin || activeRoomSessionRef.current?.pin || undefined
@@ -863,7 +870,13 @@ export function useBackendSync(
     (targetStudentId: string, message: string, author: string) => {
       const activePin =
         useCollabStore.getState().roomPin || activeRoomSessionRef.current?.pin || undefined;
-      sendWs('teacher:feedback', { targetStudentId, message, author, teacherPin: activePin });
+      sendWs('teacher:feedback', {
+        targetStudentId,
+        message,
+        author,
+        teacherPin: activePin,
+        sessionToken: useAuthStore.getState().token || undefined,
+      });
     },
     [sendWs]
   );
@@ -873,7 +886,12 @@ export function useBackendSync(
       const activePin =
         useCollabStore.getState().roomPin || activeRoomSessionRef.current?.pin || undefined;
       setActiveMysteryChallenge(challenge);
-      sendWs('mystery:broadcast', { challenge, author, teacherPin: activePin });
+      sendWs('mystery:broadcast', {
+        challenge,
+        author,
+        teacherPin: activePin,
+        sessionToken: useAuthStore.getState().token || undefined,
+      });
     },
     [sendWs]
   );
@@ -909,14 +927,16 @@ export function useBackendSync(
           role: 'teacher',
         };
       }
+      const authState = useAuthStore.getState();
       sendWs('ROOM_CREATE', {
         roomId: customRoomId,
-        schoolId: DEFAULT_SCHOOL_ID,
+        schoolId: authState.session?.schoolId || DEFAULT_SCHOOL_ID,
         pin,
         domain: roomDomain,
         moduleId,
         teacherName: studentName,
         teacherUserId: `user-${studentName.replace(/\s+/g, '-').toLowerCase()}`,
+        sessionToken: authState.token || undefined,
       });
     },
     [sendWs, studentName]
@@ -932,10 +952,13 @@ export function useBackendSync(
         pin: pin.trim(),
         role: resolvedRole,
       };
+      const authState = useAuthStore.getState();
       sendWs('ROOM_JOIN', {
         roomId,
         pin,
         teacherPin: resolvedRole === 'teacher' ? pin.trim() : undefined,
+        sessionToken: authState.token || undefined,
+        schoolId: authState.session?.schoolId || DEFAULT_SCHOOL_ID,
         name: studentName,
         role: resolvedRole,
         userId: `user-${studentName.replace(/\s+/g, '-').toLowerCase()}`,
@@ -963,6 +986,7 @@ export function useBackendSync(
           isFrozen,
           teacherName: studentName,
           teacherPin: roomPin,
+          sessionToken: useAuthStore.getState().token || undefined,
         });
       }
     },
@@ -1059,6 +1083,7 @@ export function useBackendSync(
         customMission: mission,
         teacherName: studentName,
         teacherPin: activePin,
+        sessionToken: useAuthStore.getState().token || undefined,
       });
     },
     [sendWs, studentName]

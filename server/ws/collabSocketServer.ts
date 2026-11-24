@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
+import { DEFAULT_SCHOOL_ID } from '../db/LabRepository';
 import type { LabServerState } from '../state/labServerState';
 import {
   handleRoomSetCustomMission,
@@ -41,6 +42,10 @@ import {
   handleClientIdentify,
   parseClientToServerWsMessage,
 } from './wsAuth';
+import {
+  InMemoryRealtimeEventBus,
+  type RealtimeEventBus,
+} from './realtimeEventBus';
 import type { CollabSocketContext, ExtWebSocket, WsHandlerServices } from './wsTypes';
 import { logger } from '../utils/logger';
 
@@ -49,6 +54,7 @@ export { applyCustomMissionToRoom } from './wsMissionHandler';
 
 export const WS_HEARTBEAT_INTERVAL_MS = 30_000;
 export const WS_BACKPRESSURE_HIGH_WATERMARK_BYTES = 64 * 1024;
+export const WS_DEFAULT_MAX_MESSAGES_PER_SECOND = 60;
 export const WS_NON_CRITICAL_HIGH_FREQ_TYPES: ReadonlySet<string> = new Set([
   'CURSOR_3D_MOVE',
   'SPATIAL_CURSOR',
@@ -58,6 +64,12 @@ export const WS_NON_CRITICAL_HIGH_FREQ_TYPES: ReadonlySet<string> = new Set([
   'TEACHER_LASER_RAY',
   'TEACHER_CAMERA_SYNC',
 ]);
+
+export interface CollabSocketServerOptions {
+  isOriginAllowed?: (origin: string | undefined) => boolean;
+  maxMessagesPerSecond?: number;
+  eventBus?: RealtimeEventBus;
+}
 
 export function isNonCriticalWsFrame(payload: unknown): boolean {
   if (!payload || typeof payload !== 'object') return false;
@@ -115,6 +127,32 @@ export function safeSendWsMessage(
 }
 
 /**
+ * Per-socket sliding-window rate limiter (default 60 frames/sec).
+ */
+export function checkWsRateLimit(
+  ws: ExtWebSocket,
+  maxPerSecond: number = WS_DEFAULT_MAX_MESSAGES_PER_SECOND,
+  now = Date.now()
+): boolean {
+  const cutoff = now - 1000;
+  const timestamps = ws.msgTimestamps || [];
+  let trimIdx = 0;
+  while (trimIdx < timestamps.length && timestamps[trimIdx] < cutoff) {
+    trimIdx += 1;
+  }
+  if (trimIdx > 0) {
+    timestamps.splice(0, trimIdx);
+  }
+  if (timestamps.length >= maxPerSecond) {
+    ws.msgTimestamps = timestamps;
+    return false;
+  }
+  timestamps.push(now);
+  ws.msgTimestamps = timestamps;
+  return true;
+}
+
+/**
  * Executes a single heartbeat sweep across all connected WebSocket clients.
  * Terminates and cleans up any zombie 3T socket that failed to respond with `pong`
  * since the previous sweep, releasing its `parameterLocks` and `room.teacherSocketId`.
@@ -152,8 +190,13 @@ export function runWsHeartbeatSweep(
 
 export function createCollabSocketServer(
   server: http.Server,
-  state: LabServerState
+  state: LabServerState,
+  options?: CollabSocketServerOptions
 ): CollabSocketContext {
+  const maxMessagesPerSecond =
+    options?.maxMessagesPerSecond ?? WS_DEFAULT_MAX_MESSAGES_PER_SECOND;
+  const eventBus: RealtimeEventBus = options?.eventBus ?? new InMemoryRealtimeEventBus();
+
   const wss = new WebSocketServer({ server, path: '/ws-lab', maxPayload: 1024 * 1024 });
   wss.on('error', (err: NodeJS.ErrnoException) => {
     if (err?.code !== 'EADDRINUSE') {
@@ -162,16 +205,57 @@ export function createCollabSocketServer(
   });
 
   let droppedNonCriticalFrames = 0;
+  let rateLimitedDrops = 0;
   const onBackpressureDropped = () => {
     droppedNonCriticalFrames += 1;
   };
 
-  const broadcastAll = (payload: unknown) => {
-    const raw = JSON.stringify(payload);
-    const critical = !isNonCriticalWsFrame(payload);
-    wss.clients.forEach((client) => {
-      safeWsSend(client, raw, { critical, onDropped: onBackpressureDropped });
+  interface WsFanoutEvent {
+    scope: 'all' | 'room' | 'school' | 'school_teachers';
+    targetId: string;
+    payload: unknown;
+    excludeSocketId?: string;
+  }
+
+  const WS_FANOUT_CHANNEL = 'ws:fanout';
+
+  // Subscribe local WebSocket fan-out to RealtimeEventBus (Redis-ready adapter hook)
+  const unsubscribeBus = eventBus.subscribe(WS_FANOUT_CHANNEL, (envelope) => {
+    const event = envelope.payload as WsFanoutEvent | undefined;
+    if (!event || typeof event !== 'object') return;
+    const raw = JSON.stringify(event.payload);
+    const critical = !isNonCriticalWsFrame(event.payload);
+    wss.clients.forEach((c) => {
+      const client = c as ExtWebSocket;
+      if (event.excludeSocketId && client.socketId === event.excludeSocketId) {
+        return;
+      }
+      if (event.scope === 'room') {
+        if (client.roomId === event.targetId) {
+          safeWsSend(client, raw, { critical, onDropped: onBackpressureDropped });
+        }
+      } else if (event.scope === 'school') {
+        const clientSchool = client.schoolId || DEFAULT_SCHOOL_ID;
+        if (clientSchool === event.targetId) {
+          safeWsSend(client, raw, { critical, onDropped: onBackpressureDropped });
+        }
+      } else if (event.scope === 'school_teachers') {
+        const clientSchool = client.schoolId || DEFAULT_SCHOOL_ID;
+        if (clientSchool === event.targetId && client.role === 'Pengajar') {
+          safeWsSend(client, raw, { critical, onDropped: onBackpressureDropped });
+        }
+      } else {
+        safeWsSend(client, raw, { critical, onDropped: onBackpressureDropped });
+      }
     });
+  });
+
+  const broadcastAll = (payload: unknown) => {
+    eventBus.publish(WS_FANOUT_CHANNEL, {
+      scope: 'all',
+      targetId: '*',
+      payload,
+    } satisfies WsFanoutEvent);
   };
 
   const broadcastRoom = (
@@ -179,21 +263,51 @@ export function createCollabSocketServer(
     payload: unknown,
     excludeWs?: WebSocket
   ) => {
-    const raw = JSON.stringify(payload);
-    const critical = !isNonCriticalWsFrame(payload);
-    wss.clients.forEach((c) => {
-      const client = c as ExtWebSocket;
-      if (client.roomId === roomId && client !== excludeWs) {
-        safeWsSend(client, raw, { critical, onDropped: onBackpressureDropped });
-      }
-    });
+    const excludeSocketId = (excludeWs as ExtWebSocket | undefined)?.socketId;
+    eventBus.publish(WS_FANOUT_CHANNEL, {
+      scope: 'room',
+      targetId: roomId,
+      payload,
+      excludeSocketId,
+    } satisfies WsFanoutEvent);
+  };
+
+  const broadcastSchool = (
+    schoolId: string,
+    payload: unknown,
+    excludeWs?: WebSocket
+  ) => {
+    const normalizedSchool = schoolId?.trim() || DEFAULT_SCHOOL_ID;
+    const excludeSocketId = (excludeWs as ExtWebSocket | undefined)?.socketId;
+    eventBus.publish(WS_FANOUT_CHANNEL, {
+      scope: 'school',
+      targetId: normalizedSchool,
+      payload,
+      excludeSocketId,
+    } satisfies WsFanoutEvent);
+  };
+
+  const broadcastSchoolTeachers = (
+    schoolId: string,
+    payload: unknown,
+    excludeWs?: WebSocket
+  ) => {
+    const normalizedSchool = schoolId?.trim() || DEFAULT_SCHOOL_ID;
+    const excludeSocketId = (excludeWs as ExtWebSocket | undefined)?.socketId;
+    eventBus.publish(WS_FANOUT_CHANNEL, {
+      scope: 'school_teachers',
+      targetId: normalizedSchool,
+      payload,
+      excludeSocketId,
+    } satisfies WsFanoutEvent);
   };
 
   const broadcastGroup = (
     targetGroupId: string | null | undefined,
     payload: unknown,
     excludeWs?: WebSocket,
-    roomIdScope?: string
+    roomIdScope?: string,
+    schoolIdScope?: string
   ) => {
     if (roomIdScope) {
       broadcastRoom(roomIdScope, payload, excludeWs);
@@ -201,25 +315,31 @@ export function createCollabSocketServer(
     }
     const raw = JSON.stringify(payload);
     const critical = !isNonCriticalWsFrame(payload);
+    const scopedSchool = schoolIdScope?.trim() || undefined;
     wss.clients.forEach((c) => {
       const client = c as ExtWebSocket;
-      if (client !== excludeWs) {
-        if (
-          !targetGroupId ||
-          client.groupId === targetGroupId ||
-          client.role === 'Pengajar' ||
-          !client.groupId
-        ) {
-          safeWsSend(client, raw, { critical, onDropped: onBackpressureDropped });
-        }
+      if (client === excludeWs) return;
+      if (scopedSchool && (client.schoolId || DEFAULT_SCHOOL_ID) !== scopedSchool) {
+        return;
+      }
+      if (
+        !targetGroupId ||
+        client.groupId === targetGroupId ||
+        client.role === 'Pengajar' ||
+        !client.groupId
+      ) {
+        safeWsSend(client, raw, { critical, onDropped: onBackpressureDropped });
       }
     });
   };
 
   const services: WsHandlerServices = {
     state,
+    eventBus,
     broadcastAll,
     broadcastRoom,
+    broadcastSchool,
+    broadcastSchoolTeachers,
     broadcastGroup,
   };
 
@@ -230,12 +350,25 @@ export function createCollabSocketServer(
 
   wss.on('close', () => {
     clearInterval(heartbeatInterval);
+    unsubscribeBus();
   });
 
   wss.on('connection', (socket, req) => {
+    const origin = req?.headers?.origin;
+    if (options?.isOriginAllowed && !options.isOriginAllowed(origin)) {
+      logger.warn('WebSocket connection rejected due to disallowed Origin', {
+        origin,
+        remoteIp: req?.socket?.remoteAddress,
+      });
+      socket.close(1008, 'Origin tidak diizinkan oleh kebijakan keamanan.');
+      return;
+    }
+
     const ws = socket as ExtWebSocket;
     ws.socketId = `sock-${crypto.randomUUID()}`;
     ws.isAlive = true;
+    ws.schoolId = DEFAULT_SCHOOL_ID;
+    ws.msgTimestamps = [];
     ws.remoteIp = req?.socket?.remoteAddress || undefined;
 
     ws.on('pong', () => {
@@ -260,6 +393,26 @@ export function createCollabSocketServer(
 
     ws.on('message', (data) => {
       ws.isAlive = true;
+      const now = Date.now();
+      if (!checkWsRateLimit(ws, maxMessagesPerSecond, now)) {
+        rateLimitedDrops += 1;
+        if (!ws.rateLimitNotifiedAt || now - ws.rateLimitNotifiedAt > 1000) {
+          ws.rateLimitNotifiedAt = now;
+          safeWsSend(
+            ws,
+            {
+              type: 'ERROR',
+              payload: {
+                code: 'RATE_LIMITED',
+                message: 'Frekuensi pesan WebSocket melebihi batas aman (maksimal 60 pesan/detik).',
+              },
+            },
+            { critical: true }
+          );
+        }
+        return;
+      }
+
       let parsedRaw: unknown;
       try {
         parsedRaw = JSON.parse(data.toString());
@@ -357,25 +510,25 @@ export function createCollabSocketServer(
             handleParamValueSync(ws, msg.payload, services);
             break;
           case 'record:create':
-            handleRecordCreate(msg.payload, services);
+            handleRecordCreate(msg.payload, services, ws);
             break;
           case 'record:delete':
-            handleRecordDelete(msg.payload.id, services);
+            handleRecordDelete(msg.payload.id, services, ws);
             break;
           case 'task:toggle':
-            handleTaskToggle(msg.payload, services);
+            handleTaskToggle(msg.payload, services, ws);
             break;
           case 'task:create':
-            handleTaskCreate(msg.payload, services);
+            handleTaskCreate(msg.payload, services, ws);
             break;
           case 'note:create':
-            handleNoteCreate(msg.payload, services);
+            handleNoteCreate(msg.payload, services, ws);
             break;
           case 'quiz:submit':
-            handleQuizSubmit(msg.payload, services);
+            handleQuizSubmit(msg.payload, services, ws);
             break;
           case 'notification:push':
-            handleNotificationPush(msg.payload, services);
+            handleNotificationPush(msg.payload, services, ws);
             break;
           case 'teacher:feedback':
             handleTeacherFeedback(ws, msg.payload, services);
@@ -384,7 +537,7 @@ export function createCollabSocketServer(
             handleMysteryBroadcast(ws, msg.payload, services);
             break;
           case 'mystery:submit':
-            handleMysterySubmit(msg.payload, services);
+            handleMysterySubmit(msg.payload, services, ws);
             break;
           default:
             break;
@@ -414,9 +567,15 @@ export function createCollabSocketServer(
 
   return {
     wss,
+    eventBus,
     broadcastAll,
     broadcastRoom,
+    broadcastSchool,
+    broadcastSchoolTeachers,
     broadcastGroup,
-    getBackpressureStats: () => ({ droppedNonCriticalFrames }),
+    getBackpressureStats: () => ({
+      droppedNonCriticalFrames,
+      rateLimitedDrops,
+    }),
   };
 }

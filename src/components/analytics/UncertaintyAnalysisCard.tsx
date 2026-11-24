@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { Ruler, Calculator, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Ruler, Calculator, CheckCircle2, AlertTriangle, ChevronDown } from 'lucide-react';
 import { computeMeasurementErrorSummary } from '../../utils/uncertaintyEngine';
+import { labSound } from '../../utils/soundEngine';
 
 export interface UncertaintyAnalysisCardProps {
   metricLabel: string;
@@ -10,18 +11,15 @@ export interface UncertaintyAnalysisCardProps {
   onChangeTheoreticalInput?: (val: string) => void;
   nstInput?: string;
   onChangeNstInput?: (val: string) => void;
+  defaultOpen?: boolean;
 }
 
-const GRADE_STYLE_MAP = {
-  'Sangat Presisi':
-    'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-400/40',
-  'Presisi Baik': 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-400/40',
-  'Cukup Presisi':
-    'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-400/40',
-  'Perlu Pengulangan':
-    'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-400/40',
-  'Data Belum Mencukupi':
-    'bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-400/40',
+const GRADE_TONE_MAP = {
+  'Sangat Presisi': 'text-emerald-700 dark:text-emerald-400',
+  'Presisi Baik': 'text-sky-700 dark:text-sky-400',
+  'Cukup Presisi': 'text-amber-700 dark:text-amber-400',
+  'Perlu Pengulangan': 'text-rose-700 dark:text-rose-400',
+  'Data Belum Mencukupi': 'text-[var(--comfort-text-muted)]',
 } as const;
 
 export const UncertaintyAnalysisCard: React.FC<UncertaintyAnalysisCardProps> = ({
@@ -32,9 +30,11 @@ export const UncertaintyAnalysisCard: React.FC<UncertaintyAnalysisCardProps> = (
   onChangeTheoreticalInput,
   nstInput,
   onChangeNstInput,
+  defaultOpen = false,
 }) => {
   const [internalTheory, setInternalTheory] = useState<string>('');
   const [internalNst, setInternalNst] = useState<string>('');
+  const [isOpen, setIsOpen] = useState<boolean>(defaultOpen);
 
   const activeTheoryStr = theoreticalInput !== undefined ? theoreticalInput : internalTheory;
   const activeNstStr = nstInput !== undefined ? nstInput : internalNst;
@@ -62,136 +62,170 @@ export const UncertaintyAnalysisCard: React.FC<UncertaintyAnalysisCardProps> = (
   );
 
   const unitSuffix = unit ? ` ${unit}` : '';
-  const gradeStyle = GRADE_STYLE_MAP[summary.precisionGrade];
+  const gradeTone = GRADE_TONE_MAP[summary.precisionGrade];
 
   return (
-    <section className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-            <Ruler className="w-4 h-4" />
-            <span>Analisis Ketidakpastian &amp; Ralat Pengukuran (Tipe A + Tipe B)</span>
-          </div>
-          <h3 className="text-sm sm:text-base font-extrabold text-[var(--comfort-text)] mt-0.5">
-            Metrik Dianalisis: {metricLabel} ({summary.n} sampel data)
-          </h3>
-        </div>
-
-        <span
-          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${gradeStyle}`}
-        >
-          {summary.precisionGrade === 'Perlu Pengulangan' ||
-          summary.precisionGrade === 'Data Belum Mencukupi' ? (
-            <AlertTriangle className="w-3.5 h-3.5" />
-          ) : (
-            <CheckCircle2 className="w-3.5 h-3.5" />
-          )}
-          <span>Tingkat Presisi: {summary.precisionGrade}</span>
-        </span>
-      </div>
-
-      {/* Controls for NST & Theoretical Reference */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-        <label className="block text-xs">
-          <span className="font-semibold text-[var(--comfort-text)]">
-            NST Alat Ukur (Nilai Skala Terkecil, opsional)
-          </span>
-          <input
-            type="number"
-            step="any"
-            min="0.0001"
-            value={activeNstStr}
-            onChange={(e) => setNst(e.target.value)}
-            placeholder="Otomatis: 0.01 (ketidakpastian ½ NST = 0.005)"
-            className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] font-mono text-xs"
-          />
-        </label>
-
-        <label className="block text-xs">
-          <span className="font-semibold text-[var(--comfort-text)]">
-            Nilai Referensi Teoretis / Literatur (y_teori, opsional)
-          </span>
-          <input
-            type="number"
-            step="any"
-            value={activeTheoryStr}
-            onChange={(e) => setTheory(e.target.value)}
-            placeholder="Isi nilai teori untuk hitung % Galat Sistematis"
-            className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] font-mono text-xs"
-          />
-        </label>
-      </div>
-
-      {summary.n === 0 ? (
-        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-400/30 text-xs text-amber-800 dark:text-amber-200">
-          Belum ada data numerik valid untuk dihitung ralatnya. Rekam minimal 2 titik data eksperimen agar deviasi standar sampel (Tipe A) dapat dihitung.
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/25">
-              <div className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
-                Pelaporan Baku (x̄ ± Δx)
-              </div>
-              <div className="text-sm sm:text-base font-extrabold font-mono text-[var(--comfort-text)] mt-0.5 break-all">
-                {summary.mean.toFixed(3)} ± {summary.combinedUncertainty.toFixed(3)}
-                {unitSuffix}
-              </div>
-              <div className="text-[10px] text-[var(--comfort-text-muted)] mt-1">
-                Rentang: {summary.min.toFixed(3)} – {summary.max.toFixed(3)}
-                {unitSuffix}
-              </div>
+    <section
+      data-testid="uncertainty-analysis-card"
+      className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl overflow-hidden"
+    >
+      {/* Compact Single-Row Summary Accordion Header */}
+      <button
+        type="button"
+        onClick={() => {
+          labSound.playClick();
+          setIsOpen((prev) => !prev);
+        }}
+        aria-expanded={isOpen}
+        className="w-full px-4 sm:px-5 py-3.5 min-h-[48px] flex flex-wrap items-center justify-between gap-3 text-left hover:bg-[var(--comfort-surface-subtle)] transition-colors duration-150 cursor-pointer"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Ruler className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" aria-hidden="true" />
+          <div className="min-w-0">
+            <div className="text-xs sm:text-sm font-bold text-[var(--comfort-text)] truncate">
+              Analisis Ketidakpastian &amp; Ralat ({metricLabel})
             </div>
-
-            <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-              <div className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
-                Ralat Tipe A (Acak) &amp; Tipe B (Alat)
-              </div>
-              <div className="text-xs font-mono text-[var(--comfort-text)] mt-1 space-y-0.5">
-                <div>s (Std Dev): {summary.sampleStdDev.toFixed(4)}</div>
-                <div>sₓ̄ (SE Mean): {summary.standardErrorMean.toFixed(4)}</div>
-                <div>Δx_B (½ NST): {summary.instrumentUncertainty.toFixed(4)}</div>
-              </div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-              <div className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
-                Ketidakpastian Relatif &amp; Angka Penting
-              </div>
-              <div className="text-sm sm:text-base font-extrabold font-mono text-[var(--comfort-text)] mt-0.5">
-                ±{summary.relativeUncertaintyPct.toFixed(2)}%
-              </div>
-              <div className="text-[11px] text-[var(--comfort-text-muted)] mt-1 flex items-center gap-1">
-                <Calculator className="w-3 h-3 text-indigo-500" />
-                <span>
-                  Disarankan: <strong className="text-[var(--comfort-text)]">{summary.recommendedSignificantFigures} Angka Penting</strong>
-                </span>
-              </div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
-              <div className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
-                % Galat terhadap Teori
-              </div>
-              <div className="text-sm sm:text-base font-extrabold font-mono text-[var(--comfort-text)] mt-0.5">
-                {summary.percentErrorVsTheory !== undefined
-                  ? `${summary.percentErrorVsTheory.toFixed(2)}%`
-                  : 'Belum diisi'}
-              </div>
-              <div className="text-[10px] text-[var(--comfort-text-muted)] mt-1">
-                {summary.percentErrorVsTheory !== undefined
-                  ? '|x̄ - y_teori| / |y_teori| × 100%'
-                  : 'Masukkan y_teori di atas'}
-              </div>
+            <div className="text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums mt-0.5 flex flex-wrap items-center gap-x-2">
+              {summary.n > 0 ? (
+                <>
+                  <span>
+                    x̄ ± Δx = <strong className="text-[var(--comfort-text)]">{summary.mean.toFixed(3)} ± {summary.combinedUncertainty.toFixed(3)}{unitSuffix}</strong>
+                  </span>
+                  <span aria-hidden="true" className="opacity-45">·</span>
+                  <span>Relatif ±{summary.relativeUncertaintyPct.toFixed(2)}%</span>
+                </>
+              ) : (
+                <span>Belum ada data numerik ({summary.n} sampel)</span>
+              )}
             </div>
           </div>
+        </div>
 
-          {summary.n < 2 && (
-            <p className="text-[11px] text-amber-700 dark:text-amber-300">
-              Catatan: Sampel baru 1 titik, sehingga deviasi standar acak Tipe A bernilai 0. Ambil minimal 3 pengulangan agar estimasi ralat acak representatif.
+        <div className="flex items-center gap-2.5 shrink-0">
+          <span className={`inline-flex items-center gap-1 text-2xs font-semibold ${gradeTone}`}>
+            {summary.precisionGrade === 'Perlu Pengulangan' ||
+            summary.precisionGrade === 'Data Belum Mencukupi' ? (
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            ) : (
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            )}
+            <span>{summary.precisionGrade}</span>
+          </span>
+          <span className="text-2xs font-semibold text-sky-700 dark:text-sky-300">
+            {isOpen ? 'Ringkas' : 'Lihat Detail'}
+          </span>
+          <ChevronDown
+            className={`w-4 h-4 text-[var(--comfort-text-muted)] transition-transform duration-150 ${
+              isOpen ? 'rotate-180 text-sky-600 dark:text-sky-400' : ''
+            }`}
+            aria-hidden="true"
+          />
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="px-4 sm:px-5 pb-5 pt-4 border-t border-[var(--comfort-border)] space-y-4">
+          {/* Controls for NST & Theoretical Reference */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block text-xs">
+              <span className="font-semibold text-[var(--comfort-text)]">
+                NST Alat Ukur (opsional)
+              </span>
+              <input
+                type="number"
+                step="any"
+                min="0.0001"
+                value={activeNstStr}
+                onChange={(e) => setNst(e.target.value)}
+                placeholder="Default: 0.01 (½ NST = 0.005)"
+                className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] font-mono text-xs"
+              />
+            </label>
+
+            <label className="block text-xs">
+              <span className="font-semibold text-[var(--comfort-text)]">
+                Nilai Referensi Teori y_teori (opsional)
+              </span>
+              <input
+                type="number"
+                step="any"
+                value={activeTheoryStr}
+                onChange={(e) => setTheory(e.target.value)}
+                placeholder="Isi untuk menghitung % galat teori"
+                className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] font-mono text-xs"
+              />
+            </label>
+          </div>
+
+          {summary.n === 0 ? (
+            <p className="comfort-report-prose text-xs text-amber-700 dark:text-amber-300">
+              Rekam minimal 2 titik data eksperimen agar deviasi standar sampel (Tipe A) dapat dihitung.
             </p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-[var(--comfort-border)]">
+                <div className="space-y-0.5">
+                  <div className="text-2xs font-semibold text-indigo-700 dark:text-indigo-300">
+                    Pelaporan Baku (x̄ ± Δx)
+                  </div>
+                  <div className="text-sm font-extrabold font-mono tabular-nums text-[var(--comfort-text)] break-all">
+                    {summary.mean.toFixed(3)} ± {summary.combinedUncertainty.toFixed(3)}
+                    {unitSuffix}
+                  </div>
+                  <div className="text-2xs text-[var(--comfort-text-muted)] tabular-nums">
+                    Rentang: {summary.min.toFixed(3)}–{summary.max.toFixed(3)}{unitSuffix}
+                  </div>
+                </div>
+
+                <div className="space-y-0.5">
+                  <div className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
+                    Ralat Tipe A &amp; Tipe B
+                  </div>
+                  <div className="text-xs font-mono tabular-nums text-[var(--comfort-text)] leading-relaxed">
+                    <div>s = {summary.sampleStdDev.toFixed(4)}</div>
+                    <div>sₓ̄ = {summary.standardErrorMean.toFixed(4)}</div>
+                    <div>½ NST = {summary.instrumentUncertainty.toFixed(4)}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-0.5">
+                  <div className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
+                    Ketidakpastian Relatif
+                  </div>
+                  <div className="text-sm font-extrabold font-mono tabular-nums text-[var(--comfort-text)]">
+                    ±{summary.relativeUncertaintyPct.toFixed(2)}%
+                  </div>
+                  <div className="text-2xs text-[var(--comfort-text-muted)] flex items-center gap-1">
+                    <Calculator className="w-3 h-3 text-indigo-500 shrink-0" />
+                    <span>{summary.recommendedSignificantFigures} Angka Penting</span>
+                  </div>
+                </div>
+
+                <div className="space-y-0.5">
+                  <div className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
+                    % Galat vs Teori
+                  </div>
+                  <div className="text-sm font-extrabold font-mono tabular-nums text-[var(--comfort-text)]">
+                    {summary.percentErrorVsTheory !== undefined
+                      ? `${summary.percentErrorVsTheory.toFixed(2)}%`
+                      : '—'}
+                  </div>
+                  <div className="text-2xs text-[var(--comfort-text-muted)]">
+                    {summary.percentErrorVsTheory !== undefined
+                      ? '|x̄ - y_teori| / |y_teori|'
+                      : 'Isi y_teori di atas'}
+                  </div>
+                </div>
+              </div>
+
+              {summary.n < 2 && (
+                <p className="comfort-report-prose text-xs text-amber-700 dark:text-amber-300">
+                  Catatan: Baru 1 titik data; ambil minimal 3 pengulangan agar estimasi ralat acak representatif.
+                </p>
+              )}
+            </>
           )}
-        </>
+        </div>
       )}
     </section>
   );

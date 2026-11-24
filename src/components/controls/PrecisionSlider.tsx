@@ -194,13 +194,13 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
       {/* Top Row: Label + Lock Indicator + Value Badge + Reset */}
       <div className={`flex items-center justify-between gap-2 ${compact ? 'mb-1' : 'mb-1.5'}`}>
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className={`${compact ? 'text-[11px]' : 'text-xs'} font-semibold text-[var(--comfort-text)] truncate`}>
+          <span className={`${compact ? 'text-2xs' : 'text-xs'} font-semibold text-[var(--comfort-text)] truncate`}>
             {label}
           </span>
           {lockedBy && (
             <span
               data-testid="collaborator-lock-pill"
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40 shrink-0"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-2xs font-bold bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40 shrink-0"
               title={`Parameter sedang diatur oleh ${lockedBy.userName} (${roleLabel})`}
             >
               <Lock className="w-2.5 h-2.5 shrink-0" />
@@ -247,7 +247,7 @@ export const PrecisionSlider: React.FC<PrecisionSliderProps> = ({
               className="w-14 bg-transparent text-right focus:outline-none tabular-nums disabled:cursor-not-allowed"
             />
             {unit && (
-              <span className="text-[10px] opacity-80 font-semibold select-none">
+              <span className="text-2xs opacity-80 font-semibold select-none">
                 {unit}
               </span>
             )}

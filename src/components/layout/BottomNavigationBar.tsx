@@ -91,27 +91,33 @@ export const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
             }}
             aria-current={isActive ? 'page' : undefined}
             aria-label={`Tampilkan ${item.label}`}
-            className={`h-11 min-w-0 flex-1 flex flex-col items-center justify-center gap-0.5 rounded-lg transition-colors cursor-pointer relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+            className={`h-11 min-w-0 flex-1 flex flex-col items-center justify-center gap-0.5 rounded-lg transition-colors cursor-pointer relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
               isActive
-                ? 'text-sky-600 dark:text-sky-400 font-bold bg-sky-500/12 border border-sky-500/35'
+                ? 'comfort-accent-soft border font-bold'
                 : 'text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)]'
             }`}
           >
             <div className="relative flex items-center">
               <IconComponent
-                className={`w-4 h-4 ${isActive ? 'text-sky-600 dark:text-sky-400' : 'text-[var(--comfort-hud-muted)]'}`}
+                className={`w-4 h-4 ${isActive ? 'text-[var(--comfort-accent)]' : 'text-[var(--comfort-hud-muted)]'}`}
                 aria-hidden="true"
               />
               {item.badge !== undefined && (
-                <span className="ml-0.5 text-[9px] font-mono text-sky-600 dark:text-sky-300 font-bold tabular-nums">
+                <span className="ml-0.5 text-2xs font-mono text-[var(--comfort-accent)] font-bold tabular-nums">
                   {item.badge}
                 </span>
               )}
               {item.alert && (
-                <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                <span
+                  className="ml-1 text-2xs font-mono font-bold text-[var(--comfort-warning)] leading-none"
+                  title="Perlu perhatian: nilai R² rendah"
+                >
+                  <span aria-hidden="true">▲</span>
+                  <span className="sr-only">Perhatian R² rendah</span>
+                </span>
               )}
             </div>
-            <span className="text-[10px] tracking-tight whitespace-nowrap truncate max-w-full px-0.5">
+            <span className="text-2xs tracking-tight whitespace-nowrap truncate max-w-full px-0.5">
               {item.label}
             </span>
           </button>

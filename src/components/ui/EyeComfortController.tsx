@@ -188,7 +188,7 @@ export const EyeComfortController: React.FC = () => {
                   </button>
                 </div>
 
-                <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed">
+                <p className="comfort-prose text-xs text-[var(--comfort-text-muted)]">
                   {isBreaking ? (
                     <>
                       Alihkan pandangan ke objek berjarak{' '}
@@ -216,7 +216,7 @@ export const EyeComfortController: React.FC = () => {
                         labSound.playClick();
                         dismissEyeRestBreak();
                       }}
-                      className="px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] hover:opacity-90 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-[11px] cursor-pointer"
+                      className="px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] hover:opacity-90 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-2xs cursor-pointer"
                     >
                       Selesai Lebih Awal
                     </button>
@@ -229,7 +229,7 @@ export const EyeComfortController: React.FC = () => {
                           labSound.playStep();
                           startEyeRestBreak();
                         }}
-                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-2xs inline-flex items-center gap-1 cursor-pointer"
                       >
                         <Play className="w-3 h-3 fill-current" aria-hidden="true" />
                         <span>Mulai 20 Detik</span>
@@ -241,7 +241,7 @@ export const EyeComfortController: React.FC = () => {
                           labSound.playClick();
                           snoozeEyeRestBreak(5);
                         }}
-                        className="px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] hover:opacity-90 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-lg bg-[var(--comfort-surface-subtle)] hover:opacity-90 border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold text-2xs inline-flex items-center gap-1 cursor-pointer"
                       >
                         <Clock className="w-3 h-3" aria-hidden="true" />
                         <span>Tunda 5m</span>
@@ -253,7 +253,7 @@ export const EyeComfortController: React.FC = () => {
                           labSound.playClick();
                           dismissEyeRestBreak();
                         }}
-                        className="px-2 py-1.5 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] font-medium text-[11px] cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-lg text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] font-medium text-2xs cursor-pointer"
                       >
                         Lewati
                       </button>

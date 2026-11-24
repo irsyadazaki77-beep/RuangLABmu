@@ -158,10 +158,15 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
   <title>Laporan Resmi Praktikum - ${experimentTitle}</title>
   <style>
     @page { size: A4; margin: 18mm; }
+    html {
+      font-size: 100%;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
     body {
       font-family: 'Times New Roman', Times, serif;
-      font-size: 11pt;
-      line-height: 1.5;
+      font-size: 10.5pt;
+      line-height: 1.62;
       color: #0f172a;
       background: #ffffff;
       margin: 0;
@@ -196,6 +201,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
       border-collapse: collapse;
       margin-bottom: 20px;
       font-size: 10.5pt;
+      line-height: 1.5;
     }
     .meta-table td {
       padding: 3px 6px;
@@ -209,6 +215,31 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
       margin-bottom: 6px;
       border-bottom: 1px solid #94a3b8;
       padding-bottom: 2px;
+      line-height: 1.4;
+    }
+    .report-prose {
+      margin: 4px 0 8px;
+      line-height: 1.65;
+      text-align: left;
+      overflow-wrap: break-word;
+    }
+    .report-summary-box {
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-size: 0.92rem;
+      line-height: 1.62;
+      margin: 6px 0;
+      overflow-wrap: break-word;
+    }
+    .report-summary-box > div + div {
+      margin-top: 4px;
+    }
+    .report-summary-box ul {
+      margin: 4px 0 0;
+      padding-left: 18px;
+    }
+    .report-summary-box li {
+      margin-bottom: 3px;
     }
     .math-box {
       background: #f8fafc;
@@ -217,12 +248,14 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
       padding: 8px 12px;
       font-family: 'Courier New', Courier, monospace;
       font-size: 10pt;
+      line-height: 1.62;
       margin: 8px 0;
     }
     table.data-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 9.5pt;
+      line-height: 1.5;
       margin: 10px 0;
     }
     table.data-table th {
@@ -308,7 +341,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
   </ol>
 
   <div class="section-title">II. Dasar Teori & Persamaan Matematis</div>
-  <p style="text-align: justify; margin-top: 4px;">${theory}</p>
+  <p class="report-prose">${theory}</p>
   ${
     equations.length > 0
       ? `
@@ -331,10 +364,10 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
         poeEvaluationSummary.predictedY !== undefined))
       ? `
   <div class="section-title">II-B. Perumusan Hipotesis & Identifikasi Variabel</div>
-  <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 10px 14px; border-radius: 4px; font-size: 10pt; margin: 6px 0;">
+  <div class="report-summary-box" style="background: #fffbeb; border: 1px solid #fde68a;">
     <div><strong>Variabel Bebas (X):</strong> ${hypothesisSummary?.independentVar || '-'}</div>
     <div><strong>Variabel Terikat (Y):</strong> ${hypothesisSummary?.dependentVar || '-'}</div>
-    <div style="margin-top: 4px;"><strong>Hipotesis Awal:</strong> <em>${hypothesisSummary?.hypothesisText || '-'}</em></div>
+    <div><strong>Hipotesis Awal:</strong> <em>${hypothesisSummary?.hypothesisText || '-'}</em></div>
     ${
       poeEvaluationSummary &&
       (poeEvaluationSummary.predictedTrend ||
@@ -389,7 +422,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
   </div>
   ${
     calibrationNotes
-      ? `<div style="margin-top: 6px; font-size: 9.5pt; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 4px;"><strong>Status Kalibrasi & Ketidakpastian Alat Ukur:</strong> ${calibrationNotes}</div>`
+      ? `<div class="report-summary-box" style="color: #334155; background: #f8fafc; border: 1px solid #e2e8f0;"><strong>Status Kalibrasi & Ketidakpastian Alat Ukur:</strong> ${calibrationNotes}</div>`
       : ''
   }
 
@@ -416,8 +449,8 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
     trialComparisonSummary && trialComparisonSummary.keyDifferences.length > 0
       ? `
   <div class="section-title">IV-B. Perbandingan Eksperimen Berdampingan (${trialComparisonSummary.runALabel} vs ${trialComparisonSummary.runBLabel})</div>
-  <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 8px 12px; border-radius: 4px; font-size: 9.5pt; margin: 6px 0;">
-    <ul style="margin: 2px 0; padding-left: 18px;">
+  <div class="report-summary-box" style="background: #f0f9ff; border: 1px solid #bae6fd;">
+    <ul>
       ${trialComparisonSummary.keyDifferences.map((d) => `<li>${d}</li>`).join('')}
     </ul>
   </div>
@@ -429,13 +462,13 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
     uncertaintySummary && uncertaintySummary.n > 0
       ? `
   <div class="section-title">IV-C. Analisis Ketidakpastian &amp; Ralat Pengukuran (${uncertaintySummary.metricLabel})</div>
-  <div style="background: #eef2ff; border: 1px solid #c7d2fe; padding: 10px 14px; border-radius: 4px; font-size: 9.5pt; margin: 6px 0;">
+  <div class="report-summary-box" style="background: #eef2ff; border: 1px solid #c7d2fe;">
     <div><strong>Pelaporan Hasil Pengukuran Baku (x̄ ± Δx):</strong> <span style="font-family: monospace; font-size: 10.5pt;">${uncertaintySummary.mean.toFixed(3)} ± ${uncertaintySummary.combinedUncertainty.toFixed(3)}</span> (${uncertaintySummary.n} sampel)</div>
-    <div style="margin-top: 3px;">
+    <div>
       <strong>Ralat Tipe A (Acak):</strong> Deviasi Standar s = <span style="font-family: monospace;">${uncertaintySummary.sampleStdDev.toFixed(4)}</span>, Standard Error sₓ̄ = <span style="font-family: monospace;">${uncertaintySummary.standardErrorMean.toFixed(4)}</span>
       · <strong>Ralat Tipe B (Alat ½ NST):</strong> <span style="font-family: monospace;">${uncertaintySummary.instrumentUncertainty.toFixed(4)}</span>
     </div>
-    <div style="margin-top: 3px;">
+    <div>
       <strong>Ketidakpastian Relatif:</strong> <span style="font-family: monospace;">±${uncertaintySummary.relativeUncertaintyPct.toFixed(2)}%</span>
       · <strong>Klasifikasi Presisi:</strong> <strong>${uncertaintySummary.precisionGrade}</strong>
       · <strong>Angka Penting Disarankan:</strong> ${uncertaintySummary.recommendedSignificantFigures} angka penting
@@ -454,7 +487,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
   ${
     regressionSummary
       ? `
-    <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 4px; font-size: 10pt;">
+    <div class="report-summary-box" style="background: #f8fafc; border: 1px solid #cbd5e1;">
       <div><strong>Model Fitting Kurva:</strong> ${regressionSummary.modelLabel || 'Regresi Linier OLS'}</div>
       <div><strong>Persamaan Kurva:</strong> <span style="font-family: monospace;">${regressionSummary.equationString || `y = ${regressionSummary.slope.toFixed(4)}x + ${regressionSummary.intercept.toFixed(4)}`}</span></div>
       <div><strong>Koefisien Determinasi (R²):</strong> <span style="font-family: monospace;">${regressionSummary.rSquared.toFixed(4)}</span> (${(regressionSummary.rSquared * 100).toFixed(2)}% kesesuaian model)</div>
@@ -465,12 +498,12 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
       }
       ${
         outlierSummary
-          ? `<div style="margin-top: 4px; color: #475569;"><strong>Analisis Residual Outlier:</strong> Terdeteksi ${outlierSummary.outlierCount} titik pencilan (R² mentah = ${outlierSummary.rSquaredRaw.toFixed(4)} → R² bersih = ${outlierSummary.rSquaredClean.toFixed(4)}).</div>`
+          ? `<div style="color: #475569;"><strong>Analisis Residual Outlier:</strong> Terdeteksi ${outlierSummary.outlierCount} titik pencilan (R² mentah = ${outlierSummary.rSquaredRaw.toFixed(4)} → R² bersih = ${outlierSummary.rSquaredClean.toFixed(4)}).</div>`
           : ''
       }
     </div>
   `
-      : `<p style="font-size: 10pt; color: #64748b;">Analisis regresi kurva dihitung secara otomatis saat data kuantitatif memenuhi syarat sebaran.</p>`
+      : `<p class="report-prose" style="font-size: 10pt; color: #64748b;">Analisis regresi kurva dihitung secara otomatis saat data kuantitatif memenuhi syarat sebaran.</p>`
   }
 
   ${
@@ -490,9 +523,9 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
     worksheetScore && worksheetScore.diagnosticItems && worksheetScore.diagnosticItems.length > 0
       ? `
   <div class="section-title">V-B. Evaluasi Diagnostik Lembar Kerja Siswa (LKS)</div>
-  <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 4px; font-size: 9.5pt;">
+  <div class="report-summary-box" style="background: #f8fafc; border: 1px solid #cbd5e1;">
     <div><strong>Skor Evaluasi LKS:</strong> ${worksheetScore.score}/100 (${worksheetScore.correctCount} dari ${worksheetScore.totalCount} soal tepat)</div>
-    <ul style="margin: 4px 0 0; padding-left: 18px;">
+    <ul>
       ${worksheetScore.diagnosticItems
         .map((item) => `<li><strong>${item.title} [${item.badge}]:</strong> ${item.feedback}</li>`)
         .join('')}
@@ -513,7 +546,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
         (snap, idx) => `
       <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; background: #f8fafc;">
         <img src="${snap.dataUrl}" alt="${snap.moduleTitle}" style="width: 100%; height: 130px; object-fit: cover; border-radius: 4px; background: #0f172a;" />
-        <div style="font-family: sans-serif; font-size: 8.5pt; margin-top: 4px;">
+        <div style="font-family: sans-serif; font-size: 8.5pt; line-height: 1.5; margin-top: 4px;">
           <strong>Foto 3D #${idx + 1} (${snap.timestamp}) — ${snap.moduleTitle}</strong><br/>
           <span style="font-family: monospace; color: #0369a1;">${snap.primaryMetric}</span> · <span style="font-family: monospace; color: #475569;">${snap.parametersSummary}</span>
         </div>
@@ -532,17 +565,17 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
       (module.realWorldApplications && module.realWorldApplications.length > 0))
       ? `
   <div class="section-title">V-D. Refleksi Klinik Miskonsepsi &amp; Aplikasi Kontekstual</div>
-  <div style="background: #fff1f2; border: 1px solid #fecdd3; padding: 8px 12px; border-radius: 4px; font-size: 9.5pt; margin: 6px 0;">
+  <div class="report-summary-box" style="background: #fff1f2; border: 1px solid #fecdd3;">
     ${
       module.commonMisconceptions && module.commonMisconceptions.length > 0
-        ? `<div><strong>Klinik Miskonsepsi yang Harus Dihindari:</strong><ul style="margin: 3px 0 6px; padding-left: 18px;">${module.commonMisconceptions
+        ? `<div><strong>Klinik Miskonsepsi yang Harus Dihindari:</strong><ul>${module.commonMisconceptions
             .map((m) => `<li>${m}</li>`)
             .join('')}</ul></div>`
         : ''
     }
     ${
       module.realWorldApplications && module.realWorldApplications.length > 0
-        ? `<div><strong>Aplikasi Riset &amp; Teknologi Nyata:</strong><ul style="margin: 3px 0 0; padding-left: 18px;">${module.realWorldApplications
+        ? `<div><strong>Aplikasi Riset &amp; Teknologi Nyata:</strong><ul>${module.realWorldApplications
             .map((a) => `<li>${a}</li>`)
             .join('')}</ul></div>`
         : ''
@@ -553,7 +586,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
   }
 
   <div class="section-title">VI. Pembahasan Hasil & Analisis Ralat</div>
-  <p style="text-align: justify; margin-top: 4px;">
+  <p class="report-prose">
     ${
       discussionNotes ||
       `Berdasarkan data ${records.length} variasi percobaan yang telah dilaksanakan, seluruh instrumen beroperasi dalam batas toleransi standar dengan propagasi ketidakpastian yang tercatat. Respon sistem menunjukkan kepatuhan terhadap hukum dasar sains yang diuji.`
@@ -561,7 +594,7 @@ export function generateAcademicReportHTML(data: AcademicReportData): string {
   </p>
 
   <div class="section-title">VII. Kesimpulan</div>
-  <p style="text-align: justify; margin-top: 4px;">
+  <p class="report-prose">
     ${
       conclusionNotes ||
       `Praktikum ${experimentTitle} pada jenjang ${tier} telah terlaksana dengan baik. Hubungan antara variabel bebas dan variabel terikat terbukti secara empiris dan mendukung model matematika yang telah dipelajari.`

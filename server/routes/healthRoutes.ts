@@ -2,9 +2,9 @@ import crypto from 'crypto';
 import express from 'express';
 import fs from 'fs';
 import type { WebSocketServer } from 'ws';
+import { getAiRuntimeMetrics } from '../services/geminiClient';
 import type { LabServerState } from '../state/labServerState';
 import { logger } from '../utils/logger';
-
 import type { WsBackpressureStats } from '../ws/wsTypes';
 
 export interface HealthRoutesDeps {
@@ -48,7 +48,7 @@ function readSqliteWalSizeBytes(dbPath: string): number {
 export function createHealthRouter({
   state,
   wss,
-  getBackpressureStats = () => ({ droppedNonCriticalFrames: 0 }),
+  getBackpressureStats = () => ({ droppedNonCriticalFrames: 0, rateLimitedDrops: 0 }),
   isShuttingDown = () => false,
   isProduction = () => process.env.NODE_ENV === 'production',
   getMetricsToken = () => process.env.METRICS_TOKEN,
@@ -63,12 +63,14 @@ export function createHealthRouter({
     });
   });
 
-  router.get('/readyz', (_req, res) => {
+  router.get('/readyz', async (_req, res) => {
     if (isShuttingDown()) {
       res.status(503).json({
         status: 'not_ready',
+        driver: state.asyncRepository.driver,
         checks: {
           sqlite: 'shutting_down',
+          database: 'shutting_down',
           websocket: 'shutting_down',
         },
         timestamp: new Date().toISOString(),
@@ -77,21 +79,33 @@ export function createHealthRouter({
     }
 
     let sqliteOk = false;
+    let asyncDbOk = false;
     try {
-      const row = state.database.db.prepare('SELECT 1 AS ok').get();
-      sqliteOk = Number(row?.ok) === 1;
+      sqliteOk = state.database.healthCheck();
     } catch (err) {
       logger.error('Readiness check SQLite query failed', { error: err });
       sqliteOk = false;
     }
 
+    try {
+      asyncDbOk = await state.asyncRepository.healthCheck();
+    } catch (err) {
+      logger.error('Readiness check async repository failed', {
+        driver: state.asyncRepository.driver,
+        error: err,
+      });
+      asyncDbOk = false;
+    }
+
     const wsOk = Boolean(wss && typeof wss.clients !== 'undefined');
-    const ready = sqliteOk && wsOk;
+    const ready = sqliteOk && asyncDbOk && wsOk;
 
     res.status(ready ? 200 : 503).json({
       status: ready ? 'ready' : 'not_ready',
+      driver: state.asyncRepository.driver,
       checks: {
         sqlite: sqliteOk ? 'ok' : 'error',
+        database: asyncDbOk ? 'ok' : 'error',
         websocket: wsOk ? 'ok' : 'error',
       },
       timestamp: new Date().toISOString(),
@@ -116,10 +130,14 @@ export function createHealthRouter({
 
     const backpressureStats = getBackpressureStats();
     res.status(200).json({
+      dbDriver: state.asyncRepository.driver,
       activeRooms: state.activeLabRooms.size,
       connectedClients: wss ? wss.clients.size : 0,
       activeParameterLocks: state.parameterLocks.size,
       wsBackpressureDroppedFrames: backpressureStats.droppedNonCriticalFrames,
+      wsRateLimitedDrops: backpressureStats.rateLimitedDrops ?? 0,
+      ai: getAiRuntimeMetrics(),
+      backup: state.backupService.getStatus(),
       memoryRssMb: toMb(mem.rss),
       heapUsedMb: toMb(mem.heapUsed),
       sqliteWalSizeBytes: readSqliteWalSizeBytes(state.dbPath),

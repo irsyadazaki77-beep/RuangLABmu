@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
-  GitCompareArrows,
+  BarChart3,
+  ClipboardCheck,
+  FileText,
+  Printer,
 } from 'lucide-react';
 import {
   DataPointMultiAxis,
@@ -36,6 +39,9 @@ import { UncertaintyAnalysisCard } from './analytics/UncertaintyAnalysisCard';
 import { DataObservationTable } from './analytics/DataObservationTable';
 import { StudentWorksheetForm } from './analytics/StudentWorksheetForm';
 import { PostLabMasteryQuiz } from './analytics/PostLabMasteryQuiz';
+import { DetailAccordion } from './ui/ProgressiveDisclosure';
+
+type Stage3Tab = 'chart-data' | 'lks-quiz' | 'summary-export';
 
 export interface AnalyticsAndWorksheetPanelProps {
   records: ExperimentRecord[];
@@ -220,9 +226,8 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
     }
   }, [hasDistinctModuleX, defaultPresetKey, hasManualDatasetChoice]);
 
+  const [activeTab, setActiveTab] = useState<Stage3Tab>('chart-data');
   const [curveModel, setCurveModel] = useState<CurveModelType>('linear');
-  const [showCompareDock, setShowCompareDock] = useState<boolean>(false);
-  const [showHypothesisDock, setShowHypothesisDock] = useState<boolean>(false);
   const [reportModalData, setReportModalData] = useState<AcademicReportData | null>(null);
   const [uncertaintyTheoryInput, setUncertaintyTheoryInput] = useState<string>('');
   const [uncertaintyNstInput, setUncertaintyNstInput] = useState<string>('');
@@ -383,7 +388,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
   };
 
   return (
-    <div className="space-y-6 select-text">
+    <div className="space-y-5 select-text">
       {/* Top Navigation & Subheader */}
       <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-0.5">
@@ -391,7 +396,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
             Tahap 3 · Analisis Data &amp; Lembar Kerja
           </div>
           <h1 className="text-lg sm:text-xl font-bold text-[var(--comfort-text)] tracking-tight">
-            Grafik Regresi Ilmiah, Tabel Data &amp; Lembar Kerja Praktikan
+            Analisis Regresi, LKS &amp; Laporan Praktikum
           </h1>
         </div>
 
@@ -403,43 +408,10 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
                 labSound.playClick();
                 onBackToLab();
               }}
-              className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] hover:opacity-85 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              className="comfort-btn-secondary px-3.5 py-2 min-h-[38px] text-xs font-semibold rounded-lg cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
               <ArrowLeft className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span>Kokpit 3D</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setShowHypothesisDock(!showHypothesisDock);
-            }}
-            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              showHypothesisDock
-                ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
-                : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)]'
-            }`}
-          >
-            <span>Hipotesis Awal</span>
-          </button>
-
-          {records.length >= 2 && (
-            <button
-              type="button"
-              onClick={() => {
-                labSound.playClick();
-                setShowCompareDock(!showCompareDock);
-              }}
-              className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                showCompareDock
-                  ? 'bg-sky-600 text-white border-sky-500 font-bold'
-                  : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] text-[var(--comfort-text)]'
-              }`}
-            >
-              <GitCompareArrows className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-              <span>Bandingkan Uji Coba</span>
             </button>
           )}
 
@@ -450,154 +422,260 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
                 labSound.playClick();
                 onProceedToReport();
               }}
-              className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              className="comfort-btn-primary px-4 py-2 min-h-[38px] text-xs font-bold rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
-              <span>Laporan &amp; Tugas Kelompok</span>
+              <span>Tahap 4: Kolaborasi &amp; Ekspor</span>
               <ArrowRight className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
             </button>
           )}
         </div>
       </div>
 
-      {/* Dataset Picker Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-xs">
-        <div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto">
-          <label
-            htmlFor="analytics-dataset-select"
-            className="font-semibold text-[var(--comfort-text)] shrink-0"
-          >
-            Sumber Dataset:
-          </label>
-          <select
-            id="analytics-dataset-select"
-            value={selectedDatasetKey}
-            onChange={(e) => {
-              labSound.playClick();
-              setHasManualDatasetChoice(true);
-              setSelectedDatasetKey(e.target.value);
-            }}
-            className="min-w-0 max-w-full w-full sm:w-auto px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] font-semibold text-[var(--comfort-text)] cursor-pointer"
-          >
-            {moduleRecordPoints.length >= 2 && (
-              <option value="module-records">
-                Data Modul Aktif: {activeMod?.title || moduleId} ({moduleRecordPoints.length} titik)
-              </option>
-            )}
-            {customRecordPoints.length >= 2 && (
-              <option value="custom-records">
-                Semua Data Sesi Praktikum ({customRecordPoints.length} titik)
-              </option>
-            )}
-            {activeModulePreset && (
-              <option value="active-module-preset">
-                Preset Modul Aktif: {activeMod?.title} (5 titik kurasi)
-              </option>
-            )}
-            <option value="newton-force-acc">Preset Fisika: Hukum II Newton (Gaya vs Percepatan)</option>
-            <option value="hooke-spring">Preset Fisika: Hukum Hooke (Simpangan vs Gaya Pemulih)</option>
-            <option value="thermo-gibbs">Preset Kimia: Termodinamika (Suhu vs Energi Gibbs)</option>
-            <option value="bio-enzyme-kinetics">Preset Biologi: Kinetika Enzim Katalase (Suhu vs Laju O₂)</option>
-            <option value="kepler-third-law">Preset Astronomi: Hukum III Kepler (a³ vs T²)</option>
-          </select>
-        </div>
-        <div className="text-[11px] text-[var(--comfort-text-muted)] tabular-nums">
-          Titik Data Aktif:{' '}
-          <strong className="font-mono text-[var(--comfort-text)]">
-            {activeDataset.points.length}
-          </strong>
-        </div>
+      {/* Focused 3-Tab Stage 3 Workspace Navigation */}
+      <div
+        role="tablist"
+        aria-label="Navigasi Ruang Kerja Analisis Tahap 3"
+        className="flex items-center gap-1.5 p-1.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] overflow-x-auto no-scrollbar"
+      >
+        {(
+          [
+            {
+              id: 'chart-data',
+              label: '1. Grafik & Data',
+              badge: `${activeDataset.points.length} titik`,
+              Icon: BarChart3,
+            },
+            {
+              id: 'lks-quiz',
+              label: '2. LKS & Kuis',
+              badge: `${Object.keys(lksAnswers || {}).length} terisi`,
+              Icon: ClipboardCheck,
+            },
+            {
+              id: 'summary-export',
+              label: '3. Ringkasan & Cetak',
+              badge: 'A4',
+              Icon: FileText,
+            },
+          ] as const
+        ).map(({ id, label, badge, Icon }) => {
+          const isActive = activeTab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              data-testid={`stage3-tab-${id}`}
+              onClick={() => {
+                labSound.playClick();
+                setActiveTab(id);
+              }}
+              className={`px-3.5 py-2 min-h-[40px] rounded-lg text-xs font-semibold transition-colors duration-150 flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                isActive
+                  ? 'comfort-tab-active'
+                  : 'text-[var(--comfort-text-muted)] hover:bg-[var(--comfort-surface-subtle)] hover:text-[var(--comfort-text)]'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span>{label}</span>
+              <span
+                className={`font-mono text-2xs tabular-nums ${
+                  isActive ? 'text-white/80' : 'text-[var(--comfort-text-muted)]'
+                }`}
+              >
+                · {badge}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Optional Compare & Hypothesis Docks */}
-      {showHypothesisDock && hypothesisNote && (
-        <HypothesisScratchpadCard
-          note={hypothesisNote}
-          onChange={(next) => onChangeHypothesisNote?.(next)}
-        />
+      {/* TAB 1: GRAFIK & DATA */}
+      {activeTab === 'chart-data' && (
+        <div className="space-y-4">
+          {/* Dataset Picker Switcher */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-xs">
+            <div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto">
+              <label
+                htmlFor="analytics-dataset-select"
+                className="font-semibold text-[var(--comfort-text)] shrink-0"
+              >
+                Sumber Dataset:
+              </label>
+              <select
+                id="analytics-dataset-select"
+                value={selectedDatasetKey}
+                onChange={(e) => {
+                  labSound.playClick();
+                  setHasManualDatasetChoice(true);
+                  setSelectedDatasetKey(e.target.value);
+                }}
+                className="min-w-0 max-w-full w-full sm:w-auto px-2.5 py-1.5 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] font-semibold text-[var(--comfort-text)] cursor-pointer"
+              >
+                {moduleRecordPoints.length >= 2 && (
+                  <option value="module-records">
+                    Data Modul Aktif: {activeMod?.title || moduleId} ({moduleRecordPoints.length} titik)
+                  </option>
+                )}
+                {customRecordPoints.length >= 2 && (
+                  <option value="custom-records">
+                    Semua Data Sesi Praktikum ({customRecordPoints.length} titik)
+                  </option>
+                )}
+                {activeModulePreset && (
+                  <option value="active-module-preset">
+                    Preset Modul Aktif: {activeMod?.title} (5 titik kurasi)
+                  </option>
+                )}
+                <option value="newton-force-acc">Preset Fisika: Hukum II Newton (Gaya vs Percepatan)</option>
+                <option value="hooke-spring">Preset Fisika: Hukum Hooke (Simpangan vs Gaya Pemulih)</option>
+                <option value="thermo-gibbs">Preset Kimia: Termodinamika (Suhu vs Energi Gibbs)</option>
+                <option value="bio-enzyme-kinetics">Preset Biologi: Kinetika Enzim Katalase (Suhu vs Laju O₂)</option>
+                <option value="kepler-third-law">Preset Astronomi: Hukum III Kepler (a³ vs T²)</option>
+              </select>
+            </div>
+            <div className="text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
+              {activeDataset.points.length} titik aktif
+            </div>
+          </div>
+
+          <RegressionChartSection
+            datasetTitle={activeDataset.title}
+            xAxisLabel={activeDataset.xAxisLabel}
+            y1AxisLabel={activeDataset.y1AxisLabel}
+            y2AxisLabel={activeDataset.y2AxisLabel}
+            points={activeDataset.points}
+            curveModel={curveModel}
+            onChangeCurveModel={setCurveModel}
+            poePrediction={poePrediction}
+            instrumentNst={
+              uncertaintyNstInput.trim() && Number.isFinite(Number(uncertaintyNstInput.trim()))
+                ? Number(uncertaintyNstInput.trim())
+                : undefined
+            }
+            onExportChart={(fmt) => onExportChartNotification(fmt === 'SVG' ? 'PNG' : fmt)}
+            onAskDrLabMuAboutPoe={(deviationPct, predictedY, actualY) =>
+              onAskDrLabMu?.(
+                `Prediksi POE saya bernilai Y = ${predictedY.toFixed(2)}, sedangkan hasil kurva observasi bernilai ${actualY.toFixed(2)} (deviasi ${deviationPct.toFixed(1)}%). Apa penyebab fisis perbedaan antara dugaan awal dan data eksperimen ini?`
+              )
+            }
+            onAskDrLabMuAboutOutlier={() =>
+              onAskDrLabMu?.('Bagaimana pengaruh titik outlier pada kurva regresi data praktikum saya?')
+            }
+          />
+
+          <UncertaintyAnalysisCard
+            metricLabel={activeDataset.y1AxisLabel}
+            values={activeDataset.points.map((p) => p.y1)}
+            theoreticalInput={uncertaintyTheoryInput}
+            onChangeTheoreticalInput={setUncertaintyTheoryInput}
+            nstInput={uncertaintyNstInput}
+            onChangeNstInput={setUncertaintyNstInput}
+            defaultOpen={false}
+          />
+
+          <DataObservationTable
+            records={records}
+            onAddRecord={onAddManualRecord}
+            onUpdateRecord={onUpdateRecord}
+            onDeleteRecord={onDeleteRecord || (() => {})}
+            onExportCSV={onExportCSV || (() => onExportChartNotification('PDF'))}
+            moduleTitle={activeMod?.title}
+            moduleId={moduleId}
+            domain={effectiveDomain}
+            activeStudentName={activeStudentName}
+            activeGroupId={activeGroupId}
+            xAxisLabel={axisMeta.xAxisLabel}
+            y1AxisLabel={axisMeta.y1AxisLabel}
+          />
+        </div>
       )}
 
-      {showCompareDock && records.length >= 2 && (
-        <ExperimentTrialComparePanel records={records} />
+      {/* TAB 2: LKS & KUIS */}
+      {activeTab === 'lks-quiz' && (
+        <div className="space-y-4">
+          <StudentWorksheetForm
+            activeStudentName={activeStudentName}
+            activeGroupId={activeGroupId}
+            activeTier={activeTier}
+            hypothesisNote={hypothesisNote}
+            onChangeHypothesisNote={onChangeHypothesisNote}
+            onSubmitQuizScore={onSubmitQuizScore}
+            onPrintPDFReport={handlePrintPDFReport}
+            onRotateGroup={onRotateGroup}
+            onAskDrLabMu={onAskDrLabMu}
+            lksAnswers={lksAnswers}
+            onChangeLksAnswers={onChangeLksAnswers}
+            observationRecords={moduleRecords}
+            moduleId={moduleId}
+            domain={effectiveDomain}
+          />
+
+          <DetailAccordion
+            title="Kuis Penguasaan Konsep Pasca-Praktikum"
+            meta="Evaluasi Mandiri"
+            icon={<ClipboardCheck className="w-4 h-4 text-[var(--comfort-accent)]" aria-hidden="true" />}
+            defaultOpen={false}
+            testId="stage3-postlab-quiz-accordion"
+            contentClassName="p-4 border-t border-[var(--comfort-border)]"
+          >
+            <PostLabMasteryQuiz
+              records={moduleRecords}
+              activeStudentName={activeStudentName}
+              moduleId={moduleId}
+              domain={effectiveDomain}
+              onQuizCompleted={onSubmitQuizScore}
+            />
+          </DetailAccordion>
+        </div>
       )}
 
-      {/* 1. Interactive SVG Regression Curve */}
-      <RegressionChartSection
-        datasetTitle={activeDataset.title}
-        xAxisLabel={activeDataset.xAxisLabel}
-        y1AxisLabel={activeDataset.y1AxisLabel}
-        y2AxisLabel={activeDataset.y2AxisLabel}
-        points={activeDataset.points}
-        curveModel={curveModel}
-        onChangeCurveModel={setCurveModel}
-        poePrediction={poePrediction}
-        instrumentNst={
-          uncertaintyNstInput.trim() && Number.isFinite(Number(uncertaintyNstInput.trim()))
-            ? Number(uncertaintyNstInput.trim())
-            : undefined
-        }
-        onExportChart={(fmt) => onExportChartNotification(fmt === 'SVG' ? 'PNG' : fmt)}
-        onAskDrLabMuAboutPoe={(deviationPct, predictedY, actualY) =>
-          onAskDrLabMu?.(
-            `Prediksi POE saya bernilai Y = ${predictedY.toFixed(2)}, sedangkan hasil kurva observasi bernilai ${actualY.toFixed(2)} (deviasi ${deviationPct.toFixed(1)}%). Apa penyebab fisis perbedaan antara dugaan awal dan data eksperimen ini?`
-          )
-        }
-        onAskDrLabMuAboutOutlier={() =>
-          onAskDrLabMu?.('Bagaimana pengaruh titik outlier pada kurva regresi data praktikum saya?')
-        }
-      />
+      {/* TAB 3: RINGKASAN & CETAK */}
+      {activeTab === 'summary-export' && (
+        <div className="space-y-4">
+          <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h2 className="text-sm sm:text-base font-bold text-[var(--comfort-text)]">
+                Pratinjau &amp; Cetak Laporan Akademik A4
+              </h2>
+              <p className="text-xs text-[var(--comfort-text-muted)] comfort-report-prose">
+                Tinjau keselarasan hipotesis dan perbandingan percobaan, lalu cetak laporan lengkap berformat A4.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                handlePrintPDFReport(
+                  hypothesisNote?.reflectionText?.trim() ||
+                    `Analisis regresi ${activeMod?.title || activeDataset.title} selesai dengan ${activeDataset.points.length} titik pengamatan.`
+                )
+              }
+              className="comfort-btn-primary px-4 py-2.5 min-h-[40px] rounded-lg font-bold text-xs inline-flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
+            >
+              <Printer className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span>Cetak Laporan Akademik A4</span>
+            </button>
+          </div>
 
-      {/* 1B. Quantitative Measurement Uncertainty */}
-      <UncertaintyAnalysisCard
-        metricLabel={activeDataset.y1AxisLabel}
-        values={activeDataset.points.map((p) => p.y1)}
-        theoreticalInput={uncertaintyTheoryInput}
-        onChangeTheoreticalInput={setUncertaintyTheoryInput}
-        nstInput={uncertaintyNstInput}
-        onChangeNstInput={setUncertaintyNstInput}
-      />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+            {hypothesisNote && (
+              <div className={records.length >= 2 ? 'lg:col-span-6' : 'lg:col-span-12'}>
+                <HypothesisScratchpadCard
+                  note={hypothesisNote}
+                  onChange={(next) => onChangeHypothesisNote?.(next)}
+                />
+              </div>
+            )}
 
-      {/* 2. Observation Records Table */}
-      <DataObservationTable
-        records={records}
-        onAddRecord={onAddManualRecord}
-        onUpdateRecord={onUpdateRecord}
-        onDeleteRecord={onDeleteRecord || (() => {})}
-        onExportCSV={onExportCSV || (() => onExportChartNotification('PDF'))}
-        moduleTitle={activeMod?.title}
-        moduleId={moduleId}
-        domain={effectiveDomain}
-        activeStudentName={activeStudentName}
-        activeGroupId={activeGroupId}
-        xAxisLabel={axisMeta.xAxisLabel}
-        y1AxisLabel={axisMeta.y1AxisLabel}
-      />
-
-      {/* 3. Post-Lab Mastery Quiz */}
-      <PostLabMasteryQuiz
-        records={moduleRecords}
-        activeStudentName={activeStudentName}
-        moduleId={moduleId}
-        domain={effectiveDomain}
-        onQuizCompleted={onSubmitQuizScore}
-      />
-
-      {/* 4. Student Worksheet Form */}
-      <StudentWorksheetForm
-        activeStudentName={activeStudentName}
-        activeGroupId={activeGroupId}
-        activeTier={activeTier}
-        hypothesisNote={hypothesisNote}
-        onChangeHypothesisNote={onChangeHypothesisNote}
-        onSubmitQuizScore={onSubmitQuizScore}
-        onPrintPDFReport={handlePrintPDFReport}
-        onRotateGroup={onRotateGroup}
-        onAskDrLabMu={onAskDrLabMu}
-        lksAnswers={lksAnswers}
-        onChangeLksAnswers={onChangeLksAnswers}
-        observationRecords={moduleRecords}
-        moduleId={moduleId}
-        domain={effectiveDomain}
-      />
+            {records.length >= 2 && (
+              <div className={hypothesisNote ? 'lg:col-span-6' : 'lg:col-span-12'}>
+                <ExperimentTrialComparePanel records={records} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {reportModalData && (
         <AcademicReportPreviewModal

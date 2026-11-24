@@ -67,23 +67,14 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
     comfortPrefs.eyeRestTimerEnabled ?? comfortPrefs.eyeRestReminderEnabled ?? true;
   const chartPalette = getComfortChartPalette(comfortPrefs.theme, comfortPrefs.colorBlindSafe);
 
-  const previewFontPx =
-    comfortPrefs.fontScale === 'large'
-      ? 13.5
-      : comfortPrefs.fontScale === 'comfortable'
-      ? 12.5
-      : 11.5;
-  const previewLineHeight =
-    comfortPrefs.dyslexiaMode || comfortPrefs.lineSpacing === 'relaxed' ? 1.82 : 1.48;
-
   return (
     <div className="space-y-2.5 pb-2.5 border-b border-[var(--comfort-border)]">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-bold text-[var(--comfort-text)] flex items-center gap-1.5">
-          <Eye className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+        <span className="text-2xs font-bold text-[var(--comfort-text)] flex items-center gap-1.5">
+          <Eye className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
           <span>Kenyamanan Mata &amp; Ergonomi</span>
         </span>
-        <span className="text-[10px] font-mono text-[var(--comfort-text-muted)]">
+        <span className="text-2xs font-mono text-[var(--comfort-text-muted)]">
           Anti-Silau
         </span>
       </div>
@@ -93,22 +84,14 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
         data-testid="eye-comfort-live-preview"
         className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] p-2.5 space-y-2 transition-colors"
       >
-        <div className="flex items-center justify-between gap-2 text-[10px] font-semibold text-[var(--comfort-text-muted)]">
+        <div className="flex items-center justify-between gap-2 text-2xs font-semibold text-[var(--comfort-text-muted)]">
           <span>Pratinjau Baca &amp; Grafik Langsung</span>
           <span className="font-mono">
             {comfortPrefs.dyslexiaMode ? 'BDA Disleksia' : 'Standar'}
             {comfortPrefs.colorBlindSafe ? ' · Okabe-Ito' : ''}
           </span>
         </div>
-        <p
-          className="text-[var(--comfort-text)] text-left transition-all"
-          style={{
-            fontSize: `${previewFontPx}px`,
-            lineHeight: previewLineHeight,
-            letterSpacing: comfortPrefs.dyslexiaMode ? '0.035em' : 'normal',
-            wordSpacing: comfortPrefs.dyslexiaMode ? '0.12em' : 'normal',
-          }}
-        >
+        <p className="comfort-report-prose text-[var(--comfort-text)] text-left transition-all">
           Hukum II Newton: percepatan sebanding gaya total (<strong>a = ΣF / m</strong>).
         </p>
         <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--comfort-border)]">
@@ -125,7 +108,7 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
             />
             <circle cx="114" cy="5" r="3" fill={chartPalette.secondary} />
           </svg>
-          <div className="flex items-center gap-2 text-[10px] font-mono font-semibold">
+          <div className="flex items-center gap-2 text-2xs font-mono font-semibold">
             <span style={{ color: chartPalette.secondary }}>● Aman</span>
             <span style={{ color: chartPalette.warning }}>▲ Waspada</span>
           </div>
@@ -134,7 +117,7 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
 
       {/* 1. Theme Selector (Warm Paper / Sepia / Soft Dark) */}
       <div className="space-y-1">
-        <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
+        <span className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
           Tema Tampilan
         </span>
         <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
@@ -157,7 +140,11 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
                     : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                 }`}
               >
-                <Icon className="w-3 h-3 text-amber-500 dark:text-sky-400 shrink-0" />
+                <Icon
+                  className={`w-3 h-3 shrink-0 ${
+                    active ? 'text-[var(--comfort-accent)]' : 'text-[var(--comfort-text-muted)]'
+                  }`}
+                />
                 <span>{label}</span>
               </button>
             );
@@ -168,11 +155,11 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
       {/* 2. Blue-Light Warmth Filter */}
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
+          <span className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
             Filter Cahaya Biru
           </span>
           {projectorMode && (
-            <span className="text-[10px] font-mono text-amber-700 dark:text-amber-300">
+            <span className="text-2xs font-mono text-[var(--comfort-warning)]">
               Dijeda saat Proyektor Aktif
             </span>
           )}
@@ -195,7 +182,7 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
                   labSound.playClick();
                   setComfortPrefs({ blueLightFilter: item.id });
                 }}
-                className={`py-1.5 px-1 rounded-md text-[11px] font-semibold text-center cursor-pointer transition-colors whitespace-nowrap ${
+                className={`py-1.5 px-1 rounded-md text-2xs font-semibold text-center cursor-pointer transition-colors whitespace-nowrap ${
                   active
                     ? 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-xs'
                     : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -211,7 +198,7 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
       {/* 3. Font Scale & Line Spacing */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)] flex items-center gap-1">
+          <span className="text-2xs font-semibold text-[var(--comfort-text-muted)] flex items-center gap-1">
             <Type className="w-3 h-3" />
             <span>Ukuran Teks</span>
           </span>
@@ -233,7 +220,7 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
                     labSound.playClick();
                     setComfortPrefs({ fontScale: fs.id });
                   }}
-                  className={`flex-1 py-1 rounded-md text-[11px] font-bold text-center cursor-pointer transition-colors ${
+                  className={`flex-1 py-1 rounded-md text-2xs font-bold text-center cursor-pointer transition-colors ${
                     active
                       ? 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-xs'
                       : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -247,7 +234,7 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
         </div>
 
         <div className="space-y-1">
-          <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)]">
+          <span className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
             Spasi Baris LKS
           </span>
           <div className="flex items-center p-0.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
@@ -267,7 +254,7 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
                     labSound.playClick();
                     setComfortPrefs({ lineSpacing: ls.id });
                   }}
-                  className={`flex-1 py-1 rounded-md text-[11px] font-semibold text-center cursor-pointer transition-colors whitespace-nowrap ${
+                  className={`flex-1 py-1 rounded-md text-2xs font-semibold text-center cursor-pointer transition-colors whitespace-nowrap ${
                     active
                       ? 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-xs'
                       : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
@@ -294,23 +281,23 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
           }}
           className={`w-full px-2.5 py-2 flex items-center justify-between gap-2 rounded-lg border text-left cursor-pointer transition-colors ${
             comfortPrefs.dyslexiaMode
-              ? 'bg-sky-500/12 border-sky-500/45 text-[var(--comfort-text)]'
-              : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] hover:border-sky-500/40'
+              ? 'comfort-accent-soft text-[var(--comfort-text)]'
+              : 'comfort-btn-secondary'
           }`}
         >
           <div className="min-w-0">
-            <div className="font-semibold text-[11px] flex items-center gap-1.5">
-              <Type className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+            <div className="font-semibold text-2xs flex items-center gap-1.5">
+              <Type className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" />
               <span>Mode Ramah Disleksia (BDA)</span>
             </div>
-            <div className="text-[10px] text-[var(--comfort-text-muted)]">
+            <div className="text-2xs text-[var(--comfort-text-muted)]">
               Spasi huruf &amp; kata lega, rata kiri tanpa miring
             </div>
           </div>
           <span
-            className={`font-mono text-[10px] font-bold shrink-0 ${
+            className={`font-mono text-2xs font-bold shrink-0 ${
               comfortPrefs.dyslexiaMode
-                ? 'text-sky-700 dark:text-sky-300'
+                ? 'text-[var(--comfort-accent)]'
                 : 'text-[var(--comfort-text-muted)]'
             }`}
           >
@@ -329,23 +316,23 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
           }}
           className={`w-full px-2.5 py-2 flex items-center justify-between gap-2 rounded-lg border text-left cursor-pointer transition-colors ${
             comfortPrefs.colorBlindSafe
-              ? 'bg-sky-500/12 border-sky-500/45 text-[var(--comfort-text)]'
-              : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)] hover:border-sky-500/40'
+              ? 'comfort-accent-soft text-[var(--comfort-text)]'
+              : 'comfort-btn-secondary'
           }`}
         >
           <div className="min-w-0">
-            <div className="font-semibold text-[11px] flex items-center gap-1.5">
-              <Palette className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+            <div className="font-semibold text-2xs flex items-center gap-1.5">
+              <Palette className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" />
               <span>Palet Buta Warna (Okabe-Ito)</span>
             </div>
-            <div className="text-[10px] text-[var(--comfort-text-muted)]">
+            <div className="text-2xs text-[var(--comfort-text-muted)]">
               Biru/oranye kontras tinggi + simbol status (● ▲ ◆)
             </div>
           </div>
           <span
-            className={`font-mono text-[10px] font-bold shrink-0 ${
+            className={`font-mono text-2xs font-bold shrink-0 ${
               comfortPrefs.colorBlindSafe
-                ? 'text-sky-700 dark:text-sky-300'
+                ? 'text-[var(--comfort-accent)]'
                 : 'text-[var(--comfort-text-muted)]'
             }`}
           >
@@ -361,11 +348,11 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
       >
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <div className="font-semibold text-[11px] flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="font-semibold text-2xs flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" />
               <span>Pengingat Istirahat 20-20-20</span>
             </div>
-            <div className="text-[10px] text-[var(--comfort-text-muted)]">
+            <div className="text-2xs text-[var(--comfort-text-muted)]">
               Tiap 20 menit, tatap jarak ≥ 6 m selama 20 detik
             </div>
           </div>
@@ -381,9 +368,9 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
                 eyeRestReminderEnabled: !eyeRestEnabled,
               });
             }}
-            className={`px-2 py-1 rounded-md font-mono text-[10px] font-bold border cursor-pointer shrink-0 transition-colors ${
+            className={`px-2 py-1 rounded-md font-mono text-2xs font-bold border cursor-pointer shrink-0 transition-colors ${
               eyeRestEnabled
-                ? 'bg-emerald-600 text-white border-emerald-500'
+                ? 'comfort-tab-active border-transparent'
                 : 'bg-[var(--comfort-surface)] text-[var(--comfort-text-muted)] border-[var(--comfort-border)]'
             }`}
           >
@@ -392,7 +379,7 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
         </div>
 
         {eyeRestEnabled && (
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-[var(--comfort-border)] text-[11px]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-[var(--comfort-border)] text-2xs">
             <span className="font-mono tabular-nums text-[var(--comfort-text-muted)]">
               Berikutnya:{' '}
               <strong className="text-[var(--comfort-text)]">
@@ -407,7 +394,7 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
                   labSound.playClick();
                   toggleEyeRestPaused();
                 }}
-                className="px-2 py-1 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[10px] font-semibold cursor-pointer hover:opacity-85"
+                className="px-2 py-1 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-2xs font-semibold cursor-pointer hover:opacity-85"
               >
                 {eyeRestPaused ? 'Lanjut' : 'Jeda'}
               </button>
@@ -430,7 +417,7 @@ export const EyeComfortSettingsSection: React.FC<EyeComfortSettingsSectionProps>
                   triggerEyeRestNow();
                   onClosePopover();
                 }}
-                className="px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[10px] inline-flex items-center gap-1 cursor-pointer"
+                className="px-2 py-1 rounded-md comfort-btn-primary font-semibold text-2xs inline-flex items-center gap-1 cursor-pointer"
               >
                 <Play className="w-2.5 h-2.5 fill-current" />
                 <span>Mulai 20d</span>

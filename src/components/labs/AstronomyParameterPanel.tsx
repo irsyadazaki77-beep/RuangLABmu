@@ -28,7 +28,7 @@ export const AstronomyParameterPanel: React.FC<AstronomyParameterPanelProps> = (
     <>
       {params.mode === 'solar-kepler' && (
         <div className="p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] space-y-2 text-xs">
-          <span className="font-bold text-[11px] text-[var(--comfort-text-muted)] uppercase tracking-wider">
+          <span className="font-bold text-2xs text-[var(--comfort-text-muted)] uppercase tracking-wider">
             Pilih Benda Langit:
           </span>
           <div className="grid grid-cols-3 gap-1">
@@ -45,7 +45,7 @@ export const AstronomyParameterPanel: React.FC<AstronomyParameterPanelProps> = (
                   });
                   onFocusPlanet(planet.name);
                 }}
-                className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
+                className={`py-1.5 px-2 rounded-lg text-2xs font-semibold border transition-colors cursor-pointer ${
                   params.selectedPlanetId === planet.id
                     ? 'bg-sky-600 text-white border-sky-600'
                     : 'bg-[var(--comfort-surface)] text-[var(--comfort-text)] border-[var(--comfort-border)] hover:bg-[var(--comfort-surface-subtle)]'

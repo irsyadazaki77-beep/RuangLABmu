@@ -18,7 +18,7 @@ export const StudentFreezeOverlay: React.FC<StudentFreezeOverlayProps> = ({
           <Lock className="w-6 h-6" aria-hidden="true" />
         </div>
         <div className="space-y-1">
-          <span className="text-[11px] font-mono uppercase tracking-wider text-amber-700 dark:text-amber-400 font-bold">
+          <span className="text-2xs font-mono uppercase tracking-wider text-amber-700 dark:text-amber-400 font-bold">
             KONTROL INTERAKTIF DIKUNCI GURU
           </span>
           <h3 className="text-lg font-bold text-[var(--comfort-text)]">
@@ -34,7 +34,7 @@ export const StudentFreezeOverlay: React.FC<StudentFreezeOverlayProps> = ({
           <button
             type="button"
             onClick={() => useCollabStore.getState().setTeacherFreeze(false)}
-            className="px-3.5 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] hover:bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[11px] font-mono text-[var(--comfort-text)] cursor-pointer transition-colors"
+            className="px-3.5 py-2 rounded-lg bg-[var(--comfort-surface-subtle)] hover:bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-2xs font-mono text-[var(--comfort-text)] cursor-pointer transition-colors"
           >
             Mode Mandiri: Lepas Kunci Lokal
           </button>

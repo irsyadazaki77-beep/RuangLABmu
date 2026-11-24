@@ -37,12 +37,12 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
           <Calculator className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] truncate">
+          <span className="text-2xs font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] truncate">
             Persamaan Hukum · {domainLabel}
           </span>
         </div>
         {activeAdjustedParam && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-700 dark:text-amber-400 text-[10px] font-mono font-bold shrink-0">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-700 dark:text-amber-400 text-2xs font-mono font-bold shrink-0">
             <Zap className="w-2.5 h-2.5" />
             Aktif Diubah
           </span>
@@ -51,7 +51,7 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
 
       {/* Main Governing Equation Display */}
       <div className="rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-3 py-2 text-center">
-        <div className="text-[10px] text-[var(--comfort-text-muted)] mb-0.5 truncate">{moduleTitle}</div>
+        <div className="text-2xs text-[var(--comfort-text-muted)] mb-0.5 truncate">{moduleTitle}</div>
         <div className="font-mono text-xs sm:text-sm font-bold text-sky-700 dark:text-cyan-300 tracking-wide break-words">
           <SciFormula text={formatCleanEquation(formulaEquation || 'F = m · a')} wrap />
         </div>
@@ -60,7 +60,7 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
       {/* Real-Time Variable Substitution Rows (Single Column — Zero Truncation) */}
       {paramEntries.length > 0 && (
         <div className="space-y-1.5">
-          <div className="text-[10px] font-semibold text-[var(--comfort-text-muted)]">
+          <div className="text-2xs font-semibold text-[var(--comfort-text-muted)]">
             Parameter Input (Slider):
           </div>
           <div className="grid grid-cols-1 gap-1.5">
@@ -69,13 +69,13 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
               return (
                 <div
                   key={label}
-                  className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-mono flex items-center justify-between gap-2 transition-all ${
+                  className={`px-2.5 py-1.5 rounded-lg border text-2xs font-mono flex items-center justify-between gap-2 transition-all ${
                     isHighlighted
                       ? 'border-amber-400 bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400/50 font-bold'
                       : 'border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)]'
                   }`}
                 >
-                  <span className="text-[11px] text-[var(--comfort-text-muted)] font-sans font-medium leading-tight">
+                  <span className="text-2xs text-[var(--comfort-text-muted)] font-sans font-medium leading-tight">
                     <SciFormula text={label} wrap />
                   </span>
                   <span className="tabular-nums font-bold shrink-0 text-[var(--comfort-text)]">
@@ -92,16 +92,16 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
       {/* Derived Real-Time Computed Physics/Bio/Chem/Astro Outputs */}
       {derivedOutputs.length > 0 && (
         <div className="space-y-1.5 pt-1 border-t border-[var(--comfort-border)]">
-          <div className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+          <div className="text-2xs font-semibold text-emerald-700 dark:text-emerald-400">
             Hasil Terhitung Real-Time:
           </div>
           <div className="grid grid-cols-1 gap-1.5" data-testid="live-formula-derived-outputs">
             {derivedOutputs.map((metric) => (
               <div
                 key={metric.id}
-                className="px-2.5 py-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 text-[11px] font-mono flex items-center justify-between gap-2"
+                className="px-2.5 py-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 text-2xs font-mono flex items-center justify-between gap-2"
               >
-                <span className="text-[11px] text-[var(--comfort-text)] font-sans font-medium leading-tight flex items-center gap-1.5">
+                <span className="text-2xs text-[var(--comfort-text)] font-sans font-medium leading-tight flex items-center gap-1.5">
                   <span
                     className="w-1.5 h-1.5 rounded-full shrink-0"
                     style={{ backgroundColor: metric.color || '#10b981' }}

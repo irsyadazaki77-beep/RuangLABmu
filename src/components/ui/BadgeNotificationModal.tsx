@@ -150,7 +150,7 @@ export const BadgeNotificationModal: React.FC<BadgeNotificationModalProps> = ({
                 style={{ width: `${progress.progressPct}%` }}
               />
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--comfort-text-muted)] pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-2xs text-[var(--comfort-text-muted)] pt-1">
               <span>Aturan K3: +100 XP</span>
               <span>·</span>
               <span>Presisi R² ≥ 0.95: +150 XP (R² ≥ 0.99: +300 XP)</span>
@@ -172,7 +172,7 @@ export const BadgeNotificationModal: React.FC<BadgeNotificationModalProps> = ({
                     labSound.playSuccessChime();
                     recordK3Compliance('manual-pledge');
                   }}
-                  className="px-3 py-1.5 min-h-[34px] rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                  className="px-3 py-1.5 min-h-[34px] rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-2xs font-semibold transition-colors cursor-pointer"
                 >
                   Verifikasi Kepatuhan K3 (+100 XP)
                 </button>
@@ -206,18 +206,18 @@ export const BadgeNotificationModal: React.FC<BadgeNotificationModalProps> = ({
                           {badge.title}
                         </span>
                         {isUnlocked ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
+                          <span className="inline-flex items-center gap-1 text-2xs font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             <span>Terbuka</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-[var(--comfort-text-muted)] shrink-0">
+                          <span className="inline-flex items-center gap-1 text-2xs text-[var(--comfort-text-muted)] shrink-0">
                             <Lock className="w-3 h-3" />
                             <span>Terkunci</span>
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed">
+                      <p className="text-2xs text-[var(--comfort-text-muted)] leading-relaxed">
                         {badge.description}
                       </p>
                     </div>

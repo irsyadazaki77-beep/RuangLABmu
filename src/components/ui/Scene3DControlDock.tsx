@@ -146,7 +146,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
             setCollapsed(false);
           }}
           title="Tampilkan Dok Kontrol Kamera & Alat 3D (H)"
-          className="studio-hud-surface px-3 py-1 rounded-xl text-[11px] font-semibold text-[var(--comfort-hud-text)] shadow-md flex items-center gap-1.5 cursor-pointer hover:border-sky-500/50 transition-colors"
+          className="studio-hud-surface px-3 py-1 rounded-xl text-2xs font-semibold text-[var(--comfort-hud-text)] shadow-md flex items-center gap-1.5 cursor-pointer hover:border-sky-500/50 transition-colors"
         >
           <Camera className="w-3.5 h-3.5 text-sky-500 shrink-0" aria-hidden="true" />
           <span>Kontrol 3D</span>
@@ -169,7 +169,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
               }}
               aria-label="Reset View Kamera 3D"
               title="Reset sudut pandang kamera ke posisi standar"
-              className="px-1.5 py-1 rounded-lg text-[11px] font-medium text-[var(--comfort-hud-text)] hover:bg-sky-500/15 transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+              className="px-1.5 py-1 rounded-lg text-2xs font-medium text-[var(--comfort-hud-text)] hover:bg-sky-500/15 transition-colors cursor-pointer flex items-center gap-1 shrink-0"
             >
               <RotateCcw className="w-3 h-3 shrink-0" aria-hidden="true" />
             </button>
@@ -180,7 +180,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 labSound.playClick(600);
                 onSelectPreset('isometric');
               }}
-              className={`px-1.5 py-1 text-[11px] rounded-lg transition-colors cursor-pointer shrink-0 ${
+              className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer shrink-0 ${
                 activePreset === 'isometric' ? activeBtnClass : idleBtnClass
               }`}
             >
@@ -193,7 +193,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 labSound.playClick(600);
                 onSelectPreset('front');
               }}
-              className={`px-1.5 py-1 text-[11px] rounded-lg transition-colors cursor-pointer shrink-0 ${
+              className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer shrink-0 ${
                 activePreset === 'front' || activePreset === 'ecliptic'
                   ? activeBtnClass
                   : idleBtnClass
@@ -208,7 +208,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 labSound.playClick(600);
                 onSelectPreset('top');
               }}
-              className={`px-1.5 py-1 text-[11px] rounded-lg transition-colors cursor-pointer shrink-0 ${
+              className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer shrink-0 ${
                 activePreset === 'top' ? activeBtnClass : idleBtnClass
               }`}
             >
@@ -221,7 +221,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 labSound.playClick(600);
                 onSelectPreset('focus');
               }}
-              className={`px-1.5 py-1 text-[11px] rounded-lg transition-colors cursor-pointer shrink-0 ${
+              className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer shrink-0 ${
                 activePreset === 'focus' ? activeBtnClass : idleBtnClass
               }`}
             >
@@ -243,7 +243,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 onClick={tool.onClick}
                 aria-pressed={tool.active}
                 title={tool.title || tool.label}
-                className={`px-1.5 py-1 text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+                className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
                   tool.active ? tool.activeClass || activeBtnClass : idleBtnClass
                 }`}
               >
@@ -258,7 +258,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 data-testid="snap-dock-apparatus-btn"
                 onClick={onSnapApparatus}
                 title="Rapatkan dan pusatkan alat praktikum di meja"
-                className={`px-1.5 py-1 text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+                className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
                   snapActive ? 'bg-emerald-600 text-white font-bold' : idleBtnClass
                 }`}
               >
@@ -281,7 +281,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 }}
                 aria-pressed={inspectorActive}
                 title="Inspeksi konsep dan rumus alat 3D aktif"
-                className={`px-1.5 py-1 text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+                className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
                   inspectorActive ? activeBtnClass : idleBtnClass
                 }`}
               >
@@ -298,7 +298,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 data-testid="enter-vr-lab-btn"
                 onClick={onEnterVR}
                 title="Masuk ke mode Imersif WebXR / VR"
-                className={`px-1.5 py-1 text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+                className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
                   isVRActive ? 'bg-indigo-600 text-white font-bold' : idleBtnClass
                 }`}
               >

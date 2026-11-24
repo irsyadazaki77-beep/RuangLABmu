@@ -70,7 +70,7 @@ export const PWAInstallBanner: React.FC = () => {
         <h4 className="text-xs font-bold text-[var(--comfort-text)] truncate">
           Pasang RuangLABmu (PWA)
         </h4>
-        <p className="text-[11px] text-[var(--comfort-text-muted)] leading-tight line-clamp-2">
+        <p className="text-2xs text-[var(--comfort-text-muted)] leading-tight line-clamp-2">
           Praktikum sains offline tanpa internet dengan performa native.
         </p>
       </div>

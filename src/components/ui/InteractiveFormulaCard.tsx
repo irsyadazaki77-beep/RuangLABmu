@@ -203,7 +203,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
               {title}
             </h4>
             {subtitle && (
-              <p className="text-[11px] text-[var(--comfort-text-muted)] truncate">
+              <p className="text-2xs text-[var(--comfort-text-muted)] truncate">
                 {subtitle}
               </p>
             )}
@@ -213,7 +213,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
         <div
           role="group"
           aria-label="Mode Visualisasi Rumus"
-          className="inline-flex items-center p-0.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[11px]"
+          className="inline-flex items-center p-0.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-2xs"
         >
           <button
             type="button"
@@ -365,7 +365,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 4 }}
-                      className={`text-[10px] font-mono tabular-nums whitespace-nowrap leading-none mb-0.5 ${
+                      className={`text-2xs font-mono tabular-nums whitespace-nowrap leading-none mb-0.5 ${
                         isHighlighted
                           ? 'text-amber-700 dark:text-amber-300 font-bold'
                           : isOutputToken
@@ -402,7 +402,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
           >
             <div className="flex flex-wrap items-center justify-between gap-1.5">
               <div className="flex flex-wrap items-center gap-1">
-                <span className="text-[11px] font-semibold text-[var(--comfort-text-muted)] mr-1">
+                <span className="text-2xs font-semibold text-[var(--comfort-text-muted)] mr-1">
                   Pilih Simbol:
                 </span>
                 {variableTokens.map((vt, vIdx) => (
@@ -413,7 +413,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                       labSound.playClick();
                       setSelectedSymbolIdx(vIdx);
                     }}
-                    className={`px-2 py-0.5 rounded-md font-mono text-[11px] font-bold border transition-colors cursor-pointer ${
+                    className={`px-2 py-0.5 rounded-md font-mono text-2xs font-bold border transition-colors cursor-pointer ${
                       selectedSymbolIdx === vIdx
                         ? 'bg-sky-600 border-sky-500 text-white'
                         : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] text-[var(--comfort-text)]'
@@ -431,7 +431,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                     labSound.playClick();
                     setWhatIfValues({});
                   }}
-                  className="text-[10px] font-mono text-[var(--comfort-text-muted)] hover:text-sky-600 dark:hover:text-sky-400 flex items-center gap-1 cursor-pointer"
+                  className="text-2xs font-mono text-[var(--comfort-text-muted)] hover:text-sky-600 dark:hover:text-sky-400 flex items-center gap-1 cursor-pointer"
                 >
                   <RotateCcw className="w-3 h-3" />
                   <span>Reset Uji</span>
@@ -444,18 +444,18 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                 <span className="font-mono font-bold text-sky-700 dark:text-sky-400">
                   [{activeVarToken.symbol}]{' '}
                   {whatIfAnalysis && (
-                    <span className="text-[10px] font-sans font-normal text-[var(--comfort-text-muted)]">
+                    <span className="text-2xs font-sans font-normal text-[var(--comfort-text-muted)]">
                       · {whatIfAnalysis.relationLabel}
                     </span>
                   )}
                 </span>
-                <span className="font-mono text-[11px] text-[var(--comfort-text)] font-bold tabular-nums">
+                <span className="font-mono text-2xs text-[var(--comfort-text)] font-bold tabular-nums">
                   {resolveTokenValue(activeVarToken)?.toFixed(2) ?? '-'}{' '}
                   {activeVarToken.unit || ''}
                 </span>
               </div>
 
-              <p className="text-[11px] text-[var(--comfort-text-muted)] leading-relaxed">
+              <p className="text-2xs text-[var(--comfort-text-muted)] leading-relaxed">
                 {activeVarToken.description ||
                   SYMBOL_DICTIONARY[activeVarToken.symbol] ||
                   `Besaran fisis (${activeVarToken.symbol}) dalam persamaan ${title} dengan satuan ${activeVarToken.unit || 'SI'}.`}
@@ -464,7 +464,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
               {activeVarToken.value !== undefined &&
                 activeVarToken.originalIdx > 0 && (
                   <div className="pt-1 space-y-2 border-t border-[var(--comfort-border)]">
-                    <div className="flex items-center justify-between text-[10px] font-mono text-[var(--comfort-text-muted)]">
+                    <div className="flex items-center justify-between text-2xs font-mono text-[var(--comfort-text-muted)]">
                       <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
                         <SlidersHorizontal className="w-3 h-3" />
                         <span>
@@ -512,7 +512,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
 
                     {whatIfAnalysis && outputToken && (
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                        <div className="text-[11px] font-mono text-[var(--comfort-text-muted)] tabular-nums">
+                        <div className="text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
                           Prediksi{' '}
                           <strong className="text-emerald-700 dark:text-emerald-400">
                             {outputToken.symbol}
@@ -537,7 +537,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
                                 setWhatIfValues({});
                               }
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[10px] flex items-center gap-1 transition-colors cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-2xs flex items-center gap-1 transition-colors cursor-pointer"
                           >
                             <span>Terapkan ke 3D</span>
                             <ArrowRight className="w-3 h-3" />
@@ -552,7 +552,7 @@ export const InteractiveFormulaCard: React.FC<InteractiveFormulaCardProps> = ({
         )}
       </AnimatePresence>
 
-      <div className="flex items-center justify-between text-[11px] text-[var(--comfort-text-muted)]">
+      <div className="flex items-center justify-between text-2xs text-[var(--comfort-text-muted)]">
         <span className="flex items-center gap-1.5">
           <Info className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
           <span>
