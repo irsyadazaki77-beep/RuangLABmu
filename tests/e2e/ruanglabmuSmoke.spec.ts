@@ -103,7 +103,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Fisika', exact: true }).click();
     await page
-      .getByRole('button', { name: /Mulai Praktikum/i })
+      .getByRole('button', { name: /Mulai →|Mulai Praktikum/i })
       .first()
       .click();
 
@@ -129,7 +129,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Kimia', exact: true }).click();
     await page
-      .getByRole('button', { name: /Mulai Praktikum/i })
+      .getByRole('button', { name: /Mulai →|Mulai Praktikum/i })
       .first()
       .click();
 
@@ -141,6 +141,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     // 3. Buka panel Asisten Dr. LabMu & uji simulasi pertanyaan dalam mode offline
     await page.route('**/api/dr-labmu/ask', (route) => route.abort('internetdisconnected'));
     await page.route('**/api/ai/dr-labmu', (route) => route.abort('internetdisconnected'));
+    await page.route('**/api/ai/dr-labmu/stream', (route) => route.abort('internetdisconnected'));
 
     await page.getByRole('button', { name: /Buka Asisten Dr\. LabMu/i }).click();
     const drawerDialog = page.getByRole('dialog', {
@@ -163,7 +164,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await expect(drawerDialog.getByTestId('offline-mentor-badge')).toBeVisible();
 
     const drawerContent = await drawerDialog.innerText();
-    expect(drawerContent).toMatch(/Pertanyaan Pemantik:/i);
+    expect(drawerContent).toMatch(/Pertanyaan Pemantik/i);
     expect(drawerContent).not.toContain('NaN');
   });
 
@@ -192,7 +193,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     // Klik modul pertama di tampilan mobile
     await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page
-      .getByRole('button', { name: /Mulai Praktikum/i })
+      .getByRole('button', { name: /Mulai →|Mulai Praktikum/i })
       .first()
       .click();
 
@@ -250,7 +251,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
 
       // 3. Guru mengaktifkan Freeze Mode
       await teacherPage
-        .getByRole('button', { name: /Kunci Layar Murid \(Freeze Inputs\)/i })
+        .getByRole('button', { name: /Kunci Layar Murid/i })
         .click();
 
       // 4. Verifikasi indikator terkunci muncul secara real-time di layar Siswa
@@ -275,7 +276,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     // 1. Fisika: masuk simulasi -> uji Alat Ukur 3D (Mistar & Busur) + Snap-to-Port + drag canvas
     await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Fisika', exact: true }).click();
-    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+    await page.getByRole('button', { name: /Mulai →|Mulai Praktikum/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
 
     const cockpit3D = page.getByTestId('main-3d-cockpit');
@@ -307,7 +308,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await exitLabToLobby(page);
     await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Kimia', exact: true }).click();
-    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+    await page.getByRole('button', { name: /Mulai →|Mulai Praktikum/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
 
     await expect(page.getByTestId('lab-webgl-error-fallback')).toHaveCount(0);
@@ -319,7 +320,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await exitLabToLobby(page);
     await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Biologi', exact: true }).click();
-    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+    await page.getByRole('button', { name: /Mulai →|Mulai Praktikum/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
 
     await expect(page.getByTestId('lab-webgl-error-fallback')).toHaveCount(0);
@@ -345,7 +346,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     // 1. Masuk ke domain Astronomi -> buka simulasi 3D
     await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Astronomi', exact: true }).click();
-    await page.getByRole('button', { name: 'Mulai Praktikum →', exact: true }).first().click();
+    await page.getByRole('button', { name: /Mulai →|Mulai Praktikum →/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
 
     const cockpit3D = page.getByTestId('main-3d-cockpit');
@@ -401,7 +402,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     // 2. Masuk ke modul Fisika -> buka modal K3/Pra-Lab & uji penutupan via keyboard Escape
     await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Fisika', exact: true }).click();
-    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+    await page.getByRole('button', { name: /Mulai →|Mulai Praktikum/i }).first().click();
 
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
     await expect(page.getByTestId('main-3d-cockpit')).toBeVisible();
@@ -466,7 +467,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     // 2. Buka modul Fisika Stage 1 -> pastikan tidak ada kebocoran LaTeX mentah / notasi underscore teknis
     await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Fisika', exact: true }).click();
-    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+    await page.getByRole('button', { name: /Mulai →|Mulai Praktikum/i }).first().click();
 
     const preLabText = await page.locator('main').innerText();
     expect(preLabText).not.toMatch(/\\frac|\\sqrt|\\sum|\\in\b|10\^[0-9-]/);
@@ -477,16 +478,32 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await expect(page.getByTestId('main-3d-cockpit')).toBeVisible();
     await expect(page.getByTestId('live-formula-derived-outputs')).toBeVisible();
 
-    // Catat 2 data uji modul aktif agar regresi Stage 3 otomatis memilih dataset module-records
-    for (let i = 0; i < 2; i += 1) {
-      await page.getByRole('button', { name: /\+ Catat Data/i }).first().click();
-      await page.waitForTimeout(250);
-      const dialogCount = await page.locator('[role="dialog"]').count();
-      if (dialogCount > 0) {
+    // Catat data uji modul aktif dengan variasi parameter agar regresi Stage 3 otomatis memilih dataset module-records
+    const autoSweepBtn = page.getByRole('button', { name: /Auto-Sweep/i }).first();
+    if (await autoSweepBtn.isVisible()) {
+      await autoSweepBtn.click();
+      await page.waitForTimeout(400);
+      if (await page.locator('[role="dialog"]').count()) {
         await page.keyboard.press('Escape');
         await page.waitForTimeout(150);
+      }
+    } else {
+      for (let i = 0; i < 2; i += 1) {
+        if (i === 1) {
+          const sliders = page.getByTestId('spatial-left-drawer').locator('input[type="range"]');
+          const cnt = await sliders.count();
+          for (let s = 0; s < cnt; s += 1) {
+            await sliders.nth(s).press('ArrowRight');
+          }
+        }
+        await page.getByRole('button', { name: /\+ Catat Data/i }).first().click();
+        await page.waitForTimeout(250);
         if (await page.locator('[role="dialog"]').count()) {
-          await page.locator('[role="dialog"] button').first().click();
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(150);
+          if (await page.locator('[role="dialog"]').count()) {
+            await page.locator('[role="dialog"] button').first().click();
+          }
         }
       }
     }
@@ -509,7 +526,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     expect(whiteCountStage3).toBe(0);
 
     // 5. Stage 4 -> bebas latar putih polos di tema Sepia
-    await page.getByRole('button', { name: /Laporan & Tugas Kelompok/i }).first().click();
+    await page.getByRole('button', { name: /Tahap 4: Kolaborasi & Ekspor|Laporan & Tugas Kelompok/i }).first().click();
     await expect(page.locator('#analytics-dataset-select')).toHaveCount(0);
     const whiteCountStage4 = await page.evaluate(() => {
       const main = document.querySelector('main');
@@ -535,7 +552,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Fisika', exact: true }).click();
-    await page.getByRole('button', { name: /Mulai Praktikum/i }).first().click();
+    await page.getByRole('button', { name: /Mulai →|Mulai Praktikum/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).first().click();
     await expect(page.getByTestId('main-3d-cockpit')).toBeVisible();
     await page.waitForTimeout(600);

@@ -493,7 +493,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
         {/* Row 2: Flat Compact Filter & Inline Search Bar */}
         <div
           data-testid="lobby-compact-filter-bar"
-          className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 px-3 py-2 bg-[var(--comfort-surface-subtle)]/50"
+          className="flex flex-col xl:flex-row xl:items-center justify-between gap-2 px-3 py-2 bg-[var(--comfort-surface-subtle)]/50"
         >
           {/* Inline Quick Search Input (Shortcut '/') */}
           <div className="relative flex items-center w-full lg:w-56 xl:w-64 shrink-0">

@@ -788,4 +788,81 @@ describe('Backend Security Hardening & SQLite Persistence', () => {
       true
     );
   });
+
+  it('isolates getScopedActivityState across rooms/schools, blocks unauth ROOM_CREATE in production, and requires SESSION_SIGNING_SECRET in production', async () => {
+    const state = createLabServerState({ dbPath: ':memory:' });
+    const { signSessionToken } = await import('../auth/sessionToken');
+    const { handleRoomCreate } = await import('../ws/wsRoomManager');
+    try {
+      // 1. Per-room / per-school isolation
+      const roomA = state.getScopedActivityState('LAB-ROOM-A', 'school-a');
+      const roomB = state.getScopedActivityState('LAB-ROOM-B', 'school-a');
+      const roomOtherSchool = state.getScopedActivityState('LAB-ROOM-A', 'school-b');
+
+      roomA.collabNotes.push({
+        id: 'note-a-1',
+        groupId: 'G1',
+        author: 'Alya',
+        role: 'Siswa',
+        text: 'Catatan khusus Room A',
+        timestamp: '10:00',
+      });
+
+      assert.equal(roomA.collabNotes.length, 1);
+      assert.equal(roomB.collabNotes.length, 0);
+      assert.equal(roomOtherSchool.collabNotes.length, 0);
+
+      // 2. Production ROOM_CREATE rejects unauthenticated sockets
+      const prevEnv = process.env.NODE_ENV;
+      const prevPortable = process.env.RUANGLAB_PORTABLE;
+      const prevSecret = process.env.SESSION_SIGNING_SECRET;
+      process.env.NODE_ENV = 'production';
+      delete process.env.RUANGLAB_PORTABLE;
+      process.env.SESSION_SIGNING_SECRET = 'test-prod-signing-secret-123456';
+
+      try {
+        const sentUnauth: Array<{ type: string; payload: Record<string, unknown> }> = [];
+        const unauthWs = {
+          socketId: 'sock-unauth-prod',
+          userId: 'stu-1',
+          userName: 'Student',
+          role: 'Siswa',
+          send: (raw: string) => sentUnauth.push(JSON.parse(raw)),
+        } as unknown as import('../ws/wsTypes').ExtWebSocket;
+
+        handleRoomCreate(
+          unauthWs,
+          { roomId: 'LAB-PROD-DENY', domain: 'physics', moduleId: 'newton-incline' },
+          {
+            state,
+            broadcastAll: () => {},
+            broadcastRoom: () => {},
+            broadcastGroup: () => {},
+          }
+        );
+        assert.equal(state.activeLabRooms.has('LAB-PROD-DENY'), false);
+        assert.equal(sentUnauth[0]?.type, 'ROOM_ERROR');
+        assert.equal(sentUnauth[0]?.payload.code, 'UNAUTHORIZED_TEACHER_ROLE');
+
+        // 3. Missing SESSION_SIGNING_SECRET in production throws
+        delete process.env.SESSION_SIGNING_SECRET;
+        assert.throws(() => {
+          signSessionToken({
+            sub: 'teacher-1',
+            role: 'teacher',
+            schoolId: 'default-school',
+          });
+        }, /SESSION_SIGNING_SECRET/);
+      } finally {
+        if (prevEnv !== undefined) process.env.NODE_ENV = prevEnv;
+        else delete process.env.NODE_ENV;
+        if (prevPortable !== undefined) process.env.RUANGLAB_PORTABLE = prevPortable;
+        else delete process.env.RUANGLAB_PORTABLE;
+        if (prevSecret !== undefined) process.env.SESSION_SIGNING_SECRET = prevSecret;
+        else delete process.env.SESSION_SIGNING_SECRET;
+      }
+    } finally {
+      state.dispose();
+    }
+  });
 });

@@ -1251,22 +1251,22 @@ export function resolveConceptLabelCollisions<T extends ConceptScreenBox>(
   const maxXBound = safeBounds?.maxX ?? viewportWidth - 56;
   const minY = safeBounds?.minY ?? Math.min(52, viewportHeight * 0.22);
   const maxY = safeBounds?.maxY ?? Math.max(minY, viewportHeight - 20);
-  const pillH = 44;
+  const pillH = 54;
 
   const result = items.map((item) => ({ ...item }));
   const order = result
     .map((_, idx) => idx)
     .sort((a, b) => result[b].y - result[a].y);
 
-  for (let pass = 0; pass < 3; pass++) {
+  for (let pass = 0; pass < 4; pass++) {
     let moved = false;
     for (let i = 0; i < order.length; i++) {
       const boxA = result[order[i]];
-      const halfWidthA = Math.max(46, Math.min(115, 16 + boxA.text.length * 3.2));
+      const halfWidthA = Math.max(48, Math.min(132, 18 + boxA.text.length * 3.6));
 
       for (let j = i + 1; j < order.length; j++) {
         const boxB = result[order[j]];
-        const halfWidthB = Math.max(46, Math.min(115, 16 + boxB.text.length * 3.2));
+        const halfWidthB = Math.max(48, Math.min(132, 18 + boxB.text.length * 3.6));
         const minHorizDist = halfWidthA + halfWidthB + 10;
 
         if (Math.abs(boxA.x - boxB.x) < minHorizDist) {
