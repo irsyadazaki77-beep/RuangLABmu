@@ -312,17 +312,23 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
       telemetryMetrics={telemetryMetrics}
-      oscilloscope={{
-        primaryLabel: currentModule.outputs[0]?.label || 'Laju O₂',
-        primaryValue: currentOutputs[currentModule.outputs[0]?.key || 'o2BubbleRate'] ?? 0,
-        primaryUnit: currentModule.outputs[0]?.unit || '/mnt',
-        secondaryLabel: currentModule.parameters[0]?.label || 'Input',
-        secondaryValue: paramsState[currentModule.parameters[0]?.key || 'lightIntensityLux'] ?? 0,
-        secondaryUnit: currentModule.parameters[0]?.unit || '',
-        microscopicStateLabel: `Aparatus Biologi: ${currentModule.title}`,
-        microscopicDetail: `Reaksi metabolik kuantitatif dan kinetika enzim terkontrol.`,
-        accentColor: '#10b981',
-      }}
+      oscilloscope={(() => {
+        const out0 = currentModule.outputs[0];
+        const p0 = currentModule.parameters[0];
+        const primaryVal = currentOutputs[out0?.key || 'o2BubbleRate'] ?? 0;
+        const secondaryVal = paramsState[p0?.key || 'lightIntensityLux'] ?? 0;
+        return {
+          primaryLabel: out0?.label || 'Laju O₂',
+          primaryValue: primaryVal,
+          primaryUnit: out0?.unit || '/mnt',
+          secondaryLabel: p0?.label || 'Input',
+          secondaryValue: secondaryVal,
+          secondaryUnit: p0?.unit || '',
+          microscopicStateLabel: `${currentModule.title}: ${out0?.label || 'Respons'} = ${primaryVal} ${out0?.unit || ''}`.trim(),
+          microscopicDetail: `Mengamati pengaruh ${p0?.label || 'variabel kontrol'} terhadap ${out0?.label || 'sistem biologis'}.`,
+          accentColor: '#10b981',
+        };
+      })()}
       shutterFlash={shutterFlash}
       zenMode={zenMode}
       activeCameraPreset={activeCameraPreset}

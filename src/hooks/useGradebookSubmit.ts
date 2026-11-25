@@ -5,6 +5,7 @@ import {
   type EvaluatedRubricReport,
 } from '../shared/grading/rubricEngine';
 import type { LabSubmission } from '../types/submissionTypes';
+import { apiFetch } from '../utils/apiClient';
 
 export interface GradebookSubmitResult {
   submission: LabSubmission;
@@ -68,7 +69,7 @@ export function useGradebookSubmit() {
       setLastEvaluatedRubric(localRubric);
 
       try {
-        const res = await fetch('/api/submissions', {
+        const res = await apiFetch('/api/submissions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(enrichedSubmission),

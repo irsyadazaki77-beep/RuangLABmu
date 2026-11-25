@@ -191,7 +191,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
             subMap.set(sub.id, sub);
           }
 
-          fetch('/api/submissions', {
+          apiFetch('/api/submissions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(sub),

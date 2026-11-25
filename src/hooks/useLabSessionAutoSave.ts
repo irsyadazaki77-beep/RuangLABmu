@@ -18,6 +18,7 @@ import {
   flushOfflineOutbox,
   generateMutationUuid,
 } from '../utils/offlineOutbox';
+import { apiFetch } from '../utils/apiClient';
 
 export interface AutoSaveSyncTicket {
   version: number;
@@ -242,7 +243,7 @@ export function useLabSessionAutoSave({
         if (signal.aborted || !isMountedRef.current) return;
 
         const clientMutationId = generateMutationUuid();
-        const response = await fetch('/api/session/autosave', {
+        const response = await apiFetch('/api/session/autosave', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

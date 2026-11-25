@@ -21,6 +21,7 @@ import {
   ExperimentRecord,
 } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
+import { apiFetch } from '../../utils/apiClient';
 import { HypothesisNote } from '../ui/HypothesisAndCompareDock';
 import { useShallow } from 'zustand/react/shallow';
 import { useLabStore } from '../../stores/useLabStore';
@@ -221,7 +222,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
       clientMutationId: pnpMutationId,
     };
     try {
-      const res = await fetch('/api/submissions', {
+      const res = await apiFetch('/api/submissions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -390,7 +391,7 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
         return;
       }
 
-      const res = await fetch('/api/submissions', {
+      const res = await apiFetch('/api/submissions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
