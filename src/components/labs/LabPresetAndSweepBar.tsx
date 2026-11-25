@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Play, Square, Sparkles, Sliders } from 'lucide-react';
+import { ChevronDown, ChevronUp, Play, Square, Sparkles, Sliders } from 'lucide-react';
 import type { AutoSweepPoint, DomainScenarioPreset } from '../../utils/labScenarioPresets';
 import { labSound } from '../../utils/soundEngine';
 
@@ -21,6 +21,7 @@ export function LabPresetAndSweepBar<TParams = Record<string, unknown>>({
   onSweepComplete,
 }: LabPresetAndSweepBarProps<TParams>) {
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [presetsExpanded, setPresetsExpanded] = useState<boolean>(false);
   const [isSweeping, setIsSweeping] = useState<boolean>(false);
   const [sweepProgress, setSweepProgress] = useState<number>(0);
   const timerRef = useRef<number | null>(null);
@@ -114,43 +115,57 @@ export function LabPresetAndSweepBar<TParams = Record<string, unknown>>({
       data-testid="lab-preset-sweep-bar"
       className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] p-3 space-y-2.5"
     >
-      {/* Curated Scenario Presets */}
+      {/* Collapsible Scenario Presets */}
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-2xs font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider">
+        <button
+          type="button"
+          onClick={() => {
+            labSound.playClick(600);
+            setPresetsExpanded((prev) => !prev);
+          }}
+          aria-expanded={presetsExpanded}
+          className="w-full flex items-center justify-between text-2xs font-bold text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] uppercase tracking-wider cursor-pointer py-0.5"
+        >
           <span className="inline-flex items-center gap-1.5">
             <Sliders className="w-3 h-3" aria-hidden="true" />
-            <span>Preset Skenario Cepat</span>
+            <span>Preset Skenario ({presets.length})</span>
           </span>
-          <span className="font-mono text-2xs font-normal normal-case">1 klik</span>
-        </div>
+          {presetsExpanded ? (
+            <ChevronUp className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          )}
+        </button>
 
-        <div className="grid grid-cols-1 gap-1.5">
-          {presets.map((preset) => {
-            const isActive = activePresetId === preset.id;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                data-testid={`scenario-preset-${preset.id}`}
-                onClick={() => {
-                  labSound.playClick(620);
-                  setActivePresetId(preset.id);
-                  onApplyPreset(preset);
-                }}
-                className={`w-full text-left px-2.5 py-2 rounded-lg border transition-colors cursor-pointer ${
-                  isActive
-                    ? accentClasses.active
-                    : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text)]'
-                }`}
-              >
-                <div className="text-xs font-semibold leading-tight">{preset.label}</div>
-                <div className="text-2xs font-mono text-[var(--comfort-text-muted)] mt-0.5 truncate">
-                  {preset.summary}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        {presetsExpanded && (
+          <div className="grid grid-cols-1 gap-1.5 pt-1">
+            {presets.map((preset) => {
+              const isActive = activePresetId === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  data-testid={`scenario-preset-${preset.id}`}
+                  onClick={() => {
+                    labSound.playClick(620);
+                    setActivePresetId(preset.id);
+                    onApplyPreset(preset);
+                  }}
+                  className={`w-full text-left px-2.5 py-2 rounded-lg border transition-colors cursor-pointer ${
+                    isActive
+                      ? accentClasses.active
+                      : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] hover:border-sky-500/40 text-[var(--comfort-text)]'
+                  }`}
+                >
+                  <div className="text-xs font-semibold leading-tight">{preset.label}</div>
+                  <div className="text-2xs font-mono text-[var(--comfort-text-muted)] mt-0.5 truncate">
+                    {preset.summary}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* 5-Point Auto-Sweep Data Acquisition */}

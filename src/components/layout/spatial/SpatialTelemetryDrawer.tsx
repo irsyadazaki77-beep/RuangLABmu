@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Activity, Bot, PanelRightClose, Trash2 } from 'lucide-react';
+import { Activity, Bot, LineChart, PanelRightClose, Trash2 } from 'lucide-react';
 import { DRAWER_RIGHT_VARIANTS } from '../../../styles/motionPresets';
 import { LiveFormulaCard } from '../../telemetry/LiveFormulaCard';
 import { TelemetryGauge } from '../../telemetry/TelemetryGauge';
@@ -41,6 +41,7 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
   onDeleteRecord,
   onOpenDrLabMu,
 }) => {
+  const [activeTab, setActiveTab] = useState<'metrics' | 'chart'>('metrics');
   const primaryMetric = telemetryMetrics[0];
   const secondaryMetric = telemetryMetrics[1];
 
@@ -73,90 +74,135 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
             </button>
           </div>
 
+          <div className="px-3 pt-2 pb-1.5 border-b border-[var(--comfort-border)] shrink-0">
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-[var(--comfort-surface-subtle)] p-0.5 border border-[var(--comfort-border)]">
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick(600);
+                  setActiveTab('metrics');
+                }}
+                className={`px-2 py-1 rounded-md text-2xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+                  activeTab === 'metrics'
+                    ? 'bg-[var(--comfort-surface)] text-[var(--comfort-accent)] shadow-xs'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                }`}
+              >
+                <Activity className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span>Metrik &amp; Rumus</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick(600);
+                  setActiveTab('chart');
+                }}
+                className={`px-2 py-1 rounded-md text-2xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+                  activeTab === 'chart'
+                    ? 'bg-[var(--comfort-surface)] text-[var(--comfort-accent)] shadow-xs'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
+                }`}
+              >
+                <LineChart className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span>Grafik &amp; Data ({recordsCount})</span>
+              </button>
+            </div>
+          </div>
+
           <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5">
-            {oscilloscope && (
-              <div className="rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-3 py-2 text-xs text-[var(--comfort-text)] space-y-0.5">
-                <div className="font-mono text-2xs font-bold text-[var(--comfort-accent)] truncate">
-                  {oscilloscope.microscopicStateLabel}
-                </div>
-                <p className="text-2xs text-[var(--comfort-text-muted)] line-clamp-2 leading-relaxed">
-                  {oscilloscope.microscopicDetail}
-                </p>
-              </div>
-            )}
+            {activeTab === 'metrics' ? (
+              <>
+                {oscilloscope && (
+                  <div className="rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-3 py-2 text-xs text-[var(--comfort-text)] space-y-0.5">
+                    <div className="font-mono text-2xs font-bold text-[var(--comfort-accent)] truncate">
+                      {oscilloscope.microscopicStateLabel}
+                    </div>
+                    <p className="text-2xs text-[var(--comfort-text-muted)] line-clamp-2 leading-relaxed">
+                      {oscilloscope.microscopicDetail}
+                    </p>
+                  </div>
+                )}
 
-            {telemetryMetrics.length > 0 && (
-              <div className="grid grid-cols-2 gap-2">
-                {telemetryMetrics.slice(0, 2).map((metric) => (
-                  <TelemetryGauge
-                    key={metric.id}
-                    label={metric.label}
-                    value={metric.value}
-                    min={metric.min}
-                    max={metric.max}
-                    unit={metric.unit}
-                    decimals={metric.precision ?? 2}
-                  />
-                ))}
-              </div>
-            )}
+                {telemetryMetrics.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {telemetryMetrics.slice(0, 2).map((metric) => (
+                      <TelemetryGauge
+                        key={metric.id}
+                        label={metric.label}
+                        value={metric.value}
+                        min={metric.min}
+                        max={metric.max}
+                        unit={metric.unit}
+                        decimals={metric.precision ?? 2}
+                      />
+                    ))}
+                  </div>
+                )}
 
-            <LiveFormulaCard
-              moduleTitle={moduleTitle}
-              formulaEquation={formulaEquation}
-              domainLabel={domainLabel}
-              telemetryMetrics={telemetryMetrics}
-            />
+                <LiveFormulaCard
+                  moduleTitle={moduleTitle}
+                  formulaEquation={formulaEquation}
+                  domainLabel={domainLabel}
+                  telemetryMetrics={telemetryMetrics}
+                />
+              </>
+            ) : (
+              <>
+                <LiveTimeSeriesChart
+                  primaryLabel={primaryMetric?.label}
+                  primaryUnit={primaryMetric?.unit}
+                  secondaryLabel={secondaryMetric?.label}
+                  secondaryUnit={secondaryMetric?.unit}
+                />
 
-            <LiveTimeSeriesChart
-              primaryLabel={primaryMetric?.label}
-              primaryUnit={primaryMetric?.unit}
-              secondaryLabel={secondaryMetric?.label}
-              secondaryUnit={secondaryMetric?.unit}
-            />
-
-            {recentRecords.length > 0 && (
-              <div className="rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] p-2.5 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-2xs font-bold text-[var(--comfort-text-muted)] tabular-nums">
-                    Data Tercatat ({recordsCount})
-                  </span>
-                  {onProceedToAnalysis && (
-                    <button
-                      type="button"
-                      onClick={onProceedToAnalysis}
-                      className="text-2xs font-bold text-[var(--comfort-accent)] hover:underline cursor-pointer whitespace-nowrap"
-                    >
-                      Grafik &amp; LKS →
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-1 max-h-28 overflow-y-auto">
-                  {recentRecords.slice(0, 4).map((rec, idx) => (
-                    <div
-                      key={rec.id}
-                      className="flex items-center justify-between gap-1.5 px-2 py-1 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] font-mono text-2xs"
-                    >
-                      <span className="font-bold text-[var(--comfort-accent)] shrink-0 tabular-nums">
-                        #{idx + 1}
+                {recentRecords.length > 0 ? (
+                  <div className="rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] p-2.5 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-2xs font-bold text-[var(--comfort-text-muted)] tabular-nums">
+                        Data Tercatat ({recordsCount})
                       </span>
-                      <span className="truncate flex-1 text-[var(--comfort-text)]">
-                        {rec.parametersSummary}
-                      </span>
-                      {onDeleteRecord && (
+                      {onProceedToAnalysis && (
                         <button
                           type="button"
-                          onClick={() => onDeleteRecord(rec.id)}
-                          aria-label={`Hapus data percobaan ${idx + 1}`}
-                          className="text-[var(--comfort-text-muted)] hover:text-[var(--comfort-danger)] cursor-pointer shrink-0"
+                          onClick={onProceedToAnalysis}
+                          className="text-2xs font-bold text-[var(--comfort-accent)] hover:underline cursor-pointer whitespace-nowrap"
                         >
-                          <Trash2 className="w-3 h-3" aria-hidden="true" />
+                          Grafik &amp; LKS →
                         </button>
                       )}
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {recentRecords.slice(0, 6).map((rec, idx) => (
+                        <div
+                          key={rec.id}
+                          className="flex items-center justify-between gap-1.5 px-2 py-1 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] font-mono text-2xs"
+                        >
+                          <span className="font-bold text-[var(--comfort-accent)] shrink-0 tabular-nums">
+                            #{idx + 1}
+                          </span>
+                          <span className="truncate flex-1 text-[var(--comfort-text)]">
+                            {rec.parametersSummary}
+                          </span>
+                          {onDeleteRecord && (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteRecord(rec.id)}
+                              aria-label={`Hapus data percobaan ${idx + 1}`}
+                              className="text-[var(--comfort-text-muted)] hover:text-[var(--comfort-danger)] cursor-pointer shrink-0"
+                            >
+                              <Trash2 className="w-3 h-3" aria-hidden="true" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-[var(--comfort-border)] p-4 text-center text-2xs text-[var(--comfort-text-muted)]">
+                    Belum ada data tercatat. Tekan <strong>+ Catat Data</strong> atau tombol <kbd className="font-mono font-bold">D</kbd> untuk merekam titik uji.
+                  </div>
+                )}
+              </>
             )}
 
             <button
