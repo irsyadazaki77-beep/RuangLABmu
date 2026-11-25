@@ -10,6 +10,7 @@ import {
 import { sanitizeRoomForBroadcast } from '../utils/collabReconnectSync';
 import { detectLanIps } from '../utils/lanNetwork';
 import { rateLimitKeyGenerator } from '../utils/rateLimitKey';
+import { requireAuthMiddleware } from '../auth/sessionToken';
 import { DEFAULT_SCHOOL_ID } from '../db/LabRepository';
 import {
   formatValidationErrorResponse,
@@ -85,7 +86,7 @@ export function createLabRouter({
     res.json({ rooms });
   });
 
-  router.get('/api/lab-state', (_req, res) => {
+  router.get('/api/lab-state', requireAuthMiddleware, (_req, res) => {
     state.pruneExpiredLocks();
     res.json({
       records: state.experimentRecords,
@@ -299,7 +300,7 @@ export function createLabRouter({
   /**
    * Save or query room simulation parameters snapshot in `simulation_snapshots` table
    */
-  router.post('/api/rooms/snapshot', (req, res) => {
+  router.post('/api/rooms/snapshot', requireAuthMiddleware, (req, res) => {
     const check = validateRoomSnapshotPayload(req.body);
     if (!check.ok) {
       res.status(400).json(formatValidationErrorResponse(check));

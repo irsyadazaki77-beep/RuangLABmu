@@ -37,6 +37,8 @@ export const DEFAULT_VAD_CONFIG: VADConfig = {
   silenceHoldMs: 1100,
 };
 
+import { apiFetch } from '../utils/apiClient';
+
 export interface VoiceAssistantState {
   status: VoiceAssistantStatus;
   fullDuplexEnabled: boolean;
@@ -491,7 +493,7 @@ class FullDuplexAIVoiceAssistant {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3500);
-        const res = await fetch('/api/dr-labmu/ask', {
+        const res = await apiFetch('/api/dr-labmu/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ telemetry: payload }),

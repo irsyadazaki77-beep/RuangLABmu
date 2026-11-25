@@ -118,17 +118,6 @@ export function createAuthRouter({
         passwordHash: passcodeHash,
       });
 
-      // Keep local SQLite synchronized when hybrid PG mode is active
-      if (state.asyncRepository.driver === 'postgres') {
-        state.repository.upsertAuthCredential({
-          id: credentialId,
-          schoolId,
-          role: 'teacher',
-          username: 'default-teacher',
-          passwordHash: passcodeHash,
-        });
-      }
-
       const signed = signSessionToken({
         sub: credentialId,
         role: 'teacher',
@@ -170,6 +159,20 @@ export function createAuthRouter({
       const clientIp = rateLimitKeyGenerator(req);
 
       if (role === 'student') {
+        if (roomId) {
+          const targetRoom = state.activeLabRooms.get(roomId.toUpperCase()) as
+            | (import('../../src/utils/collabProtocol').LabRoom & { pinHash?: string })
+            | undefined;
+          const expectedSecret = targetRoom?.pinHash || targetRoom?.pin;
+          if (!targetRoom || !expectedSecret || !passcode || !verifyRoomPinTimingSafe(passcode, expectedSecret)) {
+            res.status(401).json({
+              error: 'UNAUTHORIZED',
+              code: 'INVALID_ROOM_PIN',
+              message: 'PIN ruangan tidak valid atau ruangan tidak ditemukan.',
+            });
+            return;
+          }
+        }
         const studentSub = userId || `stu-${crypto.randomUUID().slice(0, 8)}`;
         const resolvedName = displayName || 'Siswa Praktikan';
         const signed = signSessionToken({

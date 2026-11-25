@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { apiFetch } from '../utils/apiClient';
 import {
   speakNarration,
   stopNarration,
@@ -276,7 +277,7 @@ export function useDrLabMuChat({
       const askController = new AbortController();
       const askTimeoutId = window.setTimeout(() => askController.abort(), 8000);
       try {
-        const res = await fetch('/api/dr-labmu/ask', {
+        const res = await apiFetch('/api/dr-labmu/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ telemetry: payload }),
@@ -323,7 +324,7 @@ export function useDrLabMuChat({
         setIsStreaming(true);
         setStreamingText('');
         try {
-          const res = await fetch('/api/ai/dr-labmu/stream', {
+          const res = await apiFetch('/api/ai/dr-labmu/stream', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -523,7 +524,7 @@ export function useDrLabMuChat({
     const visionController = new AbortController();
     const visionTimeoutId = window.setTimeout(() => visionController.abort(), 8000);
     try {
-      const res = await fetch('/api/ai/vision-diagnose', {
+      const res = await apiFetch('/api/ai/vision-diagnose', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

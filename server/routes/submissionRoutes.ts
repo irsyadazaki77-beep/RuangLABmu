@@ -262,9 +262,10 @@ export async function createSubmissionRouter({
       submittedAt: sub.submittedAt,
     };
 
-    state.repository.upsertSubmission(submissionInput);
     if (state.asyncRepository.driver === 'postgres') {
       await state.asyncRepository.upsertSubmission(submissionInput);
+    } else {
+      state.repository.upsertSubmission(submissionInput);
     }
 
     state.saveGradebookEntry({

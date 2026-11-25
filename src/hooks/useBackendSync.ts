@@ -16,6 +16,7 @@ import { ServerToClientMessageSchema } from '../shared/contracts/wsContracts';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { DEFAULT_SCHOOL_ID, flushOfflineOutbox } from '../utils/offlineOutbox';
 import { useAuthStore } from '../stores/useAuthStore';
+import { apiFetch } from '../utils/apiClient';
 
 export interface BackendSyncState {
   records: ExperimentRecord[];
@@ -280,7 +281,7 @@ export function useBackendSync(
     let cancelled = false;
     const hydrate = async () => {
       try {
-        const res = await fetch('/api/lab-state');
+        const res = await apiFetch('/api/lab-state');
         if (res.ok && !cancelled) {
           const data: unknown = await res.json();
           if (isPlainObject(data)) {

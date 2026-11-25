@@ -115,6 +115,8 @@ export function handleRoomCreate(
     ws.sessionClaims = tokenClaims;
   }
 
+  const isStrictProd =
+    process.env.NODE_ENV === 'production' && process.env.RUANGLAB_PORTABLE !== '1';
   const isTokenTeacher = Boolean(
     tokenClaims && (tokenClaims.role === 'teacher' || tokenClaims.role === 'admin')
   );
@@ -132,7 +134,7 @@ export function handleRoomCreate(
           typeof rawTeacherPayload.teacherToken === 'string'
             ? rawTeacherPayload.teacherToken
             : undefined,
-        isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
+        isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar' || !isStrictProd,
       });
 
   if (!teacherAuth.authorized) {

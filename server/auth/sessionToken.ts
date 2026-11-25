@@ -35,6 +35,11 @@ function getSigningSecretKey(): Buffer {
   if (envSecret && envSecret.length >= 16) {
     return crypto.createHash('sha256').update(envSecret, 'utf8').digest();
   }
+  if (process.env.NODE_ENV === 'production' && process.env.RUANGLAB_PORTABLE !== '1') {
+    throw new Error(
+      'SESSION_SIGNING_SECRET environment variable (>=16 characters) is required in production.'
+    );
+  }
   return EPHEMERAL_SESSION_SECRET;
 }
 

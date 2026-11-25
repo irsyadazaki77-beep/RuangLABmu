@@ -648,9 +648,19 @@ describe('Backend Upgrade: Consolidated SQLite, Auth/RBAC, Pagination, Backup, W
 
     const harness = await createTestHarness();
     try {
+      const { signSessionToken } = await import('../auth/sessionToken');
+      const studentToken = signSessionToken({
+        sub: 'stu-stream-1',
+        role: 'student',
+        schoolId: 'default-school',
+        displayName: 'Siswa Uji',
+      }).token;
       const res = await fetch(`${harness.baseUrl}/api/ai/dr-labmu/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${studentToken}`,
+        },
         body: JSON.stringify({
           message: 'Mengapa percepatan benda meningkat saat gaya ditambah?',
           telemetry: {

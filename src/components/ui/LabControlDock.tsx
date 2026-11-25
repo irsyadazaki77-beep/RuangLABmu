@@ -363,7 +363,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           data-testid="dock-record-trial-btn"
           onClick={() => handleRecordTrial('dock')}
           title="[D] Catat Data Pengamatan 3D Saat Ini"
-          aria-label="Catat Data Pengamatan 3D (Shortcut D)"
+          aria-label="+ Catat Data Pengamatan 3D (Shortcut D)"
           className={`min-h-[34px] px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-[0.96] cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             recordPulse
               ? 'bg-[var(--comfort-success)] text-white shadow-sm'

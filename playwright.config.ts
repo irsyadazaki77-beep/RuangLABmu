@@ -75,6 +75,7 @@ export default defineConfig({
       PORT: '3000',
       APP_URL: 'http://localhost:3000',
       ALLOWED_ORIGINS: 'http://localhost:3000,http://127.0.0.1:3000',
+      SESSION_SIGNING_SECRET: 'ci-playwright-e2e-signing-secret-2026',
     },
   },
 });

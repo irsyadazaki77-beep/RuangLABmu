@@ -113,6 +113,23 @@ export function handleClientIdentify(
     isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
   });
   ws.role = authCheck.authorized ? 'Pengajar' : 'Siswa';
+
+  if (ws.sessionClaims || ws.roomId) {
+    state.pruneExpiredLocks();
+    ws.send(
+      JSON.stringify({
+        type: 'init:state',
+        payload: {
+          records: state.experimentRecords,
+          tasks: state.groupTasks,
+          notes: state.collabNotes,
+          students: state.studentRoster,
+          notifications: state.notifications,
+          paramLocks: Array.from(state.parameterLocks.values()),
+        },
+      })
+    );
+  }
 }
 
 export interface TeacherAuthPayloadFields {

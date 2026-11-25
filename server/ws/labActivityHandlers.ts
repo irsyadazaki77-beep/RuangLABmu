@@ -28,11 +28,17 @@ function emitScopedActivity(
   services.broadcastAll(payload);
 }
 
+function isWsIdentifiedOrInRoom(ws?: ExtWebSocket): boolean {
+  if (!ws) return true;
+  return Boolean(ws.sessionClaims || ws.roomId || ws.userId);
+}
+
 export function handleRecordCreate(
   rec: WsPayloadOf<'record:create'>,
   services: WsHandlerServices,
   ws?: ExtWebSocket
 ): void {
+  if (!isWsIdentifiedOrInRoom(ws)) return;
   const { state } = services;
   if (!state.experimentRecords.some((r) => r.id === rec.id)) {
     state.experimentRecords.unshift(rec);
@@ -81,6 +87,7 @@ export function handleTaskToggle(
   services: WsHandlerServices,
   ws?: ExtWebSocket
 ): void {
+  if (!isWsIdentifiedOrInRoom(ws)) return;
   const { state } = services;
   const taskId = payload.id;
   const task = state.groupTasks.find((t) => t.id === taskId);
@@ -102,6 +109,7 @@ export function handleTaskCreate(
   services: WsHandlerServices,
   ws?: ExtWebSocket
 ): void {
+  if (!isWsIdentifiedOrInRoom(ws)) return;
   const { state } = services;
   const title = payload.title;
   if (!title) return;
@@ -133,6 +141,7 @@ export function handleNoteCreate(
   services: WsHandlerServices,
   ws?: ExtWebSocket
 ): void {
+  if (!isWsIdentifiedOrInRoom(ws)) return;
   const { state } = services;
   const text = payload.text;
   if (!text) return;

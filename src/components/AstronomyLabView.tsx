@@ -329,17 +329,53 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
       telemetryMetrics={telemetryMetrics}
-      oscilloscope={{
-        primaryLabel: telemetryMetrics[0].label,
-        primaryValue: telemetryMetrics[0].value,
-        primaryUnit: telemetryMetrics[0].unit,
-        secondaryLabel: telemetryMetrics[1].label,
-        secondaryValue: telemetryMetrics[1].value,
-        secondaryUnit: telemetryMetrics[1].unit,
-        microscopicStateLabel: `Orbit Ke-3 Kepler: a³ = ${(Math.pow(params.customSemiMajorAxisAu, 3)).toFixed(2)} AU³, T² = ${(Math.pow(metrics.orbitalPeriodYears, 2)).toFixed(2)} thn²`,
-        microscopicDetail: `Gravitasi sentripetal menyeimbangkan kecepatan orbit planet.`,
-        accentColor: '#38bdf8',
-      }}
+      oscilloscope={(() => {
+        const modeHint = (() => {
+          switch (params.mode) {
+            case 'planetary-atmosphere-greenhouse':
+              return {
+                label: `Neraca Termal: Teq = ${(metrics.equilibriumTempK ?? 254.9).toFixed(1)} K · ΔT_GH = +${(metrics.greenhouseWarmingDeltaK ?? 33.5).toFixed(1)} K`,
+                detail: `Albedo A = ${(params.planetaryAlbedo ?? 0.3).toFixed(2)} memantulkan sebagian fluks surya; CO₂ (${params.greenhouseGasPpm ?? 420} ppm) memerangkap radiasi inframerah.`,
+              };
+            case 'milkyway-galaxy':
+              return {
+                label: `Kurva Rotasi: v_obs = ${metrics.observedDarkMatterVelocityKms} km/s vs Kepler ${metrics.keplerianVelocityKms} km/s`,
+                detail: `Halo materi gelap menjaga kecepatan rotasi galaksi tetap datar pada radius besar.`,
+              };
+            case 'stellar-exoplanet':
+              return {
+                label: `Transit Fotometri: Kedalaman = ${metrics.transitDepthPct}% (${metrics.transitDepthPpm} ppm)`,
+                detail: `Penurunan fluks bintang sebanding dengan kuadrat rasio jejari planet terhadap bintang (Rp/R*)².`,
+              };
+            case 'stellar-wien-spectrum':
+              return {
+                label: `Hukum Wien: λmax = ${metrics.wienPeakWavelengthNm ?? metrics.peakWavelengthNm ?? 502} nm · T = ${params.starEffectiveTempK} K`,
+                detail: `Semakin panas fotosfer bintang, puncak spektrum radiasi benda hitam bergeser ke panjang gelombang lebih pendek.`,
+              };
+            case 'hubble-expansion':
+              return {
+                label: `Hukum Hubble: v = ${metrics.hubbleRecessionVelocityKmS ?? 8400} km/s · z = ${(metrics.hubbleRedshiftZ ?? 0.028).toFixed(3)}`,
+                detail: `Kecepatan resesi galaksi berbanding lurus dengan jarak kosmologisnya (v = H₀ · d).`,
+              };
+            default:
+              return {
+                label: `Orbit Ke-3 Kepler: a³ = ${Math.pow(params.customSemiMajorAxisAu, 3).toFixed(2)} AU³, T² = ${Math.pow(metrics.orbitalPeriodYears, 2).toFixed(2)} thn²`,
+                detail: `Gravitasi sentripetal menyeimbangkan kecepatan orbit planet.`,
+              };
+          }
+        })();
+        return {
+          primaryLabel: telemetryMetrics[0].label,
+          primaryValue: telemetryMetrics[0].value,
+          primaryUnit: telemetryMetrics[0].unit,
+          secondaryLabel: telemetryMetrics[1].label,
+          secondaryValue: telemetryMetrics[1].value,
+          secondaryUnit: telemetryMetrics[1].unit,
+          microscopicStateLabel: modeHint.label,
+          microscopicDetail: modeHint.detail,
+          accentColor: '#38bdf8',
+        };
+      })()}
       shutterFlash={shutterFlash}
       zenMode={zenMode}
       activeCameraPreset={activeCameraPreset}

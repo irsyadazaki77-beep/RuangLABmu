@@ -12,7 +12,10 @@ import {
   normalizeCustomMissionPayload,
   resolveModuleBlueprint,
 } from '../../src/utils/collabProtocol';
-import { requireTeacherAuthMiddleware } from '../auth/sessionToken';
+import {
+  requireAuthMiddleware,
+  requireTeacherAuthMiddleware,
+} from '../auth/sessionToken';
 import {
   DR_LABMU_MODEL,
   getSharedGeminiClient,
@@ -193,6 +196,7 @@ export function createAiRouter({
 
   router.post(
     ['/api/generate-mission', '/api/ai/generate-mission'],
+    requireAuthMiddleware,
     async (req, res) => {
       try {
         const check = validateGenerateMissionPayload(req.body);
@@ -322,7 +326,7 @@ export function createAiRouter({
     }
   });
 
-  router.post(['/api/dr-labmu/ask', '/api/assistant'], async (req, res) => {
+  router.post(['/api/dr-labmu/ask', '/api/assistant'], requireAuthMiddleware, async (req, res) => {
     try {
       const check = validateDrLabMuAskPayload(req.body);
       if (!check.ok) {
@@ -463,7 +467,7 @@ export function createAiRouter({
    * Streaming SSE endpoint for Dr. LabMu conversational mentoring.
    * Emits Server-Sent Events: `meta`, `chunk`, `actions`, `error`, `done`.
    */
-  router.post('/api/ai/dr-labmu/stream', async (req, res) => {
+  router.post('/api/ai/dr-labmu/stream', requireAuthMiddleware, async (req, res) => {
     const check = validateConversationalDrLabMuPayload(req.body);
     if (!check.ok) {
       res.status(400).json(formatValidationErrorResponse(check));
@@ -605,7 +609,7 @@ ${activeQuery.slice(0, 600)}
     }
   });
 
-  router.post('/api/ai/dr-labmu', async (req, res) => {
+  router.post('/api/ai/dr-labmu', requireAuthMiddleware, async (req, res) => {
     try {
       const check = validateConversationalDrLabMuPayload(req.body);
       if (!check.ok) {
@@ -700,7 +704,7 @@ ${activeQuery.slice(0, 600)}
     }
   });
 
-  router.post('/api/ai/vision-diagnose', async (req, res) => {
+  router.post('/api/ai/vision-diagnose', requireAuthMiddleware, async (req, res) => {
     try {
       const check = validateVisionDiagnosePayload(req.body);
       if (!check.ok) {

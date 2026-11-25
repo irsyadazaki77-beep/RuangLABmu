@@ -395,16 +395,18 @@ export function createCollabSocketServer(
 
     state.pruneExpiredLocks();
 
+    // Do not leak global records/notes/students to unauthenticated sockets on raw connect;
+    // scoped state is delivered after client:identify / ROOM_JOIN.
     ws.send(
       JSON.stringify({
         type: 'init:state',
         payload: {
-          records: state.experimentRecords,
-          tasks: state.groupTasks,
-          notes: state.collabNotes,
-          students: state.studentRoster,
-          notifications: state.notifications,
-          paramLocks: Array.from(state.parameterLocks.values()),
+          records: [],
+          tasks: [],
+          notes: [],
+          students: [],
+          notifications: [],
+          paramLocks: [],
         },
       })
     );
