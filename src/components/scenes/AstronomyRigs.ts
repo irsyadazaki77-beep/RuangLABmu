@@ -16,6 +16,7 @@ import {
   applyBorosilicateLiteMode,
   createBorosilicateGlassMaterial,
   createPlanetSurfaceTexture,
+  createTerrestrialPbrMaps,
   createVectorArrowGroup,
   orientAndScaleVectorArrow,
   wavelengthNmToHex,
@@ -1720,20 +1721,24 @@ export function buildHubbleExpansionRig(): AstronomyRigHandle {
 export function buildPlanetaryGreenhouseRig(): AstronomyRigHandle {
   const ghGroup = new THREE.Group();
   const planetSurfaceTex = createPlanetSurfaceTexture({
-    baseHex: '#0284c7',
-    accentHex: '#16a34a',
+    baseHex: '#0369a1',
+    accentHex: '#15803d',
     style: 'terrestrial',
   });
+  const planetPbrMaps = createTerrestrialPbrMaps();
   const cloudTex = createTerrestrialCloudTexture();
 
-  // Central Terrestrial Planet Globe (r = 1.65)
+  // Central Terrestrial Planet Globe (r = 1.65, 64x64 segments with ocean/land roughness & terrain relief)
   const planetMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     map: planetSurfaceTex,
-    roughness: 0.55,
-    metalness: 0.08,
+    roughnessMap: planetPbrMaps?.roughnessMap ?? null,
+    bumpMap: planetPbrMaps?.bumpMap ?? null,
+    bumpScale: 0.045,
+    roughness: 0.85,
+    metalness: 0.06,
   });
-  const planetGlobe = new THREE.Mesh(new THREE.SphereGeometry(1.65, 40, 40), planetMat);
+  const planetGlobe = new THREE.Mesh(new THREE.SphereGeometry(1.65, 64, 64), planetMat);
   planetGlobe.position.set(0, 0.75, 0);
   planetGlobe.castShadow = true;
   planetGlobe.receiveShadow = true;
@@ -1828,6 +1833,8 @@ export function buildPlanetaryGreenhouseRig(): AstronomyRigHandle {
   );
   ghBoard.position.set(0, -2.05, 1.1);
   ghBoard.rotation.x = -0.25;
+  // Hide floating 3D text signboard to keep the planetary stage uncluttered (metrics live in Telemetry HUD)
+  ghBoard.visible = false;
   ghGroup.add(ghBoard);
 
   const vecOrigin = new THREE.Vector3();

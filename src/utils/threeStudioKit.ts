@@ -647,8 +647,39 @@ export function smoothCameraDamp(
   return smoothCameraTransition(camera, controls, targetPos, targetLookAt, factor);
 }
 
+function smoothValueNoise2D(x: number, y: number, seedOffset = 0): number {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const n00 = seededNoise(xi, yi, seedOffset);
+  const n10 = seededNoise(xi + 1, yi, seedOffset);
+  const n01 = seededNoise(xi, yi + 1, seedOffset);
+  const n11 = seededNoise(xi + 1, yi + 1, seedOffset);
+  const nx0 = n00 * (1 - u) + n10 * u;
+  const nx1 = n01 * (1 - u) + n11 * u;
+  return nx0 * (1 - v) + nx1 * v;
+}
+
+function fbmNoise2D(x: number, y: number, octaves = 4, seedOffset = 0): number {
+  let value = 0;
+  let amp = 0.5;
+  let freq = 1;
+  let norm = 0;
+  for (let o = 0; o < octaves; o += 1) {
+    value += amp * smoothValueNoise2D(x * freq, y * freq, seedOffset + o * 17);
+    norm += amp;
+    amp *= 0.5;
+    freq *= 2.02;
+  }
+  return value / norm;
+}
+
 /**
- * Generates procedural banded/cloudy/cratered planet surface textures so celestial spheres have organic detail.
+ * Generates high-detail FBM procedural planet surface textures (terrestrial oceans/continents/ice,
+ * turbulent gas-giant bands, or cratered rocky/ice terrain) for realistic celestial rendering.
  */
 export function createPlanetSurfaceTexture(options: {
   baseHex: string;
@@ -666,57 +697,87 @@ export function createPlanetSurfaceTexture(options: {
 
   const base = new THREE.Color(options.baseHex);
   const accent = new THREE.Color(options.accentHex);
+  const imgData = ctx.createImageData(w, h);
+  const data = imgData.data;
 
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, accent.clone().lerp(base, 0.45).getStyle());
-  grad.addColorStop(0.5, base.getStyle());
-  grad.addColorStop(1, accent.clone().lerp(base, 0.35).getStyle());
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, h);
+  const deepOcean = base.clone().multiplyScalar(0.52);
+  const shallowOcean = base.clone().lerp(new THREE.Color('#38bdf8'), 0.32);
+  const beachCol = new THREE.Color('#d6c69c');
+  const highlandCol = accent.clone().lerp(new THREE.Color('#786346'), 0.55);
+  const snowCol = new THREE.Color('#f1f5f9');
+  const tmpColor = new THREE.Color();
+
+  for (let py = 0; py < h; py += 1) {
+    const v = py / h;
+    const lat = Math.abs(v - 0.5) * 2; // 0 at equator, 1 at poles
+    const phi = (v - 0.5) * Math.PI;
+    const cosPhi = Math.cos(phi);
+
+    for (let px = 0; px < w; px += 1) {
+      const u = px / w;
+      const theta = u * Math.PI * 2;
+      // Seamless cylindrical-to-3D projection coordinates for noise sampling
+      const nx = Math.cos(theta) * cosPhi * 2.6 + 4.1;
+      const ny = Math.sin(theta) * cosPhi * 2.6 + Math.sin(phi) * 2.6 + 2.3;
+      const idx = (py * w + px) * 4;
+
+      if (options.style === 'terrestrial') {
+        const n = fbmNoise2D(nx, ny, 5, 11);
+        const detail = fbmNoise2D(nx * 2.4, ny * 2.4, 3, 47);
+        const polarIce = lat + (detail - 0.5) * 0.14;
+
+        if (polarIce > 0.87) {
+          tmpColor.copy(snowCol).lerp(shallowOcean, 0.08);
+        } else if (n < 0.49) {
+          const depthT = Math.max(0, Math.min(1, n / 0.49));
+          tmpColor.copy(deepOcean).lerp(shallowOcean, depthT * depthT);
+        } else if (n < 0.525) {
+          tmpColor.copy(beachCol).lerp(accent, (n - 0.49) / 0.035);
+        } else if (n < 0.67) {
+          const landT = (n - 0.525) / 0.145;
+          tmpColor.copy(accent).lerp(highlandCol, landT * 0.72 + (detail - 0.5) * 0.25);
+        } else {
+          const mtnT = Math.min(1, (n - 0.67) / 0.18);
+          tmpColor.copy(highlandCol).lerp(snowCol, mtnT * 0.8);
+        }
+      } else if (options.style === 'gas-giant') {
+        const warp = (fbmNoise2D(nx * 1.4, ny * 1.4, 4, 29) - 0.5) * 0.14;
+        const band = Math.sin((v + warp) * Math.PI * 12) * 0.5 + 0.5;
+        const micro = fbmNoise2D(nx * 3.0, ny * 1.2, 3, 73);
+        tmpColor.copy(base).lerp(accent, Math.min(1, Math.max(0, band * 0.78 + (micro - 0.5) * 0.24)));
+      } else {
+        const n = fbmNoise2D(nx * 1.6, ny * 1.6, 4, 31);
+        const ridge = Math.abs(fbmNoise2D(nx * 3.1, ny * 3.1, 3, 61) - 0.5) * 2;
+        tmpColor.copy(base).lerp(accent, Math.min(1, Math.max(0, n * 0.75 + ridge * 0.25)));
+        if (options.style === 'ice' && lat > 0.75) {
+          tmpColor.lerp(snowCol, 0.45);
+        }
+      }
+
+      data[idx] = Math.round(tmpColor.r * 255);
+      data[idx + 1] = Math.round(tmpColor.g * 255);
+      data[idx + 2] = Math.round(tmpColor.b * 255);
+      data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
 
   if (options.style === 'gas-giant') {
-    for (let y = 0; y < h; y += 3) {
-      const wave = Math.sin(y * 0.16) * 0.5 + 0.5;
-      const bandColor = base.clone().lerp(accent, wave * 0.72);
-      ctx.fillStyle = `rgba(${Math.round(bandColor.r * 255)},${Math.round(bandColor.g * 255)},${Math.round(bandColor.b * 255)},0.55)`;
-      ctx.fillRect(0, y, w, 3 + (seededNoise(y, 4, 2) > 0.7 ? 2 : 0));
-    }
-    // Great storm oval
-    ctx.fillStyle = accent.clone().lerp(new THREE.Color('#ffffff'), 0.25).getStyle();
+    const stormGrad = ctx.createRadialGradient(w * 0.62, h * 0.58, 3, w * 0.62, h * 0.58, 28);
+    stormGrad.addColorStop(0, accent.clone().lerp(new THREE.Color('#fff7ed'), 0.35).getStyle());
+    stormGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = stormGrad;
     ctx.beginPath();
-    ctx.ellipse(w * 0.62, h * 0.58, 28, 13, 0, 0, Math.PI * 2);
+    ctx.ellipse(w * 0.62, h * 0.58, 28, 14, 0, 0, Math.PI * 2);
     ctx.fill();
-  } else if (options.style === 'terrestrial') {
-    for (let i = 0; i < 42; i += 1) {
-      const cx = seededNoise(i, 1, 9) * w;
-      const cy = 24 + seededNoise(i, 2, 5) * (h - 48);
-      const rx = 18 + seededNoise(i, 3, 12) * 52;
-      const ry = 10 + seededNoise(i, 4, 15) * 28;
-      ctx.fillStyle = accent.clone().lerp(base, 0.25).getStyle();
-      ctx.globalAlpha = 0.65;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rx, ry, seededNoise(i, 5, 2) * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 0.28;
-    ctx.fillStyle = '#ffffff';
-    for (let i = 0; i < 24; i += 1) {
-      const cx = seededNoise(i, 9, 41) * w;
-      const cy = seededNoise(i, 8, 23) * h;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, 34, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  } else {
-    // Crater / icy rift detail
-    for (let i = 0; i < 75; i += 1) {
+  } else if (options.style === 'rocky' || options.style === 'ice') {
+    for (let i = 0; i < 48; i += 1) {
       const cx = seededNoise(i, 1, 31) * w;
       const cy = seededNoise(i, 2, 17) * h;
-      const rad = 4 + seededNoise(i, 3, 21) * 14;
-      ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-      ctx.fillStyle = 'rgba(15,23,42,0.18)';
-      ctx.lineWidth = 1.4;
+      const rad = 3 + seededNoise(i, 3, 21) * 11;
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      ctx.fillStyle = 'rgba(15,23,42,0.22)';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.arc(cx, cy, rad, 0, Math.PI * 2);
       ctx.fill();
@@ -730,6 +791,60 @@ export function createPlanetSurfaceTexture(options: {
   tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.needsUpdate = true;
   return tex;
+}
+
+/**
+ * Generates matching roughness & bump maps for terrestrial planets
+ * (glossy oceans vs matte land + elevated terrain relief).
+ */
+export function createTerrestrialPbrMaps(): {
+  roughnessMap: THREE.CanvasTexture;
+  bumpMap: THREE.CanvasTexture;
+} | null {
+  if (typeof document === 'undefined') return null;
+  const w = 512;
+  const h = 256;
+  const roughCanvas = document.createElement('canvas');
+  roughCanvas.width = w;
+  roughCanvas.height = h;
+  const rCtx = roughCanvas.getContext('2d');
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = w;
+  bumpCanvas.height = h;
+  const bCtx = bumpCanvas.getContext('2d');
+  if (!rCtx || !bCtx) return null;
+
+  const rImg = rCtx.createImageData(w, h);
+  const bImg = bCtx.createImageData(w, h);
+  for (let py = 0; py < h; py += 1) {
+    const v = py / h;
+    const phi = (v - 0.5) * Math.PI;
+    const cosPhi = Math.cos(phi);
+    for (let px = 0; px < w; px += 1) {
+      const theta = (px / w) * Math.PI * 2;
+      const nx = Math.cos(theta) * cosPhi * 2.6 + 4.1;
+      const ny = Math.sin(theta) * cosPhi * 2.6 + Math.sin(phi) * 2.6 + 2.3;
+      const n = fbmNoise2D(nx, ny, 5, 11);
+      const isLand = n >= 0.49;
+      const roughVal = isLand ? 215 : 62; // matte land vs glossy ocean
+      const bumpVal = isLand ? Math.min(255, Math.round(90 + (n - 0.49) * 340)) : 40;
+      const idx = (py * w + px) * 4;
+      rImg.data[idx] = rImg.data[idx + 1] = rImg.data[idx + 2] = roughVal;
+      rImg.data[idx + 3] = 255;
+      bImg.data[idx] = bImg.data[idx + 1] = bImg.data[idx + 2] = bumpVal;
+      bImg.data[idx + 3] = 255;
+    }
+  }
+  rCtx.putImageData(rImg, 0, 0);
+  bCtx.putImageData(bImg, 0, 0);
+
+  const roughnessMap = new THREE.CanvasTexture(roughCanvas);
+  roughnessMap.wrapS = THREE.RepeatWrapping;
+  roughnessMap.wrapT = THREE.ClampToEdgeWrapping;
+  const bumpMap = new THREE.CanvasTexture(bumpCanvas);
+  bumpMap.wrapS = THREE.RepeatWrapping;
+  bumpMap.wrapT = THREE.ClampToEdgeWrapping;
+  return { roughnessMap, bumpMap };
 }
 
 export interface StudioWorkbenchResult {
@@ -789,7 +904,7 @@ export function createStudioWorkbenchGroup(
   );
   gridHelper.position.y = floorY + 0.01;
   (gridHelper.material as THREE.Material).transparent = true;
-  (gridHelper.material as THREE.Material).opacity = 0.38;
+  (gridHelper.material as THREE.Material).opacity = 0.22;
   group.add(gridHelper);
 
   const applyGridColors = (primaryHex?: number, secondaryHex?: number) => {
@@ -816,8 +931,8 @@ export function createStudioWorkbenchGroup(
     map: benchTex?.map ?? null,
     roughnessMap: benchTex?.roughnessMap ?? null,
     bumpMap: benchTex?.bumpMap ?? null,
-    bumpScale: 0.006,
-    roughness: 0.56,
+    bumpScale: 0.008,
+    roughness: 0.44,
     metalness: 0.08,
     envMapIntensity: 0.68,
   });
