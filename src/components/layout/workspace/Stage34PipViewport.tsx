@@ -88,8 +88,8 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
           : pip3DMode === 'split'
           ? 'w-full lg:w-[45%] h-[300px] lg:h-full shrink-0 flex flex-col overflow-hidden relative border-b lg:border-b-0 lg:border-r border-[var(--comfort-border)] bg-[var(--comfort-surface)]'
           : pip3DMode === 'pip'
-          ? 'fixed bottom-4 right-4 w-[310px] sm:w-[360px] h-[235px] z-30 rounded-xl border border-sky-500/45 bg-[var(--comfort-surface)] shadow-2xl overflow-hidden flex flex-col'
-          : 'fixed bottom-4 right-4 w-auto h-auto z-30 rounded-xl border border-sky-500/40 studio-hud-surface shadow-xl overflow-hidden flex flex-col'
+          ? 'fixed bottom-4 right-4 w-[310px] sm:w-[360px] h-[235px] z-30 rounded-xl border border-[var(--comfort-accent-border)] bg-[var(--comfort-surface)] shadow-2xl overflow-hidden flex flex-col'
+          : 'fixed bottom-4 right-4 w-auto h-auto z-30 rounded-xl border border-[var(--comfort-accent-border)] studio-hud-surface shadow-xl overflow-hidden flex flex-col'
       }
     >
       {/* Active Mystery Sample Forensic Exam Banner (All 4 Domains on Step 2) */}
@@ -129,10 +129,10 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
                 onChangePip3DMode(pip3DMode === 'split' ? 'pip' : 'split');
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
               }}
-              className={`px-2 py-0.5 rounded font-mono text-2xs font-bold cursor-pointer transition-colors ${
+              className={`px-2 py-1 rounded font-mono text-2xs font-bold cursor-pointer transition-colors ${
                 pip3DMode === 'split'
-                  ? 'bg-sky-600 text-white'
-                  : 'studio-hud-subcard border hover:border-sky-500/50 text-[var(--comfort-hud-text)]'
+                  ? 'comfort-tab-active'
+                  : 'studio-hud-subcard border hover:border-[var(--comfort-accent-border)] text-[var(--comfort-hud-text)]'
               }`}
               title="Alihkan antara Split 45%/55% dan Jendela Melayang Mini-PiP"
             >
@@ -146,7 +146,7 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
                 onChangePip3DMode(pip3DMode === 'minimized' ? 'pip' : 'minimized');
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
               }}
-              className="px-2 py-0.5 rounded studio-hud-subcard border hover:border-sky-500/50 text-[var(--comfort-hud-text)] font-mono text-2xs cursor-pointer transition-colors"
+              className="px-2 py-1 rounded studio-hud-subcard border hover:border-[var(--comfort-accent-border)] text-[var(--comfort-hud-text)] font-mono text-2xs cursor-pointer transition-colors"
             >
               {pip3DMode === 'minimized' ? 'Tampilkan 3D' : 'Kecilkan'}
             </button>
@@ -157,7 +157,7 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
                 labSound.playClick();
                 setWorkflowStep(2);
               }}
-              className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-2xs font-bold cursor-pointer transition-colors"
+              className="px-2 py-1 rounded comfort-btn-primary font-mono text-2xs font-bold cursor-pointer transition-colors"
             >
               Penuh
             </button>

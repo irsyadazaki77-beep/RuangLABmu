@@ -217,6 +217,10 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
   const [hasManualDatasetChoice, setHasManualDatasetChoice] = useState<boolean>(false);
 
   useEffect(() => {
+    setHasManualDatasetChoice(false);
+  }, [moduleId]);
+
+  useEffect(() => {
     if (!hasManualDatasetChoice) {
       if (hasDistinctModuleX) {
         setSelectedDatasetKey('module-records');
@@ -662,8 +666,10 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
             {hypothesisNote && (
               <div className={records.length >= 2 ? 'lg:col-span-6' : 'lg:col-span-12'}>
                 <HypothesisScratchpadCard
+                  moduleTitle={activeMod?.title || activeDataset.title}
                   note={hypothesisNote}
-                  onChange={(next) => onChangeHypothesisNote?.(next)}
+                  onChangeNote={(next) => onChangeHypothesisNote?.(next)}
+                  records={records}
                 />
               </div>
             )}

@@ -840,7 +840,7 @@ export const DrLabMuAssistantPanel: React.FC<DrLabMuAssistantPanelProps> = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
             onClick={() => setOpen(false)}
-            className={`fixed inset-0 ${isFullBleedActiveLab ? 'top-0' : 'top-14'} bg-slate-950/65 z-40`}
+            className={`fixed inset-x-0 bottom-0 ${isFullBleedActiveLab ? 'top-0' : 'top-14'} bg-black/55 backdrop-blur-[1px] z-40`}
           />
           <motion.aside
             key="dr-labmu-drawer"

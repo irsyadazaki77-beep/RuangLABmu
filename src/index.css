@@ -125,10 +125,13 @@
     --comfort-accent-border: rgba(15, 107, 117, 0.30);
     --comfort-success: #237A57;
     --comfort-success-soft: rgba(35, 122, 87, 0.10);
+    --comfort-success-border: rgba(35, 122, 87, 0.30);
     --comfort-warning: #A6631B;
     --comfort-warning-soft: rgba(166, 99, 27, 0.10);
+    --comfort-warning-border: rgba(166, 99, 27, 0.32);
     --comfort-danger: #B83B4B;
     --comfort-danger-soft: rgba(184, 59, 75, 0.10);
+    --comfort-danger-border: rgba(184, 59, 75, 0.32);
     --comfort-scrollbar-thumb: rgba(145, 136, 120, 0.48);
     --comfort-scrollbar-thumb-hover: rgba(108, 100, 86, 0.75);
     --comfort-font-scale: 1;
@@ -291,10 +294,13 @@
     --comfort-accent-border: rgba(15, 107, 117, 0.30);
     --comfort-success: #237A57;
     --comfort-success-soft: rgba(35, 122, 87, 0.10);
+    --comfort-success-border: rgba(35, 122, 87, 0.30);
     --comfort-warning: #A6631B;
     --comfort-warning-soft: rgba(166, 99, 27, 0.10);
+    --comfort-warning-border: rgba(166, 99, 27, 0.32);
     --comfort-danger: #B83B4B;
     --comfort-danger-soft: rgba(184, 59, 75, 0.10);
+    --comfort-danger-border: rgba(184, 59, 75, 0.32);
     --comfort-scrollbar-thumb: rgba(145, 136, 120, 0.48);
     --comfort-scrollbar-thumb-hover: rgba(108, 100, 86, 0.75);
   }
@@ -329,10 +335,13 @@
     --comfort-accent-border: rgba(19, 93, 102, 0.30);
     --comfort-success: #286F52;
     --comfort-success-soft: rgba(40, 111, 82, 0.10);
+    --comfort-success-border: rgba(40, 111, 82, 0.32);
     --comfort-warning: #9A5A17;
     --comfort-warning-soft: rgba(154, 90, 23, 0.10);
+    --comfort-warning-border: rgba(154, 90, 23, 0.34);
     --comfort-danger: #A63A43;
     --comfort-danger-soft: rgba(166, 58, 67, 0.10);
+    --comfort-danger-border: rgba(166, 58, 67, 0.34);
     --comfort-scrollbar-thumb: rgba(145, 132, 112, 0.48);
     --comfort-scrollbar-thumb-hover: rgba(112, 100, 82, 0.75);
   }
@@ -390,10 +399,13 @@
     --comfort-accent-border: rgba(86, 197, 209, 0.36);
     --comfort-success: #52C493;
     --comfort-success-soft: rgba(82, 196, 147, 0.14);
+    --comfort-success-border: rgba(82, 196, 147, 0.36);
     --comfort-warning: #E5A952;
     --comfort-warning-soft: rgba(229, 169, 82, 0.14);
+    --comfort-warning-border: rgba(229, 169, 82, 0.38);
     --comfort-danger: #E87A86;
     --comfort-danger-soft: rgba(232, 122, 134, 0.14);
+    --comfort-danger-border: rgba(232, 122, 134, 0.38);
     --comfort-scrollbar-thumb: rgba(82, 99, 128, 0.68);
     --comfort-scrollbar-thumb-hover: rgba(114, 134, 168, 0.90);
     --chart-primary: #56C5D1;
@@ -421,6 +433,15 @@
     --comfort-accent-solid-hover: #005B8F;
     --comfort-accent-soft: rgba(0, 114, 178, 0.12);
     --comfort-accent-border: rgba(0, 114, 178, 0.35);
+    --comfort-success: #009E73;
+    --comfort-success-soft: rgba(0, 158, 115, 0.12);
+    --comfort-success-border: rgba(0, 158, 115, 0.35);
+    --comfort-warning: #E69F00;
+    --comfort-warning-soft: rgba(230, 159, 0, 0.14);
+    --comfort-warning-border: rgba(230, 159, 0, 0.38);
+    --comfort-danger: #D55E00;
+    --comfort-danger-soft: rgba(213, 94, 0, 0.12);
+    --comfort-danger-border: rgba(213, 94, 0, 0.36);
     --chart-primary: #0072B2;
     --chart-secondary: #009E73;
     --chart-warning: #E69F00;

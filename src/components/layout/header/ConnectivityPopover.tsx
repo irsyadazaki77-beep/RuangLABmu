@@ -40,17 +40,17 @@ export const ConnectivityPopover: React.FC<ConnectivityPopoverProps> = ({
 
   const statusToneClass =
     connectivityMode === 'online-cloud'
-      ? 'text-emerald-700 dark:text-emerald-400'
+      ? 'text-[var(--comfort-success)]'
       : connectivityMode === 'lan-hotspot'
-      ? 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
-      : 'text-amber-700 dark:text-amber-400';
+      ? 'text-[var(--comfort-accent)]'
+      : 'text-[var(--comfort-warning)]';
 
   const dotClass =
     connectivityMode === 'online-cloud'
-      ? 'bg-emerald-500'
+      ? 'bg-[var(--comfort-success)]'
       : connectivityMode === 'lan-hotspot'
-      ? 'bg-sky-500'
-      : 'bg-amber-500';
+      ? 'bg-[var(--comfort-accent)]'
+      : 'bg-[var(--comfort-warning)]';
 
   return (
     <div className="relative">
@@ -63,7 +63,7 @@ export const ConnectivityPopover: React.FC<ConnectivityPopoverProps> = ({
         }}
         aria-expanded={isOpen}
         aria-label={`Status Konektivitas: ${statusLabel}`}
-        className={`h-8 px-2 flex items-center gap-1.5 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-2xs xl:text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${statusToneClass}`}
+        className={`h-8 px-2 flex items-center gap-1.5 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-2xs xl:text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${statusToneClass}`}
       >
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} aria-hidden="true" />
         <span className="font-medium text-[var(--comfort-text)]">{statusLabel}</span>
@@ -96,10 +96,10 @@ export const ConnectivityPopover: React.FC<ConnectivityPopoverProps> = ({
                   <div
                     className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                       connectivityMode === 'online-cloud'
-                        ? 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400'
+                        ? 'bg-[var(--comfort-success-soft)] text-[var(--comfort-success)]'
                         : connectivityMode === 'lan-hotspot'
-                        ? 'bg-sky-500/12 text-sky-600 dark:text-sky-400'
-                        : 'bg-amber-500/12 text-amber-600 dark:text-amber-400'
+                        ? 'bg-[var(--comfort-accent-soft)] text-[var(--comfort-accent)]'
+                        : 'bg-[var(--comfort-warning-soft)] text-[var(--comfort-warning)]'
                     }`}
                   >
                     {connectivityMode === 'online-cloud' && <Globe className="w-4 h-4" />}

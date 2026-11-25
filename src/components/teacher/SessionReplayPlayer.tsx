@@ -110,8 +110,8 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
         {/* Header */}
         <div className="px-6 py-4 border-b border-[var(--comfort-border)] flex items-center justify-between bg-[var(--comfort-surface-subtle)]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0">
-              <Activity className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-[var(--comfort-accent-solid)] text-white flex items-center justify-center shrink-0">
+              <Activity className="w-5 h-5" aria-hidden="true" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-[var(--comfort-text)]">
@@ -153,11 +153,11 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
                 }}
                 className={`px-3.5 py-1.5 min-h-[36px] rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
                   isPlaying
-                    ? 'bg-amber-600 hover:bg-amber-500 text-white'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    ? 'bg-[var(--comfort-warning)] text-white'
+                    : 'comfort-btn-primary'
                 }`}
               >
-                {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                {isPlaying ? <Pause className="w-3.5 h-3.5" aria-hidden="true" /> : <Play className="w-3.5 h-3.5" aria-hidden="true" />}
                 <span>{isPlaying ? 'Pause' : 'Play Replay'}</span>
               </button>
 
@@ -169,14 +169,14 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
                   setCurrentIndex(0);
                 }}
                 title="Reset ke Awal"
-                className="p-2 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] hover:opacity-90 text-[var(--comfort-text)] transition-colors cursor-pointer"
+                className="p-2 rounded-lg comfort-btn-secondary cursor-pointer"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
 
             <div className="flex-1 min-w-[200px] flex items-center gap-3">
-              <span className="font-mono text-xs text-sky-600 dark:text-sky-400 tabular-nums shrink-0 font-bold">
+              <span className="font-mono text-xs text-[var(--comfort-accent)] tabular-nums shrink-0 font-bold">
                 t = +{formatElapsed(elapsedSec)}
               </span>
               <input
@@ -190,7 +190,7 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
                   setIsPlaying(false);
                   setCurrentIndex(Number(e.target.value));
                 }}
-                className="w-full h-2 bg-[var(--comfort-surface-subtle)] rounded-lg appearance-none cursor-pointer accent-sky-500"
+                className="w-full h-2 bg-[var(--comfort-surface-subtle)] rounded-lg appearance-none cursor-pointer accent-[var(--comfort-accent)]"
               />
               <span className="font-mono text-xs text-[var(--comfort-text-muted)] tabular-nums shrink-0">
                 Langkah {currentIndex + 1}/{events.length}
@@ -212,7 +212,7 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
                   }}
                   className={`px-2 py-0.5 rounded text-xs font-mono font-bold transition-colors cursor-pointer tabular-nums ${
                     playbackSpeed === spd
-                      ? 'bg-sky-600 text-white'
+                      ? 'comfort-tab-active'
                       : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'
                   }`}
                 >
@@ -227,7 +227,7 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
         <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
           <div className="md:col-span-5 p-5 border-b md:border-b-0 md:border-r border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] overflow-y-auto space-y-4">
             <div className="space-y-1">
-              <span className="text-2xs font-semibold text-sky-600 dark:text-sky-400">
+              <span className="text-2xs font-semibold text-[var(--comfort-accent)]">
                 Status Variabel pada Langkah #{currentIndex + 1}
               </span>
               <h3 className="text-sm font-bold text-[var(--comfort-text)]">
@@ -240,7 +240,7 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
 
             <div className="p-3.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] space-y-2.5">
               <div className="text-xs font-bold text-[var(--comfort-text)] flex items-center gap-1.5">
-                <Sliders className="w-3.5 h-3.5 text-sky-500" />
+                <Sliders className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
                 <span>Snapshot Parameter Meja 3D</span>
               </div>
               <div className="space-y-1.5">
@@ -249,7 +249,7 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
                     key={paramKey}
                     className={`flex items-center justify-between p-2 rounded-lg text-xs font-mono ${
                       activeEvent?.parameterName === paramKey
-                        ? 'bg-sky-500/15 border border-sky-500/40 text-sky-700 dark:text-sky-300 font-bold'
+                        ? 'comfort-accent-soft border font-bold'
                         : 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text-muted)]'
                     }`}
                   >
@@ -266,13 +266,13 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
               </div>
               <div className="flex items-center justify-between font-mono">
                 <span className="text-[var(--comfort-text-muted)]">R² (Koefisien Determinasi):</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                <span className="font-bold text-[var(--comfort-success)] tabular-nums">
                   {submission.regressionMetrics?.rSquared?.toFixed(3) ?? '0.992'}
                 </span>
               </div>
               <div className="flex items-center justify-between font-mono">
                 <span className="text-[var(--comfort-text-muted)]">Persamaan Regresi:</span>
-                <span className="font-bold text-sky-600 dark:text-sky-400">
+                <span className="font-bold text-[var(--comfort-accent)]">
                   {submission.regressionMetrics?.equation || 'y = mx + c'}
                 </span>
               </div>
@@ -282,7 +282,7 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
           <div className="md:col-span-7 p-5 overflow-y-auto space-y-2.5">
             <div className="flex items-center justify-between pb-2 border-b border-[var(--comfort-border)]">
               <h3 className="text-xs font-bold text-[var(--comfort-text)] flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-sky-500" />
+                <Clock className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
                 <span>Daftar Log Kejadian Kronologis (Klik untuk Melompat)</span>
               </h3>
               <span className="text-2xs text-[var(--comfort-text-muted)] font-mono tabular-nums">
@@ -309,22 +309,22 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
                     }}
                     className={`w-full text-left p-3 rounded-xl border transition-colors flex items-start justify-between gap-3 cursor-pointer ${
                       isCurrent
-                        ? 'bg-sky-500/15 border-sky-500/50'
+                        ? 'bg-[var(--comfort-accent-soft)] border-[var(--comfort-accent-border)]'
                         : isAnomaly
-                        ? 'bg-rose-500/10 border-rose-500/35 hover:bg-rose-500/15'
+                        ? 'bg-[var(--comfort-danger-soft)] border-[var(--comfort-danger-border)]'
                         : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] hover:bg-[var(--comfort-surface-subtle)]'
                     }`}
                   >
                     <div className="flex items-start gap-2.5 min-w-0">
                       <div className="mt-0.5 shrink-0">
                         {isAnomaly ? (
-                          <AlertTriangle className="w-4 h-4 text-rose-500" />
+                          <AlertTriangle className="w-4 h-4 text-[var(--comfort-danger)]" aria-hidden="true" />
                         ) : isRecord ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                          <CheckCircle2 className="w-4 h-4 text-[var(--comfort-success)]" aria-hidden="true" />
                         ) : isTitration ? (
-                          <FlaskConical className="w-4 h-4 text-amber-500" />
+                          <FlaskConical className="w-4 h-4 text-[var(--comfort-warning)]" aria-hidden="true" />
                         ) : (
-                          <Sliders className="w-4 h-4 text-sky-500" />
+                          <Sliders className="w-4 h-4 text-[var(--comfort-accent)]" aria-hidden="true" />
                         )}
                       </div>
                       <div className="space-y-0.5 min-w-0">
@@ -334,7 +334,7 @@ export const SessionReplayPlayer: React.FC<SessionReplayPlayerProps> = ({
                         <div className="text-2xs font-mono text-[var(--comfort-text-muted)]">
                           Parameter:{' '}
                           <strong className="text-[var(--comfort-text)]">{ev.parameterName}</strong> ={' '}
-                          <strong className="text-sky-600 dark:text-sky-400 tabular-nums">
+                          <strong className="text-[var(--comfort-accent)] tabular-nums">
                             {ev.value}
                           </strong>{' '}
                           · Tahap #{ev.stepIndex}

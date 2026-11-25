@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
-import { Atom, CheckCircle2, Search, X, Zap } from 'lucide-react';
+import { Atom, CheckCircle2, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { ExperimentModule } from '../../registry/experimentRegistry';
@@ -106,8 +106,6 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     setLiteModeNotification,
     projectorMode,
     toggleProjectorMode,
-    lobbySearchQuery,
-    setLobbySearchQuery,
     teacherViewMode,
   } = useUIStore(
     useShallow((s) => ({
@@ -126,8 +124,6 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
       setLiteModeNotification: s.setLiteModeNotification,
       projectorMode: s.projectorMode,
       toggleProjectorMode: s.toggleProjectorMode,
-      lobbySearchQuery: s.lobbySearchQuery,
-      setLobbySearchQuery: s.setLobbySearchQuery,
       teacherViewMode: s.teacherViewMode,
     }))
   );
@@ -303,9 +299,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
     <>
       {!isFullBleedActiveLab && (
         <header
-          className={`sticky top-0 shrink-0 comfort-header-surface flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2.5 gap-y-2 lg:gap-3 px-3 sm:px-5 backdrop-blur-md border-b border-[var(--comfort-border)] text-[var(--comfort-text)] z-40 select-none transition-colors duration-200 ${
-            isLobbyMode ? 'py-2 sm:py-1.5 min-h-14' : 'min-h-14 py-1.5'
-          }`}
+          className="sticky top-0 shrink-0 h-14 comfort-header-surface flex flex-nowrap items-center justify-between gap-x-2.5 lg:gap-3 px-3 sm:px-5 backdrop-blur-md border-b border-[var(--comfort-border)] text-[var(--comfort-text)] z-40 select-none transition-colors duration-200"
         >
           {/* Zone 1: Brand Wordmark + Concise Module Breadcrumb */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 min-w-0">
@@ -355,47 +349,17 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             )}
           </div>
 
-          {/* Zone 2: Search Bar (Lobby — wraps cleanly to row 2 on <640px) or Workflow Stepper (Stages 1/3/4) */}
-          <div
-            className={
-              isLobbyMode
-                ? 'order-last sm:order-none w-full sm:w-auto sm:flex-1 flex items-center justify-center min-w-0 sm:max-w-md'
-                : 'hidden md:flex flex-1 items-center justify-center min-w-0'
-            }
-          >
-            {isLobbyMode ? (
-              <div className="relative w-full">
-                <Search className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  value={lobbySearchQuery}
-                  onChange={(e) => setLobbySearchQuery(e.target.value)}
-                  placeholder="Cari modul, bab, atau rumus..."
-                  aria-label="Cari modul atau rumus..."
-                  className="w-full h-9 sm:h-8 pl-8 pr-8 text-xs rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] placeholder:text-[var(--comfort-text-muted)] focus:outline-none focus:border-[var(--comfort-accent)] focus:ring-2 focus:ring-[var(--comfort-accent-soft)] transition-colors"
-                />
-                {lobbySearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setLobbySearchQuery('')}
-                    aria-label="Hapus kata kunci pencarian"
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            ) : (
-              userRole === 'siswa' && (
-                <StudentWorkflowStepper
-                  workflowStep={workflowStep}
-                  setWorkflowStep={setWorkflowStep}
-                  recordsCount={recordsCount}
-                  lksGraded={lksGraded}
-                />
-              )
-            )}
-          </div>
+          {/* Zone 2: Workflow Stepper (Stages 1/3/4) — Lobby search lives cleanly inside LabLobbyHub */}
+          {!isLobbyMode && userRole === 'siswa' && (
+            <div className="hidden md:flex flex-1 items-center justify-center min-w-0">
+              <StudentWorkflowStepper
+                workflowStep={workflowStep}
+                setWorkflowStep={setWorkflowStep}
+                recordsCount={recordsCount}
+                lksGraded={lksGraded}
+              />
+            </div>
+          )}
 
           {/* Zone 3: Connectivity · Meja Bersama · Profile & Settings */}
           <div className="flex items-center gap-1.5 shrink-0 relative">

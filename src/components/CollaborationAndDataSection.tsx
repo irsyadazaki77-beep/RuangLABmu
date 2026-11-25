@@ -302,75 +302,78 @@ export const CollaborationAndDataSection: React.FC<
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {onBackToAnalysis && (
+        <div className="flex flex-col sm:flex-row sm:flex-wrap lg:flex-nowrap items-stretch sm:items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {onBackToAnalysis && (
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  onBackToAnalysis();
+                }}
+                className="comfort-btn-secondary px-3 py-2 min-h-[38px] text-xs font-medium rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+              >
+                ← Grafik &amp; LKS
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
                 labSound.playClick();
-                onBackToAnalysis();
+                setShowCompareView((v) => !v);
               }}
-              className="comfort-btn-secondary px-3 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+              className={`px-3 py-2 min-h-[38px] text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                showCompareView
+                  ? 'comfort-accent-soft'
+                  : 'comfort-btn-secondary'
+              }`}
             >
-              ← Grafik &amp; LKS
+              <ArrowLeftRight className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>{showCompareView ? 'Tutup Diff' : 'Bandingkan'}</span>
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              setShowCompareView((v) => !v);
-            }}
-            className={`px-3 py-2 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              showCompareView
-                ? 'comfort-accent-soft'
-                : 'comfort-btn-secondary'
-            }`}
-          >
-            <ArrowLeftRight className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>{showCompareView ? 'Sembunyikan Diff' : 'Tampilkan Diff'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick();
-              downloadAcademicReportFile(buildReportData(), 'html');
-            }}
-            disabled={records.length === 0}
-            className="comfort-btn-secondary flex items-center gap-1.5 px-3 py-2 text-xs font-medium disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
-            <span>Ekspor .HTML</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleDownloadCSV}
-            disabled={filteredRecords.length === 0}
-            className="comfort-btn-secondary flex items-center gap-1.5 px-3 py-2 text-xs font-medium disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums"
-          >
-            <Download className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
-            <span>Unduh CSV ({filteredRecords.length})</span>
-          </button>
-          {onBackToCatalog && (
             <button
               type="button"
               onClick={() => {
                 labSound.playClick();
-                onBackToCatalog();
+                downloadAcademicReportFile(buildReportData(), 'html');
               }}
-              className="comfort-btn-secondary px-3 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+              disabled={records.length === 0}
+              className="comfort-btn-secondary flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-medium disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              Katalog Modul
+              <FileText className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
+              <span>.HTML</span>
             </button>
-          )}
+            <button
+              type="button"
+              onClick={handleDownloadCSV}
+              disabled={filteredRecords.length === 0}
+              className="comfort-btn-secondary flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-medium disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums"
+            >
+              <Download className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
+              <span>CSV ({filteredRecords.length})</span>
+            </button>
+            {onBackToCatalog && (
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  onBackToCatalog();
+                }}
+                className="comfort-btn-secondary px-3 py-2 min-h-[38px] text-xs font-medium rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+              >
+                Katalog
+              </button>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={handlePrintAcademicReport}
             disabled={records.length === 0}
-            className="comfort-btn-primary flex items-center gap-1.5 px-4 py-2 text-xs font-semibold disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="comfort-btn-primary flex items-center justify-center gap-1.5 px-4 py-2 min-h-[40px] text-xs font-bold disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
           >
             <Printer className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Pratinjau &amp; Cetak Laporan A4</span>
+            <span>Pratinjau &amp; Cetak A4</span>
           </button>
         </div>
       </div>

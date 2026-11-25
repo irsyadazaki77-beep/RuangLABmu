@@ -55,20 +55,21 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
           animate="open"
           exit="closed"
           aria-label="Panel Telemetri, Rumus Hidup & Grafik"
-          className="hidden lg:flex flex-col absolute top-16 bottom-16 right-3 w-[328px] xl:w-[340px] z-20 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
+          className="hidden lg:flex flex-col absolute top-[58px] bottom-[84px] right-3 w-[304px] xl:w-[324px] z-20 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-xl overflow-hidden"
         >
-          <div className="px-3.5 py-2.5 border-b border-[var(--comfort-border)] flex items-center justify-between shrink-0">
-            <span className="text-2xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-[var(--comfort-text)]">
+          <div className="px-3.5 py-2 border-b border-[var(--comfort-border)] flex items-center justify-between gap-2 shrink-0">
+            <span className="text-xs font-bold flex items-center gap-1.5 text-[var(--comfort-text)] min-w-0 truncate">
               <Activity className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
-              <span>Telemetri &amp; Rumus</span>
+              <span className="truncate">Telemetri &amp; Rumus</span>
             </span>
             <button
               type="button"
               onClick={onClose}
               aria-label="Tutup Panel Telemetri"
-              className="p-1 rounded-md text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)] transition-colors cursor-pointer"
+              title="Tutup Panel Telemetri (])"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)] transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
             >
-              <PanelRightClose className="w-3.5 h-3.5" aria-hidden="true" />
+              <PanelRightClose className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
 
@@ -117,7 +118,7 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
             {recentRecords.length > 0 && (
               <div className="rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] p-2.5 space-y-1.5 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-2xs font-bold uppercase tracking-wider text-[var(--comfort-text-muted)] tabular-nums">
+                  <span className="font-mono text-2xs font-bold text-[var(--comfort-text-muted)] tabular-nums">
                     Data Tercatat ({recordsCount})
                   </span>
                   {onProceedToAnalysis && (

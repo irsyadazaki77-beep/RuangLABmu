@@ -277,7 +277,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       aria-label="Dock Kontrol Cepat RuangLABmu"
       className={`${
         isMobileSheetOpen ? 'hidden lg:flex' : 'flex'
-      } fixed bottom-[56px] lg:bottom-2.5 left-1/2 -translate-x-1/2 z-20 lg:z-40 max-w-[calc(100vw-16px)] lg:max-w-[calc(100vw-688px)] 2xl:max-w-none flex-col items-stretch gap-1 px-2 py-1.5 rounded-xl studio-hud-surface shadow-lg border transition-all duration-200 select-none`}
+      } fixed bottom-[60px] lg:bottom-2.5 left-1/2 -translate-x-1/2 z-20 lg:z-40 max-w-[calc(100vw-16px)] lg:max-w-[calc(100vw-24px)] flex-col items-stretch gap-1 px-2 py-1.5 rounded-xl studio-hud-surface shadow-lg border transition-all duration-200 select-none`}
     >
       {/* Floating Instant Confirmation Toast above Dock */}
       {recordToastLabel && (

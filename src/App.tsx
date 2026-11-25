@@ -62,7 +62,7 @@ function AppLabThemeSkeleton() {
       {/* Top Studio bar shimmer */}
       <div className="h-12 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] px-4 flex items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-sky-500/20 animate-pulse" />
+          <div className="w-7 h-7 rounded-lg bg-[var(--comfort-accent-soft)] animate-pulse" />
           <div className="h-3.5 w-36 rounded-md bg-[var(--comfort-surface-subtle)] animate-pulse" />
         </div>
         <div className="hidden sm:flex items-center gap-2">
@@ -82,7 +82,7 @@ function AppLabThemeSkeleton() {
         </div>
 
         <div className="lg:col-span-6 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] flex flex-col items-center justify-center p-6 text-center space-y-3 shadow-sm">
-          <div className="w-11 h-11 rounded-xl bg-sky-500/15 border border-sky-400/40 flex items-center justify-center text-sky-500 animate-spin">
+          <div className="w-11 h-11 rounded-xl bg-[var(--comfort-accent-soft)] border border-[var(--comfort-accent-border)] flex items-center justify-center text-[var(--comfort-accent)] animate-spin">
             <RefreshCw className="w-5 h-5" aria-hidden="true" />
           </div>
           <div className="text-sm font-bold">Memuat Modul Laboratorium 3D...</div>

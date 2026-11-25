@@ -106,6 +106,7 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
     storeZenMode,
     toggleZenMode,
     setDrawerTab,
+    setDrawerOpen,
     liteDeviceMode,
     toggleLiteDeviceMode,
     qualityMode,
@@ -125,6 +126,7 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
       storeZenMode: s.zenMode,
       toggleZenMode: s.toggleZenMode,
       setDrawerTab: s.setDrawerTab,
+      setDrawerOpen: s.setDrawerOpen,
       liteDeviceMode: s.liteDeviceMode,
       toggleLiteDeviceMode: s.toggleLiteDeviceMode,
       qualityMode: s.qualityMode,
@@ -171,6 +173,37 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
       wsConnected: s.wsConnected,
     }))
   );
+
+  const [isDesktopViewport, setIsDesktopViewport] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  );
+  const [isWideDesktopViewport, setIsWideDesktopViewport] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1280 : true
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const lgQuery = window.matchMedia('(min-width: 1024px)');
+    const xlQuery = window.matchMedia('(min-width: 1280px)');
+    const syncViewport = () => {
+      setIsDesktopViewport(lgQuery.matches);
+      setIsWideDesktopViewport(xlQuery.matches);
+    };
+    syncViewport();
+    lgQuery.addEventListener('change', syncViewport);
+    xlQuery.addEventListener('change', syncViewport);
+    return () => {
+      lgQuery.removeEventListener('change', syncViewport);
+      xlQuery.removeEventListener('change', syncViewport);
+    };
+  }, []);
+
+  // Keep >=65% of the 3D stage unobstructed on 1024-1279px laptops
+  useEffect(() => {
+    if (isDesktopViewport && !isWideDesktopViewport && leftDrawerOpen && rightTelemetryOpen) {
+      setRightTelemetryOpen(false);
+    }
+  }, [isDesktopViewport, isWideDesktopViewport, leftDrawerOpen, rightTelemetryOpen, setRightTelemetryOpen]);
 
   const [mobileSheetExpanded, setMobileSheetExpanded] = useState(false);
   const [mobileSheetTab, setMobileSheetTab] = useState<'params' | 'telemetry'>('params');
@@ -225,6 +258,26 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
     }
   }, [mobileTab]);
 
+  const handleToggleLeftDrawer = () => {
+    labSound.playClick();
+    if (zenMode) toggleZenMode();
+    const nextOpen = !leftDrawerOpen;
+    setLeftDrawerOpen(nextOpen);
+    if (nextOpen && isDesktopViewport && !isWideDesktopViewport) {
+      setRightTelemetryOpen(false);
+    }
+  };
+
+  const handleToggleRightDrawer = () => {
+    labSound.playClick();
+    if (zenMode) toggleZenMode();
+    const nextOpen = !rightTelemetryOpen;
+    setRightTelemetryOpen(nextOpen);
+    if (nextOpen && isDesktopViewport && !isWideDesktopViewport) {
+      setLeftDrawerOpen(false);
+    }
+  };
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -241,17 +294,29 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
         e.preventDefault();
         labSound.playClick();
         if (zenMode) toggleZenMode();
-        setLeftDrawerOpen((prev) => !prev);
+        setLeftDrawerOpen((prev) => {
+          const next = !prev;
+          if (next && isDesktopViewport && !isWideDesktopViewport) {
+            setRightTelemetryOpen(false);
+          }
+          return next;
+        });
       } else if (e.key === ']') {
         e.preventDefault();
         labSound.playClick();
         if (zenMode) toggleZenMode();
-        setRightTelemetryOpen((prev) => !prev);
+        setRightTelemetryOpen((prev) => {
+          const next = !prev;
+          if (next && isDesktopViewport && !isWideDesktopViewport) {
+            setLeftDrawerOpen(false);
+          }
+          return next;
+        });
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [zenMode, toggleZenMode, setLeftDrawerOpen, setRightTelemetryOpen]);
+  }, [zenMode, toggleZenMode, setLeftDrawerOpen, setRightTelemetryOpen, isDesktopViewport, isWideDesktopViewport]);
 
   const activeExperiment = getExperimentById(activeModuleId);
   const domainLabel = domain || DOMAIN_TO_ID[activeDomain] || 'Sains';
@@ -279,9 +344,25 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
     }
   };
 
+  const handleOpenDrLabMu = () => {
+    labSound.playClick();
+    setDrawerTab('ai');
+    setDrawerOpen(true);
+  };
+
   const isMiniViewportMode = !isFullBleedStage && propZenMode === true;
   const isLeftVisible = !zenMode && leftDrawerOpen;
-  const isRightVisible = !zenMode && rightTelemetryOpen;
+  const isRightVisible = !zenMode && rightTelemetryOpen && !dualModeActive;
+  const hasGuidedSteps = Boolean(
+    !dualModeActive && !prefer2DFallback && !zenMode && activeExperiment?.stepByStepGuide?.length
+  );
+  const hasTopOverlay = Boolean(!dualModeActive && !prefer2DFallback && topOverlay);
+
+  const centerCorridorClass = [
+    'left-2.5 right-2.5 sm:left-3 sm:right-3',
+    isLeftVisible ? 'lg:left-[316px] xl:left-[336px]' : 'lg:left-3',
+    isRightVisible ? 'lg:right-[324px] xl:right-[344px]' : 'lg:right-3',
+  ].join(' ');
 
   if (isMiniViewportMode) {
     return (
@@ -300,13 +381,13 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
       {/* 1. Full-Bleed 3D Viewport */}
       <div
         className={`absolute inset-0 z-0 ${
-          isHazardous ? 'ring-2 ring-inset ring-rose-500/70' : ''
+          isHazardous ? 'ring-2 ring-inset ring-[var(--comfort-danger)]/70' : ''
         }`}
       >
         {dualModeActive && dualViewport ? (
           <div
-            className={`w-full h-full pt-[60px] pb-[92px] px-3 overflow-hidden bg-[var(--comfort-bg)] transition-[padding] duration-200 ${
-              isLeftVisible ? 'lg:pl-[336px] xl:pl-[348px]' : ''
+            className={`w-full h-full pt-[58px] pb-[88px] px-3 overflow-hidden bg-[var(--comfort-bg)] transition-[padding] duration-200 ${
+              isLeftVisible ? 'lg:pl-[316px] xl:pl-[336px]' : ''
             }`}
           >
             {dualViewport}
@@ -346,78 +427,72 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
         dualModeActive={dualModeActive}
         onToggleDualMode={onToggleDualMode}
         isLeftVisible={isLeftVisible}
-        onToggleLeftDrawer={() => {
-          labSound.playClick();
-          if (zenMode) toggleZenMode();
-          setLeftDrawerOpen((prev) => !prev);
-        }}
+        onToggleLeftDrawer={handleToggleLeftDrawer}
         isRightVisible={isRightVisible}
-        onToggleRightDrawer={() => {
-          labSound.playClick();
-          if (zenMode) toggleZenMode();
-          setRightTelemetryOpen((prev) => !prev);
-        }}
+        onToggleRightDrawer={handleToggleRightDrawer}
         zenMode={zenMode}
         onToggleFocus3D={() => {
           labSound.playClick();
           toggleZenMode();
         }}
-        onOpenDrLabMu={() => {
-          labSound.playClick();
-          setDrawerTab('ai');
-        }}
+        onOpenDrLabMu={handleOpenDrLabMu}
       />
 
-      {/* 3. Guided Step-by-Step Overlay (collapsible, strictly inside center corridor) */}
-      {!dualModeActive && !prefer2DFallback && !zenMode && activeExperiment?.stepByStepGuide && (
-        <GuidedLabStepsOverlay
-          steps={activeExperiment.stepByStepGuide}
-          recordsCount={recordsCount}
-          isLeftVisible={isLeftVisible}
-          isRightVisible={isRightVisible}
-        />
-      )}
-
-      {/* 3b. Floating Viewport Overlay */}
-      {!dualModeActive && !prefer2DFallback && topOverlay && (
+      {/* 3. Unified Non-Overlapping Center Overlay Stack (Guided Steps + Module Top Overlay) */}
+      {(hasGuidedSteps || hasTopOverlay) && (
         <div
-          className={`pointer-events-none absolute top-[164px] xl:top-[134px] z-20 flex items-center left-3 ${
-            isLeftVisible ? 'lg:left-[336px] xl:left-[348px]' : 'lg:left-3'
-          }`}
+          className={`pointer-events-none absolute top-[58px] z-20 flex flex-col items-center gap-1.5 transition-[left,right] duration-200 ${centerCorridorClass}`}
         >
-          <div className="pointer-events-auto flex items-center gap-1.5">{topOverlay}</div>
+          {hasGuidedSteps && activeExperiment?.stepByStepGuide && (
+            <GuidedLabStepsOverlay
+              key={activeModuleId}
+              steps={activeExperiment.stepByStepGuide}
+              recordsCount={recordsCount}
+            />
+          )}
+
+          {hasTopOverlay && (
+            <div className="w-full flex items-center justify-start">
+              <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 max-w-full">
+                {topOverlay}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 4. Left Parameter Drawer */}
-      <SpatialParameterDrawer
-        isOpen={isLeftVisible}
-        onClose={() => setLeftDrawerOpen(false)}
-        hypothesisText={hypothesisText}
-        theorySummary={activeExperiment?.theorySummary}
-        keyTakeaways={activeExperiment?.keyTakeaways}
-        safetyNotes={activeExperiment?.safetyNotes}
-        sidebar={sidebar}
-      />
+      {/* 4 & 5. Desktop Side Drawers (mounted ONLY on >=1024px so sidebar never double-mounts with MobileInstrumentSheet) */}
+      {isDesktopViewport && (
+        <>
+          <SpatialParameterDrawer
+            isOpen={isLeftVisible}
+            onClose={() => setLeftDrawerOpen(false)}
+            hypothesisText={hypothesisText}
+            theorySummary={activeExperiment?.theorySummary}
+            keyTakeaways={activeExperiment?.keyTakeaways}
+            safetyNotes={activeExperiment?.safetyNotes}
+            sidebar={sidebar}
+          />
 
-      {/* 5. Right Telemetry & Formula Drawer (auto-yields in Dual A/B mode so both panes remain wide) */}
-      <SpatialTelemetryDrawer
-        isOpen={isRightVisible && !dualModeActive}
-        onClose={() => setRightTelemetryOpen(false)}
-        oscilloscope={oscilloscope}
-        telemetryMetrics={telemetryMetrics}
-        moduleTitle={moduleTitle}
-        formulaEquation={formulaEquation}
-        domainLabel={domainLabel}
-        recentRecords={recentRecords}
-        recordsCount={recordsCount}
-        onProceedToAnalysis={onProceedToAnalysis}
-        onDeleteRecord={onDeleteRecord}
-        onOpenDrLabMu={() => setDrawerTab('ai')}
-      />
+          <SpatialTelemetryDrawer
+            isOpen={isRightVisible}
+            onClose={() => setRightTelemetryOpen(false)}
+            oscilloscope={oscilloscope}
+            telemetryMetrics={telemetryMetrics}
+            moduleTitle={moduleTitle}
+            formulaEquation={formulaEquation}
+            domainLabel={domainLabel}
+            recentRecords={recentRecords}
+            recordsCount={recordsCount}
+            onProceedToAnalysis={onProceedToAnalysis}
+            onDeleteRecord={onDeleteRecord}
+            onOpenDrLabMu={handleOpenDrLabMu}
+          />
+        </>
+      )}
 
-      {/* 6. Mobile Collapsible Bottom Sheet */}
-      {!zenMode && (
+      {/* 6. Mobile Collapsible Bottom Sheet (mounted ONLY on <1024px to guarantee single RECORD_TRIAL listener) */}
+      {!isDesktopViewport && !zenMode && (
         <MobileInstrumentSheet
           expanded={mobileSheetExpanded}
           activeTab={mobileSheetTab}

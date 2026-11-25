@@ -127,9 +127,9 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
             }}
             title="Kembali ke Tahap 1 Briefing Pra-Lab"
             aria-label="Kembali ke Briefing Pra-Lab"
-            className="p-1 rounded-lg hover:bg-[var(--comfort-surface-subtle)] text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[var(--comfort-surface-subtle)] text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
           >
-            <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
           </button>
         )}
         <button
@@ -436,7 +436,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
           data-testid="focus-3d-toggle-btn"
           aria-pressed={zenMode}
           title="Focus 3D Penuh (Sembunyikan Kedua Panel)"
-          className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg border text-2xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`inline-flex items-center justify-center gap-1 min-h-[34px] min-w-[34px] px-2 sm:px-2.5 py-1 rounded-lg border text-2xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             zenMode
               ? 'bg-[var(--comfort-warning-soft)] text-[var(--comfort-warning)] border-[var(--comfort-warning)]'
               : 'studio-hud-subcard text-[var(--comfort-hud-text)] hover:border-[var(--comfort-accent-border)]'
@@ -461,7 +461,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
           onClick={onOpenDrLabMu}
           aria-label="Buka Asisten Dr. LabMu"
           title="Diskusi Sokratik Dr. LabMu (Shortcut A)"
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg comfort-btn-primary text-2xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
+          className="inline-flex items-center justify-center gap-1 min-h-[34px] min-w-[34px] px-2.5 py-1 rounded-lg comfort-btn-primary text-2xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
         >
           <Bot className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
           <span className="hidden 2xl:inline">Dr. LabMu</span>

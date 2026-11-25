@@ -52,7 +52,7 @@ function LabLoadingSkeleton() {
       </div>
 
       <div className="lg:col-span-6 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] flex flex-col items-center justify-center p-8 space-y-4 shadow-sm">
-        <div className="w-11 h-11 rounded-xl bg-sky-500/15 border border-sky-400/40 flex items-center justify-center text-sky-500 animate-spin">
+        <div className="w-11 h-11 rounded-xl bg-[var(--comfort-accent-soft)] border border-[var(--comfort-accent-border)] flex items-center justify-center text-[var(--comfort-accent)] animate-spin">
           <Loader2 className="w-5 h-5" aria-hidden="true" />
         </div>
         <div className="text-center space-y-1">
@@ -105,6 +105,8 @@ export const MainLabWorkspace: React.FC = () => {
     closeModal,
     teacherViewMode,
     setTeacherViewMode,
+    mobileTab,
+    setMobileTab,
   } = useUIStore(
     useShallow((s) => ({
       drawerOpen: s.drawerOpen,
@@ -116,6 +118,8 @@ export const MainLabWorkspace: React.FC = () => {
       closeModal: s.closeModal,
       teacherViewMode: s.teacherViewMode,
       setTeacherViewMode: s.setTeacherViewMode,
+      mobileTab: s.mobileTab,
+      setMobileTab: s.setMobileTab,
     }))
   );
 
@@ -391,12 +395,12 @@ export const MainLabWorkspace: React.FC = () => {
                   (remoteTeacherCameraSync?.enabled || remoteTeacherLaser?.active) && (
                     <div
                       data-testid="student-follow-teacher-cam-pill"
-                      className="absolute top-14 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl studio-hud-surface border border-indigo-500/45 text-xs text-[var(--comfort-hud-text)] shadow-xl"
+                      className="absolute bottom-[126px] lg:bottom-[92px] left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl studio-hud-surface border border-[var(--comfort-accent-border)] text-xs text-[var(--comfort-hud-text)] shadow-xl max-w-[calc(100vw-24px)]"
                     >
                       {remoteTeacherLaser?.active && (
-                        <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-300 font-semibold">
-                          <span className="w-2 h-2 rounded-full bg-rose-500" />
-                          <span>
+                        <span className="inline-flex items-center gap-1.5 text-[var(--comfort-danger)] font-semibold">
+                          <span className="w-2 h-2 rounded-full bg-[var(--comfort-danger)] shrink-0" />
+                          <span className="truncate">
                             Laser {remoteTeacherLaser.teacherName}:{' '}
                             {remoteTeacherLaser.hoveredObject || 'Aparatus 3D'}
                           </span>
@@ -404,8 +408,8 @@ export const MainLabWorkspace: React.FC = () => {
                       )}
                       {remoteTeacherCameraSync?.enabled && (
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-300 font-semibold">
-                            <Video className="w-3.5 h-3.5" aria-hidden="true" />
+                          <span className="inline-flex items-center gap-1 text-[var(--comfort-accent)] font-semibold whitespace-nowrap">
+                            <Video className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                             <span>
                               {followTeacherCamera
                                 ? 'Mengikuti Kamera Guru'
@@ -416,7 +420,7 @@ export const MainLabWorkspace: React.FC = () => {
                             type="button"
                             data-testid="student-follow-teacher-cam-btn"
                             onClick={() => setFollowTeacherCamera(!followTeacherCamera)}
-                            className="px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-2xs font-bold cursor-pointer"
+                            className="px-2.5 py-1 rounded-md comfort-btn-primary text-2xs font-bold cursor-pointer whitespace-nowrap"
                           >
                             {followTeacherCamera ? 'Lepas' : 'Ikuti Guru'}
                           </button>
@@ -444,10 +448,10 @@ export const MainLabWorkspace: React.FC = () => {
                     {records.length < 3 && (
                       <div
                         data-testid="stage3-data-readiness-banner"
-                        className="mb-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-200"
+                        className="mb-4 rounded-xl border border-[var(--comfort-warning-border)] bg-[var(--comfort-warning-soft)] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--comfort-text)]"
                       >
                         <span>
-                          <strong>Tip Analisis:</strong> Saat ini baru{' '}
+                          <strong className="text-[var(--comfort-warning)]">Tip Analisis:</strong> Saat ini baru{' '}
                           <span className="font-mono font-bold tabular-nums">
                             {records.length}/3
                           </span>{' '}
@@ -461,7 +465,7 @@ export const MainLabWorkspace: React.FC = () => {
                               labSound.playClick();
                               setPip3DMode('split');
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-100 font-bold text-2xs cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg comfort-btn-secondary font-semibold text-2xs cursor-pointer"
                           >
                             Buka Split 3D 45/55
                           </button>
@@ -471,7 +475,7 @@ export const MainLabWorkspace: React.FC = () => {
                               labSound.playClick();
                               setWorkflowStep(2);
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-2xs cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg comfort-btn-primary font-bold text-2xs cursor-pointer"
                           >
                             Kembali ke Meja 3D
                           </button>
@@ -597,7 +601,12 @@ export const MainLabWorkspace: React.FC = () => {
           notifications={notifications}
           isOpen={drawerOpen}
           activeTab={activeDrawerTab === 'ai' ? 'dr-labmu' : 'notifications'}
-          onOpenChange={setDrawerOpen}
+          onOpenChange={(nextOpen) => {
+            setDrawerOpen(nextOpen);
+            if (!nextOpen && mobileTab === 'ai') {
+              setMobileTab('canvas');
+            }
+          }}
           onTabChange={(tab) => setDrawerTab(tab === 'dr-labmu' ? 'ai' : 'analytics')}
           onInjectOutlierDemo={onInjectOutlierDemo}
           externalPromptRequest={queuedDrLabMuPrompt}

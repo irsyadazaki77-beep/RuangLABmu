@@ -82,6 +82,10 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
 
   useEffect(() => {
     setActiveLicense(getLabSafetyLicenseForModule(experiment.id));
+    setSelectedAnswers({});
+    setQuizSubmitted(false);
+    setOpenedQuizHints({});
+    setActiveTab('overview');
   }, [experiment.id]);
 
   useEffect(() => {

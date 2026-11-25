@@ -95,11 +95,11 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {radarLanes.map((lane) => {
             const laneColors = [
-              { stepBadge: 'bg-sky-500 text-slate-950' },
-              { stepBadge: 'bg-emerald-500 text-slate-950' },
-              { stepBadge: 'bg-amber-500 text-slate-950' },
-              { stepBadge: 'bg-purple-500 text-white' },
-            ][lane.step - 1] || { stepBadge: 'bg-sky-500 text-slate-950' };
+              { stepBadge: 'bg-[var(--comfort-accent-solid)] text-white' },
+              { stepBadge: 'bg-[var(--comfort-success)] text-white' },
+              { stepBadge: 'bg-[var(--comfort-warning)] text-white' },
+              { stepBadge: 'bg-[var(--comfort-accent-solid)] text-white' },
+            ][lane.step - 1] || { stepBadge: 'bg-[var(--comfort-accent-solid)] text-white' };
 
             return (
               <div
@@ -123,13 +123,13 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0 font-mono text-2xs">
-                    <span className="px-2 py-0.5 rounded-full bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold">
+                  <div className="flex items-center gap-1 shrink-0 font-mono text-2xs tabular-nums">
+                    <span className="px-2 py-0.5 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] text-[var(--comfort-text)] font-semibold">
                       {lane.students.length}
                     </span>
                     {lane.needsHelpCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold border border-amber-500/30 flex items-center gap-0.5">
-                        <AlertCircle className="w-2.5 h-2.5" />
+                      <span className="px-1.5 py-0.5 rounded-md bg-[var(--comfort-warning-soft)] text-[var(--comfort-warning)] font-bold border border-[var(--comfort-warning-border)] flex items-center gap-0.5">
+                        <AlertCircle className="w-2.5 h-2.5" aria-hidden="true" />
                         {lane.needsHelpCount}
                       </span>
                     )}
@@ -146,12 +146,12 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
                     lane.students.map((stu) => {
                       const domainColorClass =
                         stu.activeDomain === 'Fisika'
-                          ? 'bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/30'
+                          ? 'bg-[var(--comfort-accent-soft)] text-[var(--comfort-accent)] border-[var(--comfort-accent-border)]'
                           : stu.activeDomain === 'Kimia'
-                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                          ? 'bg-[var(--comfort-success-soft)] text-[var(--comfort-success)] border-[var(--comfort-success-border)]'
                           : stu.activeDomain === 'Biologi'
-                          ? 'bg-lime-500/15 text-lime-700 dark:text-lime-400 border-lime-500/30'
-                          : 'bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30';
+                          ? 'bg-[var(--comfort-warning-soft)] text-[var(--comfort-warning)] border-[var(--comfort-warning-border)]'
+                          : 'bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] border-[var(--comfort-border)]';
 
                       const moduleDisplayName =
                         stu.activeModuleTitle ||
@@ -164,10 +164,10 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
                       return (
                         <div
                           key={stu.id}
-                          className={`rounded-xl p-3 border transition-all text-xs space-y-2.5 ${
+                          className={`rounded-xl p-3 border transition-colors text-xs space-y-2.5 ${
                             stu.needsHelp
-                              ? 'bg-amber-500/10 border-amber-500/60 ring-1 ring-amber-400/30'
-                              : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] shadow-xs hover:border-sky-500/40'
+                              ? 'bg-[var(--comfort-warning-soft)] border-[var(--comfort-warning-border)]'
+                              : 'bg-[var(--comfort-surface)] border-[var(--comfort-border)] shadow-xs hover:border-[var(--comfort-accent-border)]'
                           }`}
                         >
                           <div className="flex items-start justify-between gap-1.5">
@@ -191,13 +191,13 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
                             {moduleDisplayName}
                           </div>
 
-                          <div className="flex items-center justify-between text-2xs font-mono text-[var(--comfort-text-muted)] pt-0.5">
+                          <div className="flex items-center justify-between text-2xs font-mono text-[var(--comfort-text-muted)] pt-0.5 tabular-nums">
                             <div className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
+                              <Clock className="w-3 h-3" aria-hidden="true" />
                               <span
                                 className={
                                   stu.timeInStepMinutes && stu.timeInStepMinutes > 8
-                                    ? 'text-amber-600 dark:text-amber-400 font-bold'
+                                    ? 'text-[var(--comfort-warning)] font-bold'
                                     : ''
                                 }
                               >
@@ -210,21 +210,21 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
                           </div>
 
                           {stu.needsHelp ? (
-                            <div className="p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 flex items-start gap-1.5 text-2xs leading-tight font-medium">
-                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                            <div className="p-2 rounded-lg bg-[var(--comfort-surface)] border border-[var(--comfort-warning-border)] text-[var(--comfort-text)] flex items-start gap-1.5 text-2xs leading-snug font-medium">
+                              <AlertTriangle className="w-3.5 h-3.5 text-[var(--comfort-warning)] shrink-0 mt-0.5" aria-hidden="true" />
                               <div>
-                                <span className="font-bold">▲ Butuh Bantuan:</span>{' '}
+                                <span className="font-bold text-[var(--comfort-warning)]">Perlu Arahan:</span>{' '}
                                 <span>{stu.helpReason}</span>
                               </div>
                             </div>
                           ) : stu.status === 'Selesai' ? (
-                            <div className="flex items-center gap-1 text-2xs font-semibold text-emerald-600 dark:text-emerald-400">
-                              <CheckCircle2 className="w-3 h-3" />
+                            <div className="flex items-center gap-1 text-2xs font-semibold text-[var(--comfort-success)]">
+                              <CheckCircle2 className="w-3 h-3" aria-hidden="true" />
                               <span>Sesi Selesai (100%)</span>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1 text-2xs font-medium text-sky-600 dark:text-sky-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                            <div className="flex items-center gap-1.5 text-2xs font-medium text-[var(--comfort-accent)] tabular-nums">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[var(--comfort-accent)]" aria-hidden="true" />
                               <span>Nominal (Progres {stu.completionPct}%)</span>
                             </div>
                           )}
@@ -232,9 +232,9 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
                           <button
                             type="button"
                             onClick={() => handleOpenQuickNote(stu)}
-                            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 min-h-[34px] text-2xs font-semibold rounded-lg bg-[var(--comfort-surface-subtle)] hover:bg-sky-500/10 text-[var(--comfort-text)] hover:text-sky-600 dark:hover:text-sky-300 border border-[var(--comfort-border)] transition-colors cursor-pointer"
+                            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 min-h-[36px] text-2xs font-semibold rounded-lg comfort-btn-secondary cursor-pointer"
                           >
-                            <MessageSquare className="w-3 h-3 text-sky-500" />
+                            <MessageSquare className="w-3 h-3 text-[var(--comfort-accent)]" aria-hidden="true" />
                             <span>Beri Catatan Instruktur</span>
                           </button>
                         </div>
@@ -254,7 +254,7 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
           <div className="w-full max-w-lg bg-[var(--comfort-elevated)] border border-[var(--comfort-border)] rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex items-start justify-between pb-3 border-b border-[var(--comfort-border)]">
               <div className="space-y-0.5">
-                <div className="text-2xs font-mono font-semibold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
+                <div className="text-2xs font-semibold text-[var(--comfort-accent)]">
                   Arahan Instruktur Langsung
                 </div>
                 <h3 className="text-base font-bold text-[var(--comfort-text)]">
@@ -290,7 +290,7 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
                   rows={3}
                   value={quickNoteText}
                   onChange={(e) => setQuickNoteText(e.target.value)}
-                  className="w-full text-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-xl p-3 text-[var(--comfort-text)] focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  className="w-full text-xs bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] rounded-xl p-3 text-[var(--comfort-text)] focus:outline-none focus:ring-2 focus:ring-[var(--comfort-accent)]"
                   placeholder="Ketik catatan atau pilih saran cepat di bawah..."
                   autoFocus
                 />
@@ -308,7 +308,7 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
                         'Perhatikan kemiringan garis regresi ΣF = m·a. Pastikan ada minimal 3 variasi data dengan jarak nilai seimbang.'
                       )
                     }
-                    className="px-2.5 py-1 text-2xs rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500/40 cursor-pointer"
+                    className="px-2.5 py-1.5 text-2xs rounded-lg comfort-btn-secondary cursor-pointer"
                   >
                     Petunjuk Garis Regresi
                   </button>
@@ -319,7 +319,7 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
                         'Amati titik belok pH pada kurva titrasi buret di sekitar volume 20 mL untuk akurasi titik ekuivalen.'
                       )
                     }
-                    className="px-2.5 py-1 text-2xs rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500/40 cursor-pointer"
+                    className="px-2.5 py-1.5 text-2xs rounded-lg comfort-btn-secondary cursor-pointer"
                   >
                     Titik Ekuivalen Kimia
                   </button>
@@ -330,7 +330,7 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
                         'Kerja bagus! Lanjutkan ke tahap analisis grafik dan lengkapi pertanyaan LKS.'
                       )
                     }
-                    className="px-2.5 py-1 text-2xs rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:border-sky-500/40 cursor-pointer"
+                    className="px-2.5 py-1.5 text-2xs rounded-lg comfort-btn-secondary cursor-pointer"
                   >
                     Apresiasi &amp; Lanjut LKS
                   </button>
@@ -341,16 +341,16 @@ export const TeacherRadarTab: React.FC<TeacherRadarTabProps> = ({
                 <button
                   type="button"
                   onClick={() => setQuickNoteStudent(null)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-[var(--comfort-text)] hover:opacity-90 cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold rounded-xl comfort-btn-secondary cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={!quickNoteText.trim()}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  className="px-4 py-2 text-xs font-semibold rounded-xl comfort-btn-primary disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-sm"
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  <Send className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Kirim ke Siswa</span>
                 </button>
               </div>

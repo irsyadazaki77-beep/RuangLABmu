@@ -168,8 +168,8 @@ export const GradebookSecurityBackupPanel: React.FC<GradebookSecurityBackupPanel
   if (!isAuthed) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
-        <div className="w-12 h-12 rounded-2xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-600 dark:text-sky-400">
-          <Lock className="w-6 h-6" />
+        <div className="w-12 h-12 rounded-2xl bg-[var(--comfort-accent-soft)] border border-[var(--comfort-accent-border)] flex items-center justify-center text-[var(--comfort-accent)]">
+          <Lock className="w-6 h-6" aria-hidden="true" />
         </div>
         <div className="max-w-md space-y-1.5">
           <h3 className="text-base font-bold text-[var(--comfort-text)]">
@@ -184,9 +184,9 @@ export const GradebookSecurityBackupPanel: React.FC<GradebookSecurityBackupPanel
           onClick={() =>
             onOpenAuthModal('Masuk sebagai Pengajar untuk mengakses Audit Log dan Backup Database.')
           }
-          className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
+          className="px-4 py-2 rounded-xl comfort-btn-primary text-xs font-bold flex items-center gap-2 cursor-pointer"
         >
-          <ShieldCheck className="w-4 h-4" />
+          <ShieldCheck className="w-4 h-4" aria-hidden="true" />
           <span>Verifikasi Sesi Pengajar</span>
         </button>
       </div>
@@ -198,8 +198,8 @@ export const GradebookSecurityBackupPanel: React.FC<GradebookSecurityBackupPanel
       {/* Authenticated Session Header */}
       <div className="p-4 rounded-2xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-            <ShieldCheck className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-[var(--comfort-success-soft)] border border-[var(--comfort-success-border)] flex items-center justify-center text-[var(--comfort-success)]">
+            <ShieldCheck className="w-5 h-5" aria-hidden="true" />
           </div>
           <div>
             <div className="text-xs font-bold text-[var(--comfort-text)]">
@@ -216,9 +216,9 @@ export const GradebookSecurityBackupPanel: React.FC<GradebookSecurityBackupPanel
             clearAuth();
             onNotify('Sesi pengajar dikunci kembali.');
           }}
-          className="px-3 py-1.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-xs font-semibold text-[var(--comfort-text-muted)] hover:text-rose-600 flex items-center gap-1.5 cursor-pointer"
+          className="px-3 py-1.5 rounded-xl comfort-btn-secondary text-xs font-semibold hover:text-[var(--comfort-danger)] flex items-center gap-1.5 cursor-pointer"
         >
-          <LogOut className="w-3.5 h-3.5" />
+          <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
           <span>Kunci Sesi</span>
         </button>
       </div>
@@ -227,7 +227,7 @@ export const GradebookSecurityBackupPanel: React.FC<GradebookSecurityBackupPanel
       <div className="rounded-2xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] overflow-hidden">
         <div className="px-4 py-3 bg-[var(--comfort-surface-subtle)] border-b border-[var(--comfort-border)] flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <DatabaseBackup className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            <DatabaseBackup className="w-4 h-4 text-[var(--comfort-accent)]" aria-hidden="true" />
             <div>
               <h4 className="text-xs font-bold text-[var(--comfort-text)]">
                 Backup Otomatis SQLite (Hot VACUUM INTO)
@@ -255,12 +255,12 @@ export const GradebookSecurityBackupPanel: React.FC<GradebookSecurityBackupPanel
               type="button"
               onClick={handleTriggerBackup}
               disabled={creatingBackup || backupStatus?.enabled === false}
-              className="min-h-[34px] px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              className="min-h-[34px] px-3 py-1.5 rounded-xl comfort-btn-primary disabled:opacity-50 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
             >
               {creatingBackup ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <DatabaseBackup className="w-3.5 h-3.5" />
+                <DatabaseBackup className="w-3.5 h-3.5" aria-hidden="true" />
               )}
               <span>{creatingBackup ? 'Membuat Backup...' : 'Buat Backup Sekarang'}</span>
             </button>
@@ -289,9 +289,9 @@ export const GradebookSecurityBackupPanel: React.FC<GradebookSecurityBackupPanel
                 <button
                   type="button"
                   onClick={() => void handleDownloadBackup(b.filename)}
-                  className="min-h-[34px] px-2.5 py-1 rounded-lg border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] hover:border-sky-500/50 text-xs font-semibold text-[var(--comfort-text)] flex items-center gap-1.5 cursor-pointer"
+                  className="min-h-[34px] px-2.5 py-1 rounded-lg comfort-btn-secondary text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Download className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                  <Download className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />
                   <span>Unduh</span>
                 </button>
               </div>
@@ -304,7 +304,7 @@ export const GradebookSecurityBackupPanel: React.FC<GradebookSecurityBackupPanel
       <div className="rounded-2xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] overflow-hidden">
         <div className="px-4 py-3 bg-[var(--comfort-surface-subtle)] border-b border-[var(--comfort-border)] flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <FileClock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <FileClock className="w-4 h-4 text-[var(--comfort-accent)]" aria-hidden="true" />
             <h4 className="text-xs font-bold text-[var(--comfort-text)]">
               Jejak Audit Aktivitas Pengajar ({logsTotal} entri)
             </h4>
@@ -367,7 +367,7 @@ export const GradebookSecurityBackupPanel: React.FC<GradebookSecurityBackupPanel
                     <td className="px-3 py-2 font-semibold text-[var(--comfort-text)]">
                       {entry.actor_name}
                     </td>
-                    <td className="px-3 py-2 font-mono text-2xs text-sky-700 dark:text-sky-300">
+                    <td className="px-3 py-2 font-mono text-2xs text-[var(--comfort-accent)]">
                       {entry.action}
                     </td>
                     <td className="px-3 py-2 font-mono text-2xs text-[var(--comfort-text-muted)]">
