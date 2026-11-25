@@ -8,6 +8,7 @@ import {
   type EducationLevel,
 } from '../../../utils/pedagogicalHelpers';
 import { useLabStore } from '../../../stores/useLabStore';
+import { useUIStore } from '../../../stores/useUIStore';
 import { ScienceGlossaryTerm } from '../ScienceGlossaryTerm';
 
 export interface TactileParameterControlProps {
@@ -73,6 +74,7 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
   const setActiveAdjustedParam = useLabStore((s) => s.setActiveAdjustedParam);
   const updateLiveParamSnapshot = useLabStore((s) => s.updateLiveParamSnapshot);
   const removeLiveParamSnapshot = useLabStore((s) => s.removeLiveParamSnapshot);
+  const compactSliderMode = useUIStore((s) => s.compactSliderMode);
   const isHighlighted = Boolean(paramKey && highlightedParamKey === paramKey);
 
   useEffect(() => {
@@ -224,7 +226,9 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
           : 'var(--comfort-border)',
       }}
       transition={{ type: 'spring', stiffness: 320, damping: 28, mass: 0.9 }}
-      className={`p-3 rounded-xl bg-[var(--comfort-surface-subtle)] border space-y-2 transition-colors ${
+      className={`${
+        compactSliderMode ? 'p-2 space-y-1' : 'p-3 space-y-2'
+      } rounded-xl bg-[var(--comfort-surface-subtle)] border transition-colors ${
         isHighlighted
           ? 'ring-2 ring-[var(--comfort-warning)] shadow-sm'
           : 'border-[var(--comfort-border)]'
@@ -460,15 +464,17 @@ export const TactileParameterControl: React.FC<TactileParameterControlProps> = (
         </div>
 
         {/* Scale Ticks & Min/Max Boundary Readout */}
-        <div className="flex items-center justify-between text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums px-0.5 select-none">
-          <span>{min.toFixed(decimals)}</span>
-          <div className="flex items-center gap-5 opacity-45" aria-hidden="true">
-            <span className="w-px h-1.5 bg-current" />
-            <span className="w-px h-2 bg-current" />
-            <span className="w-px h-1.5 bg-current" />
+        {!compactSliderMode && (
+          <div className="flex items-center justify-between text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums px-0.5 select-none">
+            <span>{min.toFixed(decimals)}</span>
+            <div className="flex items-center gap-5 opacity-45" aria-hidden="true">
+              <span className="w-px h-1.5 bg-current" />
+              <span className="w-px h-2 bg-current" />
+              <span className="w-px h-1.5 bg-current" />
+            </div>
+            <span>{max.toFixed(decimals)}</span>
           </div>
-          <span>{max.toFixed(decimals)}</span>
-        </div>
+        )}
       </div>
 
       {feedbackText && (hintPinned || isInteracting || isHighlighted) && (

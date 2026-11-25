@@ -142,6 +142,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
         return { ...base, lightWavelength: 260 };
       case 'orbital-gravity':
         return { ...base, separationDistance: Math.max(2, Number((base.separationDistance * 0.65).toFixed(1))) };
+      case 'standing-wave-melde':
+        return { ...base, waveFrequency: Math.min(120, Math.round((base.waveFrequency ?? 50) + 25)) };
       default:
         return { ...base, mass: Math.min(30, Number((base.mass * 2).toFixed(1))) };
     }
@@ -226,6 +228,12 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
           { id: 'ke', label: 'Ek Maks Fotoelektron', value: metrics.photoelectricMaxKe, min: 0, max: 5, unit: 'eV', color: '#0ea5e9' },
           { id: 'v0', label: 'Potensial Henti V₀', value: metrics.photoelectricStoppingVoltage, min: 0, max: 5, unit: 'V', color: '#10b981' },
           { id: 'wf', label: 'Fungsi Kerja (W)', value: params.targetMetalWorkFunction ?? 2.3, min: 2, max: 5.5, unit: 'eV', color: '#f59e0b' },
+        ]
+      : metrics.mode === 'standing-wave-melde'
+      ? [
+          { id: 'vwave', label: 'Cepat Rambat (v)', value: metrics.meldeWaveSpeed, min: 0, max: 120, unit: 'm/s', color: '#0ea5e9' },
+          { id: 'lambda', label: 'Panjang Gelombang (λ)', value: metrics.meldeWavelength, min: 0, max: 3, unit: 'm', color: '#10b981' },
+          { id: 'harm', label: 'Orde Harmonik (n)', value: metrics.meldeHarmonicNumber, min: 0.5, max: 8, unit: 'perut', color: '#f59e0b' },
         ]
       : [
           { id: 'accel', label: 'Percepatan (a)', value: metrics.acceleration, min: -20, max: 35, unit: 'm/s²', color: '#0ea5e9' },
@@ -320,6 +328,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     'optics-young-slit': 'optics-young-slit',
     'photoelectric-planck': 'photoelectric-planck',
     'orbital-gravity': 'gravity-orbital',
+    'standing-wave-melde': 'standing-wave-melde',
   };
   const moduleRecords = filterRecordsForModule(records, 'Fisika', modeToCatalogId[params.mode]);
 
@@ -348,6 +357,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       'optics-young-slit': 'Uji Interferensi Celah Ganda Young',
       'photoelectric-planck': 'Uji Efek Fotolistrik Planck',
       'orbital-gravity': 'Uji Gravitasi Universal Newton',
+      'standing-wave-melde': 'Uji Resonansi Dawai Melde',
     };
     const title = titleMap[p.mode] || 'Uji Eksperimen Fisika';
 
@@ -391,6 +401,10 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       pSum = `M₁=${p.mass}kg, M₂=${p.secondaryMass}kg, r=${p.separationDistance}m`;
       numX = p.separationDistance;
       numY1 = m.universalGravityForce;
+    } else if (m.mode === 'standing-wave-melde') {
+      pSum = `m=${p.mass}kg, L=${p.stringLength ?? 1.2}m, f=${p.waveFrequency ?? 50}Hz`;
+      numX = p.mass;
+      numY1 = m.meldeWaveSpeed;
     }
 
     onRecordExperiment(
@@ -483,6 +497,22 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                 summaryA: `v₀=${params.initialVelocity}m/s · R=${metrics.projectileRange}m`,
                 summaryB: `v₀=${realityBParams.initialVelocity}m/s · R=${metricsB.projectileRange}m`,
                 delta: `ΔR = ${(deltaR >= 0 ? '+' : '')}${deltaR.toFixed(1)} m`,
+              };
+            }
+            if (metrics.mode === 'standing-wave-melde' && metricsB.mode === 'standing-wave-melde') {
+              const deltaN = metricsB.meldeHarmonicNumber - metrics.meldeHarmonicNumber;
+              return {
+                key: 'waveFrequency' as const,
+                label: 'Frekuensi f (B)',
+                unit: 'Hz',
+                min: 10,
+                max: 120,
+                step: 1,
+                valA: params.waveFrequency ?? 50,
+                valB: realityBParams.waveFrequency ?? 75,
+                summaryA: `f=${params.waveFrequency ?? 50}Hz · n=${metrics.meldeHarmonicNumber}`,
+                summaryB: `f=${realityBParams.waveFrequency ?? 75}Hz · n=${metricsB.meldeHarmonicNumber}`,
+                delta: `Δn = ${(deltaN >= 0 ? '+' : '')}${deltaN.toFixed(2)} perut`,
               };
             }
             const deltaA = metricsB.acceleration - metrics.acceleration;
@@ -641,6 +671,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               <option value="optics-young-slit">Interferensi Celah Ganda Young</option>
               <option value="photoelectric-planck">Efek Fotolistrik &amp; Konstanta Planck</option>
               <option value="orbital-gravity">Gravitasi Universal &amp; Orbit Satelit</option>
+              <option value="standing-wave-melde">Gelombang Berdiri &amp; Resonansi Dawai Melde</option>
             </select>
           </div>
 

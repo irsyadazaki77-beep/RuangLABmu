@@ -417,6 +417,27 @@ export function getPhysicsParameterFeedback(
       : 'Gaya tarik gravitasi F = G·M₁·M₂/r² sebanding lurus dengan hasil kali kedua massa.';
   }
 
+  if (mode === 'standing-wave-melde') {
+    if (paramKey === 'mass') {
+      return isSmp
+        ? 'Beban gantung ditambah -> dawai makin kencang -> gelombang merambat lebih cepat!'
+        : 'Hukum Melde v = √(F/μ): menaikkan massa beban memperbesar tegangan F = m·g sehingga cepat rambat v meningkat.';
+    }
+    if (paramKey === 'waveFrequency') {
+      return isSmp
+        ? 'Vibrator bergetar lebih cepat -> jumlah gelombang perut di sepanjang dawai makin banyak!'
+        : 'Frekuensi f naik pada cepat rambat v tetap akan memperpendek panjang gelombang λ = v/f dan menambah jumlah perut n.';
+    }
+    if (paramKey === 'linearMassDensity') {
+      return isSmp
+        ? 'Dawai lebih tebal/berat -> gelombang merambat lebih lambat.'
+        : 'Rapat massa linier μ naik memperbesar inersia dawai sehingga cepat rambat v = √(F/μ) menurun.';
+    }
+    return isSmp
+      ? 'Panjang dawai mengatur berapa banyak perut gelombang berdiri yang dapat terbentuk.'
+      : 'Resonansi gelombang berdiri tercapai saat L = n·(λ/2).';
+  }
+
   return isSmp
     ? 'Menggeser variabel ini langsung mengubah hasil pengukuran di ruang 3D.'
     : 'Perubahan variabel bebas ini memperbarui keadaan sistem secara deterministik.';
@@ -511,6 +532,23 @@ export function getChemistryParameterFeedback(
     return isSmp
       ? 'Wadah kuvet lebih tebal -> cahaya melewati lebih banyak partikel -> serapan naik.'
       : 'Panjang lintasan optik l berbanding lurus dengan absorbansi total A.';
+  }
+
+  if (mode === 'chemical-equilibrium-lechatelier') {
+    if (paramKey === 'equilibriumTempC') {
+      return value >= 55
+        ? isSmp
+          ? 'Tabung dipanaskan -> warna gas berubah makin cokelat kemerahan pekat (banyak NO₂)!'
+          : 'Reaksi endotermik (ΔH° = +57,2 kJ/mol): kenaikan suhu T memperbesar Kp & menggeser kesetimbangan ke kanan (2 NO₂).'
+        : isSmp
+        ? 'Tabung didinginkan -> warna cokelat memudar menjadi pucat bening (bergabung jadi N₂O₄)!'
+        : 'Penurunan suhu T memperkecil Kp (Van \'t Hoff) sehingga kesetimbangan bergeser ke arah eksotermik (N₂O₄).';
+    }
+    if (paramKey === 'equilibriumPressureAtm') {
+      return isSmp
+        ? 'Tekanan piston diperbesar -> molekul gas terdorong bergabung menjadi N₂O₄ yang lebih hemat ruang!'
+        : 'Asas Le Chatelier: kenaikan tekanan total P menggeser kesetimbangan ke koefisien mol gas lebih kecil (1 mol N₂O₄) sehingga α turun.';
+    }
   }
 
   // thermo-calorimetry & reaction-kinetics-arrhenius
@@ -654,6 +692,21 @@ export function getBiologyParameterFeedback(
       : 'Parameter α dan β menggeser titik ekuilibrium koeksistensi (x*, y*) pada ruang fase.';
   }
 
+  if (moduleId === 'mendel-genetics-dihybrid') {
+    if (paramKey === 'sampleSizeN') {
+      return value >= 240
+        ? isSmp
+          ? 'Jumlah biji panen banyak -> perbandingan 9:3:3:1 terlihat makin rapi dan akurat!'
+          : 'Hukum Bilangan Besar: ukuran sampel N besar memperkecil galat sampling (∝ 1/√N) sehingga rasio mendekati 9:3:3:1.'
+        : isSmp
+        ? 'Sampel biji sedikit -> perbandingan sifat anakan masih mudah bergoyang karena faktor kebetulan.'
+        : 'Ukuran sampel N kecil memiliki variansi binomial relatif tinggi pada uji Chi-Square (χ²).';
+    }
+    return isSmp
+      ? 'Jika peluang alel dominan tepat 0,50, semua kombinasi papan catur Punnett memiliki peluang seimbang.'
+      : 'Penyimpangan frekuensi alel gamet dari 0,50 menggeser proporsi fenotipe menjauhi 9:3:3:1 dan menaikkan nilai χ².';
+  }
+
   if (moduleId === 'anatomy-cardiovascular-heart') {
     if (paramKey === 'vesselRadiusRatio') {
       if (value <= 0.75) {
@@ -705,8 +758,8 @@ export function getBiologyParameterFeedback(
           ? 'Makin tinggi di gunung -> udara makin tipis, kadar oksigen darah (SpO₂) mulai turun!'
           : 'Hipobarik (>3500 mdpl) menurunkan tekanan parsial PAO₂ -> saturasi SpO₂ turun pada kurva Hill.'
         : isSmp
-        ? 'Ketinggian rendah -> tekanan udara cukup tinggi untuk mendorong O₂ masuk ke darah.'
-        : 'Tekanan barometrik permukaan laut menjaga gradien difusi O₂ alveolus-kapiler optimal.';
+          ? 'Ketinggian rendah -> tekanan udara cukup tinggi untuk mendorong O₂ masuk ke darah.'
+          : 'Tekanan barometrik permukaan laut menjaga gradien difusi O₂ alveolus-kapiler optimal.';
     }
     if (paramKey === 'diaphragmEffort') {
       return isSmp
@@ -848,6 +901,26 @@ export function getAstronomyParameterFeedback(
       : 'Nilai H₀ menentukan laju ekspansi ruang dan estimasi umur alam semesta (t₀ ≈ 1/H₀).';
   }
 
+  if (mode === 'planetary-atmosphere-greenhouse') {
+    if (paramKey === 'planetaryAlbedo') {
+      return value >= 0.5
+        ? isSmp
+          ? 'Albedo tinggi (banyak es putih) -> sebagian besar sinar matahari dipantulkan -> planet mendingin!'
+          : 'Albedo A tinggi menurunkan fluks surya terserap S₀(1 - A)/4 sehingga suhu ekuilibrium Teq turun.'
+        : isSmp
+        ? 'Albedo rendah (permukaan gelap) -> planet menyerap lebih banyak panas matahari!'
+        : 'Albedo A rendah meningkatkan penyerapan radiasi gelombang pendek bintang sehingga Teq & Ts naik.';
+    }
+    if (paramKey === 'greenhouseGasPpm') {
+      return isSmp
+        ? 'Gas rumah kaca CO₂ ditambah -> makin banyak panas inframerah terperangkap di atmosfer!'
+        : 'Konsentrasi CO₂ naik memperbesar emisivitas inframerah ε sehingga suhu permukaan Ts = Teq·[2/(2-ε)]^(1/4) meningkat.';
+    }
+    return isSmp
+      ? 'Fluks sinar bintang mengatur total energi awal yang menyinari permukaan planet.'
+      : 'Fluks bintang S₀ berbanding lurus dengan pangkat empat suhu ekuilibrium radiatif (Teq⁴ ∝ S₀).';
+  }
+
   return isSmp
     ? 'Mengubah parameter ini langsung memperbarui simulasi tata surya dan kosmos 3D.'
     : 'Parameter astrofisika diperbarui secara real-time pada pemodelan 3D.';
@@ -949,6 +1022,18 @@ function inferReadableAxes(
   }
   if (hint.includes('galaksi') || hint.includes('bima sakti')) {
     return { xLabel: 'Jarak Galaktosentrik (R)', yLabel: 'Kecepatan Rotasi (v)' };
+  }
+  if (hint.includes('melde') || hint.includes('dawai')) {
+    return { xLabel: 'Massa Beban Gantung (m)', yLabel: 'Cepat Rambat Gelombang (v)' };
+  }
+  if (hint.includes('chatelier') || hint.includes('kesetimbangan')) {
+    return { xLabel: 'Suhu Reaktor (T)', yLabel: 'Fraksi Mol NO₂ (%)' };
+  }
+  if (hint.includes('mendel') || hint.includes('dihibrid') || hint.includes('chi-square')) {
+    return { xLabel: 'Ukuran Sampel (N)', yLabel: 'Nilai Chi-Square (χ²)' };
+  }
+  if (hint.includes('rumah kaca') || hint.includes('albedo') || hint.includes('greenhouse')) {
+    return { xLabel: 'Konsentrasi CO₂ / Albedo', yLabel: 'Suhu Permukaan (Ts)' };
   }
 
   const dom = (domain || records[0]?.domain || '').toLowerCase();

@@ -697,7 +697,7 @@ export function buildPhysicsCoreStage(
     },
     initialLite
   );
-  const { stokesSphere, cart1Mesh, cart2Mesh, satelliteBody } = specialRigs;
+  const { stokesSphere, cart1Mesh, cart2Mesh, satelliteBody, meldeHangingMass } = specialRigs;
 
   // 9. Safety Hazard 3D Smoke & Alarm Light Group
   const hazardGroup = new THREE.Group();
@@ -780,7 +780,8 @@ export function buildPhysicsCoreStage(
       p.mode === 'stokes-viscosity' ||
       p.mode === 'ohm-wheatstone' ||
       p.mode === 'optics-young-slit' ||
-      p.mode === 'photoelectric-planck';
+      p.mode === 'photoelectric-planck' ||
+      p.mode === 'standing-wave-melde';
 
     inclineGroup.visible = p.mode === 'newton-incline' || !isKnownSpecialMode;
     projectileGroup.visible = p.mode === 'projectile-gravity' || (p.mode as string) === 'projectile-motion';
@@ -1132,6 +1133,19 @@ export function buildPhysicsCoreStage(
       _reusableConceptEntries[2].worldPos.set(sat.x, sat.y + 0.75, sat.z);
       _reusableConceptEntries[2].text = 'Gaya Gravitasi F_G ∝ 1/r²';
       _reusableConceptEntries[2].active = true;
+    } else if (curM.mode === 'standing-wave-melde') {
+      meldeHangingMass.getWorldPosition(conceptBlockWorldPos);
+      _reusableConceptEntries[0].worldPos.set(-3.8, 2.05, 0);
+      _reusableConceptEntries[0].text = `Vibrator f = ${(curP.waveFrequency ?? 50).toFixed(0)} Hz`;
+      _reusableConceptEntries[0].active = true;
+
+      _reusableConceptEntries[2].worldPos.set(0, 2.15, 0);
+      _reusableConceptEntries[2].text = `Gelombang Berdiri · v = ${curM.meldeWaveSpeed.toFixed(1)} m/s · λ = ${curM.meldeWavelength.toFixed(2)} m`;
+      _reusableConceptEntries[2].active = true;
+
+      _reusableConceptEntries[3].worldPos.set(conceptBlockWorldPos.x, conceptBlockWorldPos.y + 0.65, conceptBlockWorldPos.z);
+      _reusableConceptEntries[3].text = `Tegangan Tali F = ${curM.meldeTensionForce.toFixed(2)} N`;
+      _reusableConceptEntries[3].active = true;
     }
 
     return _reusableConceptEntries;

@@ -1206,4 +1206,174 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
       return `Galaksi sejauh d = ${v.d} Mpc dengan H₀ = ${v.H0} km/s/Mpc menjauh pada v = ${outcome} km/s, menghasilkan pergeseran merah kosmologis z ≈ ${z}.`;
     },
   },
+
+  'standing-wave-melde': {
+    moduleId: 'standing-wave-melde',
+    title: 'Intuisi Cepat Rambat Gelombang Melde',
+    outcomeSymbol: 'v',
+    outcomeLabel: 'Cepat Rambat Dawai',
+    outcomeUnit: 'm/s',
+    variables: [
+      {
+        key: 'F',
+        symbol: 'F',
+        label: 'Gaya Tegangan Dawai',
+        unit: 'N',
+        min: 5,
+        max: 100,
+        step: 5,
+        defaultValue: 20,
+        role: 'sqrt',
+        colorClass: 'text-sky-600 dark:text-sky-400 border-sky-500/40 bg-sky-500/10',
+      },
+      {
+        key: 'mu',
+        symbol: 'μ',
+        label: 'Rapat Massa Linier',
+        unit: 'g/m',
+        min: 1,
+        max: 20,
+        step: 1,
+        defaultValue: 5,
+        role: 'inverse',
+        colorClass: 'text-amber-600 dark:text-amber-400 border-amber-500/40 bg-amber-500/10',
+      },
+    ],
+    computeOutcome: (v) => Number(Math.sqrt(v.F / Math.max(0.0005, v.mu / 1000)).toFixed(2)),
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Dengan tegangan dawai F = ${v.F} N dan rapat massa linier μ = ${v.mu} g/m, gelombang transversal merambat pada kelajuan v = √(F/μ) = ${outcome} m/s.`,
+  },
+
+  'chemical-equilibrium-lechatelier': {
+    moduleId: 'chemical-equilibrium-lechatelier',
+    title: 'Intuisi Pergeseran Kesetimbangan Le Chatelier',
+    outcomeSymbol: '%NO₂',
+    outcomeLabel: 'Fraksi Gas NO₂ Cokelat',
+    outcomeUnit: '%',
+    variables: [
+      {
+        key: 'T',
+        symbol: 'T',
+        label: 'Suhu Reaktor',
+        unit: '°C',
+        min: 0,
+        max: 100,
+        step: 5,
+        defaultValue: 25,
+        role: 'independent',
+        colorClass: 'text-amber-600 dark:text-amber-400 border-amber-500/40 bg-amber-500/10',
+        paramKey: 'equilibriumTempC',
+      },
+      {
+        key: 'P',
+        symbol: 'P',
+        label: 'Tekanan Total Sistem',
+        unit: 'atm',
+        min: 0.2,
+        max: 5.0,
+        step: 0.2,
+        defaultValue: 1.0,
+        role: 'inverse',
+        colorClass: 'text-teal-600 dark:text-teal-400 border-teal-500/40 bg-teal-500/10',
+        paramKey: 'equilibriumPressureAtm',
+      },
+    ],
+    computeOutcome: (v) => {
+      const tK = v.T + 273.15;
+      const kp = 0.148 * Math.exp((-57200 / 8.314) * (1 / tK - 1 / 298.15));
+      const alpha = Math.sqrt(kp / (kp + 4 * Math.max(0.1, v.P)));
+      return Number(((2 * alpha) / (1 + alpha) * 100).toFixed(1));
+    },
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Pada suhu ${v.T} °C dan tekanan ${v.P} atm, disosiasi endotermik N₂O₄ ⇌ 2 NO₂ menghasilkan ${outcome}% gas NO₂ cokelat kemerahan di dalam reaktor.`,
+  },
+
+  'mendel-genetics-dihybrid': {
+    moduleId: 'mendel-genetics-dihybrid',
+    title: 'Intuisi Rasio Dihibrid Mendel 9:3:3:1',
+    outcomeSymbol: 'E(RY)',
+    outcomeLabel: 'Harapan Biji Bulat-Kuning',
+    outcomeUnit: 'biji',
+    variables: [
+      {
+        key: 'N',
+        symbol: 'N',
+        label: 'Total Populasi Biji F₂',
+        unit: 'biji',
+        min: 32,
+        max: 640,
+        step: 16,
+        defaultValue: 160,
+        role: 'independent',
+        colorClass: 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
+        paramKey: 'sampleSizeN',
+      },
+      {
+        key: 'pR',
+        symbol: 'p(R)',
+        label: 'Frekuensi Gamet Alel R',
+        unit: '',
+        min: 0.2,
+        max: 0.8,
+        step: 0.05,
+        defaultValue: 0.5,
+        role: 'independent',
+        colorClass: 'text-sky-600 dark:text-sky-400 border-sky-500/40 bg-sky-500/10',
+        paramKey: 'dominantAlleleFreqR',
+      },
+    ],
+    computeOutcome: (v) => {
+      const probRound = 1 - Math.pow(1 - v.pR, 2);
+      const probYellow = 0.75;
+      return Math.round(v.N * probRound * probYellow);
+    },
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Dari total N = ${v.N} biji F₂ dengan frekuensi alel gamet p(R) = ${v.pR}, jumlah biji dominan ganda Bulat-Kuning diperkirakan mencapai ${outcome} biji (9/16N saat p(R) = 0,50).`,
+  },
+
+  'planetary-atmosphere-greenhouse': {
+    moduleId: 'planetary-atmosphere-greenhouse',
+    title: 'Intuisi Suhu Permukaan & Efek Rumah Kaca',
+    outcomeSymbol: 'Tₛ',
+    outcomeLabel: 'Suhu Permukaan Planet',
+    outcomeUnit: '°C',
+    variables: [
+      {
+        key: 'A',
+        symbol: 'A',
+        label: 'Albedo Pantulan Planet',
+        unit: '',
+        min: 0.05,
+        max: 0.85,
+        step: 0.05,
+        defaultValue: 0.30,
+        role: 'inverse',
+        colorClass: 'text-sky-600 dark:text-sky-400 border-sky-500/40 bg-sky-500/10',
+        paramKey: 'planetaryAlbedo',
+      },
+      {
+        key: 'co2',
+        symbol: 'CO₂',
+        label: 'Konsentrasi Gas Rumah Kaca',
+        unit: 'ppm',
+        min: 100,
+        max: 2500,
+        step: 50,
+        defaultValue: 420,
+        role: 'independent',
+        colorClass: 'text-amber-600 dark:text-amber-400 border-amber-500/40 bg-amber-500/10',
+        paramKey: 'greenhouseGasPpm',
+      },
+    ],
+    computeOutcome: (v) => {
+      const absorbed = (1361 * (1 - v.A)) / 4;
+      const tEq = Math.pow(absorbed / 5.670374e-8, 0.25);
+      const eps = Math.max(0.05, Math.min(0.97, 0.78 + 0.085 * Math.log(v.co2 / 420)));
+      const tS = tEq * Math.pow(2 / (2 - eps), 0.25);
+      return Number((tS - 273.15).toFixed(1));
+    },
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Dengan albedo A = ${v.A} dan kadar CO₂ = ${v.co2} ppm, efek rumah kaca menahan radiasi inframerah sehingga suhu rata-rata permukaan planet stabil di ${outcome} °C.`,
+  },
 };
+

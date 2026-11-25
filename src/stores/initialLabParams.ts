@@ -31,6 +31,9 @@ export const INITIAL_PHYSICS_PARAMS: PhysicsParams = {
   springConstantK: 120,
   springDisplacement: 0.8,
   dampingCoeff: 0.15,
+  stringLength: 1.2,
+  linearMassDensity: 0.005,
+  waveFrequency: 50,
   mode: 'newton-incline',
 };
 
@@ -52,6 +55,9 @@ export const INITIAL_CHEMISTRY_PARAMS: ChemistryParams = {
   redoxPairId: 'zn-cu-daniell',
   anodeConcM: 1.0,
   cathodeConcM: 1.0,
+  equilibriumTempC: 25,
+  equilibriumPressureAtm: 1.0,
+  n2o4InitialConcM: 0.2,
 };
 
 export const INITIAL_BIOLOGY_CONTEXT: BiologyTelemetryContext = {
@@ -80,4 +86,8 @@ export const INITIAL_ASTRONOMY_PARAMS: AstronomyParams = {
   starRadiusSolar: 1.0,
   exoplanetRadiusEarth: 10.91,
   exoplanetOrbitAu: 1.0,
+  planetaryAlbedo: 0.30,
+  greenhouseGasPpm: 420,
+  stellarFluxFactor: 1.0,
 };
+

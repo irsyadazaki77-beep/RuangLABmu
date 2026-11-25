@@ -390,4 +390,55 @@ export const CHEMISTRY_PEDAGOGY: Record<string, ModulePedagogyBundle> = {
       },
     ],
   },
+
+  'chemical-equilibrium-lechatelier': {
+    keyTakeaways: [
+      'Asas Le Chatelier menyatakan bahwa jika sistem kesetimbangan diberi gangguan (suhu, tekanan, konsentrasi), sistem akan bergeser ke arah yang meminimalkan gangguan tersebut.',
+      'Pada reaksi endotermik N₂O₄(g, tak berwarna) ⇌ 2 NO₂(g, cokelat kemerahan) (ΔH° = +57,2 kJ/mol), pemanasan menggeser kesetimbangan ke kanan dan memperbesar nilai Kp.',
+      'Peningkatan tekanan total P pada suhu tetap menggeser kesetimbangan ke arah jumlah mol gas yang lebih kecil (1 mol N₂O₄ di kiri) tanpa mengubah nilai Kp.',
+    ],
+    everydayAnalogy: {
+      title: 'Kacamata Fotokromik yang Menggelap di Bawah Terik Matahari',
+      scenario:
+        'Lensa kacamata fotokromik tampak bening saat berada di ruangan sejuk, namun berubah menjadi cokelat gelap ketika terkena panas dan sinar terik di luar ruangan, lalu kembali bening saat masuk ke ruangan.',
+      connection:
+        'Sama seperti kesetimbangan reversibel N₂O₄ ⇌ 2 NO₂: energi panas mendorong pembentukan molekul berwarna gelap (NO₂), dan pendinginan mengembalikannya ke bentuk dimer tak berwarna (N₂O₄).',
+    },
+    formulaBreakdown: [
+      { symbol: 'T', name: 'Suhu reaktor kesetimbangan', unit: '°C / K', role: 'bebas', explanation: 'Mengubah nilai tetapan kesetimbangan Kp secara eksponensial melalui persamaan Van \'t Hoff.' },
+      { symbol: 'P', name: 'Tekanan total gas', unit: 'atm', role: 'bebas', explanation: 'Mengubah derajat disosiasi α karena selisih koefisien mol gas Δn = +1.' },
+      { symbol: 'Kp', name: 'Tetapan kesetimbangan tekanan', unit: 'atm', role: 'terikat', explanation: 'Rasio kuadrat tekanan parsial NO₂ terhadap tekanan parsial N₂O₄ saat setimbang.' },
+      { symbol: 'α', name: 'Derajat disosiasi N₂O₄', unit: 'fraksi 0–1', role: 'terikat', explanation: 'Fraksi mol N₂O₄ awal yang terurai menjadi gas NO₂ cokelat kemerahan: α = √[Kp / (Kp + 4P)].' },
+    ],
+    workedExample: {
+      question:
+        'Pada suhu 25 °C (298,15 K), reaksi N₂O₄(g) ⇌ 2 NO₂(g) memiliki Kp = 0,148 atm. Jika tekanan total dijaga P = 1,00 atm, hitung derajat disosiasi α dan persentase mol gas NO₂ di dalam tabung!',
+      given: ['T = 298,15 K', 'Kp = 0,148 atm', 'P = 1,00 atm'],
+      steps: [
+        'Gunakan hubungan Kp = 4·α²·P / (1 − α²) sehingga α = √[Kp / (Kp + 4P)].',
+        'Substitusi nilai: α = √[0,148 / (0,148 + 4 × 1,00)] = √(0,148 / 4,148) = √0,03568 ≈ 0,189.',
+        'Hitung fraksi mol NO₂: x(NO₂) = 2α / (1 + α) = (2 × 0,189) / 1,189 ≈ 0,318 (31,8%).',
+      ],
+      answer: 'α ≈ 0,189 dan fraksi mol NO₂ ≈ 31,8%',
+      physicalMeaning:
+        'Pada suhu kamar dan tekanan 1 atm, sekitar 18,9% molekul N₂O₄ terpecah menjadi NO₂ sehingga campuran gas berwarna kuning-cokelat sedang.',
+    },
+    glossary: [
+      { term: 'Kesetimbangan Dinamis', definition: 'Keadaan saat laju reaksi maju sama dengan laju reaksi balik (v maju = v balik) sehingga komposisi makroskopik tetap.' },
+      { term: 'Asas Le Chatelier', definition: 'Prinsip bahwa sistem setimbang merespons gangguan eksternal dengan bergeser ke arah yang meredam gangguan tersebut.' },
+      { term: 'Derajat Disosiasi (α)', definition: 'Perbandingan jumlah mol zat yang terurai terhadap jumlah mol zat mula-mula sebelum bereaksi.' },
+      { term: 'Persamaan Van \'t Hoff', definition: 'Rumus termodinamika yang menghubungkan perubahan nilai tetapan kesetimbangan Kp terhadap perubahan suhu dan entalpi ΔH°.' },
+    ],
+    deepDiveContent: {
+      historicalContext:
+        'Henry Louis Le Chatelier (1884) dan Karl Ferdinand Braun merumuskan prinsip pergeseran kesetimbangan kimia yang kemudian menjadi kunci rekayasa industri sintesis amonia Haber-Bosch bertekanan tinggi.',
+      derivationLatex: [
+        'K_p = \\frac{P_{\\text{NO}_2}^2}{P_{\\text{N}_2\\text{O}_4}} = \\frac{\\left(\\frac{2\\alpha}{1+\\alpha}P\\right)^2}{\\left(\\frac{1-\\alpha}{1+\\alpha}P\\right)} = \\frac{4\\alpha^2 P}{1 - \\alpha^2}',
+        '\\frac{d \\ln K_p}{dT} = \\frac{\\Delta H^\\circ}{R T^2}',
+      ],
+      advancedConcept:
+        'Berbeda dengan perubahan tekanan atau konsentrasi yang hanya menggeser kuosien reaksi Qp menuju Kp yang sama, perubahan suhu secara langsung mengubah lanskap energi bebas Gibbs standar ΔG° = −RT ln Kp.',
+    },
+  },
 };
+

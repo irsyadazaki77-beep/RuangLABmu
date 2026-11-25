@@ -703,7 +703,7 @@ export function buildChemistryCoreStage(
     createLiquidWobbleMaterial,
     liquidShaderMaterials,
   });
-  const { pistonHead } = specialRigs;
+  const { pistonHead, leChatelierPiston } = specialRigs;
 
   // 7. Rising Gas Micro-Bubble Pool
   const BUBBLE_COUNT = 96;
@@ -1060,6 +1060,18 @@ export function buildChemistryCoreStage(
     } else if (p.mode === 'spectrophotometry-beer') {
       reusableConceptPos[2].set(-0.8, 3.9, 0.4);
       reusableConceptEntries[2].text = `Kuvet Sampel A = ${(m.spectroAbsorbance ?? 0).toFixed(2)}`;
+      reusableConceptEntries[2].active = true;
+    } else if (p.mode === 'chemical-equilibrium-lechatelier') {
+      reusableConceptPos[0].set(0, leChatelierPiston.position.y + 0.55, 0);
+      reusableConceptEntries[0].text = `Piston Tekanan P = ${(p.equilibriumPressureAtm ?? 1.0).toFixed(1)} atm`;
+      reusableConceptEntries[0].active = true;
+
+      reusableConceptPos[1].set(0, 2.15, 0);
+      reusableConceptEntries[1].text = `N₂O₄ ⇌ 2 NO₂ (${(m.no2MoleFractionPct ?? 31.6).toFixed(1)}% NO₂ · α = ${(m.no2DissociationAlpha ?? 0.19).toFixed(2)})`;
+      reusableConceptEntries[1].active = true;
+
+      reusableConceptPos[2].set(0, 0.95, 1.55);
+      reusableConceptEntries[2].text = `Penangas T = ${(p.equilibriumTempC ?? 25).toFixed(0)} °C · Kp = ${(m.leChatelierKp ?? 0.142).toFixed(3)}`;
       reusableConceptEntries[2].active = true;
     }
     return reusableConceptEntries;

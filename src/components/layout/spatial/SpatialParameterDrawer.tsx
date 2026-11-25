@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, BookOpen, PanelLeftClose, Sliders } from 'lucide-react';
+import { AlertTriangle, BookOpen, Minimize2, Maximize2, PanelLeftClose, Sliders } from 'lucide-react';
 import { DRAWER_LEFT_VARIANTS } from '../../../styles/motionPresets';
 import { Accordion } from '../../ui/Accordion';
+import { useUIStore } from '../../../stores/useUIStore';
+import { labSound } from '../../../utils/soundEngine';
 
 export interface SpatialParameterDrawerProps {
   isOpen: boolean;
@@ -24,6 +26,8 @@ export const SpatialParameterDrawer: React.FC<SpatialParameterDrawerProps> = ({
   sidebar,
 }) => {
   const [hypothesisExpanded, setHypothesisExpanded] = useState(false);
+  const compactSliderMode = useUIStore((s) => s.compactSliderMode);
+  const toggleCompactSliderMode = useUIStore((s) => s.toggleCompactSliderMode);
 
   const primaryTakeaway =
     keyTakeaways[0] ||
@@ -56,19 +60,47 @@ export const SpatialParameterDrawer: React.FC<SpatialParameterDrawerProps> = ({
               <Sliders className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
               <span className="truncate">Parameter Eksperimen</span>
             </span>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Tutup Panel Parameter"
-              title="Tutup Panel Parameter ([)"
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)] transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
-            >
-              <PanelLeftClose className="w-4 h-4" aria-hidden="true" />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                data-testid="toggle-compact-slider-mode-btn"
+                onClick={() => {
+                  labSound.playClick(620);
+                  toggleCompactSliderMode();
+                }}
+                aria-pressed={compactSliderMode}
+                title={
+                  compactSliderMode
+                    ? 'Kembalikan tampilan lengkap parameter & ringkasan'
+                    : 'Mode Kompak: rapatkan slider & sembunyikan kartu teori sekunder'
+                }
+                className={`px-2 py-1 rounded-lg text-2xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+                  compactSliderMode
+                    ? 'bg-[var(--comfort-accent-soft)] text-[var(--comfort-accent)] border border-[var(--comfort-accent-border)]'
+                    : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)]'
+                }`}
+              >
+                {compactSliderMode ? (
+                  <Maximize2 className="w-3 h-3 shrink-0" aria-hidden="true" />
+                ) : (
+                  <Minimize2 className="w-3 h-3 shrink-0" aria-hidden="true" />
+                )}
+                <span>Kompak</span>
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Tutup Panel Parameter"
+                title="Tutup Panel Parameter ([)"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-[var(--comfort-surface-subtle)] transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
+              >
+                <PanelLeftClose className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
-            {hypothesisText && (
+          <div className={`flex-1 min-h-0 overflow-y-auto ${compactSliderMode ? 'p-2.5 space-y-2' : 'p-3 space-y-3'}`}>
+            {!compactSliderMode && hypothesisText && (
               <div className="p-2.5 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] text-xs space-y-1">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-2xs font-bold text-[var(--comfort-accent)]">
@@ -96,7 +128,7 @@ export const SpatialParameterDrawer: React.FC<SpatialParameterDrawerProps> = ({
 
             {sidebar}
 
-            {hasQuickRef && (
+            {!compactSliderMode && hasQuickRef && (
               <Accordion
                 title="Ringkasan Teori & K3"
                 icon={<BookOpen className="w-3.5 h-3.5 text-[var(--comfort-accent)]" aria-hidden="true" />}

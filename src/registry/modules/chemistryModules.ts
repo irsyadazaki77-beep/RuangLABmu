@@ -465,4 +465,96 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
       return { absorbance, transmittancePct, transmittedIntensity };
     },
   },
+
+  {
+    id: 'chemical-equilibrium-lechatelier',
+    title: 'Kesetimbangan Kimia Dinamis & Asas Le Chatelier',
+    domain: 'kimia',
+    subCategory: 'Kesetimbangan Kimia & Termodinamika',
+    supportedTiers: ['SMA', 'Mahasiswa'],
+    difficulty: 2,
+    estimatedMinutes: 35,
+    objectives: {
+      SMP: [
+        'Mengamati perubahan warna gas di dalam tabung tertutup ketika dipanaskan atau didinginkan.',
+        'Memahami bahwa reaksi kimia dapat berjalan bolak-balik (reversibel).',
+      ],
+      SMA: [
+        'Memprediksi arah pergeseran kesetimbangan N₂O₄(g) ⇌ 2 NO₂(g) akibat perubahan suhu dan tekanan berdasarkan Asas Le Chatelier.',
+        'Menganalisis hubungan antara derajat disosiasi (α), tekanan total (P), dan kepekatan warna gas NO₂ cokelat kemerahan.',
+      ],
+      Mahasiswa: [
+        'Menghitung ketetapan kesetimbangan tekanan parsial (Kp) dan konsentrasi (Kc) sebagai fungsi suhu menggunakan Persamaan Van \'t Hoff.',
+        'Mengevaluasi pengaruh kompresi volume terhadap fraksi mol kesetimbangan tanpa mengubah nilai Kp isotermal.',
+      ],
+    },
+    theorySummary:
+      'Pada sistem tertutup, disosiasi dinitrogen tetraoksida tak berwarna menjadi nitrogen dioksida cokelat kemerahan bersifat endotermik reversibel: N₂O₄(g) ⇌ 2 NO₂(g) (ΔH° = +57,2 kJ/mol). Berdasarkan Asas Le Chatelier, kenaikan suhu menggeser kesetimbangan ke arah produk endotermik (NO₂ meningkat, nilai Kp membesar sesuai persamaan Van \'t Hoff), sedangkan kenaikan tekanan menggeser kesetimbangan ke arah jumlah mol gas yang lebih kecil (N₂O₄ meningkat).',
+    keyEquations: [
+      '\\text{N}_2\\text{O}_4(g) \\rightleftharpoons 2\\,\\text{NO}_2(g) \\quad (\\Delta H^\\circ = +57,2\\text{ kJ/mol})',
+      'K_p = \\frac{P_{\\text{NO}_2}^2}{P_{\\text{N}_2\\text{O}_4}} = \\frac{4 \\alpha^2 P}{1 - \\alpha^2}',
+      '\\ln\\left(\\frac{K_p(T)}{K_p(T_0)}\\right) = -\\frac{\\Delta H^\\circ}{R}\\left(\\frac{1}{T} - \\frac{1}{T_0}\\right)',
+    ],
+    apparatusList: [
+      'Tabung reaktor silinder kaca borosilikat berjaket penangas termostatik',
+      'Piston kompresi tekanan gas variabel kedap udara',
+      'Manometer Bourdon digital & sensor kolorimetri kepekatan gas NO₂',
+      'Pengatur suhu penangas air-glikol (0 °C – 100 °C)',
+    ],
+    safetyNotes: [
+      'Gas NO₂ bersifat toksik dan korosif pada saluran pernapasan; pastikan tabung reaktor kaca tertutup rapat di dalam lemari asam.',
+      'Jangan melampaui batas tekanan kerja maksimum silinder kaca borosilikat (5,0 atm).',
+    ],
+    parameters: [
+      { key: 'equilibriumTempC', label: 'Suhu Penangas Reaktor (T)', unit: '°C', min: 0, max: 100, step: 5, defaultValue: 25, variableRole: 'bebas', instrumentType: 'thermometer' },
+      { key: 'equilibriumPressureAtm', label: 'Tekanan Total Sistem (P)', unit: 'atm', min: 0.2, max: 5.0, step: 0.2, defaultValue: 1.0, variableRole: 'bebas' },
+      { key: 'n2o4InitialConcM', label: 'Konsentrasi Awal N₂O₄', unit: 'M', min: 0.05, max: 1.0, step: 0.05, defaultValue: 0.2, variableRole: 'kontrol' },
+    ],
+    outputs: [
+      { key: 'leChatelierKp', label: 'Tetapan Kesetimbangan (Kp)', unit: 'atm', formulaLatex: 'K_p = P_{\\text{NO}_2}^2 / P_{\\text{N}_2\\text{O}_4}', precision: 3 },
+      { key: 'no2DissociationAlpha', label: 'Derajat Disosiasi (α)', unit: '', formulaLatex: '\\alpha = \\sqrt{K_p/(K_p + 4P)}', precision: 3 },
+      { key: 'no2MoleFractionPct', label: 'Fraksi Gas NO₂ Cokelat', unit: '%', formulaLatex: 'x_{\\text{NO}_2} \\times 100\\%', precision: 1 },
+      { key: 'no2PartialPressureAtm', label: 'Tekanan Parsial NO₂', unit: 'atm', formulaLatex: 'P_{\\text{NO}_2}', precision: 3 },
+    ],
+    defaultRegressionAxes: { xKey: 'equilibriumTempC', yKey: 'no2MoleFractionPct', expectedSlopeMeaning: 'Pergeseran Endotermik Fraksi NO₂ terhadap Suhu' },
+    preLabQuiz: [
+      {
+        id: 'lech-q1',
+        question: 'Reaksi N₂O₄(g, tak berwarna) ⇌ 2 NO₂(g, cokelat kemerahan) memiliki ΔH° = +57,2 kJ/mol (endotermik). Apa yang teramati ketika tabung reaktor dipanaskan dari 25 °C menjadi 80 °C?',
+        options: [
+          'Gas di dalam tabung menjadi semakin bening karena bergeser ke N₂O₄',
+          'Warna gas menjadi semakin cokelat kemerahan pekat karena kesetimbangan bergeser ke arah pembentukan NO₂',
+          'Nilai tetapan kesetimbangan Kp menurun drastis',
+          'Tidak terjadi perubahan warna maupun komposisi gas',
+        ],
+        correctIndex: 1,
+        explanation: 'Karena reaksi pembentukan NO₂ bersifat endotermik (menyerap kalor), kenaikan suhu menggeser kesetimbangan ke kanan (produk NO₂) sehingga nilai Kp dan kepekatan warna cokelat kemerahan meningkat.',
+      },
+      {
+        id: 'lech-q2',
+        question: 'Jika piston ditekan pada suhu tetap sehingga tekanan total gas meningkat, ke arah manakah kesetimbangan N₂O₄(g) ⇌ 2 NO₂(g) akan bergeser?',
+        options: [
+          'Bergeser ke kanan (ke arah 2 mol NO₂)',
+          'Bergeser ke kiri (ke arah 1 mol N₂O₄) yang memiliki jumlah koefisien mol gas lebih kecil',
+          'Tidak bergeser karena jumlah atom sama',
+          'Nilai Kp bertambah dua kali lipat',
+        ],
+        correctIndex: 1,
+        explanation: 'Menurut Asas Le Chatelier, peningkatan tekanan total pada suhu tetap menggeser kesetimbangan ke ruas dengan jumlah koefisien mol gas yang lebih kecil (1 mol N₂O₄ di kiri dibanding 2 mol NO₂ di kanan).',
+      },
+    ],
+    computeStep: (params) => {
+      const { equilibriumTempC = 25, equilibriumPressureAtm = 1.0 } = params;
+      const T = Math.max(250, equilibriumTempC + 273.15);
+      const P = Math.max(0.1, equilibriumPressureAtm);
+      const R = 8.314;
+      const leChatelierKp = 0.148 * Math.exp((-57200 / R) * (1 / T - 1 / 298.15));
+      const no2DissociationAlpha = Math.sqrt(leChatelierKp / (leChatelierKp + 4 * P));
+      const xNo2 = (2 * no2DissociationAlpha) / (1 + no2DissociationAlpha);
+      const no2MoleFractionPct = xNo2 * 100;
+      const no2PartialPressureAtm = xNo2 * P;
+      return { leChatelierKp, no2DissociationAlpha, no2MoleFractionPct, no2PartialPressureAtm };
+    },
+  },
 ];
+

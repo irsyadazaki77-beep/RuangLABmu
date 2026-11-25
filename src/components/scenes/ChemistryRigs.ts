@@ -44,7 +44,9 @@ export interface ChemistrySpecialRigsHandle {
   gasGroup: THREE.Group;
   kineticsGroup: THREE.Group;
   spectroGroup: THREE.Group;
+  leChatelierGroup: THREE.Group;
   pistonHead: THREE.Mesh;
+  leChatelierPiston: THREE.Mesh;
   update: (ctx: ChemistryRigUpdateContext) => void;
   dispose?: () => void;
 }
@@ -909,9 +911,136 @@ export function buildChemistrySpecialRigs(
   transmittedBeam.position.set(0.22, 2.8, 0.4);
   spectroGroup.add(transmittedBeam);
 
+  // =========================================================
+  // 7. LE CHATELIER CHEMICAL EQUILIBRIUM (N2O4 <-> 2 NO2) 3D GROUP
+  // =========================================================
+  const leChatelierGroup = new THREE.Group();
+  scene.add(leChatelierGroup);
+
+  const lcBathBase = new THREE.Mesh(
+    new RoundedBoxGeometry(3.8, 0.72, 3.4, 3, 0.05),
+    darkFrameMat
+  );
+  lcBathBase.position.set(0, 0.64, 0);
+  lcBathBase.castShadow = true;
+  lcBathBase.receiveShadow = true;
+  lcBathBase.userData = {
+    draggableParam: 'equilibriumTempC',
+    min: 0,
+    max: 100,
+    step: 2,
+    label: 'Suhu Reaktor T (°C)',
+  };
+  leChatelierGroup.add(lcBathBase);
+
+  const lcScreenTex = createInstrumentPanelTexture({
+    title: 'LE CHATELIER REACTOR',
+    primaryText: '25 °C · 1.0 atm',
+    secondaryText: 'Kp = 0.142 · NO₂ = 31.6%',
+    accentHex: '#f59e0b',
+  });
+  const lcScreenMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.1, 0.52),
+    new THREE.MeshBasicMaterial({ map: lcScreenTex })
+  );
+  lcScreenMesh.position.set(0, 0.65, 1.71);
+  leChatelierGroup.add(lcScreenMesh);
+
+  // Thermal water-bath outer glass jacket
+  const lcOuterJacket = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.58, 1.58, 3.5, 36, 1, true),
+    glassMat
+  );
+  lcOuterJacket.position.set(0, 2.75, 0);
+  leChatelierGroup.add(lcOuterJacket);
+
+  // Inner sealed borosilicate reactor vessel
+  const lcInnerReactor = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.22, 1.22, 3.4, 36, 1, true),
+    glassMat
+  );
+  lcInnerReactor.position.set(0, 2.75, 0);
+  lcInnerReactor.castShadow = true;
+  leChatelierGroup.add(lcInnerReactor);
+
+  // Dynamic volumetric NO2/N2O4 gas core cylinder ( anchored at bottom y = 1.05 )
+  const lcGasGeo = new THREE.CylinderGeometry(1.17, 1.17, 1.0, 32);
+  lcGasGeo.translate(0, 0.5, 0);
+  const lcGasMat = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    emissive: 0x92400e,
+    emissiveIntensity: 0.22,
+    transparent: true,
+    opacity: 0.48,
+    roughness: 0.3,
+    depthWrite: false,
+  });
+  const lcGasCore = new THREE.Mesh(lcGasGeo, lcGasMat);
+  lcGasCore.position.set(0, 1.05, 0);
+  lcGasCore.scale.y = 2.4;
+  leChatelierGroup.add(lcGasCore);
+
+  // Movable pressure piston at top of reactor
+  const leChatelierPiston = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.19, 1.19, 0.34, 32),
+    brushedSteelMat
+  );
+  leChatelierPiston.position.set(0, 3.45, 0);
+  leChatelierPiston.castShadow = true;
+  leChatelierPiston.userData = {
+    draggableParam: 'equilibriumPressureAtm',
+    min: 0.2,
+    max: 5.0,
+    step: 0.1,
+    label: 'Tekanan Sistem P (atm)',
+  };
+  const lcPistonRod = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.16, 1.65, 16),
+    brushedSteelMat
+  );
+  lcPistonRod.position.set(0, 0.95, 0);
+  const lcPistonHandle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.42, 0.36, 0.16, 24),
+    brassMat
+  );
+  lcPistonHandle.position.set(0, 1.75, 0);
+  lcPistonHandle.userData = leChatelierPiston.userData;
+  leChatelierPiston.add(lcPistonRod, lcPistonHandle);
+  leChatelierGroup.add(leChatelierPiston);
+
+  // Floating N2O4 dimer & NO2 monomer particles inside chamber
+  const LC_PARTICLES_MAX = 40;
+  const lcParticleStates: { pos: THREE.Vector3; vel: THREE.Vector3 }[] = [];
+  const lcPartPool = createInstancedParticlePool(
+    LC_PARTICLES_MAX,
+    new THREE.SphereGeometry(0.085, 12, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.25,
+      metalness: 0.1,
+    }),
+    leChatelierGroup
+  );
+  for (let i = 0; i < LC_PARTICLES_MAX; i++) {
+    const pos = new THREE.Vector3(
+      (Math.random() - 0.5) * 1.7,
+      1.2 + Math.random() * 2.0,
+      (Math.random() - 0.5) * 1.7
+    );
+    const vel = new THREE.Vector3(
+      (Math.random() - 0.5) * 1.6,
+      (Math.random() - 0.5) * 1.6,
+      (Math.random() - 0.5) * 1.6
+    ).normalize();
+    lcParticleStates.push({ pos, vel });
+    lcPartPool.setTransform(i, pos.x, pos.y, pos.z, 1);
+  }
+  lcPartPool.commit(LC_PARTICLES_MAX);
+
   let lastVoltKey = '';
   let lastHotplateKey = '';
   let lastSpectroKey = '';
+  let lastLcKey = '';
 
   const update = (ctx: ChemistryRigUpdateContext) => {
     const {
@@ -930,6 +1059,7 @@ export function buildChemistrySpecialRigs(
     gasGroup.visible = p.mode === 'ideal-gas-boyle';
     kineticsGroup.visible = p.mode === 'reaction-kinetics-arrhenius';
     spectroGroup.visible = p.mode === 'spectrophotometry-beer';
+    leChatelierGroup.visible = p.mode === 'chemical-equilibrium-lechatelier';
 
     if (isRedox) {
       const rawECell = m.nernstCellPotentialE ?? 1.1;
@@ -1055,6 +1185,59 @@ export function buildChemistrySpecialRigs(
       transmittedBeamMat.opacity = beamState.transmittedOpacity;
       lampApertureLens.material.color.setHex(beamState.beamColorHex);
       monoPrism.rotation.y = ((wlNm - 380) / 370) * 0.85;
+    } else if (p.mode === 'chemical-equilibrium-lechatelier') {
+      const tempC = p.equilibriumTempC ?? 25;
+      const pressAtm = p.equilibriumPressureAtm ?? 1.0;
+      const no2Pct = m.no2MoleFractionPct ?? 31.6;
+      const kpVal = m.leChatelierKp ?? 0.142;
+      const colorStyle = m.no2GasColorHex || '#d97706';
+
+      // Piston height compresses as pressure increases from 0.2 -> 5.0 atm
+      const normP = Math.max(0, Math.min(1, (pressAtm - 0.2) / 4.8));
+      const gasHeight = 2.85 - normP * 1.35; // 2.85 down to 1.50
+      const pistonY = 1.05 + gasHeight;
+      leChatelierPiston.position.y = THREE.MathUtils.lerp(leChatelierPiston.position.y, pistonY, 0.22);
+      lcGasCore.scale.y = THREE.MathUtils.lerp(lcGasCore.scale.y, gasHeight, 0.22);
+
+      lcGasMat.color.setStyle(colorStyle);
+      lcGasMat.emissive.setStyle(colorStyle);
+      lcGasMat.opacity = 0.22 + (no2Pct / 100) * 0.64;
+
+      const lcKey = `${tempC.toFixed(0)}_${pressAtm.toFixed(1)}_${no2Pct.toFixed(1)}`;
+      if (lcKey !== lastLcKey) {
+        lastLcKey = lcKey;
+        updateInstrumentPanelTexture(lcScreenTex, {
+          title: 'LE CHATELIER REACTOR',
+          primaryText: `${tempC.toFixed(0)}°C · P=${pressAtm.toFixed(1)}atm`,
+          secondaryText: `Kp=${kpVal.toFixed(2)} · NO₂=${no2Pct.toFixed(1)}%`,
+          accentHex: no2Pct >= 50 ? '#ea580c' : '#38bdf8',
+        });
+      }
+
+      const activeCount = Math.max(14, Math.round(LC_PARTICLES_MAX * (isLite ? 0.5 : particleScale)));
+      const speed = 0.016 + (tempC / 100) * 0.032;
+      const no2Cutoff = Math.round((no2Pct / 100) * activeCount);
+      for (let i = 0; i < activeCount; i++) {
+        const st = lcParticleStates[i];
+        st.pos.addScaledVector(st.vel, speed);
+        const maxY = pistonY - 0.22;
+        if (st.pos.y > maxY || st.pos.y < 1.18) {
+          st.vel.y *= -1;
+          st.pos.y = Math.max(1.18, Math.min(maxY, st.pos.y));
+        }
+        if (Math.abs(st.pos.x) > 0.92) {
+          st.vel.x *= -1;
+          st.pos.x = Math.sign(st.pos.x) * 0.92;
+        }
+        if (Math.abs(st.pos.z) > 0.92) {
+          st.vel.z *= -1;
+          st.pos.z = Math.sign(st.pos.z) * 0.92;
+        }
+        const isNo2Monomer = i < no2Cutoff;
+        lcPartPool.setTransform(i, st.pos.x, st.pos.y, st.pos.z, isNo2Monomer ? 0.85 : 1.25);
+        lcPartPool.setColor(i, isNo2Monomer ? 0xc2410c : 0xfef3c7);
+      }
+      lcPartPool.commit(activeCount);
     }
   };
 
@@ -1063,7 +1246,9 @@ export function buildChemistrySpecialRigs(
     gasGroup,
     kineticsGroup,
     spectroGroup,
+    leChatelierGroup,
     pistonHead,
+    leChatelierPiston,
     update,
     dispose: () => {
       voltScreenTex?.dispose();
@@ -1071,6 +1256,7 @@ export function buildChemistrySpecialRigs(
       manometerFaceTex?.dispose();
       hotplateScreenTex?.dispose();
       spectroScreenTex?.dispose();
+      lcScreenTex?.dispose();
     },
   };
 }

@@ -245,6 +245,51 @@ export const ChemistryParameterPanel: React.FC<ChemistryParameterPanelProps> = (
                 onChange={(v) => onParamChange({ spectroPathLengthCm: v })}
               />
             </>
+          ) : params.mode === 'chemical-equilibrium-lechatelier' ? (
+            <>
+              <TactileParameterControl
+                paramKey="equilibriumTempC"
+                label="Suhu Penangas Termal (T)"
+                unit="°C"
+                value={params.equilibriumTempC ?? 25}
+                min={-10}
+                max={100}
+                step={1}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getChemistryParameterFeedback(params.mode, 'equilibriumTempC', v, lvl)
+                }
+                onChange={(v) => onParamChange({ equilibriumTempC: v })}
+              />
+              <TactileParameterControl
+                paramKey="equilibriumPressureAtm"
+                label="Tekanan Kompresi Piston (P)"
+                unit="atm"
+                value={params.equilibriumPressureAtm ?? 1.0}
+                min={0.2}
+                max={5.0}
+                step={0.1}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getChemistryParameterFeedback(params.mode, 'equilibriumPressureAtm', v, lvl)
+                }
+                onChange={(v) => onParamChange({ equilibriumPressureAtm: v })}
+              />
+              <TactileParameterControl
+                paramKey="n2o4InitialConcM"
+                label="Konsentrasi Awal [N₂O₄]₀"
+                unit="M"
+                value={params.n2o4InitialConcM ?? 0.5}
+                min={0.1}
+                max={2.0}
+                step={0.05}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getChemistryParameterFeedback(params.mode, 'n2o4InitialConcM', v, lvl)
+                }
+                onChange={(v) => onParamChange({ n2o4InitialConcM: v })}
+              />
+            </>
           ) : (
             <>
               <TactileParameterControl

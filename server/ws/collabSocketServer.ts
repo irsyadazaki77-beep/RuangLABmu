@@ -197,7 +197,25 @@ export function createCollabSocketServer(
     options?.maxMessagesPerSecond ?? WS_DEFAULT_MAX_MESSAGES_PER_SECOND;
   const eventBus: RealtimeEventBus = options?.eventBus ?? new InMemoryRealtimeEventBus();
 
-  const wss = new WebSocketServer({ server, path: '/ws-lab', maxPayload: 1024 * 1024 });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+  const handleServerUpgrade = (
+    req: http.IncomingMessage,
+    socket: import('stream').Duplex,
+    head: Buffer
+  ) => {
+    const rawUrl = req.url || '';
+    const queryIdx = rawUrl.indexOf('?');
+    const pathname = queryIdx !== -1 ? rawUrl.slice(0, queryIdx) : rawUrl;
+    if (pathname === '/ws-lab') {
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
+    }
+  };
+  server.on('upgrade', handleServerUpgrade);
+  wss.on('close', () => {
+    server.off('upgrade', handleServerUpgrade);
+  });
   wss.on('error', (err: NodeJS.ErrnoException) => {
     if (err?.code !== 'EADDRINUSE') {
       logger.error('WebSocket server error', { error: err });

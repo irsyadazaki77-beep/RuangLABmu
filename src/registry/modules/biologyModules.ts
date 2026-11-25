@@ -6,6 +6,7 @@ import {
   calculateCardiovascularHeart,
   calculateRespiratoryLungs,
   calculateNeuralSynapse,
+  calculateMendelDihybrid,
 } from '../../utils/scienceEngine';
 
 export const BIOLOGY_MODULES: ExperimentModule[] = [
@@ -643,4 +644,94 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
       };
     },
   },
+
+  {
+    id: 'mendel-genetics-dihybrid',
+    title: 'Genetika Mendel, Persilangan Dihibrid & Uji Chi-Square (χ²)',
+    domain: 'biologi',
+    subCategory: 'Genetika & Biologi Molekuler',
+    supportedTiers: ['SMP', 'SMA', 'Mahasiswa'],
+    difficulty: 2,
+    estimatedMinutes: 35,
+    objectives: {
+      SMP: [
+        'Mengenal sifat dominan (biji bulat-kuning) dan sifat resesif (biji keriput-hijau) pada kacang ercis Pisum sativum.',
+        'Membaca papan catur Punnett 4×4 untuk memprediksi sifat keturunan F₂.',
+      ],
+      SMA: [
+        'Membuktikan Hukum II Mendel (Asortasi Bebas) pada persilangan dihibrid RrYy × RrYy yang menghasilkan rasio fenotipe 9:3:3:1.',
+        'Membandingkan jumlah anakan hasil pengamatan (Observed) terhadap rasio harapan teoritis (Expected) pada berbagai ukuran sampel N.',
+      ],
+      Mahasiswa: [
+        'Melakukan uji statistik Goodness-of-Fit Chi-Square (χ² = Σ(O - E)² / E) dengan derajat kebebasan df = 3 (nilai kritis 7,815 pada α = 0,05).',
+        'Menganalisis efek ukuran sampel populasi (Hukum Bilangan Besar) dan penyimpangan frekuensi alel gamet terhadap penerimaan hipotesis nol Mendel.',
+      ],
+    },
+    theorySummary:
+      'Hukum II Mendel (Asortasi Bebas) menyatakan bahwa alel dari dua lokus gen yang berbeda (bentuk biji R/r dan warna kotiledon Y/y) berpisah secara independen saat pembentukan gamet meiosis. Persilangan dihibrid heterozigot RrYy × RrYy menghasilkan 16 kombinasi genotipe pada papan Punnett dengan rasio fenotipe ideal 9 Bulat-Kuning : 3 Bulat-Hijau : 3 Keriput-Kuning : 1 Keriput-Hijau. Uji Chi-Square (χ²) digunakan untuk memvalidasi apakah deviasi sampel pengamatan dari rasio 9:3:3:1 hanya disebabkan oleh peluang acak (χ² ≤ 7,815).',
+    keyEquations: [
+      'P(R\\_Y\\_) = \\frac{9}{16}, \\quad P(R\\_yy) = \\frac{3}{16}, \\quad P(rrY\\_) = \\frac{3}{16}, \\quad P(rryy) = \\frac{1}{16}',
+      '\\chi^2 = \\sum_{i=1}^{4} \\frac{(O_i - E_i)^2}{E_i} \\quad (df = 4 - 1 = 3)',
+      '\\chi^2 \\le 7,815 \\implies H_0\\text{ Mendel Diterima } (p > 0,05)',
+    ],
+    apparatusList: [
+      'Matriks Papan Punnett 3D 4×4 Interaktif dengan 16 Spesimen Biji Pisum sativum',
+      'Model Heliks Ganda DNA & Lokus Alel Kromosom Homolog 3D',
+      'Penghitung Fenotipe Otomatis & Kalkulator Statistik Uji Chi-Square (χ²)',
+    ],
+    safetyNotes: [
+      'Gunakan ukuran sampel N minimal 64 biji agar syarat ekspektasi minimum Eᵢ ≥ 5 pada uji Chi-Square terpenuhi secara statistik.',
+    ],
+    parameters: [
+      { key: 'sampleSizeN', label: 'Jumlah Sampel Biji F₂ (N)', unit: 'biji', min: 32, max: 640, step: 16, defaultValue: 160, variableRole: 'bebas' },
+      { key: 'dominantAlleleFreqR', label: 'Peluang Gamet Alel R (pR)', unit: '', min: 0.20, max: 0.80, step: 0.05, defaultValue: 0.50, variableRole: 'kontrol' },
+      { key: 'dominantAlleleFreqY', label: 'Peluang Gamet Alel Y (pY)', unit: '', min: 0.20, max: 0.80, step: 0.05, defaultValue: 0.50, variableRole: 'kontrol' },
+    ],
+    outputs: [
+      { key: 'observedRoundYellow', label: 'Biji Bulat-Kuning (9/16)', unit: 'biji', formulaLatex: 'O_{RY}', precision: 0 },
+      { key: 'observedRoundGreen', label: 'Biji Bulat-Hijau (3/16)', unit: 'biji', formulaLatex: 'O_{Ry}', precision: 0 },
+      { key: 'observedWrinkledYellow', label: 'Biji Keriput-Kuning (3/16)', unit: 'biji', formulaLatex: 'O_{rY}', precision: 0 },
+      { key: 'observedWrinkledGreen', label: 'Biji Keriput-Hijau (1/16)', unit: 'biji', formulaLatex: 'O_{ry}', precision: 0 },
+      { key: 'chiSquareValue', label: 'Nilai Chi-Square (χ²)', unit: '', formulaLatex: '\\sum (O_i - E_i)^2 / E_i', precision: 3 },
+      { key: 'dominantPhenotypePct', label: 'Proporsi Fenotipe Dominan', unit: '%', formulaLatex: '(O_{RY}/N)\\times 100\\%', precision: 1 },
+    ],
+    defaultRegressionAxes: { xKey: 'sampleSizeN', yKey: 'observedRoundYellow', expectedSlopeMeaning: 'Proporsi Fenotipe Dominan Bulat-Kuning (9/16 = 0,5625)' },
+    preLabQuiz: [
+      {
+        id: 'mendel-q1',
+        question: 'Pada persilangan dihibrid kacang ercis heterozigot RrYy × RrYy dengan total keturunan N = 160 biji, berapakah jumlah harapan teoritis (Expected) untuk fenotipe resesif ganda Keriput-Hijau (rryy)?',
+        options: ['90 biji', '30 biji', '10 biji', '16 biji'],
+        correctIndex: 2,
+        explanation: 'Peluang fenotipe resesif ganda Keriput-Hijau (rryy) pada rasio 9:3:3:1 adalah 1/16. Untuk N = 160 biji, jumlah harapan teoritisnya adalah (1/16) × 160 = 10 biji.',
+      },
+      {
+        id: 'mendel-q2',
+        question: 'Dalam uji Chi-Square (χ²) untuk persilangan dihibrid dengan 4 kelas fenotipe (derajat kebebasan df = 3, nilai kritis χ² = 7,815 pada α = 0,05), apa arti dari hasil perhitungan χ² = 1,42?',
+        options: [
+          'Hipotesis Mendel ditolak karena nilai χ² lebih kecil dari 7,815',
+          'Hipotesis Mendel diterima karena selisih antara data pengamatan dan rasio 9:3:3:1 tidak berbeda nyata (hanya variasi acak sampel)',
+          'Terjadi mutasi letal pada seluruh biji',
+          'Gen bentuk biji dan warna biji terpaut sempurna pada satu titik',
+        ],
+        correctIndex: 1,
+        explanation: 'Jika nilai χ² hitung (1,42) lebih kecil atau sama dengan nilai kritis tabel (7,815), maka hipotesis nol (H₀) diterima: distribusi fenotipe pengamatan sesuai dengan Hukum II Mendel 9:3:3:1.',
+      },
+    ],
+    computeStep: (params) => {
+      const res = calculateMendelDihybrid({
+        sampleSizeN: params.sampleSizeN ?? 160,
+        dominantAlleleFreqR: params.dominantAlleleFreqR ?? 0.50,
+        dominantAlleleFreqY: params.dominantAlleleFreqY ?? 0.50,
+      });
+      return {
+        observedRoundYellow: res.observedRoundYellow,
+        observedRoundGreen: res.observedRoundGreen,
+        observedWrinkledYellow: res.observedWrinkledYellow,
+        observedWrinkledGreen: res.observedWrinkledGreen,
+        chiSquareValue: res.chiSquareValue,
+        dominantPhenotypePct: res.dominantPhenotypePct,
+      };
+    },
+  },
 ];
+

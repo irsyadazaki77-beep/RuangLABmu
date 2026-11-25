@@ -49,11 +49,13 @@ export interface PhysicsSpecialRigsHandle {
   photoelectricGroup: THREE.Group;
   collisionGroup: THREE.Group;
   orbitalGroup: THREE.Group;
+  meldeGroup: THREE.Group;
   energyWidgetGroup: THREE.Group;
   stokesSphere: THREE.Mesh;
   cart1Mesh: THREE.Group;
   cart2Mesh: THREE.Group;
   satelliteBody: THREE.Mesh;
+  meldeHangingMass: THREE.Mesh;
   update: (ctx: PhysicsRigUpdateContext, curEk?: number, curEp?: number) => void;
   dispose: () => void;
 }
@@ -1209,10 +1211,187 @@ export function buildPhysicsSpecialRigs(
   const epBarMesh = createEnergyBar(0, 0xf59e0b); // Potential Energy (Amber)
   const etotBarMesh = createEnergyBar(0.48, 0x10b981); // Total Energy (Emerald)
 
+  // =========================================================
+  // 8. MELDE STANDING WAVE RESONANCE 3D GROUP
+  // =========================================================
+  const meldeGroup = new THREE.Group();
+  scene.add(meldeGroup);
+
+  const meldeBench = new THREE.Mesh(
+    new RoundedBoxGeometry(10.8, 0.22, 1.45, 3, 0.04),
+    darkFrameMat
+  );
+  meldeBench.position.set(0, 0.11, 0);
+  meldeBench.receiveShadow = true;
+  meldeGroup.add(meldeBench);
+
+  if (airTrackScaleTex) {
+    const meldeRuler = new THREE.Mesh(
+      new THREE.PlaneGeometry(8.8, 0.36),
+      new THREE.MeshBasicMaterial({
+        map: airTrackScaleTex,
+        transparent: true,
+        opacity: 0.85,
+        depthWrite: false,
+      })
+    );
+    meldeRuler.rotation.x = -Math.PI / 2;
+    meldeRuler.rotation.z = -Math.PI / 2;
+    meldeRuler.position.set(0, 0.226, 0.48);
+    meldeGroup.add(meldeRuler);
+  }
+
+  // Electromagnetic vibrator box on left (-4.2)
+  const vibratorHousing = new THREE.Mesh(
+    new RoundedBoxGeometry(1.18, 1.32, 1.12, 3, 0.04),
+    darkFrameMat
+  );
+  vibratorHousing.position.set(-4.35, 0.88, 0);
+  vibratorHousing.castShadow = true;
+  vibratorHousing.userData = {
+    draggableParam: 'waveFrequency',
+    min: 10,
+    max: 120,
+    step: 1,
+    label: 'Frekuensi Vibrator f (Hz)',
+  };
+  meldeGroup.add(vibratorHousing);
+
+  const meldeScreenTex = createInstrumentPanelTexture({
+    title: 'MELDE GENERATOR',
+    primaryText: '50.0 Hz',
+    secondaryText: 'n = 2.0 perut',
+    accentHex: '#38bdf8',
+  });
+  disposableTextures.push(meldeScreenTex);
+  if (meldeScreenTex) {
+    const meldeScreenPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.92, 0.48),
+      new THREE.MeshBasicMaterial({ map: meldeScreenTex })
+    );
+    meldeScreenPlane.position.set(-4.35, 1.02, 0.57);
+    meldeGroup.add(meldeScreenPlane);
+  }
+
+  const vibratorProng = new THREE.Mesh(
+    new RoundedBoxGeometry(0.55, 0.08, 0.12, 2, 0.02),
+    brassMat
+  );
+  vibratorProng.position.set(-3.6, 1.35, 0);
+  vibratorProng.userData = vibratorHousing.userData;
+  meldeGroup.add(vibratorProng);
+
+  // Pulley assembly carrier on right (moves with stringLength)
+  const meldePulleyCarrier = new THREE.Group();
+  meldePulleyCarrier.position.set(3.6, 0.22, 0);
+  meldeGroup.add(meldePulleyCarrier);
+
+  const pulleyBracket = new THREE.Mesh(
+    new RoundedBoxGeometry(0.32, 1.24, 0.42, 2, 0.03),
+    brushedSteelMat
+  );
+  pulleyBracket.position.set(0, 0.62, 0);
+  pulleyBracket.userData = {
+    draggableParam: 'stringLength',
+    min: 0.5,
+    max: 2.5,
+    step: 0.05,
+    label: 'Panjang Dawai L (m)',
+  };
+  const pulleyWheel = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.32, 0.32, 0.12, 28),
+    brassMat
+  );
+  pulleyWheel.rotation.x = Math.PI / 2;
+  pulleyWheel.position.set(0.24, 1.13, 0);
+  pulleyWheel.userData = pulleyBracket.userData;
+  meldePulleyCarrier.add(pulleyBracket, pulleyWheel);
+
+  const verticalDropCord = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.018, 0.018, 1.0, 10),
+    new THREE.MeshBasicMaterial({ color: 0xf8fafc })
+  );
+  verticalDropCord.position.set(0.56, 0.65, 0);
+  meldePulleyCarrier.add(verticalDropCord);
+
+  const meldeHangingMass = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.28, 0.32, 0.54, 24),
+    brassMat
+  );
+  meldeHangingMass.position.set(0.56, 0.15, 0);
+  meldeHangingMass.castShadow = true;
+  meldeHangingMass.userData = {
+    draggableParam: 'mass',
+    min: 0.05,
+    max: 1.5,
+    step: 0.05,
+    label: 'Massa Beban m (kg)',
+  };
+  meldePulleyCarrier.add(meldeHangingMass);
+
+  const meldeTensionArrow = createVectorArrowGroup(0xf43f5e);
+  meldeGroup.add(meldeTensionArrow);
+
+  // 81-vertex dynamic standing wave line + upper & lower ghost envelope lines
+  const MELDE_SAMPLES = 81;
+  const meldeWavePos = new Float32Array(MELDE_SAMPLES * 3);
+  const meldeEnvUpPos = new Float32Array(MELDE_SAMPLES * 3);
+  const meldeEnvLowPos = new Float32Array(MELDE_SAMPLES * 3);
+
+  const meldeWaveGeo = new THREE.BufferGeometry();
+  meldeWaveGeo.setAttribute('position', new THREE.BufferAttribute(meldeWavePos, 3));
+  const meldeWaveLine = new THREE.Line(
+    meldeWaveGeo,
+    new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 2 })
+  );
+
+  const meldeEnvUpGeo = new THREE.BufferGeometry();
+  meldeEnvUpGeo.setAttribute('position', new THREE.BufferAttribute(meldeEnvUpPos, 3));
+  const meldeEnvUpLine = new THREE.Line(
+    meldeEnvUpGeo,
+    new THREE.LineDashedMaterial({
+      color: 0x22d3ee,
+      dashSize: 0.14,
+      gapSize: 0.08,
+      transparent: true,
+      opacity: 0.55,
+    })
+  );
+
+  const meldeEnvLowGeo = new THREE.BufferGeometry();
+  meldeEnvLowGeo.setAttribute('position', new THREE.BufferAttribute(meldeEnvLowPos, 3));
+  const meldeEnvLowLine = new THREE.Line(
+    meldeEnvLowGeo,
+    new THREE.LineDashedMaterial({
+      color: 0x22d3ee,
+      dashSize: 0.14,
+      gapSize: 0.08,
+      transparent: true,
+      opacity: 0.55,
+    })
+  );
+  meldeGroup.add(meldeWaveLine, meldeEnvUpLine, meldeEnvLowLine);
+
+  // Node (cyan spheres) & Antinode (emerald spheres) markers
+  const MAX_MELDE_MARKERS = 16;
+  const meldeNodePool = createInstancedParticlePool(
+    MAX_MELDE_MARKERS,
+    new THREE.SphereGeometry(0.068, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xf43f5e }),
+    meldeGroup
+  );
+  const meldeAntinodePool = createInstancedParticlePool(
+    MAX_MELDE_MARKERS,
+    new THREE.SphereGeometry(0.075, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0x10b981 }),
+    meldeGroup
+  );
+
   let lastCollisionImpactIndex = -1;
   let lastFringeKey = '';
   let lastPsuKey = '';
   let lastPePanelKey = '';
+  let lastMeldePanelKey = '';
 
   const _rigOrigin1 = new THREE.Vector3();
   const _rigOrigin2 = new THREE.Vector3();
@@ -1241,6 +1420,7 @@ export function buildPhysicsSpecialRigs(
     wheatstoneGroup.visible = p.mode === 'ohm-wheatstone';
     youngSlitGroup.visible = p.mode === 'optics-young-slit';
     photoelectricGroup.visible = p.mode === 'photoelectric-planck';
+    meldeGroup.visible = p.mode === 'standing-wave-melde';
 
     const showEnergyBars =
       p.mode === 'newton-incline' ||
@@ -1488,6 +1668,87 @@ export function buildPhysicsSpecialRigs(
         }
         peParticlePool.commit(activePeCount);
       }
+    } else if (m.mode === 'standing-wave-melde') {
+      const L = Math.max(0.5, Math.min(2.5, p.stringLength ?? 1.2));
+      const freq = Math.max(5, p.waveFrequency ?? 50);
+      const nHarmonic = Math.max(0.5, Math.min(12, m.meldeHarmonicNumber || 2));
+      const startX = -3.45;
+      const visualSpan = 2.6 + ((L - 0.5) / 2.0) * 4.8; // 2.6 .. 7.4 world units
+      const endX = startX + visualSpan;
+
+      meldePulleyCarrier.position.set(endX - 0.24, 0.22, 0);
+      pulleyWheel.rotation.z = -nowSec * 1.5;
+
+      const massScale = 0.72 + Math.min(0.65, (p.mass ?? 0.2) * 0.45);
+      meldeHangingMass.scale.set(massScale, massScale, massScale);
+
+      // Resonance amplification when nHarmonic is close to an integer
+      const nearestInt = Math.max(1, Math.round(nHarmonic));
+      const detune = Math.abs(nHarmonic - nearestInt);
+      const resonanceFactor = 0.28 + 0.34 * Math.exp(-detune * detune * 18);
+      const phase = Math.cos(nowSec * Math.min(26, freq * 0.38));
+
+      vibratorProng.position.y = 1.35 + Math.sin(nowSec * 28) * 0.035;
+
+      const waveAttr = meldeWaveGeo.getAttribute('position') as THREE.BufferAttribute;
+      const envUpAttr = meldeEnvUpGeo.getAttribute('position') as THREE.BufferAttribute;
+      const envLowAttr = meldeEnvLowGeo.getAttribute('position') as THREE.BufferAttribute;
+
+      for (let i = 0; i < MELDE_SAMPLES; i++) {
+        const u = i / (MELDE_SAMPLES - 1);
+        const x = startX + u * visualSpan;
+        const spatialSin = Math.sin(nHarmonic * Math.PI * u) * Math.sin(Math.PI * u * 0.98 + 0.03);
+        const envY = resonanceFactor * Math.sin(nearestInt * Math.PI * u);
+        const liveY = 1.35 + envY * phase + (detune > 0.08 ? 0.06 * spatialSin * Math.sin(nowSec * 15) : 0);
+
+        waveAttr.setXYZ(i, x, liveY, 0);
+        envUpAttr.setXYZ(i, x, 1.35 + Math.abs(envY), 0);
+        envLowAttr.setXYZ(i, x, 1.35 - Math.abs(envY), 0);
+      }
+      waveAttr.needsUpdate = true;
+      envUpAttr.needsUpdate = true;
+      envLowAttr.needsUpdate = true;
+      meldeEnvUpLine.computeLineDistances();
+      meldeEnvLowLine.computeLineDistances();
+
+      // Update node and antinode markers along string
+      const nodeCount = Math.min(MAX_MELDE_MARKERS, nearestInt + 1);
+      for (let k = 0; k < nodeCount; k++) {
+        const uNode = k / nearestInt;
+        meldeNodePool.setTransform(k, startX + uNode * visualSpan, 1.35, 0, 1.0);
+      }
+      meldeNodePool.commit(nodeCount);
+
+      const antinodeCount = Math.min(MAX_MELDE_MARKERS, nearestInt);
+      for (let k = 0; k < antinodeCount; k++) {
+        const uAnti = (k + 0.5) / nearestInt;
+        const antiY = 1.35 + resonanceFactor * (k % 2 === 0 ? 1 : -1) * phase;
+        meldeAntinodePool.setTransform(k, startX + uAnti * visualSpan, antiY, 0, 1.0);
+      }
+      meldeAntinodePool.commit(antinodeCount);
+
+      if (showVec) {
+        _rigOrigin1.set(endX + 0.32, 0.35, 0);
+        orientAndScaleVectorArrow(
+          meldeTensionArrow,
+          _rigOrigin1,
+          _rigDown,
+          Math.min(1.6, 0.45 + m.meldeTensionForce * 0.08)
+        );
+      } else {
+        meldeTensionArrow.visible = false;
+      }
+
+      const meldeKey = `${freq.toFixed(0)}|${nHarmonic.toFixed(2)}|${m.meldeWaveSpeed.toFixed(1)}`;
+      if (meldeKey !== lastMeldePanelKey) {
+        lastMeldePanelKey = meldeKey;
+        updateInstrumentPanelTexture(meldeScreenTex, {
+          title: 'MELDE GENERATOR',
+          primaryText: `${freq.toFixed(0)} Hz · v=${m.meldeWaveSpeed.toFixed(1)}m/s`,
+          secondaryText: `Harmonik n = ${nHarmonic.toFixed(2)} perut`,
+          accentHex: detune < 0.12 ? '#10b981' : '#38bdf8',
+        });
+      }
     }
   };
 
@@ -1498,11 +1759,13 @@ export function buildPhysicsSpecialRigs(
     photoelectricGroup,
     collisionGroup,
     orbitalGroup,
+    meldeGroup,
     energyWidgetGroup,
     stokesSphere,
     cart1Mesh,
     cart2Mesh,
     satelliteBody,
+    meldeHangingMass,
     update,
     dispose: () => {
       fringeTexture.dispose();

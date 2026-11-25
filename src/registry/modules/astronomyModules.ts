@@ -366,4 +366,94 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
       return { recessionVelocityKmS, redshiftZ, observedWavelengthNm, lookbackTimeGyr };
     },
   },
+
+  {
+    id: 'planetary-atmosphere-greenhouse',
+    title: 'Atmosfer Planet, Albedo & Efek Rumah Kaca Radiatif',
+    domain: 'astronomi',
+    subCategory: 'Sains Keplanetan & Atmosfer',
+    supportedTiers: ['SMP', 'SMA', 'Mahasiswa'],
+    difficulty: 2,
+    estimatedMinutes: 35,
+    objectives: {
+      SMP: [
+        'Memahami bagaimana selimut atmosfer menjaga suhu permukaan Bumi tetap hangat dan layak huni.',
+        'Mengamati peran es kutub (albedo) dalam memantulkan cahaya Matahari kembali ke angkasa.',
+      ],
+      SMA: [
+        'Menghitung suhu kesetimbangan radiatif planet tanpa atmosfer (Tₑq) dari fluks bintang dan albedo.',
+        'Menganalisis pengaruh kenaikan konsentrasi gas rumah kaca (CO₂ ppm) terhadap pemanasan suhu permukaan planet (Tₛ).',
+      ],
+      Mahasiswa: [
+        'Memodelkan kesetimbangan energi radiatif atmosfer lapis-tunggal abu-abu (grey-atmosphere radiative transfer): Tₛ = Tₑq · [2 / (2 - ε)]^(1/4).',
+        'Membandingkan rezim iklim Bumi, Mars yang tipis-dingin, serta efek rumah kaca ekstrem (runaway greenhouse) di Venus.',
+      ],
+    },
+    theorySummary:
+      'Suhu suatu planet ditentukan oleh keseimbangan antara radiasi gelombang pendek bintang yang diserap permukaan S₀(1 - A)/4 dan pancaran termal inframerah benda hitam σT⁴. Tanpa atmosfer, Bumi akan membeku pada suhu ekuilibrium Tₑq ≈ 255 K (-18 °C). Gas rumah kaca (CO₂, H₂O, CH₄) transparan terhadap cahaya tampak namun menyerap dan memancarkan balik radiasi inframerah gelombang panjang (emisivitas ε), menaikkan suhu permukaan menjadi Tₛ = Tₑq · [2 / (2 - ε)]^(1/4).',
+    keyEquations: [
+      'T_{\\text{eq}} = \\left[\\frac{S_0 (1 - A)}{4 \\sigma}\\right]^{1/4}',
+      'T_s = T_{\\text{eq}} \\cdot \\left(\\frac{2}{2 - \\varepsilon}\\right)^{1/4}',
+      '\\Delta T_{\\text{GH}} = T_s - T_{\\text{eq}}',
+    ],
+    apparatusList: [
+      'Simulator Bola Planet Kebumian 3D dengan Tutupan Es Kutub & Atmosfer Berlapis',
+      'Radiometer Fluks Surya Gelombang Pendek & Spektrometer Inframerah Termal',
+      'Kontroler Albedo Permukaan (A) & Konsentrasi Gas Rumah Kaca (CO₂ ekuivalen ppm)',
+    ],
+    safetyNotes: [
+      'Perhatikan umpan-balik es-albedo (ice-albedo feedback): penurunan albedo mempercepat penyerapan kalor surya.',
+    ],
+    parameters: [
+      { key: 'planetaryAlbedo', label: 'Albedo Planet (A)', unit: '', min: 0.05, max: 0.85, step: 0.05, defaultValue: 0.30, variableRole: 'bebas' },
+      { key: 'greenhouseGasPpm', label: 'Konsentrasi Gas Rumah Kaca (CO₂)', unit: 'ppm', min: 100, max: 2500, step: 50, defaultValue: 420, variableRole: 'bebas' },
+      { key: 'stellarFluxFactor', label: 'Fluks Radiasi Bintang (S / S₀)', unit: 'S⊕', min: 0.4, max: 2.5, step: 0.1, defaultValue: 1.0, variableRole: 'kontrol' },
+    ],
+    outputs: [
+      { key: 'equilibriumTempK', label: 'Suhu Tanpa Atmosfer (Tₑq)', unit: 'K', formulaLatex: '[S_0(1-A)/(4\\sigma)]^{1/4}', precision: 1 },
+      { key: 'surfaceTempK', label: 'Suhu Permukaan Planet (Tₛ)', unit: 'K', formulaLatex: 'T_{\\text{eq}}[2/(2-\\varepsilon)]^{1/4}', precision: 1 },
+      { key: 'surfaceTempC', label: 'Suhu Permukaan (°C)', unit: '°C', formulaLatex: 'T_s - 273,15', precision: 1 },
+      { key: 'greenhouseWarmingDeltaK', label: 'Pemanasan Rumah Kaca (ΔT)', unit: 'K', formulaLatex: 'T_s - T_{\\text{eq}}', precision: 1 },
+    ],
+    defaultRegressionAxes: { xKey: 'greenhouseGasPpm', yKey: 'surfaceTempC', expectedSlopeMeaning: 'Sensitivitas Iklim Pemanasan Permukaan terhadap CO₂' },
+    preLabQuiz: [
+      {
+        id: 'ghg-q1',
+        question: 'Jika sebuah planet memiliki albedo A yang sangat tinggi (misalnya seluruh permukaannya tertutup salju dan awan putih tebal, A = 0,80), bagaimana pengaruhnya terhadap suhu ekuilibrium planet (Tₑq)?',
+        options: [
+          'Suhu ekuilibrium meningkat drastis karena salju menghasilkan panas',
+          'Suhu ekuilibrium menurun karena 80% radiasi matahari dipantulkan kembali ke angkasa dan hanya 20% yang diserap',
+          'Albedo tidak memengaruhi suhu planet sama sekali',
+          'Planet berhenti berotasi',
+        ],
+        correctIndex: 1,
+        explanation: 'Albedo A adalah fraksi radiasi bintang yang dipantulkan. Semakin besar A, semakin kecil energi (1 - A) yang diserap permukaan planet, sehingga suhu ekuilibrium Tₑq menjadi lebih dingin.',
+      },
+      {
+        id: 'ghg-q2',
+        question: 'Mengapa peningkatan konsentrasi gas rumah kaca (seperti CO₂ dan uap air) di atmosfer menaikkan suhu permukaan planet (Tₛ > Tₑq)?',
+        options: [
+          'Karena gas rumah kaca menghalangi cahaya tampak Matahari masuk ke permukaan',
+          'Karena gas rumah kaca menyerap radiasi inframerah termal dari permukaan planet dan memancarkannya kembali ke bawah (back-radiation)',
+          'Karena gas rumah kaca menciptakan reaksi fusi nuklir di troposfer',
+          'Karena gas rumah kaca memperkecil gravitasi planet',
+        ],
+        correctIndex: 1,
+        explanation: 'Atmosfer rumah kaca relatif transparan terhadap cahaya tampak matahari, namun menyerap gelombang inframerah panjang yang dipancarkan permukaan planet lalu memancarkan sebagian energinya kembali ke permukaan.',
+      },
+    ],
+    computeStep: (params) => {
+      const { planetaryAlbedo = 0.30, greenhouseGasPpm = 420, stellarFluxFactor = 1.0 } = params;
+      const S0 = 1361.0 * stellarFluxFactor;
+      const sigma = 5.670374419e-8;
+      const absorbed = (S0 * (1 - planetaryAlbedo)) / 4.0;
+      const equilibriumTempK = Math.pow(Math.max(1e-6, absorbed / sigma), 0.25);
+      const eps = Math.max(0.05, Math.min(0.97, 0.78 + 0.085 * Math.log(Math.max(50, greenhouseGasPpm) / 420.0)));
+      const surfaceTempK = equilibriumTempK * Math.pow(2.0 / (2.0 - eps), 0.25);
+      const surfaceTempC = surfaceTempK - 273.15;
+      const greenhouseWarmingDeltaK = surfaceTempK - equilibriumTempK;
+      return { equilibriumTempK, surfaceTempK, surfaceTempC, greenhouseWarmingDeltaK };
+    },
+  },
 ];
+

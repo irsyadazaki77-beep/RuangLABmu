@@ -8,7 +8,8 @@ export type PhysicsMode =
   | 'stokes-viscosity'
   | 'ohm-wheatstone'
   | 'optics-young-slit'
-  | 'photoelectric-planck';
+  | 'photoelectric-planck'
+  | 'standing-wave-melde';
 
 export interface PhysicsParams {
   mass: number; // kg (0.5 - 50)
@@ -47,6 +48,10 @@ export interface PhysicsParams {
   targetMetalWorkFunction?: number; // eV (2.0 - 5.5)
   photonFrequency?: number; // x10^14 Hz (4.0 - 15.0)
   stoppingPotential?: number; // V (0 - 5.0)
+  // Standing Wave Melde Resonance
+  stringLength?: number; // m (0.5 - 2.5)
+  linearMassDensity?: number; // kg/m (0.001 - 0.025)
+  waveFrequency?: number; // Hz (10 - 120)
 }
 
 export function normalizeLegacyPhysicsParams(
@@ -157,6 +162,15 @@ export interface PhotoelectricPlanckMetrics extends PhysicsMetricsBase {
   photoelectricEmitted: boolean;
 }
 
+export interface StandingWaveMeldeMetrics extends PhysicsMetricsBase {
+  mode: 'standing-wave-melde';
+  meldeTensionForce: number; // F = m*g (N)
+  meldeWaveSpeed: number; // v = sqrt(F / mu) (m/s)
+  meldeWavelength: number; // lambda = v / f (m)
+  meldeHarmonicNumber: number; // n = 2*L / lambda
+  meldeFundamentalFreq: number; // f1 = v / (2*L) (Hz)
+}
+
 export type PhysicsMetrics =
   | NewtonInclineMetrics
   | ProjectileGravityMetrics
@@ -167,7 +181,8 @@ export type PhysicsMetrics =
   | StokesViscosityMetrics
   | OhmWheatstoneMetrics
   | OpticsYoungSlitMetrics
-  | PhotoelectricPlanckMetrics;
+  | PhotoelectricPlanckMetrics
+  | StandingWaveMeldeMetrics;
 
 export interface KinematicsInstant {
   time: number; // s
@@ -454,6 +469,27 @@ export function calculatePhysicsMetrics(params: PhysicsParams): PhysicsMetrics {
         photoelectricMaxKe: safeRound(photoelectricMaxKe, 2),
         photoelectricStoppingVoltage: safeRound(photoelectricStoppingVoltage, 2),
         photoelectricEmitted,
+      };
+    }
+
+    case 'standing-wave-melde': {
+      const L = Math.max(finiteOr(params.stringLength, 1.2), 0.1);
+      const mu = Math.max(finiteOr(params.linearMassDensity, 0.005), 1e-6);
+      const freq = Math.max(finiteOr(params.waveFrequency, 50), 1);
+      const tensionF = Math.max(m1 * gSafe, 1e-4);
+      const waveSpeed = Math.sqrt(tensionF / mu);
+      const wavelength = waveSpeed / freq;
+      const harmonicNumber = Math.max(1, (2 * L) / Math.max(wavelength, 1e-6));
+      const fundamentalFreq = waveSpeed / (2 * L);
+
+      return {
+        ...base,
+        mode: 'standing-wave-melde',
+        meldeTensionForce: safeRound(tensionF, 2),
+        meldeWaveSpeed: safeRound(waveSpeed, 2),
+        meldeWavelength: safeRound(wavelength, 3),
+        meldeHarmonicNumber: safeRound(harmonicNumber, 2),
+        meldeFundamentalFreq: safeRound(fundamentalFreq, 2),
       };
     }
 

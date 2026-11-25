@@ -407,4 +407,55 @@ export const BIOLOGY_PEDAGOGY: Record<string, ModulePedagogyBundle> = {
         'Setelah potensial aksi, kanal Na⁺ masuk fase inaktivasi singkat (periode refrakter absolut) sehingga impuls selalu merambat satu arah menuju ujung sinapsis.',
     },
   },
+
+  'mendel-genetics-dihybrid': {
+    keyTakeaways: [
+      'Hukum II Mendel (Asortasi Bebas) menyatakan alel dari dua gen pada kromosom berbeda berpisah secara independen membentuk 4 jenis gamet (RY, Ry, rY, ry) dengan peluang setara.',
+      'Persilangan dihibrid heterozigot RrYy × RrYy menghasilkan rasio fenotipe harapan F₂ sebesar 9 Bulat-Kuning : 3 Bulat-Hijau : 3 Keriput-Kuning : 1 Keriput-Hijau.',
+      'Uji Goodness-of-Fit Chi-Square (χ²) mengukur apakah selisih antara jumlah anakan pengamatan (O) dan harapan (E) masih berada dalam batas fluktuasi acak (χ² ≤ 7,815 pada df = 3, α = 0,05).',
+    ],
+    everydayAnalogy: {
+      title: 'Melempar Dua Koin Berbeda Secara Bersamaan',
+      scenario:
+        'Saat Anda melempar koin perak dan koin emas sekaligus, hasil sisi angka atau gambar pada koin perak sama sekali tidak memengaruhi hasil jatuhnya koin emas.',
+      connection:
+        'Koin perak adalah gen bentuk biji (R/r) dan koin emas adalah gen warna biji (Y/y): karena keduanya berpilah bebas, peluang gabungan (3/4 : 1/4) × (3/4 : 1/4) melahirkan rasio 9/16 : 3/16 : 3/16 : 1/16.',
+    },
+    formulaBreakdown: [
+      { symbol: 'N', name: 'Jumlah total sampel biji F₂', unit: 'biji', role: 'bebas', explanation: 'Ukuran populasi anakan yang diamati; makin besar N makin dekat proporsi ke 9:3:3:1.' },
+      { symbol: 'Eᵢ', name: 'Frekuensi harapan kelas ke-i', unit: 'biji', role: 'terikat', explanation: 'Jumlah teoritis tiap fenotipe: (9/16)N, (3/16)N, (3/16)N, dan (1/16)N.' },
+      { symbol: 'Oᵢ', name: 'Frekuensi pengamatan kelas ke-i', unit: 'biji', role: 'terikat', explanation: 'Jumlah biji aktual yang terhitung pada masing-masing kategori fenotipe.' },
+      { symbol: 'χ²', name: 'Nilai statistik Chi-Square', unit: 'tanpa satuan', role: 'terikat', explanation: 'Jumlah kuadrat selisih (Oᵢ − Eᵢ)² dibagi Eᵢ untuk menguji kesesuaian model Mendel.' },
+    ],
+    workedExample: {
+      question:
+        'Dari persilangan tanaman ercis RrYy × RrYy diperoleh total N = 160 biji dengan pengamatan: 93 Bulat-Kuning, 27 Bulat-Hijau, 28 Keriput-Kuning, dan 12 Keriput-Hijau. Hitung nilai χ² dan tentukan apakah memenuhi rasio 9:3:3:1 (nilai kritis df = 3 adalah 7,815)!',
+      given: ['N = 160 biji', 'O = [93, 27, 28, 12]', 'Rasio harapan = 9/16 : 3/16 : 3/16 : 1/16'],
+      steps: [
+        'Hitung nilai harapan Eᵢ untuk N = 160: E₁ = (9/16)×160 = 90; E₂ = (3/16)×160 = 30; E₃ = (3/16)×160 = 30; E₄ = (1/16)×160 = 10.',
+        'Hitung kontribusi tiap kelas (Oᵢ − Eᵢ)² / Eᵢ: (93−90)²/90 = 9/90 = 0,100; (27−30)²/30 = 9/30 = 0,300; (28−30)²/30 = 4/30 = 0,133; (12−10)²/10 = 4/10 = 0,400.',
+        'Jumlahkan seluruh komponen: χ² = 0,100 + 0,300 + 0,133 + 0,400 = 0,933.',
+      ],
+      answer: 'χ² = 0,933 ≤ 7,815 (Hipotesis Mendel 9:3:3:1 Diterima)',
+      physicalMeaning:
+        'Deviasi kecil (93 vs 90 biji) murni disebabkan oleh variasi pengambilan sampel acak fertilisasi gamet, sehingga kedua gen terbukti berpilah secara bebas.',
+    },
+    glossary: [
+      { term: 'Asortasi Bebas (Hukum II Mendel)', definition: 'Prinsip bahwa alel dari lokus gen yang berbeda memisah secara independen selama metafase-anafase I meiosis.' },
+      { term: 'Persilangan Dihibrid', definition: 'Persilangan genetik yang mengamati pewarisan dua sifat beda sekaligus (misalnya tekstur biji dan warna kotiledon).' },
+      { term: 'Uji Chi-Square (χ²)', definition: 'Uji statistik non-parametrik untuk mengevaluasi seberapa cocok distribusi frekuensi pengamatan terhadap distribusi harapan teoritis.' },
+      { term: 'Derajat Kebebasan (df)', definition: 'Jumlah kategori fenotipe independen dikurangi satu (untuk 4 kelas fenotipe dihibrid, df = 4 − 1 = 3).' },
+    ],
+    deepDiveContent: {
+      historicalContext:
+        'Gregor Johann Mendel (1865) membudidayakan lebih dari 28.000 tanaman kacang ercis di biara Brno, lalu Karl Pearson (1900) memperkenalkan uji statistik Chi-Square yang kemudian digunakan Ronald Fisher untuk menganalisis ketelitian data Mendel.',
+      derivationLatex: [
+        'P(R\\_Y\\_) = P(R\\_) \\cdot P(Y\\_) = \\frac{3}{4} \\times \\frac{3}{4} = \\frac{9}{16}',
+        '\\chi^2 = \\sum_{i=1}^{k} \\frac{(O_i - E_i)^2}{E_i}, \\quad df = k - 1 = 3',
+      ],
+      advancedConcept:
+        'Apabila nilai χ² jauh melampaui 7,815 pada sampel besar, hal tersebut mengindikasikan terjadinya pautan gen (genetic linkage) pada kromosom yang sama, epistasis, atau seleksi alel letal.',
+    },
+  },
 };
+

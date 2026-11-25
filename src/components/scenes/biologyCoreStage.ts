@@ -11,6 +11,7 @@ import {
 import {
   BiologyRigHandle,
   buildCatalaseRig,
+  buildMendelGeneticsRig,
   buildOsmosisRig,
   buildPhotosynthesisRig,
   buildPredatorPreyRig,
@@ -22,7 +23,8 @@ export type CoreBiologyStageMode =
   | 'enzyme-kinetics'
   | 'osmosis-plasmolysis'
   | 'cell-osmosis-tonicity'
-  | 'predator-prey-dynamics';
+  | 'predator-prey-dynamics'
+  | 'mendel-genetics-dihybrid';
 
 function createOrganelleTexture(
   type: 'nucleus' | 'mitochondria' | 'chloroplast'
@@ -438,6 +440,8 @@ export function buildBiologyCoreStage(
       ? buildCatalaseRig(rigSharedCtx)
       : mode === 'predator-prey-dynamics'
       ? buildPredatorPreyRig(rigSharedCtx)
+      : mode === 'mendel-genetics-dihybrid'
+      ? buildMendelGeneticsRig(rigSharedCtx)
       : buildOsmosisRig(rigSharedCtx);
 
   let currentFocusSmooth = 75;

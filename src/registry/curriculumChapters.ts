@@ -71,7 +71,7 @@ export const CURRICULUM_CHAPTERS: CurriculumChapter[] = [
       'Menganalisis frekuensi ambang f0 dan penentuan konstanta Planck (h) melalui potensial henti elektron foto.',
     ],
     prerequisites: ['Hukum Newton & Rangkaian DC', 'Gelombang transversal & konsep foton'],
-    moduleIds: ['collision-momentum', 'ohm-wheatstone', 'optics-young-slit', 'photoelectric-planck'],
+    moduleIds: ['collision-momentum', 'standing-wave-melde', 'ohm-wheatstone', 'optics-young-slit', 'photoelectric-planck'],
     realWorldTheme: 'Sensor panel surya fotovoltaik, serat optik telekomunikasi & jembatan pengukuran listrik',
   },
   {
@@ -83,14 +83,14 @@ export const CURRICULUM_CHAPTERS: CurriculumChapter[] = [
     competencyTier: 'Menengah (SMA)',
     targetGrades: 'SMA Kelas 11 & Kuliah Kimia Dasar',
     overviewDescription:
-      'Mengevaluasi transfer energi termal reaksi kimia (kalorimetri), hukum kompresi gas ideal Boyle-Gay Lussac, serta pengaruh temperatur dan energi aktivasi terhadap kecepatan reaksi.',
+      'Mengevaluasi transfer energi termal reaksi kimia (kalorimetri), hukum kompresi gas ideal Boyle-Gay Lussac, kesetimbangan dinamis Le Chatelier, serta pengaruh temperatur dan energi aktivasi terhadap kecepatan reaksi.',
     coreCompetencies: [
       'Menghitung perubahan entalpi reaksi standar (ΔH) dan energi bebas Gibbs (ΔG) pada netralisasi asam-basa.',
       'Membuktikan hubungan tekanan dan volume gas ideal pada proses isotermal dan adiabatik.',
-      'Menentukan energi aktivasi (Ea) menggunakan plot linier Persamaan Svante Arrhenius.',
+      'Menentukan energi aktivasi (Ea) menggunakan plot linier Persamaan Svante Arrhenius serta pergeseran kesetimbangan Le Chatelier.',
     ],
     prerequisites: ['Stoikiometri mol', 'Konsep suhu mutlak Kelvin'],
-    moduleIds: ['thermo-calorimetry', 'ideal-gas-boyle', 'reaction-kinetics-arrhenius'],
+    moduleIds: ['thermo-calorimetry', 'ideal-gas-boyle', 'reaction-kinetics-arrhenius', 'chemical-equilibrium-lechatelier'],
     realWorldTheme: 'Pemanas ramah lingkungan, motor bakar kompresi piston & preservasi makanan suhu rendah',
   },
   {
@@ -115,21 +115,21 @@ export const CURRICULUM_CHAPTERS: CurriculumChapter[] = [
   {
     id: 'bab-6-fisiologi-biokimia',
     chapterNumber: 6,
-    title: 'Bab 6: Fisiologi Sel, Enzimologi & Ekologi Kuantitatif',
-    shortTitle: 'Bab 6: Sel & Enzim',
+    title: 'Bab 6: Fisiologi Sel, Genetika, Enzimologi & Ekologi Kuantitatif',
+    shortTitle: 'Bab 6: Sel, Genetika & Enzim',
     domain: 'biologi',
     competencyTier: 'Dasar (SMP)',
     targetGrades: 'SMP Kelas 8-9 & SMA Kelas 11-12',
     overviewDescription:
-      'Mengamati bioproses fotosintesis pada daun Hydrilla, kerja enzim katalase penangkal radikal bebas, transportasi air osmotik membran sel, dan model populasi rantai makanan.',
+      'Mengamati bioproses fotosintesis pada daun Hydrilla, kerja enzim katalase penangkal radikal bebas, transportasi air osmotik membran sel, pewarisan sifat genetika Mendel dihibrid, dan model populasi rantai makanan.',
     coreCompetencies: [
       'Membuktikan pembentukan gas oksigen pada reaksi fotosintesis serta faktor pembatasnya (cahaya, CO2, suhu).',
       'Menganalisis kinetika enzim Michaelis-Menten dan fenomena denaturasi protein akibat suhu tinggi.',
-      'Memprediksi potensial air, turgiditas, dan plasmolisis pada jaringan tumbuhan dalam larutan hipertonik.',
+      'Memprediksi potensial air, turgiditas, plasmolisis, serta rasio fenotipe persilangan dihibrid 9:3:3:1 dengan uji Chi-Square.',
       'Memodelkan siklus osilasi populasi mangsa dan pemangsa menggunakan persamaan Lotka-Volterra.',
     ],
     prerequisites: ['Struktur sel tumbuhan & hewan', 'Konsep rantai makanan'],
-    moduleIds: ['photosynthesis-ingenhousz', 'enzyme-catalase', 'osmosis-plasmolysis', 'predator-prey-dynamics'],
+    moduleIds: ['photosynthesis-ingenhousz', 'enzyme-catalase', 'osmosis-plasmolysis', 'predator-prey-dynamics', 'mendel-genetics-dihybrid'],
     realWorldTheme: 'Pertanian hidroponik modern, bioteknologi fermentasi & konservasi satwa liar Indonesia',
   },
   {
@@ -160,15 +160,15 @@ export const CURRICULUM_CHAPTERS: CurriculumChapter[] = [
     competencyTier: 'Lanjut (Mahasiswa / OSN)',
     targetGrades: 'SMA Kelas 10-12, Olimpiade Sains Nasional (OSN) & Mahasiswa Astronomi',
     overviewDescription:
-      'Menjelajahi dinamika orbit Tata Surya Hukum Kepler, bukti empiris keberadaan halo materi gelap (Dark Matter), fotometri pencarian eksoplanet baru, suhu bintang Wien, dan ekspansi ruang waktu Hubble.',
+      'Menjelajahi dinamika orbit Tata Surya Hukum Kepler, atmosfer planet & efek rumah kaca radiatif, bukti empiris keberadaan halo materi gelap (Dark Matter), fotometri pencarian eksoplanet baru, suhu bintang Wien, dan ekspansi ruang waktu Hubble.',
     coreCompetencies: [
       'Membuktikan Hukum III Kepler (T² ∝ a³) dan menghitung kecepatan gerak planet di perihelion/aphelion.',
       'Menganalisis kurva rotasi galaksi spiral datar sebagai bukti keberadaan materi gelap non-barionik.',
-      'Menentukan radius eksoplanet baru dari penurunan fluks cahaya transit bintang induk.',
+      'Menentukan radius eksoplanet baru dari penurunan fluks cahaya transit bintang induk serta kesetimbangan radiatif efek rumah kaca planet.',
       'Mengklasifikasikan kelas spektral bintang Harvard dan menghitung kecepatan resesi galaksi (v = H0·d).',
     ],
     prerequisites: ['Gravitasi Newton', 'Spektrum gelombang elektromagnetik'],
-    moduleIds: ['solar-kepler', 'milky-way-rotation', 'exoplanet-transit', 'stellar-wien-spectrum', 'hubble-expansion'],
+    moduleIds: ['solar-kepler', 'planetary-atmosphere-greenhouse', 'milky-way-rotation', 'exoplanet-transit', 'stellar-wien-spectrum', 'hubble-expansion'],
     realWorldTheme: 'Eksplorasi wahana antariksa, observatorium Bosscha/Timau NTT & pencarian kehidupan ekstrasurya',
   },
 ];

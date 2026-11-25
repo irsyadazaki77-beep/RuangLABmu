@@ -207,6 +207,51 @@ export const AstronomyParameterPanel: React.FC<AstronomyParameterPanelProps> = (
                 onChange={(v) => onParamPatch({ hubbleConstantH0: v })}
               />
             </>
+          ) : params.mode === 'planetary-atmosphere-greenhouse' ? (
+            <>
+              <TactileParameterControl
+                paramKey="planetaryAlbedo"
+                label="Albedo Iklim Planet (A)"
+                unit=""
+                value={params.planetaryAlbedo ?? 0.30}
+                min={0.05}
+                max={0.85}
+                step={0.05}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getAstronomyParameterFeedback(params.mode, 'planetaryAlbedo', v, lvl)
+                }
+                onChange={(v) => onParamPatch({ planetaryAlbedo: v })}
+              />
+              <TactileParameterControl
+                paramKey="greenhouseGasPpm"
+                label="Konsentrasi Gas Rumah Kaca (CO₂)"
+                unit="ppm"
+                value={params.greenhouseGasPpm ?? 420}
+                min={100}
+                max={2000}
+                step={20}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getAstronomyParameterFeedback(params.mode, 'greenhouseGasPpm', v, lvl)
+                }
+                onChange={(v) => onParamPatch({ greenhouseGasPpm: v })}
+              />
+              <TactileParameterControl
+                paramKey="stellarFluxFactor"
+                label="Faktor Fluks Surya (S/S₀)"
+                unit="S₀"
+                value={params.stellarFluxFactor ?? 1.0}
+                min={0.5}
+                max={2.0}
+                step={0.05}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getAstronomyParameterFeedback(params.mode, 'stellarFluxFactor', v, lvl)
+                }
+                onChange={(v) => onParamPatch({ stellarFluxFactor: v })}
+              />
+            </>
           ) : (
             <>
               <TactileParameterControl

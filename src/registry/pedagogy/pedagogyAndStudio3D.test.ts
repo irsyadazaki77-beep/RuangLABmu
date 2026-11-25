@@ -28,9 +28,9 @@ function assertCleanNotation(text: string, context: string) {
   );
 }
 
-describe('28-Module Structured Pedagogy & Interactive Formula Primers', () => {
-  it('covers all 28 modules with complete structured pedagogy fields', () => {
-    assert.equal(EXPERIMENT_CATALOG.length, 28);
+describe('32-Module Structured Pedagogy & Interactive Formula Primers', () => {
+  it('covers all 32 modules with complete structured pedagogy fields', () => {
+    assert.equal(EXPERIMENT_CATALOG.length, 32);
 
     for (const mod of EXPERIMENT_CATALOG) {
       assert.ok(
@@ -346,6 +346,47 @@ describe('Scientific Accuracy & Cross-Layer Consistency Across All 28 Modules', 
     assert.ok(
       formatCleanEquation('T^2 / a^3 = 1/M_* \\Leftrightarrow T^2 = \\frac{4\\pi^2}{GM_*}a^3').includes('⇔')
     );
+  });
+
+  it('validates scientific calculations for the 4 new cross-domain 3D modules', () => {
+    const melde = getExperimentById('standing-wave-melde')!;
+    assert.ok(melde);
+    const meldeOut = melde.computeStep(
+      { mass: 2.0, stringLength: 1.2, linearMassDensity: 0.005, waveFrequency: 50 },
+      0
+    );
+    assert.ok(meldeOut.waveSpeed > 60 && meldeOut.waveSpeed < 64);
+    assert.ok(meldeOut.harmonicLoops > 1.8 && meldeOut.harmonicLoops < 2.1);
+
+    const lechat = getExperimentById('chemical-equilibrium-lechatelier')!;
+    assert.ok(lechat);
+    const coldEq = lechat.computeStep({ equilibriumTempC: 5, equilibriumPressureAtm: 1.0, n2o4InitialConcM: 0.5 }, 0);
+    const hotEq = lechat.computeStep({ equilibriumTempC: 75, equilibriumPressureAtm: 1.0, n2o4InitialConcM: 0.5 }, 0);
+    assert.ok(
+      hotEq.no2MoleFractionPct > coldEq.no2MoleFractionPct,
+      'Endothermic N2O4 -> 2NO2 must shift toward NO2 at higher temperature'
+    );
+
+    const mendel = getExperimentById('mendel-genetics-dihybrid')!;
+    assert.ok(mendel);
+    const mendelOut = mendel.computeStep(
+      { sampleSizeN: 320, dominantAlleleFreqR: 0.5, dominantAlleleFreqY: 0.5 },
+      0
+    );
+    assert.equal(
+      mendelOut.observedRoundYellow +
+        mendelOut.observedRoundGreen +
+        mendelOut.observedWrinkledYellow +
+        mendelOut.observedWrinkledGreen,
+      320
+    );
+
+    const gh = getExperimentById('planetary-atmosphere-greenhouse')!;
+    assert.ok(gh);
+    const earth = gh.computeStep({ planetaryAlbedo: 0.3, greenhouseGasPpm: 420, stellarFluxFactor: 1.0 }, 0);
+    const highGh = gh.computeStep({ planetaryAlbedo: 0.3, greenhouseGasPpm: 1600, stellarFluxFactor: 1.0 }, 0);
+    assert.ok(earth.surfaceTempK > earth.equilibriumTempK);
+    assert.ok(highGh.surfaceTempK > earth.surfaceTempK);
   });
 });
 

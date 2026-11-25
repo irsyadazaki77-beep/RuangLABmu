@@ -117,6 +117,7 @@ async function printStartupDiagnostics(activePort: number) {
     lanUrl: lanInfo.lanUrl,
     port: activePort,
   });
+  process.stdout.write(`  ➜  Local:   ${localUrl}/\n`);
 
   if (isPortableBinary || process.env.RUANGLAB_PRINT_QR === '1') {
     const lines: string[] = [

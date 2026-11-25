@@ -3,7 +3,8 @@ export type AstronomyMode =
   | 'milkyway-galaxy'
   | 'stellar-exoplanet'
   | 'stellar-wien-spectrum'
-  | 'hubble-expansion';
+  | 'hubble-expansion'
+  | 'planetary-atmosphere-greenhouse';
 
 export interface SolarPlanetPreset {
   id: string;
@@ -43,6 +44,10 @@ export interface AstronomyParams {
   galaxyDistanceMpc?: number; // Mpc (20 - 600)
   hubbleConstantH0?: number; // km/s/Mpc (65 - 78)
   restWavelengthNm?: number; // nm (390 - 660)
+  // Planetary Atmosphere & Greenhouse Radiative Equilibrium
+  planetaryAlbedo?: number; // A (0.05 - 0.85, Earth ~ 0.30)
+  greenhouseGasPpm?: number; // CO2 equivalent ppm (100 - 2500, Earth ~ 420)
+  stellarFluxFactor?: number; // S / S_earth (0.4 - 2.5, Earth = 1.0 -> 1361 W/m²)
 }
 
 export interface AstronomyMetrics {
@@ -81,6 +86,13 @@ export interface AstronomyMetrics {
   redshiftZ?: number;
   hubbleObservedWavelengthNm?: number; // nm
   hubbleAgeBillionYears?: number; // Gyr
+  // Planetary Atmosphere & Greenhouse Metrics
+  equilibriumTempK?: number; // T_eq without atmosphere (K)
+  surfaceTempK?: number; // T_s with greenhouse effect (K)
+  surfaceTempC?: number; // T_s in Celsius (°C)
+  greenhouseWarmingDeltaK?: number; // T_s - T_eq (K)
+  infraredEmissivity?: number; // atmospheric IR emissivity epsilon (0 - 0.98)
+  absorbedSolarFluxWm2?: number; // S_0*(1-A)/4 (W/m²)
 }
 
 export const SOLAR_PLANET_PRESETS: SolarPlanetPreset[] = [
@@ -363,6 +375,22 @@ export function calculateAstronomyMetrics(
   const hubbleObservedWavelengthNm = restLambdaNm * (1 + hubbleRedshiftZ);
   const rawSurfaceFlux = 5.670374e-8 * Math.pow(tWienK, 4);
 
+  // 4. Planetary Atmosphere, Albedo & Radiative Greenhouse Effect
+  const albedoA = Math.max(0.02, Math.min(0.92, finiteAstroOr(params.planetaryAlbedo, 0.30)));
+  const ghgPpm = Math.max(50, Math.min(5000, finiteAstroOr(params.greenhouseGasPpm, 420)));
+  const sFactor = Math.max(0.2, Math.min(3.0, finiteAstroOr(params.stellarFluxFactor, 1.0)));
+  const S0 = 1361.0 * sFactor; // W/m²
+  const sigmaSB = 5.670374419e-8;
+  const absorbedSolarFluxWm2 = (S0 * (1 - albedoA)) / 4.0;
+  const equilibriumTempK = Math.pow(Math.max(1e-6, absorbedSolarFluxWm2 / sigmaSB), 0.25);
+  // Logarithmic IR absorptivity/emissivity scaling calibrated to Earth (A=0.30, CO2=420 ppm -> Teq ≈ 254.6 K, Ts ≈ 288.2 K, epsilon ≈ 0.78)
+  const rawEpsilon = 0.78 + 0.085 * Math.log(ghgPpm / 420.0);
+  const infraredEmissivity = Math.max(0.05, Math.min(0.97, rawEpsilon));
+  const surfaceTempK =
+    equilibriumTempK * Math.pow(2.0 / Math.max(0.03, 2.0 - infraredEmissivity), 0.25);
+  const surfaceTempC = surfaceTempK - 273.15;
+  const greenhouseWarmingDeltaK = Math.max(0, surfaceTempK - equilibriumTempK);
+
   return {
     orbitalPeriodYears: safeAstroRound(orbitalPeriodYears, 3),
     perihelionAu: safeAstroRound(perihelionAu, 3),
@@ -403,6 +431,12 @@ export function calculateAstronomyMetrics(
     redshiftZ: safeAstroRound(hubbleRedshiftZ, 4),
     hubbleObservedWavelengthNm: safeAstroRound(hubbleObservedWavelengthNm, 2),
     hubbleAgeBillionYears: safeAstroRound(977.8 / Math.max(h0Hubble, 1e-6), 1),
+    equilibriumTempK: safeAstroRound(equilibriumTempK, 1),
+    surfaceTempK: safeAstroRound(surfaceTempK, 1),
+    surfaceTempC: safeAstroRound(surfaceTempC, 1),
+    greenhouseWarmingDeltaK: safeAstroRound(greenhouseWarmingDeltaK, 1),
+    infraredEmissivity: safeAstroRound(infraredEmissivity, 3),
+    absorbedSolarFluxWm2: safeAstroRound(absorbedSolarFluxWm2, 1),
   };
 }
 

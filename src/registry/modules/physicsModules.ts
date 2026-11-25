@@ -752,4 +752,88 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
       return { escapeVelocityKmS, orbitalVelocityKmS, surfaceGravity };
     },
   },
+
+  {
+    id: 'standing-wave-melde',
+    title: 'Gelombang Berdiri & Resonansi Dawai Melde',
+    domain: 'fisika',
+    subCategory: 'Gelombang Mekanik & Akustik',
+    supportedTiers: ['SMP', 'SMA', 'Mahasiswa'],
+    difficulty: 2,
+    estimatedMinutes: 35,
+    objectives: {
+      SMP: [
+        'Mengamati pembentukan pola perut (antinode) dan simpul (node) pada tali yang digetarkan.',
+        'Memahami bagaimana tarikan beban memengaruhi cepat rambat gelombang pada dawai.',
+      ],
+      SMA: [
+        'Membuktikan Hukum Melde bahwa cepat rambat gelombang transversal pada dawai memenuhi v = √(F / μ).',
+        'Menghitung panjang gelombang (λ) dan jumlah harmonik (n) dari jarak antar-simpul gelombang berdiri.',
+      ],
+      Mahasiswa: [
+        'Menganalisis frekuensi harmonik ke-n (fₙ = n·v / 2L) dan kondisi batas refleksi fase tetap pada katrol.',
+        'Menentukan rapat massa linier dawai (μ) secara regresi linier antara kuadrat cepat rambat (v²) terhadap gaya tegangan tali (F).',
+      ],
+    },
+    theorySummary:
+      'Percobaan Melde menyelidiki superposisi gelombang datang dan gelombang pantul pada dawai terentang sepanjang L yang digetarkan oleh vibrator elektromagnetik berfrekuensi f. Cepat rambat gelombang transversal bergantung pada akar gaya tegangan tali F = m·g dibagi rapat massa linier dawai μ: v = √(F / μ). Resonansi gelombang berdiri terjadi ketika panjang dawai memuat kelipatan bulat setengah panjang gelombang (L = n·λ/2).',
+    keyEquations: [
+      'v = \\sqrt{\\frac{F}{\\mu}} = \\sqrt{\\frac{m \\cdot g}{\\mu}}',
+      '\\lambda = \\frac{v}{f}',
+      'L = n \\frac{\\lambda}{2} \\implies f_n = \\frac{n}{2L} \\sqrt{\\frac{F}{\\mu}}',
+    ],
+    apparatusList: [
+      'Vibrator elektromagnetik Melde dengan generator sinyal frekuensi variabel (10–120 Hz)',
+      'Dawai nilon/baja terkalibrasi rapat massa linier μ dengan bangku optik berskala',
+      'Katrol presisi minim gesekan di ujung meja',
+      'Set beban gantung kuningan bertingkat (0,5 kg – 10 kg)',
+    ],
+    safetyNotes: [
+      'Pastikan beban gantung terpasang kuat pada kait dawai dan tidak melebihi batas putus dawai.',
+      'Jauhkan jari dari lengan vibrator saat berosilasi pada frekuensi tinggi.',
+    ],
+    parameters: [
+      { key: 'mass', label: 'Massa Beban Gantung (m)', unit: 'kg', min: 0.5, max: 10.0, step: 0.5, defaultValue: 2.0, variableRole: 'bebas', instrumentType: 'dynamometer' },
+      { key: 'stringLength', label: 'Panjang Dawai Efektif (L)', unit: 'm', min: 0.5, max: 2.5, step: 0.1, defaultValue: 1.2, variableRole: 'kontrol', instrumentType: 'ruler' },
+      { key: 'linearMassDensity', label: 'Rapat Massa Linier Dawai (μ)', unit: 'kg/m', min: 0.001, max: 0.02, step: 0.001, defaultValue: 0.005, variableRole: 'kontrol' },
+      { key: 'waveFrequency', label: 'Frekuensi Vibrator (f)', unit: 'Hz', min: 15, max: 120, step: 5, defaultValue: 50, variableRole: 'kontrol', instrumentType: 'stopwatch' },
+    ],
+    outputs: [
+      { key: 'tensionForce', label: 'Tegangan Dawai (F)', unit: 'N', formulaLatex: 'F = m g', precision: 2 },
+      { key: 'waveSpeed', label: 'Cepat Rambat Gelombang (v)', unit: 'm/s', formulaLatex: 'v = \\sqrt{F/\\mu}', precision: 2 },
+      { key: 'wavelength', label: 'Panjang Gelombang (λ)', unit: 'm', formulaLatex: '\\lambda = v / f', precision: 3 },
+      { key: 'harmonicLoops', label: 'Jumlah Perut Harmonik (n)', unit: 'loop', formulaLatex: 'n = 2L / \\lambda', precision: 2 },
+    ],
+    defaultRegressionAxes: { xKey: 'tensionForce', yKey: 'waveSpeed', expectedSlopeMeaning: 'Kurva Akar Tegangan Dawai terhadap Cepat Rambat v' },
+    preLabQuiz: [
+      {
+        id: 'melde-q1',
+        question: 'Berdasarkan Hukum Melde v = √(F / μ), apa yang harus dilakukan jika kita ingin menggandakan cepat rambat gelombang (v menjadi 2 kali semula) pada dawai yang sama?',
+        options: [
+          'Mengurangi massa beban gantung menjadi setengahnya',
+          'Memperbesar gaya tegangan dawai (massa beban gantung) menjadi 4 kali lipat semula',
+          'Mengubah frekuensi vibrator menjadi 2 kali lipat',
+          'Memperpendek panjang dawai menjadi setengahnya',
+        ],
+        correctIndex: 1,
+        explanation: 'Karena cepat rambat v sebanding dengan akar kuadrat gaya tegangan tali √F, maka untuk menaikkan v menjadi 2 kali lipat diperlukan gaya tegangan F sebesar 2² = 4 kali lipat.',
+      },
+      {
+        id: 'melde-q2',
+        question: 'Pada gelombang berdiri di sepanjang dawai L = 1,2 m, teramati terbentuk 3 perut gelombang (harmonik ketiga, n = 3). Berapakah panjang gelombang (λ) pada dawai tersebut?',
+        options: ['0,40 m', '0,80 m', '1,20 m', '2,40 m'],
+        correctIndex: 1,
+        explanation: 'Satu perut gelombang berdiri mewakili setengah panjang gelombang (λ/2). Jika L = 3 × (λ/2) = 1,2 m, maka λ = (2 × 1,2 m) / 3 = 0,80 m.',
+      },
+    ],
+    computeStep: (params) => {
+      const { mass = 2.0, stringLength = 1.2, linearMassDensity = 0.005, waveFrequency = 50, gravity = 9.81 } = params;
+      const tensionForce = Math.max(0.1, mass * gravity);
+      const waveSpeed = Math.sqrt(tensionForce / Math.max(1e-6, linearMassDensity));
+      const wavelength = waveSpeed / Math.max(1, waveFrequency);
+      const harmonicLoops = (2 * stringLength) / Math.max(1e-6, wavelength);
+      return { tensionForce, waveSpeed, wavelength, harmonicLoops };
+    },
+  },
 ];
+

@@ -340,6 +340,9 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           sucroseConcMolar: 'M',
           preyPopulationX: 'ind',
           predatorPopulationY: 'ind',
+          sampleSizeN: 'biji',
+          alleleFreqR: '',
+          alleleFreqY: '',
         };
         const unit = unitMap[paramKey] || '';
         const formatted = Number.isInteger(newValue) ? `${newValue}` : newValue.toFixed(2);

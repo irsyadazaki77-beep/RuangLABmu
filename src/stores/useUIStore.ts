@@ -94,6 +94,7 @@ export interface UIState {
   livePerfStats: LivePerfStats;
   leftDrawerOpen: boolean;
   rightTelemetryOpen: boolean;
+  compactSliderMode: boolean;
   eyeRestSecondsLeft: number;
   eyeRestPromptOpen: boolean;
   eyeRestBreakSecondsLeft: number | null;
@@ -102,6 +103,8 @@ export interface UIState {
   // Actions
   toggleZenMode: () => void;
   setZenMode: (zenMode: boolean) => void;
+  toggleCompactSliderMode: () => void;
+  setCompactSliderMode: (compact: boolean) => void;
   toggleDrawer: () => void;
   setDrawerOpen: (drawerOpen: boolean) => void;
   setDrawerTab: (tab: DrawerTab) => void;
@@ -216,6 +219,7 @@ export const useUIStore = create<UIState>((set) => ({
   livePerfStats: { fps: 60, qualityTier: 'high' },
   leftDrawerOpen: true,
   rightTelemetryOpen: true,
+  compactSliderMode: false,
   eyeRestSecondsLeft: EYE_REST_INTERVAL_SEC,
   eyeRestPromptOpen: false,
   eyeRestBreakSecondsLeft: null,
@@ -224,6 +228,10 @@ export const useUIStore = create<UIState>((set) => ({
   toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
 
   setZenMode: (zenMode: boolean) => set({ zenMode }),
+
+  toggleCompactSliderMode: () => set((state) => ({ compactSliderMode: !state.compactSliderMode })),
+
+  setCompactSliderMode: (compactSliderMode: boolean) => set({ compactSliderMode }),
 
   toggleDrawer: () => set((state) => ({ drawerOpen: !state.drawerOpen })),
 

@@ -172,6 +172,27 @@ export function getPhysicsPresetsForMode(
           patch: { lightWavelength: 200, targetMetalWorkFunction: 5.1 },
         },
       ];
+    case 'standing-wave-melde':
+      return [
+        {
+          id: 'melde-h2',
+          label: 'Resonansi Harmonik n=2',
+          summary: 'm=1.84 kg, L=1.2 m, f=50 Hz',
+          patch: { mass: 1.84, stringLength: 1.2, linearMassDensity: 0.005, waveFrequency: 50 },
+        },
+        {
+          id: 'melde-h3',
+          label: 'Resonansi Harmonik n=3',
+          summary: 'm=0.82 kg, L=1.2 m, f=50 Hz',
+          patch: { mass: 0.82, stringLength: 1.2, linearMassDensity: 0.005, waveFrequency: 50 },
+        },
+        {
+          id: 'melde-high-tension',
+          label: 'Tegangan Tinggi (Cepat)',
+          summary: 'm=6.0 kg, v ≈ 108.5 m/s',
+          patch: { mass: 6.0, stringLength: 1.2, linearMassDensity: 0.005, waveFrequency: 45 },
+        },
+      ];
     default:
       return [
         {
@@ -261,6 +282,27 @@ export function getChemistryPresetsForMode(
           label: 'Ekspansi Termal',
           summary: 'V=20 L, T=350 K',
           patch: { gasVolumeL: 20, initialTempC: 77, gasMoles: 1.0 },
+        },
+      ];
+    case 'chemical-equilibrium-lechatelier':
+      return [
+        {
+          id: 'lech-cold-ice',
+          label: 'Penangas Es (5°C)',
+          summary: 'Bergeser ke N₂O₄ tak berwarna',
+          patch: { equilibriumTempC: 5, initialTempC: 5, equilibriumPressureAtm: 1.0, pressureAtm: 1.0 },
+        },
+        {
+          id: 'lech-room-std',
+          label: 'Suhu Kamar (25°C, 1 atm)',
+          summary: 'Campuran setimbang N₂O₄ ⇌ 2 NO₂',
+          patch: { equilibriumTempC: 25, initialTempC: 25, equilibriumPressureAtm: 1.0, pressureAtm: 1.0 },
+        },
+        {
+          id: 'lech-hot-no2',
+          label: 'Penangas Panas (80°C)',
+          summary: 'Dominan gas NO₂ cokelat pekat',
+          patch: { equilibriumTempC: 80, initialTempC: 80, equilibriumPressureAtm: 0.8, pressureAtm: 0.8 },
         },
       ];
     default:
@@ -396,6 +438,27 @@ export function getAstronomyPresetsForMode(
           patch: { galaxyDistanceMpc: 450, hubbleConstantH0: 70 },
         },
       ];
+    case 'planetary-atmosphere-greenhouse':
+      return [
+        {
+          id: 'astro-ghg-iceage',
+          label: 'Bumi Zaman Es (180 ppm)',
+          summary: 'A=0.45, CO₂=180 ppm, dingin',
+          patch: { planetaryAlbedo: 0.45, greenhouseGasPpm: 180, stellarFluxFactor: 1.0 },
+        },
+        {
+          id: 'astro-ghg-earth',
+          label: 'Bumi Modern (420 ppm)',
+          summary: 'A=0.30, CO₂=420 ppm, Ts ≈ 15°C',
+          patch: { planetaryAlbedo: 0.30, greenhouseGasPpm: 420, stellarFluxFactor: 1.0 },
+        },
+        {
+          id: 'astro-ghg-extreme',
+          label: 'Rumah Kaca Ekstrem (2000 ppm)',
+          summary: 'A=0.20, CO₂=2000 ppm, es mencair',
+          patch: { planetaryAlbedo: 0.20, greenhouseGasPpm: 2000, stellarFluxFactor: 1.1 },
+        },
+      ];
   }
 }
 
@@ -461,6 +524,7 @@ export function generateAutoSweepSeries(
     'optics-young-slit': { key: 'lightWavelength', label: 'Panjang Gelombang λ', unit: 'nm', min: 420, max: 660, dec: 0 },
     'photoelectric-planck': { key: 'lightWavelength', label: 'Panjang Gelombang λ', unit: 'nm', min: 200, max: 440, dec: 0 },
     'orbital-gravity': { key: 'separationDistance', label: 'Jarak Pisah r', unit: 'm', min: 3, max: 15, dec: 1 },
+    'standing-wave-melde': { key: 'mass', label: 'Massa Beban m', unit: 'kg', min: 1.0, max: 7.0, dec: 1 },
   };
 
   const chemistryMap: Record<string, { key: string; label: string; unit: string; min: number; max: number; dec: number }> = {
@@ -470,6 +534,7 @@ export function generateAutoSweepSeries(
     'ideal-gas-boyle': { key: 'gasVolumeL', label: 'Volume Gas V', unit: 'L', min: 4, max: 20, dec: 1 },
     'electrochemistry-cell': { key: 'cathodeConcM', label: 'Konsentrasi Katoda', unit: 'M', min: 0.1, max: 2.0, dec: 2 },
     'spectrophotometry-beer': { key: 'spectroConcMm', label: 'Konsentrasi Sampel', unit: 'mM', min: 0.04, max: 0.24, dec: 2 },
+    'chemical-equilibrium-lechatelier': { key: 'equilibriumTempC', label: 'Suhu Reaktor T', unit: '°C', min: 10, max: 90, dec: 0 },
   };
 
   const astronomyMap: Record<string, { key: string; label: string; unit: string; min: number; max: number; dec: number }> = {
@@ -478,6 +543,7 @@ export function generateAutoSweepSeries(
     'stellar-exoplanet': { key: 'exoplanetRadiusEarth', label: 'Radius Eksoplanet Rp', unit: 'R⊕', min: 1, max: 11, dec: 1 },
     'stellar-wien-spectrum': { key: 'starEffectiveTempK', label: 'Suhu Efektif T*', unit: 'K', min: 3500, max: 13500, dec: 0 },
     'hubble-expansion': { key: 'galaxyDistanceMpc', label: 'Jarak Galaksi d', unit: 'Mpc', min: 50, max: 450, dec: 0 },
+    'planetary-atmosphere-greenhouse': { key: 'greenhouseGasPpm', label: 'Konsentrasi CO₂', unit: 'ppm', min: 200, max: 1800, dec: 0 },
   };
 
   let spec: { key: string; label: string; unit: string; min: number; max: number; dec: number } | undefined;

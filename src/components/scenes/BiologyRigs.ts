@@ -16,6 +16,7 @@ import {
   computeOsmosisVisualState,
   computePhotosynthesisGasLevel,
 } from '../../utils/biologyVisualHelpers';
+import { calculateMendelDihybrid } from '../../utils/engines/biologyEngine';
 
 export interface BiologyConceptAnchors {
   c1?: { pos: THREE.Vector3; text: string };
@@ -1465,4 +1466,291 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
     },
   };
 }
+
+// =====================================================================
+// RIG 5: MENDEL DIHYBRID GENETICS (4x4 PUNNETT 3D + DNA HELIX + CHI-SQUARE)
+// =====================================================================
+export function buildMendelGeneticsRig(ctx: BiologyRigSharedContext): BiologyRigHandle {
+  const { apparatusGroup, slideGlassMat } = ctx;
+  const disposableItems: { dispose: () => void }[] = [];
+
+  const darkFrameMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    metalness: 0.62,
+    roughness: 0.34,
+  });
+  const brassMat = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    metalness: 0.84,
+    roughness: 0.24,
+  });
+  const tileMat = new THREE.MeshStandardMaterial({
+    color: 0x0f172a,
+    metalness: 0.35,
+    roughness: 0.45,
+  });
+
+  // 1. Center 4x4 Punnett Square 3D Matrix Board
+  const boardBase = new THREE.Mesh(
+    new THREE.BoxGeometry(3.2, 0.22, 3.2),
+    darkFrameMat
+  );
+  boardBase.position.set(0, 0.11, 0);
+  boardBase.castShadow = true;
+  boardBase.receiveShadow = true;
+  boardBase.name = 'Matriks Punnett 3D 4×4 (RrYy × RrYy)';
+  boardBase.userData = {
+    draggableParam: 'sampleSizeN',
+    min: 32,
+    max: 640,
+    step: 16,
+    label: 'Ukuran Sampel Keturunan N',
+  };
+  apparatusGroup.add(boardBase);
+
+  const glassCover = new THREE.Mesh(
+    new THREE.BoxGeometry(3.08, 0.04, 3.08),
+    slideGlassMat
+  );
+  glassCover.position.set(0, 0.24, 0);
+  apparatusGroup.add(glassCover);
+
+  // 16 Dihybrid Seed Phenotype pattern in classic 4x4 Punnett layout:
+  // 0 = Round-Yellow (9), 1 = Round-Green (3), 2 = Wrinkled-Yellow (3), 3 = Wrinkled-Green (1)
+  const punnettPhenotypeGrid = [
+    0, 0, 0, 0,
+    0, 1, 0, 1,
+    0, 0, 2, 2,
+    0, 1, 2, 3,
+  ];
+
+  const roundGeo = new THREE.SphereGeometry(0.21, 20, 20);
+  const wrinkledGeo = new THREE.DodecahedronGeometry(0.21, 1);
+  const yellowMat = new THREE.MeshStandardMaterial({
+    color: 0xfacc15,
+    emissive: 0xca8a04,
+    emissiveIntensity: 0.18,
+    roughness: 0.28,
+    metalness: 0.1,
+  });
+  const greenMat = new THREE.MeshStandardMaterial({
+    color: 0x22c55e,
+    emissive: 0x15803d,
+    emissiveIntensity: 0.2,
+    roughness: 0.32,
+    metalness: 0.08,
+  });
+  disposableItems.push(roundGeo, wrinkledGeo, yellowMat, greenMat);
+
+  const seedMeshes: THREE.Mesh[] = [];
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      const idx = row * 4 + col;
+      const pheno = punnettPhenotypeGrid[idx];
+      const cx = -1.05 + col * 0.7;
+      const cz = -1.05 + row * 0.7;
+
+      const cellPad = new THREE.Mesh(
+        new THREE.BoxGeometry(0.62, 0.04, 0.62),
+        tileMat
+      );
+      cellPad.position.set(cx, 0.25, cz);
+      apparatusGroup.add(cellPad);
+
+      const isRound = pheno === 0 || pheno === 1;
+      const isYellow = pheno === 0 || pheno === 2;
+      const seed = new THREE.Mesh(
+        isRound ? roundGeo : wrinkledGeo,
+        isYellow ? yellowMat : greenMat
+      );
+      seed.position.set(cx, 0.48, cz);
+      seed.castShadow = true;
+      seed.name = isRound
+        ? isYellow
+          ? '🟡 Biji Bulat-Kuning (R_Y_ · 9/16)'
+          : '🟢 Biji Bulat-Hijau (R_yy · 3/16)'
+        : isYellow
+        ? '🟨 Biji Keriput-Kuning (rrY_ · 3/16)'
+        : '🟩 Biji Keriput-Hijau (rryy · 1/16)';
+      seed.userData = boardBase.userData;
+      apparatusGroup.add(seed);
+      seedMeshes.push(seed);
+    }
+  }
+
+  // 2. Left Rotating 3D Double-Helix DNA Pedestal (x = -2.45)
+  const dnaPedestal = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.65, 0.74, 0.18, 28),
+    darkFrameMat
+  );
+  dnaPedestal.position.set(-2.45, 0.09, 0);
+  dnaPedestal.castShadow = true;
+  apparatusGroup.add(dnaPedestal);
+
+  const dnaHelixGroup = new THREE.Group();
+  dnaHelixGroup.position.set(-2.45, 0.25, 0);
+  dnaHelixGroup.name = '🧬 Heliks Ganda DNA Lokus R/r & Y/y';
+  apparatusGroup.add(dnaHelixGroup);
+
+  const strandAMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    emissive: 0x0284c7,
+    emissiveIntensity: 0.4,
+    roughness: 0.22,
+  });
+  const strandBMat = new THREE.MeshStandardMaterial({
+    color: 0x10b981,
+    emissive: 0x059669,
+    emissiveIntensity: 0.4,
+    roughness: 0.22,
+  });
+  const nodeGeo = new THREE.SphereGeometry(0.075, 12, 12);
+  const rungGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.76, 8);
+  rungGeo.rotateZ(Math.PI / 2);
+  disposableItems.push(strandAMat, strandBMat, nodeGeo, rungGeo);
+
+  const DNA_RUNGS = 14;
+  for (let i = 0; i < DNA_RUNGS; i++) {
+    const y = 0.12 + i * 0.18;
+    const angle = i * 0.52;
+    const pairGroup = new THREE.Group();
+    pairGroup.position.y = y;
+    pairGroup.rotation.y = angle;
+
+    const nodeA = new THREE.Mesh(nodeGeo, strandAMat);
+    nodeA.position.x = -0.38;
+    nodeA.userData = {
+      draggableParam: 'alleleFreqR',
+      min: 0.2,
+      max: 0.8,
+      step: 0.05,
+      label: 'Frekuensi Alel Dominan p(R)',
+    };
+    const nodeB = new THREE.Mesh(nodeGeo, strandBMat);
+    nodeB.position.x = 0.38;
+    nodeB.userData = nodeA.userData;
+    const rung = new THREE.Mesh(rungGeo, brassMat);
+    rung.userData = nodeA.userData;
+    pairGroup.add(nodeA, nodeB, rung);
+    dnaHelixGroup.add(pairGroup);
+  }
+
+  // 3. Right 3D Phenotype Ratio Bar Columns & Chi-Square Console (x = 2.45)
+  const chartBase = new THREE.Mesh(
+    new THREE.BoxGeometry(1.42, 0.18, 2.55),
+    darkFrameMat
+  );
+  chartBase.position.set(2.45, 0.09, 0);
+  chartBase.castShadow = true;
+  apparatusGroup.add(chartBase);
+
+  const chiScreenTex = createInstrumentPanelTexture({
+    title: 'CHI-SQUARE (χ²) TEST',
+    primaryText: 'χ² = 0.42 · N=160',
+    secondaryText: '9:3:3:1 · H₀ DITERIMA',
+    accentHex: '#10b981',
+  });
+  if (chiScreenTex) disposableItems.push(chiScreenTex);
+  const chiScreenMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.28, 0.56),
+    new THREE.MeshBasicMaterial({ map: chiScreenTex })
+  );
+  chiScreenMesh.position.set(2.45, 2.38, 0);
+  chiScreenMesh.rotation.y = -0.35;
+  apparatusGroup.add(chiScreenMesh);
+
+  const barColors = [0xfacc15, 0x22c55e, 0xeab308, 0x15803d];
+  const phenoBars: THREE.Mesh[] = [];
+  for (let i = 0; i < 4; i++) {
+    const barGeo = new THREE.BoxGeometry(0.32, 1.0, 0.32);
+    barGeo.translate(0, 0.5, 0);
+    const barMat = new THREE.MeshStandardMaterial({
+      color: barColors[i],
+      emissive: barColors[i],
+      emissiveIntensity: 0.25,
+      roughness: 0.25,
+    });
+    disposableItems.push(barGeo, barMat);
+    const bar = new THREE.Mesh(barGeo, barMat);
+    bar.position.set(2.45, 0.18, -0.82 + i * 0.55);
+    bar.castShadow = true;
+    apparatusGroup.add(bar);
+    phenoBars.push(bar);
+  }
+
+  const worldPosA = new THREE.Vector3();
+  const worldPosB = new THREE.Vector3();
+  const worldPosC = new THREE.Vector3();
+  const anchors: BiologyConceptAnchors = {
+    c1: { pos: worldPosA, text: '' },
+    c2: { pos: worldPosB, text: '' },
+    c3: { pos: worldPosC, text: '' },
+  };
+  const emptyAnchors: BiologyConceptAnchors = {};
+  let lastChiKey = '';
+
+  return {
+    update: (t, curParams, _isLite, showConceptLabels) => {
+      const sampleSizeN = curParams.sampleSizeN ?? 160;
+      const alleleFreqR = curParams.dominantAlleleFreqR ?? curParams.alleleFreqR ?? 0.5;
+      const alleleFreqY = curParams.dominantAlleleFreqY ?? curParams.alleleFreqY ?? 0.5;
+
+      const metrics = calculateMendelDihybrid({
+        sampleSizeN,
+        dominantAlleleFreqR: alleleFreqR,
+        dominantAlleleFreqY: alleleFreqY,
+      });
+
+      dnaHelixGroup.rotation.y = t * 0.75;
+
+      // Subtle floating hover pulse on the 16 Punnett seeds
+      for (let i = 0; i < seedMeshes.length; i++) {
+        seedMeshes[i].position.y = 0.48 + Math.sin(t * 2.2 + i * 0.45) * 0.035;
+        seedMeshes[i].rotation.y = t * 0.4 + i * 0.3;
+      }
+
+      // Scale 4 phenotype bars according to observed counts relative to sampleSizeN
+      const counts = [
+        metrics.observedRoundYellow,
+        metrics.observedRoundGreen,
+        metrics.observedWrinkledYellow,
+        metrics.observedWrinkledGreen,
+      ];
+      const maxCount = Math.max(1, sampleSizeN * 0.62);
+      for (let i = 0; i < 4; i++) {
+        const targetH = Math.max(0.14, (counts[i] / maxCount) * 1.75);
+        phenoBars[i].scale.y = THREE.MathUtils.lerp(phenoBars[i].scale.y, targetH, 0.2);
+      }
+
+      const chiKey = `${sampleSizeN}_${alleleFreqR.toFixed(2)}_${alleleFreqY.toFixed(2)}`;
+      if (chiKey !== lastChiKey) {
+        lastChiKey = chiKey;
+        updateInstrumentPanelTexture(chiScreenTex, {
+          title: 'CHI-SQUARE (χ²) TEST',
+          primaryText: `χ² = ${metrics.chiSquareValue.toFixed(2)} (N=${Math.round(sampleSizeN)})`,
+          secondaryText: `${metrics.observedRoundYellow}:${metrics.observedRoundGreen}:${metrics.observedWrinkledYellow}:${metrics.observedWrinkledGreen} · ${
+            metrics.mendelHypothesisAccepted ? 'H₀ DITERIMA' : 'H₀ DITOLAK'
+          }`,
+          accentHex: metrics.mendelHypothesisAccepted ? '#10b981' : '#f43f5e',
+        });
+      }
+
+      if (!showConceptLabels) return emptyAnchors;
+      worldPosA.set(-2.45, 2.85, 0).applyMatrix4(apparatusGroup.matrixWorld);
+      worldPosB.set(0, 1.1, 0).applyMatrix4(apparatusGroup.matrixWorld);
+      worldPosC.set(2.45, 2.85, 0).applyMatrix4(apparatusGroup.matrixWorld);
+
+      anchors.c1!.text = `Lokus Gen p(R)=${alleleFreqR.toFixed(2)} · q(Y)=${alleleFreqY.toFixed(2)}`;
+      anchors.c2!.text = `Kisi Punnett F₂: ${metrics.observedRoundYellow} : ${metrics.observedRoundGreen} : ${metrics.observedWrinkledYellow} : ${metrics.observedWrinkledGreen}`;
+      anchors.c3!.text = `Uji χ² = ${metrics.chiSquareValue.toFixed(2)} (${
+        metrics.mendelHypothesisAccepted ? '< 7,815 Valid' : '> 7,815 Menyimpang'
+      })`;
+      return anchors;
+    },
+    dispose: () => {
+      disposableItems.forEach((d) => d.dispose());
+    },
+  };
+}
+
 

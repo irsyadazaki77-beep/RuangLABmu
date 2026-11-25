@@ -125,6 +125,7 @@ export function useLabParamsSync({
       'photoelectric-planck': 'photoelectric-planck',
       'gravity-orbital': 'orbital-gravity',
       'orbital-gravity': 'orbital-gravity',
+      'standing-wave-melde': 'standing-wave-melde',
     };
     const chemistryModeMap: Record<string, typeof chemistryParams.mode> = {
       'thermo-calorimetry': 'thermo-calorimetry',
@@ -134,6 +135,7 @@ export function useLabParamsSync({
       'ideal-gas-boyle': 'ideal-gas-boyle',
       'reaction-kinetics-arrhenius': 'reaction-kinetics-arrhenius',
       'spectrophotometry-beer': 'spectrophotometry-beer',
+      'chemical-equilibrium-lechatelier': 'chemical-equilibrium-lechatelier',
     };
     const astronomyModeMap: Record<string, typeof astronomyParams.mode> = {
       'solar-kepler': 'solar-kepler',
@@ -144,6 +146,7 @@ export function useLabParamsSync({
       'stellar-wien-spectrum': 'stellar-wien-spectrum',
       'hubble-expansion': 'hubble-expansion',
       'hubble-expansion-universe': 'hubble-expansion',
+      'planetary-atmosphere-greenhouse': 'planetary-atmosphere-greenhouse',
     };
 
     if (physicsModeMap[activeModuleId]) {

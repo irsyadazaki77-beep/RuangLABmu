@@ -9,6 +9,7 @@ export type SimulationMode =
   | 'ohm-wheatstone'
   | 'optics-young-slit'
   | 'photoelectric-planck'
+  | 'standing-wave-melde'
   | 'enzyme-kinetics'
   | 'predator-prey-dynamics'
   | 'cell-osmosis-tonicity'

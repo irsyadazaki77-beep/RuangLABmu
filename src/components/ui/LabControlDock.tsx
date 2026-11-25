@@ -76,6 +76,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     timelineMaxTime,
     timelineCurrentTime,
     seekTimelineCursor,
+    liveTelemetrySeries,
   } = useLabStore(
     useShallow((s) => ({
       soundEnabled: s.soundEnabled,
@@ -97,6 +98,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       timelineMaxTime: s.timelineMaxTime,
       timelineCurrentTime: s.timelineCurrentTime,
       seekTimelineCursor: s.seekTimelineCursor,
+      liveTelemetrySeries: s.liveTelemetrySeries,
     }))
   );
 
@@ -271,6 +273,23 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
   const isReadyForAnalysis = recordsCount >= 3;
   const isMobileSheetOpen = mobileTab === 'variables' || mobileTab === 'telemetry';
 
+  // Compute inline mini-sparkline points from recent liveTelemetrySeries
+  const sparklineSample = liveTelemetrySeries.slice(-16);
+  const sparklinePoints = (() => {
+    if (sparklineSample.length < 2) return '0,10 18,8 36,10';
+    const vals = sparklineSample.map((pt) => (Number.isFinite(pt.primary) ? pt.primary : 0));
+    const minV = Math.min(...vals);
+    const maxV = Math.max(...vals);
+    const span = Math.max(1e-4, maxV - minV);
+    return vals
+      .map((v, i) => {
+        const x = ((i / (vals.length - 1)) * 36).toFixed(1);
+        const y = (16 - ((v - minV) / span) * 12).toFixed(1);
+        return `${x},${y}`;
+      })
+      .join(' ');
+  })();
+
   return (
     <div
       role="toolbar"
@@ -362,6 +381,43 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           </span>
           <kbd className="hidden xl:inline font-mono text-2xs opacity-80">D</kbd>
         </button>
+
+        {/* 0.5. Inline Live Mini-Sparkline & Trial Step Indicator */}
+        <div
+          data-testid="dock-mini-sparkline"
+          title={`Tren Telemetri Live · ${recordsCount} dari minimal 3 titik data tercatat`}
+          className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] shrink-0"
+        >
+          <svg
+            width="38"
+            height="18"
+            viewBox="0 0 38 18"
+            fill="none"
+            aria-hidden="true"
+            className="shrink-0 overflow-visible"
+          >
+            <polyline
+              points={sparklinePoints}
+              fill="none"
+              stroke="var(--comfort-accent)"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <div className="flex items-center gap-0.5" aria-hidden="true">
+            {[0, 1, 2].map((dotIdx) => (
+              <span
+                key={dotIdx}
+                className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                  recordsCount > dotIdx
+                    ? 'bg-[var(--comfort-success)]'
+                    : 'bg-[var(--comfort-border)]'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
 
         <div className="hidden sm:block w-px h-4 bg-[var(--comfort-border)] mx-0.5 shrink-0" aria-hidden="true" />
 

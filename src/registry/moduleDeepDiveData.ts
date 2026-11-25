@@ -636,4 +636,89 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
       '4. Plot grafik kecepatan resesi v terhadap jarak d; kemiringan garis regresi membuktikan nilai Konstanta Hubble H0 (~70 km/s/Mpc).',
     ],
   },
+
+  'standing-wave-melde': {
+    chapterNumber: 3,
+    chapterTitle: 'Bab 3: Momentum, Kelistrikan, Optika & Fisika Kuantum',
+    competencyLevel: 'Menengah',
+    commonMisconceptions: [
+      'Menaikkan frekuensi vibrator akan mempercepat laju rambat gelombang pada dawai. Faktanya: Cepat rambat gelombang pada dawai v = √(F/μ) hanya bergantung pada gaya tegangan tali F dan rapat massa linier dawai μ; menaikkan frekuensi f hanya memperpendek panjang gelombang λ.',
+      'Partikel dawai ikut mengalir berpindah dari vibrator menuju katrol. Faktanya: Pada gelombang transversal berdiri, elemen dawai hanya berosilasi naik-turun di tempat sementara titik simpul (node) tetap diam.',
+    ],
+    realWorldApplications: [
+      'Penyeteman frekuensi nada instrumen musik berdawai (gitar, biola, harpa, dan piano akustik).',
+      'Analisis resonansi kabel baja jembatan gantung terhadap terpaan angin periodik untuk mencegah kegagalan struktur.',
+      'Desain sensor tegangan mekanik berbasis frekuensi resonansi kawat bergetar (vibrating wire strain gauge) pada bendungan.',
+    ],
+    stepByStepGuide: [
+      '1. Atur panjang dawai efektif L = 1,2 m, rapat massa linier μ = 0,005 kg/m, dan frekuensi vibrator f = 50 Hz.',
+      '2. Variasikan massa beban gantung m dari 1,0 kg hingga 6,0 kg untuk mengubah gaya tegangan dawai F = m·g.',
+      '3. Amati perubahan jumlah perut gelombang berdiri (loop harmonik n) serta posisi titik simpul dan perut pada bangku optik 3D.',
+      '4. Catat pasangan data tegangan dawai F dan cepat rambat gelombang v untuk memverifikasi hubungan Hukum Melde v = √(F/μ).',
+    ],
+  },
+
+  'chemical-equilibrium-lechatelier': {
+    chapterNumber: 4,
+    chapterTitle: 'Bab 4: Termodinamika & Kinetika Reaksi Kimia',
+    competencyLevel: 'Menengah',
+    commonMisconceptions: [
+      'Saat kesetimbangan kimia tercapai, reaksi kimia berhenti sama sekali. Faktanya: Kesetimbangan kimia bersifat dinamis; molekul N2O4 terus terurai menjadi 2 NO2 dan NO2 terus bergabung kembali menjadi N2O4 dengan laju yang persis sama.',
+      'Memperbesar tekanan gas selalu mengubah nilai tetapan kesetimbangan Kp. Faktanya: Nilai Kp hanya berubah jika suhu T diubah; perubahan tekanan hanya menggeser posisi derajat disosiasi α agar kuosien reaksi kembali menyamai Kp.',
+    ],
+    realWorldApplications: [
+      'Optimasi suhu dan tekanan tinggi pada reaktor industri sintesis amonia Haber-Bosch untuk pupuk pertanian nasional.',
+      'Pengendalian emisi gas nitrogen oksida (NOx) pada sistem katalitik konverter gas buang kendaraan bermotor.',
+      'Rekayasa propelan roket cair berbasis oksidator dinitrogen tetraoksida (N2O4) pada wahana peluncur satelit.',
+    ],
+    stepByStepGuide: [
+      '1. Amati warna awal campuran gas N2O4 / NO2 di dalam silinder kaca borosilikat pada suhu kamar 25 °C dan tekanan 1,0 atm.',
+      '2. Naikkan suhu penangas dari 10 °C hingga 90 °C dan amati perubahan warna gas menjadi cokelat kemerahan pekat seiring kenaikan Kp.',
+      '3. Pada suhu tetap, tekan piston untuk menaikkan tekanan total P dari 0,5 atm ke 4,0 atm dan amati pergeseran kesetimbangan kembali ke arah N2O4.',
+      '4. Rekam data suhu T terhadap fraksi gas NO2 dan analisis kurva pergeseran endotermik Van \'t Hoff.',
+    ],
+  },
+
+  'mendel-genetics-dihybrid': {
+    chapterNumber: 6,
+    chapterTitle: 'Bab 6: Fisiologi Sel, Genetika, Enzimologi & Ekologi Kuantitatif',
+    competencyLevel: 'Menengah',
+    commonMisconceptions: [
+      'Rasio 9:3:3:1 berarti setiap 16 biji yang dipanen pasti selalu terdiri dari tepat 9 bulat-kuning, 3 bulat-hijau, 3 keriput-kuning, dan 1 keriput-hijau. Faktanya: Rasio 9:3:3:1 adalah peluang probabilistik; pada sampel kecil terdapat variasi acak yang baru mengerucut ke rasio ideal saat ukuran sampel N besar.',
+      'Sifat dominan selalu menghapus keberadaan alel resesif dari populasi generasi berikutnya. Faktanya: Alel resesif tetap tersimpan utuh pada individu heterozigot dan muncul kembali secara homozigot resesif pada generasi F2.',
+    ],
+    realWorldApplications: [
+      'Pemuliaan bibit padi unggul tahan hama wereng dan berbulir pulen melalui persilangan terarah dan seleksi silang balik.',
+      'Konseling genetika medis untuk memprediksi peluang pewarisan sifat resesif autosom pada silsilah keluarga.',
+      'Penggunaan uji statistik Chi-Square dalam riset genomik pertanian untuk mendeteksi pautan gen pada kromosom tanaman.',
+    ],
+    stepByStepGuide: [
+      '1. Eksplorasi matriks papan Punnett 3D 4×4 untuk mengenali 16 kombinasi genotipe hasil persilangan RrYy × RrYy.',
+      '2. Mulai dengan ukuran sampel kecil (N = 32 biji) lalu naikkan bertahap hingga N = 640 biji untuk mengamati Hukum Bilangan Besar.',
+      '3. Bandingkan tinggi batang 3D jumlah fenotipe pengamatan (Observed) terhadap rasio harapan Mendel 9:3:3:1 (Expected).',
+      '4. Evaluasi nilai Chi-Square (χ²) terhadap ambang kritis 7,815 (df = 3) untuk menguji validitas hipotesis asortasi bebas Mendel.',
+    ],
+  },
+
+  'planetary-atmosphere-greenhouse': {
+    chapterNumber: 8,
+    chapterTitle: 'Bab 8: Astrofisika Observasional & Kosmologi Modern',
+    competencyLevel: 'Menengah',
+    commonMisconceptions: [
+      'Efek rumah kaca adalah fenomena yang sepenuhnya buruk bagi Bumi. Faktanya: Tanpa efek rumah kaca alami (~33 °C pemanasan), suhu rata-rata permukaan Bumi akan membeku di -18 °C; yang berbahaya adalah lonjakan efek rumah kaca antropogenik akibat pembakaran bahan bakar fosil.',
+      'Atmosfer memanaskan permukaan planet dengan cara memantulkan sinar matahari tampak. Faktanya: Gas rumah kaca membiarkan sinar tampak masuk ke permukaan, namun menyerap dan memancarkan balik radiasi termal inframerah gelombang panjang dari permukaan planet.',
+    ],
+    realWorldApplications: [
+      'Pemodelan proyeksi perubahan iklim global IPCC dan pemantauan pencairan tudung es kutub menggunakan satelit observasi Bumi.',
+      'Evaluasi kelaikhunian (habitability) atmosfer eksoplanet batuan yang ditemukan oleh teleskop luar angkasa JWST.',
+      'Studi perbandingan klimatologi planet kebumian (efek rumah kaca ekstrem di Venus vs atmosfer tipis dingin di Mars).',
+    ],
+    stepByStepGuide: [
+      '1. Atur kondisi standar Bumi: Albedo A = 0,30, konsentrasi CO2 = 420 ppm, dan fluks bintang S = 1,0 S⊕.',
+      '2. Bandingkan suhu ekuilibrium tanpa atmosfer (Teq ≈ 255 K / -18 °C) dengan suhu permukaan aktual (Ts ≈ 288 K / +15 °C).',
+      '3. Variasikan konsentrasi gas rumah kaca CO2 dari 150 ppm (zaman es) hingga 2000 ppm dan amati penyusutan tudung es kutub 3D.',
+      '4. Ubah albedo permukaan A untuk menyelidiki efek umpan-balik pantulan es dan awan terhadap keseimbangan energi radiatif planet.',
+    ],
+  },
 };
+

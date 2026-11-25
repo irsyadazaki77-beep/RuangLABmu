@@ -5,6 +5,7 @@ export type BiologyMode =
   | 'predator-prey-dynamics'
   | 'cell-osmosis-tonicity'
   | 'osmosis-plasmolysis'
+  | 'mendel-genetics-dihybrid'
   | 'anatomy-cardiovascular-heart'
   | 'anatomy-respiratory-lungs'
   | 'anatomy-neural-synapse';
@@ -621,6 +622,90 @@ export function calculateNeuralSynapse(params: NeuralSynapseParams): NeuralSynap
     allOrNoneStatus,
     conductionVelocityMs: Number(conductionVelocityMs.toFixed(2)),
     membranePotentialMv,
+  };
+}
+
+export interface MendelDihybridParams {
+  sampleSizeN: number; // 32 - 640 seeds
+  dominantAlleleFreqR: number; // p_R gamete probability (0.20 - 0.80, Mendelian = 0.50)
+  dominantAlleleFreqY: number; // p_Y gamete probability (0.20 - 0.80, Mendelian = 0.50)
+}
+
+export interface MendelDihybridMetrics {
+  expectedRoundYellow: number; // (9/16) * N
+  expectedRoundGreen: number; // (3/16) * N
+  expectedWrinkledYellow: number; // (3/16) * N
+  expectedWrinkledGreen: number; // (1/16) * N
+  observedRoundYellow: number;
+  observedRoundGreen: number;
+  observedWrinkledYellow: number;
+  observedWrinkledGreen: number;
+  dominantPhenotypePct: number; // % Round-Yellow
+  chiSquareValue: number; // sum((O - E)^2 / E) against 9:3:3:1 null hypothesis
+  criticalValueDf3: number; // 7.815 (df = 3, alpha = 0.05)
+  mendelHypothesisAccepted: boolean; // chiSquareValue <= 7.815
+  chiSquareStatusLabel: string;
+}
+
+export function calculateMendelDihybrid(params: MendelDihybridParams): MendelDihybridMetrics {
+  const N = Math.max(16, Math.round(params.sampleSizeN || 160));
+  const pR = Math.max(0.1, Math.min(0.9, params.dominantAlleleFreqR ?? 0.5));
+  const pY = Math.max(0.1, Math.min(0.9, params.dominantAlleleFreqY ?? 0.5));
+  const qR = 1 - pR;
+  const qY = 1 - pY;
+
+  // Expected Mendelian 9:3:3:1 counts under null hypothesis (pR = 0.5, pY = 0.5)
+  const expectedRoundYellow = (9 / 16) * N;
+  const expectedRoundGreen = (3 / 16) * N;
+  const expectedWrinkledYellow = (3 / 16) * N;
+  const expectedWrinkledGreen = (1 / 16) * N;
+
+  // Actual phenotype probabilities from gamete frequencies + realistic finite-sample binomial variance
+  const probRound = 1 - qR * qR;
+  const probWrinkled = qR * qR;
+  const probYellow = 1 - qY * qY;
+  const probGreen = qY * qY;
+
+  // Deterministic finite-sample fluctuation that diminishes as 1/sqrt(N)
+  const noiseScale = 1 / Math.sqrt(N);
+  const f1 = Math.max(0.01, probRound * probYellow * (1 + 0.14 * noiseScale));
+  const f2 = Math.max(0.01, probRound * probGreen * (1 - 0.22 * noiseScale));
+  const f3 = Math.max(0.01, probWrinkled * probYellow * (1 + 0.18 * noiseScale));
+  const f4 = Math.max(0.01, probWrinkled * probGreen * (1 - 0.25 * noiseScale));
+  const fSum = f1 + f2 + f3 + f4;
+
+  const obsRY = Math.round((f1 / fSum) * N);
+  const obsRG = Math.round((f2 / fSum) * N);
+  const obsWY = Math.round((f3 / fSum) * N);
+  const obsWG = Math.max(0, N - obsRY - obsRG - obsWY);
+
+  const chiSquareValue =
+    Math.pow(obsRY - expectedRoundYellow, 2) / Math.max(1e-6, expectedRoundYellow) +
+    Math.pow(obsRG - expectedRoundGreen, 2) / Math.max(1e-6, expectedRoundGreen) +
+    Math.pow(obsWY - expectedWrinkledYellow, 2) / Math.max(1e-6, expectedWrinkledYellow) +
+    Math.pow(obsWG - expectedWrinkledGreen, 2) / Math.max(1e-6, expectedWrinkledGreen);
+
+  const criticalValueDf3 = 7.815;
+  const mendelHypothesisAccepted = chiSquareValue <= criticalValueDf3;
+  const dominantPhenotypePct = (obsRY / N) * 100;
+  const chiSquareStatusLabel = mendelHypothesisAccepted
+    ? 'H₀ Diterima (Sesuai Rasio Mendel 9:3:3:1, p > 0,05)'
+    : 'H₀ Ditolak (Menyimpang Signifikan dari 9:3:3:1, p < 0,05)';
+
+  return {
+    expectedRoundYellow: Number(expectedRoundYellow.toFixed(1)),
+    expectedRoundGreen: Number(expectedRoundGreen.toFixed(1)),
+    expectedWrinkledYellow: Number(expectedWrinkledYellow.toFixed(1)),
+    expectedWrinkledGreen: Number(expectedWrinkledGreen.toFixed(1)),
+    observedRoundYellow: obsRY,
+    observedRoundGreen: obsRG,
+    observedWrinkledYellow: obsWY,
+    observedWrinkledGreen: obsWG,
+    dominantPhenotypePct: Number(dominantPhenotypePct.toFixed(1)),
+    chiSquareValue: Number(chiSquareValue.toFixed(3)),
+    criticalValueDf3,
+    mendelHypothesisAccepted,
+    chiSquareStatusLabel,
   };
 }
 

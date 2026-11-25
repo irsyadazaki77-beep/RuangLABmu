@@ -395,6 +395,57 @@ export const PhysicsParameterPanel: React.FC<PhysicsParameterPanelProps> = ({
                 onChange={(v) => onParamUpdate({ separationDistance: v })}
               />
             </>
+          ) : params.mode === 'standing-wave-melde' ? (
+            <>
+              <TactileParameterControl
+                paramKey="mass"
+                label="Massa Beban Gantung (m)"
+                unit="kg"
+                value={params.mass}
+                min={0.05}
+                max={1.5}
+                step={0.05}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'mass', v, lvl)}
+                onChange={(v) => onParamUpdate({ mass: v })}
+              />
+              <TactileParameterControl
+                paramKey="waveFrequency"
+                label="Frekuensi Vibrator (f)"
+                unit="Hz"
+                value={params.waveFrequency ?? 50}
+                min={10}
+                max={120}
+                step={1}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'waveFrequency', v, lvl)}
+                onChange={(v) => onParamUpdate({ waveFrequency: v })}
+              />
+              <TactileParameterControl
+                paramKey="stringLength"
+                label="Panjang Dawai Aktif (L)"
+                unit="m"
+                value={params.stringLength ?? 1.2}
+                min={0.5}
+                max={2.5}
+                step={0.05}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'stringLength', v, lvl)}
+                onChange={(v) => onParamUpdate({ stringLength: v })}
+              />
+              <TactileParameterControl
+                paramKey="linearMassDensity"
+                label="Rapat Massa Linear (μ)"
+                unit="g/m"
+                value={params.linearMassDensity ?? 2.0}
+                min={0.5}
+                max={10.0}
+                step={0.5}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'linearMassDensity', v, lvl)}
+                onChange={(v) => onParamUpdate({ linearMassDensity: v })}
+              />
+            </>
           ) : (
             <>
               <TactileParameterControl

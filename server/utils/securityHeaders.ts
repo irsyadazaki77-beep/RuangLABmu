@@ -11,9 +11,11 @@ const DEFAULT_AISTUDIO_FRAME_ANCESTORS = [
   'https://aistudio.google.com',
   'https://*.google.com',
   'https://*.corp.google.com',
+  'https://*.googlers.com',
   'https://localhost.corp.google.com:26001',
   'https://*.googleusercontent.com',
   'https://*.usercontent.goog',
+  'https://*.run.app',
 ] as const;
 
 export function buildFrameAncestorsList(options: FrameAncestorsOptions): string[] {
@@ -83,9 +85,15 @@ export function buildContentSecurityPolicyDirectives(
       : ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'blob:'],
     scriptSrcAttr: ["'none'"],
     workerSrc: ["'self'", 'blob:'],
-    styleSrc: ["'self'", "'unsafe-inline'"],
-    fontSrc: ["'self'", 'data:'],
-    imgSrc: ["'self'", 'data:', 'blob:'],
+    styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+    fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+    imgSrc: [
+      "'self'",
+      'data:',
+      'blob:',
+      'https://fonts.gstatic.com',
+      'https://www.gstatic.com',
+    ],
     connectSrc: ["'self'", 'ws:', 'wss:'],
     frameAncestors: options.frameAncestors,
     upgradeInsecureRequests: null,
@@ -224,26 +232,7 @@ export function shouldRelaxHeadersForEmbeddedPreview(
   }
 
   // Non-production dev/preview environment
-  if (isCrossOriginIframeRequest(headers)) return true;
-  const fetchDest = readHeaderValue(headers, 'sec-fetch-dest');
-  if (fetchDest === 'iframe') return true;
-
-  const forwardedHost = readHeaderValue(headers, 'x-forwarded-host');
-  if (forwardedHost) {
-    const cleanHost = forwardedHost.split(',')[0]?.trim().split(':')[0] ?? '';
-    if (
-      cleanHost === 'localhost' ||
-      cleanHost === '127.0.0.1' ||
-      cleanHost.endsWith('.run.app') ||
-      cleanHost.endsWith('.google.com') ||
-      cleanHost.endsWith('.googleusercontent.com') ||
-      cleanHost.endsWith('.usercontent.goog')
-    ) {
-      return true;
-    }
-  }
-
-  return false;
+  return true;
 }
 
 export function resolveViteAllowedHosts(env: NodeJS.ProcessEnv = process.env): string[] {

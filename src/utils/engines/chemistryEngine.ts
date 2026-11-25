@@ -4,7 +4,8 @@ export type ChemistryMode =
   | 'electrochemistry-cell'
   | 'ideal-gas-boyle'
   | 'reaction-kinetics-arrhenius'
-  | 'spectrophotometry-beer';
+  | 'spectrophotometry-beer'
+  | 'chemical-equilibrium-lechatelier';
 
 export interface ThermoReactionPreset {
   id: string;
@@ -59,6 +60,10 @@ export interface ChemistryParams {
   spectroPathLengthCm?: number; // cm (0.5 - 2.0)
   spectroMolarAbsorptivity?: number; // L/(mol·cm)
   spectroWavelengthNm?: number; // nm (400 - 700)
+  // Le Chatelier N2O4 <-> 2 NO2 Equilibrium
+  equilibriumTempC?: number; // °C (0 - 100)
+  equilibriumPressureAtm?: number; // atm (0.2 - 5.0)
+  n2o4InitialConcM?: number; // mol/L (0.05 - 1.0)
 }
 
 export interface ChemistryMetrics {
@@ -100,6 +105,15 @@ export interface ChemistryMetrics {
   transmittancePct?: number;
   molarExtinctionEpsilon?: number;
   absorbedColorName?: string;
+  // Le Chatelier Dynamic Equilibrium Metrics
+  leChatelierKp?: number;
+  leChatelierKc?: number;
+  no2DissociationAlpha?: number; // 0 - 1
+  no2MoleFractionPct?: number; // %
+  no2PartialPressureAtm?: number; // atm
+  n2o4PartialPressureAtm?: number; // atm
+  equilibriumShiftLabel?: string;
+  no2GasColorHex?: string;
 }
 
 export const THERMO_PRESETS: ThermoReactionPreset[] = [
@@ -386,6 +400,39 @@ export function calculateChemistryMetrics(params: ChemistryParams): ChemistryMet
   const spectroAbsorbance = Math.min(3.5, epsMolar * bPathCm * cAnalyteM);
   const spectroTransmittancePct = Math.max(0, 100 * Math.pow(10, -spectroAbsorbance));
 
+  // Le Chatelier N2O4(g) <-> 2 NO2(g) Dynamic Equilibrium (Delta H = +57.2 kJ/mol, Kp(298.15 K) = 0.148)
+  const eqTempC = params.equilibriumTempC ?? params.initialTempC ?? 25;
+  const eqTempK = Math.max(250, eqTempC + 273.15);
+  const eqPressureAtm = Math.max(0.1, params.equilibriumPressureAtm ?? params.pressureAtm ?? 1.0);
+  const deltaH_N2O4 = 57200; // J/mol (Endothermic forward)
+  const kp298 = 0.148;
+  const leChatelierKp =
+    kp298 * Math.exp((-deltaH_N2O4 / R) * (1 / eqTempK - 1 / 298.15));
+  const leChatelierKc = leChatelierKp / (R_L_atm * eqTempK);
+  // Degree of dissociation alpha from Kp = 4 * alpha^2 * P / (1 - alpha^2) => alpha = sqrt(Kp / (Kp + 4*P))
+  const no2DissociationAlpha = Math.sqrt(
+    leChatelierKp / Math.max(1e-9, leChatelierKp + 4 * eqPressureAtm)
+  );
+  const xNo2 = (2 * no2DissociationAlpha) / (1 + no2DissociationAlpha);
+  const xN2o4 = (1 - no2DissociationAlpha) / (1 + no2DissociationAlpha);
+  const no2PartialPressureAtm = xNo2 * eqPressureAtm;
+  const n2o4PartialPressureAtm = xN2o4 * eqPressureAtm;
+  const no2MoleFractionPct = xNo2 * 100;
+  const equilibriumShiftLabel =
+    no2MoleFractionPct >= 55
+      ? 'Bergeser ke Kanan (Dominan NO₂ Cokelat Kemerahan)'
+      : no2MoleFractionPct <= 25
+      ? 'Bergeser ke Kiri (Dominan N₂O₄ Tak Berwarna)'
+      : 'Kesetimbangan Dinamis Seimbang (N₂O₄ ⇌ 2 NO₂)';
+  const no2GasColorHex =
+    no2MoleFractionPct >= 65
+      ? '#9A3412'
+      : no2MoleFractionPct >= 40
+      ? '#C2410C'
+      : no2MoleFractionPct >= 20
+      ? '#F59E0B'
+      : '#FDE68A';
+
   return {
     tempKelvin: Number(tempKelvin.toFixed(2)),
     finalTempC: Number(finalTempC.toFixed(2)),
@@ -436,5 +483,13 @@ export function calculateChemistryMetrics(params: ChemistryParams): ChemistryMet
         ? 'Jingga (590–620 nm)'
         : 'Merah (620–750 nm)'
       : 'Hijau (495–570 nm)',
+    leChatelierKp: Number(leChatelierKp.toFixed(4)),
+    leChatelierKc: Number(leChatelierKc.toFixed(4)),
+    no2DissociationAlpha: Number(no2DissociationAlpha.toFixed(4)),
+    no2MoleFractionPct: Number(no2MoleFractionPct.toFixed(2)),
+    no2PartialPressureAtm: Number(no2PartialPressureAtm.toFixed(3)),
+    n2o4PartialPressureAtm: Number(n2o4PartialPressureAtm.toFixed(3)),
+    equilibriumShiftLabel,
+    no2GasColorHex,
   };
 }

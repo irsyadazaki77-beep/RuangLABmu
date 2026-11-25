@@ -131,6 +131,8 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         return { ...base, gasVolumeL: Math.max(2, Number(((base.gasVolumeL ?? 10) * 0.5).toFixed(1))) };
       case 'spectrophotometry-beer':
         return { ...base, spectroConcMm: Math.min(0.25, Number(((base.spectroConcMm ?? 0.1) * 2).toFixed(2))) };
+      case 'chemical-equilibrium-lechatelier':
+        return { ...base, equilibriumTempC: Math.min(100, (base.equilibriumTempC ?? 25) + 35) };
       default:
         return {
           ...base,
@@ -184,6 +186,12 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
           { id: 'abs', label: 'Absorbansi (A)', value: metrics.spectroAbsorbance ?? metrics.absorbanceA ?? 0.45, min: 0, max: 2.5, unit: 'A', color: '#14b8a6' },
           { id: 'trans', label: 'Transmitansi (%T)', value: metrics.spectroTransmittancePct ?? metrics.transmittancePct ?? 35, min: 0, max: 100, unit: '%', color: '#0ea5e9' },
           { id: 'wl', label: 'Panjang Gelombang', value: params.spectroWavelengthNm ?? 520, min: 400, max: 700, unit: 'nm', color: '#10b981' },
+        ]
+      : params.mode === 'chemical-equilibrium-lechatelier'
+      ? [
+          { id: 'xno2', label: 'Fraksi NO₂ (x)', value: metrics.no2MoleFractionPct ?? 31.4, min: 0, max: 100, unit: '%', color: '#14b8a6' },
+          { id: 'kp', label: 'Konstanta Kp', value: metrics.leChatelierKp ?? 0.142, min: 0, max: 20, unit: 'atm', color: '#0ea5e9' },
+          { id: 'alpha', label: 'Derajat Disosiasi (α)', value: metrics.no2DissociationAlpha ?? 0.186, min: 0, max: 1, unit: '', color: '#10b981' },
         ]
       : [
           { id: 'tf', label: 'Suhu Akhir (Tf)', value: metrics.finalTempC, min: 0, max: 100, unit: '°C', color: '#14b8a6' },
@@ -268,6 +276,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     'ideal-gas-boyle': 'ideal-gas-boyle',
     'reaction-kinetics-arrhenius': 'reaction-kinetics-arrhenius',
     'spectrophotometry-beer': 'spectrophotometry-beer',
+    'chemical-equilibrium-lechatelier': 'chemical-equilibrium-lechatelier',
   };
   const moduleRecords = filterRecordsForModule(records, 'Kimia', modeToCatalogId[params.mode]);
 
@@ -295,6 +304,8 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         ? 'Uji Kinetika Reaksi Arrhenius'
         : p.mode === 'spectrophotometry-beer'
         ? 'Uji Spektrofotometri Beer-Lambert'
+        : p.mode === 'chemical-equilibrium-lechatelier'
+        ? 'Uji Kesetimbangan Le Chatelier N₂O₄ ⇌ 2NO₂'
         : 'Uji Termokimia & Reaksi';
 
     const pSum =
@@ -306,6 +317,8 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         ? `V=${p.gasVolumeL ?? 10}L, T=${p.gasTemperatureK ?? 300}K`
         : p.mode === 'spectrophotometry-beer'
         ? `λ=${p.spectroWavelengthNm ?? 520}nm, C=${p.spectroConcMm ?? 0.1}mM`
+        : p.mode === 'chemical-equilibrium-lechatelier'
+        ? `T=${p.equilibriumTempC ?? 25}°C, P=${p.equilibriumPressureAtm ?? 1.0}atm, [N₂O₄]₀=${p.n2o4InitialConcM ?? 0.5}M`
         : `T=${p.initialTempC}°C, [M]=${p.reactantConcentration}M`;
 
     const numX =
@@ -317,6 +330,8 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         ? p.cathodeConcM
         : p.mode === 'spectrophotometry-beer'
         ? p.spectroConcMm ?? 0.1
+        : p.mode === 'chemical-equilibrium-lechatelier'
+        ? p.equilibriumTempC ?? 25
         : p.initialTempC;
 
     const numY1 =
@@ -328,6 +343,8 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         ? m.nernstCellPotentialE
         : p.mode === 'spectrophotometry-beer'
         ? m.spectroAbsorbance ?? m.absorbanceA ?? 0.4
+        : p.mode === 'chemical-equilibrium-lechatelier'
+        ? m.no2MoleFractionPct ?? 31.4
         : m.deltaTempC;
 
     onRecordExperiment(
@@ -414,6 +431,21 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                   summaryB: `[Kat]=${realityBParams.cathodeConcM}M · E=${metricsB.nernstCellPotentialE}V`,
                   delta: `ΔE = ${(metricsB.nernstCellPotentialE - metrics.nernstCellPotentialE >= 0 ? '+' : '')}${(metricsB.nernstCellPotentialE - metrics.nernstCellPotentialE).toFixed(3)} V`,
                 };
+              case 'chemical-equilibrium-lechatelier': {
+                const deltaX = (metricsB.no2MoleFractionPct ?? 0) - (metrics.no2MoleFractionPct ?? 0);
+                return {
+                  key: 'equilibriumTempC' as const,
+                  label: 'Suhu Bejana T (B)',
+                  unit: '°C',
+                  min: -10,
+                  max: 100,
+                  step: 1,
+                  valB: realityBParams.equilibriumTempC ?? 60,
+                  summaryA: `T=${params.equilibriumTempC ?? 25}°C · NO₂=${metrics.no2MoleFractionPct}%`,
+                  summaryB: `T=${realityBParams.equilibriumTempC ?? 60}°C · NO₂=${metricsB.no2MoleFractionPct}%`,
+                  delta: `ΔNO₂ = ${(deltaX >= 0 ? '+' : '')}${deltaX.toFixed(1)}%`,
+                };
+              }
               default:
                 return {
                   key: 'initialTempC' as const,
@@ -586,6 +618,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               <option value="ideal-gas-boyle">Hukum Gas Ideal Boyle-Gay Lussac</option>
               <option value="reaction-kinetics-arrhenius">Kinetika Reaksi &amp; Arrhenius</option>
               <option value="spectrophotometry-beer">Spektrofotometri UV-Vis Beer-Lambert</option>
+              <option value="chemical-equilibrium-lechatelier">Kesetimbangan Kimia Dinamis &amp; Asas Le Chatelier</option>
             </select>
           </div>
 

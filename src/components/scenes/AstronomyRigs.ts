@@ -1713,3 +1713,254 @@ export function buildHubbleExpansionRig(): AstronomyRigHandle {
     },
   };
 }
+
+// =====================================================================
+// RIG 6: PLANETARY ATMOSPHERE, ALBEDO & RADIATIVE GREENHOUSE EFFECT
+// =====================================================================
+export function buildPlanetaryGreenhouseRig(): AstronomyRigHandle {
+  const ghGroup = new THREE.Group();
+  const planetSurfaceTex = createPlanetSurfaceTexture({
+    baseHex: '#0284c7',
+    accentHex: '#16a34a',
+    style: 'terrestrial',
+  });
+  const cloudTex = createTerrestrialCloudTexture();
+
+  // Central Terrestrial Planet Globe (r = 1.65)
+  const planetMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    map: planetSurfaceTex,
+    roughness: 0.55,
+    metalness: 0.08,
+  });
+  const planetGlobe = new THREE.Mesh(new THREE.SphereGeometry(1.65, 40, 40), planetMat);
+  planetGlobe.position.set(0, 0.75, 0);
+  planetGlobe.castShadow = true;
+  planetGlobe.receiveShadow = true;
+  planetGlobe.name = 'Bola Planet & Lapisan Albedo';
+  planetGlobe.userData = {
+    draggableParam: 'planetaryAlbedo',
+    min: 0.05,
+    max: 0.85,
+    step: 0.02,
+    label: 'Albedo Planet A',
+  };
+  ghGroup.add(planetGlobe);
+
+  // Dynamic North & South Polar Ice Caps that scale with Albedo
+  const iceCapMat = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc,
+    emissive: 0xe0f2fe,
+    emissiveIntensity: 0.22,
+    roughness: 0.25,
+  });
+  const northIceCap = new THREE.Mesh(
+    new THREE.SphereGeometry(1.668, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.32),
+    iceCapMat
+  );
+  northIceCap.userData = planetGlobe.userData;
+  const southIceCap = new THREE.Mesh(
+    new THREE.SphereGeometry(1.668, 32, 16, 0, Math.PI * 2, Math.PI * 0.68, Math.PI * 0.32),
+    iceCapMat
+  );
+  southIceCap.userData = planetGlobe.userData;
+  planetGlobe.add(northIceCap, southIceCap);
+
+  // Cloud layer
+  const cloudShell = new THREE.Mesh(
+    new THREE.SphereGeometry(1.71, 32, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map: cloudTex,
+      transparent: true,
+      opacity: 0.68,
+      roughness: 0.85,
+      depthWrite: false,
+    })
+  );
+  planetGlobe.add(cloudShell);
+
+  // Greenhouse Atmosphere Shell (r = 2.15, draggable greenhouseGasPpm)
+  const ghAtmoMat = createFresnelCoronaMaterial(0x38bdf8, 0xf97316, 1.25);
+  const ghAtmoShell = new THREE.Mesh(new THREE.SphereGeometry(2.18, 36, 36), ghAtmoMat);
+  ghAtmoShell.position.set(0, 0.75, 0);
+  ghAtmoShell.name = 'Selubung Atmosfer Gas Rumah Kaca (CO₂)';
+  ghAtmoShell.userData = {
+    draggableParam: 'greenhouseGasPpm',
+    min: 100,
+    max: 5000,
+    step: 50,
+    label: 'Konsentrasi CO₂ (ppm)',
+  };
+  ghGroup.add(ghAtmoShell);
+
+  // Incoming Solar Shortwave Arrows (Yellow) & Reflected Albedo Arrow (Cyan-White)
+  const solarInArrow1 = createVectorArrowGroup(0xfacc15);
+  const solarInArrow2 = createVectorArrowGroup(0xfacc15);
+  const albedoReflectArrow = createVectorArrowGroup(0x7dd3fc);
+  // Outgoing & Back-Radiation Longwave Infrared Arrows (Orange-Red)
+  const irOutArrow = createVectorArrowGroup(0xf97316);
+  const irBackArrow1 = createVectorArrowGroup(0xef4444);
+  const irBackArrow2 = createVectorArrowGroup(0xef4444);
+  ghGroup.add(
+    solarInArrow1,
+    solarInArrow2,
+    albedoReflectArrow,
+    irOutArrow,
+    irBackArrow1,
+    irBackArrow2
+  );
+
+  // 3D Radiative Energy Balance Hologram Board below the planet
+  const ghCanvas = document.createElement('canvas');
+  ghCanvas.width = 512;
+  ghCanvas.height = 160;
+  const ghTex = new THREE.CanvasTexture(ghCanvas);
+  ghTex.colorSpace = THREE.SRGBColorSpace;
+  const ghBoard = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.6, 1.75),
+    new THREE.MeshBasicMaterial({
+      map: ghTex,
+      transparent: true,
+      opacity: 0.94,
+      side: THREE.DoubleSide,
+    })
+  );
+  ghBoard.position.set(0, -2.05, 1.1);
+  ghBoard.rotation.x = -0.25;
+  ghGroup.add(ghBoard);
+
+  const vecOrigin = new THREE.Vector3();
+  const vecDir = new THREE.Vector3();
+  const anchorSolarPos = new THREE.Vector3(-3.1, 1.65, 0);
+  const anchorPlanetPos = new THREE.Vector3(0, 2.75, 0);
+  const anchorIrPos = new THREE.Vector3(2.45, 1.55, 0);
+  const anchorsObj: AstronomyConceptAnchors = {
+    c1: { pos: anchorSolarPos, text: '' },
+    c2: { pos: anchorPlanetPos, text: '' },
+    c3: { pos: anchorIrPos, text: '' },
+  };
+  const updateResult = { anchors: anchorsObj };
+  let lastGhKey = '';
+
+  return {
+    group: ghGroup,
+    interactiveMeshes: [planetGlobe, ghAtmoShell],
+    update: ({ params: p, metrics: m, t }) => {
+      const albedo = p.planetaryAlbedo ?? 0.3;
+      const co2Ppm = p.greenhouseGasPpm ?? 420;
+      const sFactor = p.stellarFluxFactor ?? 1.0;
+      const eps = m.infraredEmissivity ?? 0.78;
+      const tsK = m.surfaceTempK ?? 288;
+      const tsC = m.surfaceTempC ?? 15;
+      const teqK = m.equilibriumTempK ?? 255;
+      const deltaK = m.greenhouseWarmingDeltaK ?? 33;
+
+      planetGlobe.rotation.y = t * 0.28;
+      cloudShell.rotation.y = t * 0.38;
+
+      // Polar ice caps expand with high albedo / cold temperature
+      const iceScale = Math.max(0.25, Math.min(1.18, 0.45 + albedo * 0.95));
+      northIceCap.scale.set(1, iceScale, 1);
+      southIceCap.scale.set(1, iceScale, 1);
+      (cloudShell.material as THREE.MeshStandardMaterial).opacity = 0.25 + albedo * 0.65;
+
+      // Greenhouse shell color shifts from cyan-blue (low CO2) to amber-red (high CO2)
+      ghAtmoMat.uniforms.uTime.value = t;
+      ghAtmoMat.uniforms.uIntensity.value = 0.65 + eps * 1.15;
+      ghAtmoMat.uniforms.uCoreColor.value.setHex(co2Ppm >= 1200 ? 0xf97316 : 0x38bdf8);
+      ghAtmoMat.uniforms.uRimColor.value.setHex(co2Ppm >= 1200 ? 0xef4444 : 0xf59e0b);
+
+      // Update Incoming Solar, Reflected Albedo & Trapped IR Vector Arrows
+      const solarLen = Math.min(2.4, 1.1 + sFactor * 0.55);
+      vecOrigin.set(-4.35, 1.35, 0);
+      vecDir.set(1, -0.15, 0).normalize();
+      orientAndScaleVectorArrow(solarInArrow1, vecOrigin, vecDir, solarLen);
+
+      vecOrigin.set(-4.35, 0.25, 0);
+      vecDir.set(1, 0.12, 0).normalize();
+      orientAndScaleVectorArrow(solarInArrow2, vecOrigin, vecDir, solarLen);
+
+      // Reflected shortwave Albedo arrow
+      vecOrigin.set(-1.55, 1.45, 0);
+      vecDir.set(-0.85, 0.55, 0).normalize();
+      orientAndScaleVectorArrow(albedoReflectArrow, vecOrigin, vecDir, Math.max(0.45, albedo * 2.2));
+
+      // Outgoing IR & Trapped Back-Radiation arrows
+      vecOrigin.set(1.65, 1.15, 0);
+      vecDir.set(1, 0.35, 0).normalize();
+      orientAndScaleVectorArrow(irOutArrow, vecOrigin, vecDir, Math.max(0.55, (1 - eps * 0.5) * 1.7));
+
+      const backLen = Math.max(0.5, eps * 1.65);
+      vecOrigin.set(2.05, 0.55, 0.35);
+      vecDir.set(-1, 0.15, -0.1).normalize();
+      orientAndScaleVectorArrow(irBackArrow1, vecOrigin, vecDir, backLen);
+
+      vecOrigin.set(0.35, 2.55, 0);
+      vecDir.set(-0.15, -1, 0).normalize();
+      orientAndScaleVectorArrow(irBackArrow2, vecOrigin, vecDir, backLen);
+
+      const ghKey = `${albedo.toFixed(2)}_${Math.round(co2Ppm)}_${sFactor.toFixed(2)}`;
+      if (ghKey !== lastGhKey) {
+        lastGhKey = ghKey;
+        const gCtx = ghCanvas.getContext('2d');
+        if (gCtx) {
+          const W = ghCanvas.width;
+          const H = ghCanvas.height;
+          gCtx.fillStyle = '#070d19';
+          gCtx.fillRect(0, 0, W, H);
+          gCtx.strokeStyle = 'rgba(56, 189, 248, 0.38)';
+          gCtx.lineWidth = 2;
+          gCtx.strokeRect(2, 2, W - 4, H - 4);
+
+          gCtx.fillStyle = '#94a3b8';
+          gCtx.font = 'bold 12px monospace';
+          gCtx.fillText('NERACA RADIASI TERMAL PLANET & EFEK RUMAH KACA', 20, 24);
+
+          gCtx.fillStyle = '#facc15';
+          gCtx.font = 'bold 13px monospace';
+          gCtx.fillText(
+            `Fluks Terserap = ${(m.absorbedSolarFluxWm2 ?? 238).toFixed(0)} W/m² · Albedo A = ${albedo.toFixed(2)}`,
+            20,
+            56
+          );
+
+          gCtx.fillStyle = '#38bdf8';
+          gCtx.fillText(
+            `Suhu Ekuilibrium Tanpa Atmosfer: Teq = ${teqK.toFixed(1)} K (${(teqK - 273.15).toFixed(1)} °C)`,
+            20,
+            88
+          );
+
+          gCtx.fillStyle = tsC > 45 ? '#f87171' : '#34d399';
+          gCtx.font = 'bold 14px monospace';
+          gCtx.fillText(
+            `Suhu Permukaan Aktual: Ts = ${tsK.toFixed(1)} K (${tsC >= 0 ? '+' : ''}${tsC.toFixed(1)} °C) · ΔT_GH = +${deltaK.toFixed(1)} K`,
+            20,
+            122
+          );
+
+          gCtx.fillStyle = '#cbd5e1';
+          gCtx.font = '11px monospace';
+          gCtx.fillText(
+            `CO₂ = ${Math.round(co2Ppm)} ppm · Emisivitas Inframerah Atmosfer ε = ${eps.toFixed(3)}`,
+            20,
+            146
+          );
+          ghTex.needsUpdate = true;
+        }
+      }
+
+      anchorsObj.c1!.text = `Surya Masuk & Pantulan Albedo A = ${albedo.toFixed(2)}`;
+      anchorsObj.c2!.text = `Suhu Permukaan Ts = ${tsK.toFixed(1)} K (${tsC.toFixed(1)} °C)`;
+      anchorsObj.c3!.text = `Pemanasan Rumah Kaca +${deltaK.toFixed(1)} K (CO₂ ${Math.round(co2Ppm)} ppm)`;
+      return updateResult;
+    },
+    dispose: () => {
+      planetSurfaceTex?.dispose();
+      cloudTex?.dispose();
+      ghTex.dispose();
+    },
+  };
+}
+

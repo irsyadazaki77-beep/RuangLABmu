@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Activity, PlusCircle } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../../stores/useUIStore';
 import { useLabStore, DOMAIN_TO_ID } from '../../stores/useLabStore';
 import { useCollabStore } from '../../stores/useCollabStore';
 import { getExperimentById } from '../../registry/experimentRegistry';
 import { labSound } from '../../utils/soundEngine';
+import { LAB_EVENTS, emitLabEvent } from '../../utils/labEventBus';
 import { shouldConfirmLabExit } from '../../utils/spatialHudHelpers';
 import { useOfflineOutboxStatus } from '../../utils/offlineOutbox';
 import type { ExperimentRecord } from '../../utils/scienceEngine';
@@ -356,7 +358,10 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
   const hasGuidedSteps = Boolean(
     !dualModeActive && !prefer2DFallback && !zenMode && activeExperiment?.stepByStepGuide?.length
   );
-  const hasTopOverlay = Boolean(!dualModeActive && !prefer2DFallback && topOverlay);
+      const hasTopOverlay = Boolean(!dualModeActive && !prefer2DFallback && topOverlay);
+  const showFloatingLiveReadout = Boolean(
+    !dualModeActive && !prefer2DFallback && !isRightVisible && telemetryMetrics.length > 0
+  );
 
   const centerCorridorClass = [
     'left-2.5 right-2.5 sm:left-3 sm:right-3',
@@ -437,6 +442,56 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
         }}
         onOpenDrLabMu={handleOpenDrLabMu}
       />
+
+      {/* 2.5. Floating Live Readout Mini-HUD when Right Telemetry Drawer is Closed */}
+      {showFloatingLiveReadout && (
+        <div
+          data-testid="floating-live-readout-hud"
+          className="pointer-events-auto hidden lg:flex items-center gap-2 absolute top-[58px] right-3 z-20 px-2.5 py-1.5 rounded-xl studio-hud-surface border border-[var(--comfort-border)] shadow-md text-2xs"
+        >
+          <button
+            type="button"
+            onClick={handleToggleRightDrawer}
+            title="Buka Panel Telemetri Lengkap (])"
+            className="flex items-center gap-2 cursor-pointer hover:opacity-90"
+          >
+            <Activity className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
+            {telemetryMetrics.slice(0, 2).map((metric, idx) => (
+              <div
+                key={metric.id}
+                className={`flex items-baseline gap-1 ${
+                  idx > 0 ? 'pl-2 border-l border-[var(--comfort-border)]' : ''
+                }`}
+              >
+                <span className="text-[var(--comfort-hud-muted)] font-medium truncate max-w-[96px]">
+                  {metric.label.split(' ')[0]}:
+                </span>
+                <span className="font-mono font-bold text-[var(--comfort-hud-text)] tabular-nums">
+                  {typeof metric.value === 'number'
+                    ? Number(metric.value.toFixed(metric.precision ?? 2))
+                    : metric.value}
+                </span>
+                {metric.unit && (
+                  <span className="font-mono text-[var(--comfort-hud-muted)]">{metric.unit}</span>
+                )}
+              </div>
+            ))}
+          </button>
+          <button
+            type="button"
+            data-testid="floating-hud-record-btn"
+            onClick={() => {
+              labSound.playRecordSuccess();
+              emitLabEvent(LAB_EVENTS.RECORD_TRIAL, { source: 'dock', timestamp: Date.now() });
+            }}
+            title="[D] Catat Data Pengamatan Sekarang"
+            className="ml-1 px-2 py-0.5 rounded-lg bg-[var(--comfort-accent)] hover:opacity-95 text-white font-bold flex items-center gap-1 cursor-pointer shrink-0"
+          >
+            <PlusCircle className="w-3 h-3 shrink-0" aria-hidden="true" />
+            <span>Catat</span>
+          </button>
+        </div>
+      )}
 
       {/* 3. Unified Non-Overlapping Center Overlay Stack (Guided Steps + Module Top Overlay) */}
       {(hasGuidedSteps || hasTopOverlay) && (

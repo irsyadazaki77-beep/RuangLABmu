@@ -15,6 +15,7 @@ import {
   buildExoplanetTransitRig,
   buildHubbleExpansionRig,
   buildMilkyWayRig,
+  buildPlanetaryGreenhouseRig,
   buildSolarKeplerRig,
   buildWienSpectrumRig,
 } from './scenes/AstronomyRigs';
@@ -72,6 +73,9 @@ const PARAM_UNIT_MAP: Record<string, string> = {
   exoplanetRadiusEarth: 'R⊕',
   exoplanetOrbitAu: 'AU',
   galaxyDistanceMpc: 'Mpc',
+  planetaryAlbedo: '',
+  greenhouseGasPpm: 'ppm',
+  stellarFluxFactor: 'S☉',
 };
 
 export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
@@ -448,6 +452,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       'stellar-exoplanet': buildExoplanetTransitRig(),
       'stellar-wien-spectrum': buildWienSpectrumRig(useUIStore.getState().liteDeviceMode || isSoftwareGl),
       'hubble-expansion': buildHubbleExpansionRig(),
+      'planetary-atmosphere-greenhouse': buildPlanetaryGreenhouseRig(),
     };
     (Object.values(rigs) as AstronomyRigHandle[]).forEach((rig) => scene.add(rig.group));
 

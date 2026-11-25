@@ -314,4 +314,55 @@ export const ASTRONOMY_PEDAGOGY: Record<string, ModulePedagogyBundle> = {
       },
     ],
   },
+
+  'planetary-atmosphere-greenhouse': {
+    keyTakeaways: [
+      'Suhu kesetimbangan planet tanpa atmosfer (Tₑq) ditentukan oleh keseimbangan antara fluks surya yang diserap S₀(1 − A)/4 dan pancaran benda hitam Stefan-Boltzmann σT⁴.',
+      'Albedo planet (A) adalah fraksi cahaya bintang yang langsung dipantulkan ke angkasa oleh awan, es kutub, dan daratan (Bumi memiliki A ≈ 0,30).',
+      'Gas rumah kaca (CO₂, H₂O, CH₄) menyerap pancaran inframerah permukaan (emisivitas ε) dan memancarkannya balik ke bawah, meningkatkan suhu permukaan menjadi Tₛ = Tₑq · [2 / (2 − ε)]^(1/4).',
+    ],
+    everydayAnalogy: {
+      title: 'Selimut Bulu Hangat di Malam Hari vs Kabin Mobil di Bawah Terik',
+      scenario:
+        'Sinar matahari pagi dengan mudah menembus kaca jendela mobil dan menghangatkan jok di dalamnya, tetapi panas inframerah dari jok tertahan oleh kaca sehingga suhu kabin naik lebih tinggi daripada udara luar.',
+      connection:
+        'Atmosfer ber-CO₂ bekerja seperti selimut radiatif: membiarkan cahaya tampak gelombang pendek masuk, namun menahan dan memantulkan kembali radiasi termal inframerah gelombang panjang.',
+    },
+    formulaBreakdown: [
+      { symbol: 'A', name: 'Albedo ikatan planet', unit: 'fraksi 0–1', role: 'bebas', explanation: 'Daya pantul rata-rata permukaan & awan planet (0 = hitam pekat, 1 = cermin sempurna).' },
+      { symbol: 'CO₂', name: 'Konsentrasi gas rumah kaca', unit: 'ppm', role: 'bebas', explanation: 'Kadar bagian per sejuta CO₂ ekuivalen yang meningkatkan opasitas/emisivitas inframerah ε.' },
+      { symbol: 'Tₑq', name: 'Suhu ekuilibrium tanpa atmosfer', unit: 'K', role: 'terikat', explanation: 'Suhu radiatif benda hitam telanjang: Tₑq = [S₀(1 − A) / (4σ)]^(1/4).' },
+      { symbol: 'Tₛ', name: 'Suhu rata-rata permukaan', unit: 'K / °C', role: 'terikat', explanation: 'Suhu aktual permukaan setelah ditambah radiasi balik atmosfer rumah kaca.' },
+    ],
+    workedExample: {
+      question:
+        'Bumi menerima konstanta surya S₀ = 1361 W/m² dengan albedo rata-rata A = 0,30 (σ = 5,67 × 10⁻⁸ W/m²K⁴). Jika atmosfer Bumi memiliki emisivitas inframerah efektif ε = 0,78, hitung suhu tanpa atmosfer Tₑq dan suhu permukaan Tₛ!',
+      given: ['S₀ = 1361 W/m²', 'A = 0,30', 'ε = 0,78', 'σ = 5,67 × 10⁻⁸ W/m²K⁴'],
+      steps: [
+        'Hitung fluks surya rata-rata yang diserap Bumi: F serap = S₀(1 − A) / 4 = 1361 × 0,70 / 4 ≈ 238,2 W/m².',
+        'Hitung suhu ekuilibrium tanpa atmosfer: Tₑq = (238,2 / 5,67 × 10⁻⁸)^(1/4) = (4,20 × 10⁹)^(1/4) ≈ 254,6 K (−18,6 °C).',
+        'Hitung suhu permukaan dengan atmosfer: Tₛ = Tₑq × [2 / (2 − 0,78)]^(1/4) = 254,6 × (2 / 1,22)^(1/4) = 254,6 × 1,131 ≈ 288,1 K (+15,0 °C).',
+      ],
+      answer: 'Tₑq ≈ 254,6 K (−18,6 °C) dan Tₛ ≈ 288,1 K (+15,0 °C)',
+      physicalMeaning:
+        'Efek rumah kaca alami menghangatkan Bumi sebesar ΔT ≈ +33,5 K sehingga air di samudra tetap berwujud cair, namun lonjakan CO₂ antropogenik menggeser Tₛ melewati batas keseimbangan iklim.',
+    },
+    glossary: [
+      { term: 'Albedo (A)', definition: 'Perbandingan antara fluks radiasi elektromagnetik yang dipantulkan planet terhadap fluks total yang datang.' },
+      { term: 'Suhu Ekuilibrium (Tₑq)', definition: 'Suhu teoritis planet jika dianggap sebagai bola benda hitam tanpa selimut atmosfer.' },
+      { term: 'Emisivitas Inframerah (ε)', definition: 'Fraksi radiasi termal gelombang panjang dari permukaan planet yang diserap dan dipancarkan ulang oleh lapisan atmosfer.' },
+      { term: 'Umpan-Balik Es-Albedo', definition: 'Siklus penguatan iklim di mana mencairnya es kutub menurunkan albedo planet sehingga permukaan makin banyak menyerap panas matahari.' },
+    ],
+    deepDiveContent: {
+      historicalContext:
+        'Joseph Fourier (1824) pertama kali menyadari bahwa atmosfer menahan panas bumi, John Tyndall (1859) mengukur penyerapan inframerah oleh gas CO₂ dan uap air, dan Svante Arrhenius (1896) menghitung kenaikan suhu permukaan akibat penggandaan CO₂.',
+      derivationLatex: [
+        '\\frac{S_0 (1 - A)}{4} = \\sigma T_{\\text{eq}}^4 \\implies T_{\\text{eq}} = \\left[\\frac{S_0(1-A)}{4\\sigma}\\right]^{1/4}',
+        '\\sigma T_s^4 = \\sigma T_{\\text{eq}}^4 + \\frac{\\varepsilon}{2}\\sigma T_s^4 \\implies T_s = T_{\\text{eq}}\\left(\\frac{2}{2-\\varepsilon}\\right)^{1/4}',
+      ],
+      advancedConcept:
+        'Di planet Venus, konsentrasi CO₂ mencapai 96,5% dengan tekanan 92 atm (ε mendekati 1 dalam atmosfer berlapis-banyak), memicu efek rumah kaca pelarian (runaway greenhouse) yang memanggang permukaannya hingga 737 K (464 °C).',
+    },
+  },
 };
+

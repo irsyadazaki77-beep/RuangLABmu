@@ -30,6 +30,8 @@ export function normalizeAstronomyMode(mode: string | undefined | null): Astrono
       return 'stellar-wien-spectrum';
     case 'hubble-expansion':
       return 'hubble-expansion';
+    case 'planetary-atmosphere-greenhouse':
+      return 'planetary-atmosphere-greenhouse';
     case 'solar-kepler':
     default:
       return 'solar-kepler';

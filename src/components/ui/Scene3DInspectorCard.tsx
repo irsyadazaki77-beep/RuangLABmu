@@ -1,14 +1,16 @@
 import React, { useEffect } from 'react';
-import { BookOpen, Sliders, X } from 'lucide-react';
+import { BookOpen, Focus, Sliders, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../../stores/useUIStore';
 import type { ApparatusInspectionInfo } from '../../utils/studio3DCatalog';
 import { SciFormula } from './ScientificNotation';
 import { labSound } from '../../utils/soundEngine';
+import { LAB_EVENTS, emitLabEvent } from '../../utils/labEventBus';
 
 export interface Scene3DInspectorCardProps {
   info: ApparatusInspectionInfo | null;
   liveMetricSummary?: string;
+  onFocusApparatus?: () => void;
   onClose: () => void;
 }
 
@@ -19,6 +21,7 @@ export interface Scene3DInspectorCardProps {
 export const Scene3DInspectorCard: React.FC<Scene3DInspectorCardProps> = ({
   info,
   liveMetricSummary,
+  onFocusApparatus,
   onClose,
 }) => {
   const { leftDrawerOpen, rightTelemetryOpen, zenMode, setLeftDrawerOpen, setMobileTab, toggleZenMode } =
@@ -60,6 +63,15 @@ export const Scene3DInspectorCard: React.FC<Scene3DInspectorCardProps> = ({
     if (zenMode) toggleZenMode();
     setLeftDrawerOpen(true);
     setMobileTab('variables');
+  };
+
+  const handleFocusCamera = () => {
+    labSound.playClick(680);
+    if (onFocusApparatus) {
+      onFocusApparatus();
+    } else {
+      emitLabEvent(LAB_EVENTS.SET_CAMERA_PRESET, { index: 3 });
+    }
   };
 
   return (
@@ -117,14 +129,27 @@ export const Scene3DInspectorCard: React.FC<Scene3DInspectorCardProps> = ({
             <span className="truncate">{info.interactionHint}</span>
           </div>
 
-          <button
-            type="button"
-            onClick={handleOpenParameters}
-            className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-2xs font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
-          >
-            <Sliders className="w-3 h-3 shrink-0" aria-hidden="true" />
-            <span>Atur Variabel</span>
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              data-testid="inspector-focus-apparatus-btn"
+              onClick={handleFocusCamera}
+              title="Zoom kamera fokus langsung ke instrumen 3D"
+              className="px-2 py-1 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] hover:border-sky-500/50 text-[var(--comfort-hud-text)] text-2xs font-semibold flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
+            >
+              <Focus className="w-3 h-3 text-sky-500 shrink-0" aria-hidden="true" />
+              <span>Fokus Kamera</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenParameters}
+              className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-2xs font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
+            >
+              <Sliders className="w-3 h-3 shrink-0" aria-hidden="true" />
+              <span>Atur Variabel</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

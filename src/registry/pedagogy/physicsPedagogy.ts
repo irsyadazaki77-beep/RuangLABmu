@@ -630,4 +630,55 @@ export const PHYSICS_PEDAGOGY: Record<string, ModulePedagogyBundle> = {
       },
     ],
   },
+
+  'standing-wave-melde': {
+    keyTakeaways: [
+      'Cepat rambat gelombang transversal pada dawai berbanding lurus dengan akar gaya tegangan F dan berbanding terbalik dengan akar rapat massa linier μ: v = √(F / μ).',
+      'Gelombang berdiri terbentuk dari superposisi gelombang datang dan gelombang pantul yang menghasilkan titik simpul (amplitudo nol) dan titik perut (amplitudo maksimum).',
+      'Resonansi harmonik ke-n terjadi ketika panjang dawai L memuat tepat n setengah panjang gelombang: L = n·(λ / 2) sehingga fₙ = n·v / (2L).',
+    ],
+    everydayAnalogy: {
+      title: 'Menyetem Senar Gitar Akustik',
+      scenario:
+        'Saat memutar pasak penala gitar untuk mengencangkan senar, nada yang dihasilkan terdengar makin tinggi; sedangkan senar bas yang tebal menghasilkan nada lebih berat dibanding senar tipis.',
+      connection:
+        'Mengencangkan pasak memperbesar gaya tegangan F sehingga cepat rambat v dan frekuensi fₙ naik; senar bas yang tebal memiliki rapat massa linier μ besar sehingga cepat rambatnya lebih rendah.',
+    },
+    formulaBreakdown: [
+      { symbol: 'F', name: 'Gaya tegangan dawai', unit: 'N', role: 'bebas', explanation: 'Dihasilkan oleh berat beban gantung F = m·g yang menarik dawai melewati katrol.' },
+      { symbol: 'μ', name: 'Rapat massa linier dawai', unit: 'kg/m', role: 'bebas', explanation: 'Massa dawai per satuan panjang (μ = m dawai / L).' },
+      { symbol: 'v', name: 'Cepat rambat gelombang', unit: 'm/s', role: 'terikat', explanation: 'Kelajuan rambat gangguan transversal sepanjang dawai: v = √(F / μ).' },
+      { symbol: 'λ', name: 'Panjang gelombang', unit: 'm', role: 'terikat', explanation: 'Jarak dua perut ditambah dua simpul berurutan (1 gelombang penuh = 2 loop perut).' },
+    ],
+    workedExample: {
+      question:
+        'Seutas dawai sepanjang L = 1,2 m dengan rapat massa linier μ = 0,005 kg/m diberi beban gantung menghasilkan tegangan F = 20 N dan digetarkan oleh vibrator f = 50 Hz. Hitung cepat rambat v, panjang gelombang λ, dan jumlah perut harmonik n!',
+      given: ['L = 1,2 m', 'μ = 0,005 kg/m', 'F = 20 N', 'f = 50 Hz'],
+      steps: [
+        'Hitung cepat rambat gelombang: v = √(F / μ) = √(20 / 0,005) = √4000 ≈ 63,25 m/s.',
+        'Hitung panjang gelombang: λ = v / f = 63,25 / 50 ≈ 1,265 m.',
+        'Hitung jumlah perut harmonik: n = 2L / λ = (2 × 1,2) / 1,265 ≈ 1,90 loop (mendekati harmonik kedua n = 2).',
+      ],
+      answer: 'v ≈ 63,25 m/s; λ ≈ 1,265 m; n ≈ 1,90 loop',
+      physicalMeaning:
+        'Jika tegangan dawai disetel sedikit ke F = 18 N (v = 60 m/s, λ = 1,20 m), dawai tepat membentuk resonansi harmonik kedua dengan 2 perut dan 3 simpul tajam.',
+    },
+    glossary: [
+      { term: 'Simpul (Node)', definition: 'Titik pada gelombang berdiri yang selalu diam (amplitudo simpangan nol) akibat interferensi destruktif.' },
+      { term: 'Perut (Antinode)', definition: 'Titik pada gelombang berdiri yang bergetar dengan amplitudo maksimum akibat interferensi konstruktif.' },
+      { term: 'Rapat Massa Linier (μ)', definition: 'Ukuran kelembaman dawai per satuan panjang dalam satuan kg/m atau g/cm.' },
+      { term: 'Harmonik Ke-n', definition: 'Modus getaran resonansi stasioner dengan n buah perut gelombang di sepanjang dawai.' },
+    ],
+    deepDiveContent: {
+      historicalContext:
+        'Franz Emil Melde (1860) merancang eksperimen garputala dan dawai berbeban di Universitas Marburg untuk memvisualisasikan gelombang stasioner dan membuktikan rumus kecepatan gelombang dawai Brook Taylor.',
+      derivationLatex: [
+        'v = \\sqrt{\\frac{F}{\\mu}}, \\quad y(x,t) = 2A \\sin(kx) \\cos(\\omega t)',
+        'k L = n \\pi \\implies \\lambda_n = \\frac{2L}{n}, \\quad f_n = \\frac{n}{2L}\\sqrt{\\frac{F}{\\mu}}',
+      ],
+      advancedConcept:
+        'Pada instrumen musik berdawai, warna bunyi (timbre) ditentukan oleh superposisi nada dasar (n = 1) bersama deret harmonik atasnya (n = 2, 3, 4, ...) yang berosilasi serentak.',
+    },
+  },
 };
+

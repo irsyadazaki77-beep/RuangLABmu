@@ -127,6 +127,8 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
         return { ...base, starEffectiveTempK: Math.min(30000, base.starEffectiveTempK + 6000) };
       case 'hubble-expansion':
         return { ...base, galaxyDistanceMpc: Math.min(600, (base.galaxyDistanceMpc ?? 120) + 180) };
+      case 'planetary-atmosphere-greenhouse':
+        return { ...base, greenhouseGasPpm: Math.min(2000, (base.greenhouseGasPpm ?? 420) + 450) };
       default:
         return { ...base, customSemiMajorAxisAu: Math.min(30, Number((base.customSemiMajorAxisAu * 1.8).toFixed(1))) };
     }
@@ -168,6 +170,12 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
           { id: 'vrec', label: 'Kecepatan Resesi (v)', value: metrics.hubbleRecessionVelocityKmS ?? metrics.recessionVelocityKms ?? 8400, min: 0, max: 45000, unit: 'km/s', color: '#38bdf8' },
           { id: 'zred', label: 'Redshift Kosmik (z)', value: metrics.hubbleRedshiftZ ?? metrics.redshiftZ ?? 0.028, min: 0, max: 0.2, unit: 'z', color: '#10b981' },
           { id: 'dmpc', label: 'Jarak Galaksi (d)', value: params.galaxyDistanceMpc ?? 120, min: 20, max: 600, unit: 'Mpc', color: '#f59e0b' },
+        ]
+      : params.mode === 'planetary-atmosphere-greenhouse'
+      ? [
+          { id: 'tsurf', label: 'Suhu Permukaan (Ts)', value: metrics.surfaceTempK ?? 288.4, min: 150, max: 500, unit: 'K', color: '#38bdf8' },
+          { id: 'teq', label: 'Suhu Ekuilibrium (Teq)', value: metrics.equilibriumTempK ?? 254.9, min: 150, max: 400, unit: 'K', color: '#10b981' },
+          { id: 'dgh', label: 'Efek Rumah Kaca (ΔT)', value: metrics.greenhouseWarmingDeltaK ?? 33.5, min: 0, max: 120, unit: 'K', color: '#f59e0b' },
         ]
       : [
           { id: 'period', label: 'Periode Orbit (T)', value: metrics.orbitalPeriodYears, min: 0, max: 165, unit: 'Tahun', color: '#38bdf8' },
@@ -242,6 +250,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
     'stellar-exoplanet': 'exoplanet-transit',
     'stellar-wien-spectrum': 'stellar-wien-spectrum',
     'hubble-expansion': 'hubble-expansion',
+    'planetary-atmosphere-greenhouse': 'planetary-atmosphere-greenhouse',
   };
   const moduleRecords = filterRecordsForModule(records, 'Astronomi', modeToCatalogId[params.mode]);
 
@@ -267,6 +276,8 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
         ? 'Transit Eksoplanet & Kurva Cahaya'
         : p.mode === 'stellar-wien-spectrum'
         ? 'Spektrum Benda Hitam & Hukum Wien'
+        : p.mode === 'planetary-atmosphere-greenhouse'
+        ? 'Atmosfer Planet, Albedo & Efek Rumah Kaca'
         : 'Ekspansi Kosmik & Hukum Hubble';
 
     let pSum = `a=${p.customSemiMajorAxisAu} AU, e=${p.customEccentricity}, T=${m.orbitalPeriodYears} thn`;
@@ -289,6 +300,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
       pSum = `d=${p.galaxyDistanceMpc ?? 120} Mpc, H₀=${p.hubbleConstantH0 ?? 70} km/s/Mpc`;
       numX = p.galaxyDistanceMpc ?? 120;
       numY1 = m.hubbleRecessionVelocityKmS ?? m.recessionVelocityKms ?? 8400;
+    } else if (p.mode === 'planetary-atmosphere-greenhouse') {
+      pSum = `A=${p.planetaryAlbedo ?? 0.30}, CO₂=${p.greenhouseGasPpm ?? 420} ppm, S=${p.stellarFluxFactor ?? 1.0} S₀`;
+      numX = p.greenhouseGasPpm ?? 420;
+      numY1 = m.surfaceTempK ?? 288.4;
     }
 
     onRecordExperiment(
@@ -387,6 +402,21 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                   summaryB: `d=${realityBParams.galaxyDistanceMpc ?? 120}Mpc · v=${metricsB.hubbleRecessionVelocityKmS ?? 8400}km/s`,
                   delta: `Δv = ${((metricsB.hubbleRecessionVelocityKmS ?? 0) - (metrics.hubbleRecessionVelocityKmS ?? 0) >= 0 ? '+' : '')}${((metricsB.hubbleRecessionVelocityKmS ?? 0) - (metrics.hubbleRecessionVelocityKmS ?? 0)).toFixed(0)} km/s`,
                 };
+              case 'planetary-atmosphere-greenhouse': {
+                const deltaTs = (metricsB.surfaceTempK ?? 0) - (metrics.surfaceTempK ?? 0);
+                return {
+                  key: 'greenhouseGasPpm' as const,
+                  label: 'Konsentrasi CO₂ (B)',
+                  unit: 'ppm',
+                  min: 100,
+                  max: 2000,
+                  step: 20,
+                  valB: realityBParams.greenhouseGasPpm ?? 870,
+                  summaryA: `CO₂=${params.greenhouseGasPpm ?? 420}ppm · Ts=${metrics.surfaceTempK}K`,
+                  summaryB: `CO₂=${realityBParams.greenhouseGasPpm ?? 870}ppm · Ts=${metricsB.surfaceTempK}K`,
+                  delta: `ΔTs = ${(deltaTs >= 0 ? '+' : '')}${deltaTs.toFixed(1)} K`,
+                };
+              }
               default:
                 return {
                   key: 'customSemiMajorAxisAu' as const,
@@ -537,6 +567,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               <option value="stellar-exoplanet">Transit Eksoplanet &amp; Kurva Cahaya</option>
               <option value="stellar-wien-spectrum">Hukum Wien &amp; Radiasi Benda Hitam</option>
               <option value="hubble-expansion">Ekspansi Alam Semesta &amp; Hukum Hubble</option>
+              <option value="planetary-atmosphere-greenhouse">Atmosfer Planet, Albedo &amp; Efek Rumah Kaca</option>
             </select>
           </div>
 

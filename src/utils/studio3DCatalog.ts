@@ -80,6 +80,12 @@ const PHYSICS_CAMERAS: ModeCameraMap = {
     top: { pos: [0.0, 13.2, 0.5], target: [0.0, 1.6, 0.0] },
     focus: { pos: [2.5, 2.6, 6.0], target: [0.0, 1.8, 0.0] },
   },
+  melde: {
+    isometric: { pos: [4.8, 4.6, 10.6], target: [0.0, 1.5, 0.0] },
+    front: { pos: [0.0, 2.4, 11.6], target: [0.0, 1.5, 0.0] },
+    top: { pos: [0.0, 12.8, 0.5], target: [0.0, 1.3, 0.0] },
+    focus: { pos: [2.1, 2.3, 5.8], target: [0.0, 1.55, 0.0] },
+  },
 };
 
 const CHEMISTRY_CAMERAS: ModeCameraMap = {
@@ -119,6 +125,12 @@ const CHEMISTRY_CAMERAS: ModeCameraMap = {
     top: { pos: [0.0, 13.4, 0.5], target: [0.0, 1.3, 0.0] },
     focus: { pos: [2.2, 2.4, 5.6], target: [0.0, 1.45, 0.0] },
   },
+  lechatelier: {
+    isometric: { pos: [4.6, 5.0, 10.2], target: [0.0, 1.6, 0.0] },
+    front: { pos: [0.0, 2.6, 11.2], target: [0.0, 1.6, 0.0] },
+    top: { pos: [0.0, 13.0, 0.5], target: [0.0, 1.4, 0.0] },
+    focus: { pos: [2.0, 2.4, 5.4], target: [0.0, 1.55, 0.0] },
+  },
 };
 
 const BIOLOGY_CAMERAS: ModeCameraMap = {
@@ -145,6 +157,12 @@ const BIOLOGY_CAMERAS: ModeCameraMap = {
     front: { pos: [0.0, 2.5, 10.2], target: [0.0, 1.2, 0.0] },
     top: { pos: [0.0, 12.0, 0.5], target: [0.0, 0.8, 0.0] },
     focus: { pos: [1.6, 2.2, 5.0], target: [0.0, 1.15, 0.0] },
+  },
+  mendel: {
+    isometric: { pos: [3.8, 4.6, 9.2], target: [0.0, 1.25, 0.0] },
+    front: { pos: [0.0, 2.4, 10.0], target: [0.0, 1.25, 0.0] },
+    top: { pos: [0.0, 11.8, 0.5], target: [0.0, 0.9, 0.0] },
+    focus: { pos: [1.6, 2.2, 4.8], target: [0.0, 1.2, 0.0] },
   },
   'anatomy-heart': {
     isometric: { pos: [0.35, 1.6, 6.9], target: [0.0, 0.15, 0.0] },
@@ -197,6 +215,12 @@ const ASTRONOMY_CAMERAS: ModeCameraMap = {
     top: { pos: [0.0, 18.6, 0.5], target: [0, 0, 0] },
     focus: { pos: [2.6, 3.8, 8.4], target: [0, 0, 0] },
   },
+  greenhouse: {
+    isometric: { pos: [3.4, 3.8, 10.4], target: [0, 0.1, 0] },
+    front: { pos: [0.0, 1.2, 11.2], target: [0, 0.1, 0] },
+    top: { pos: [0.0, 14.0, 0.5], target: [0, 0, 0] },
+    focus: { pos: [2.0, 2.0, 6.8], target: [0, 0.1, 0] },
+  },
 };
 
 export function normalizeStudioModeKey(domain: StudioDomain, rawMode: string): string {
@@ -211,6 +235,7 @@ export function normalizeStudioModeKey(domain: StudioDomain, rawMode: string): s
     if (m.includes('optics') || m.includes('young')) return 'optics';
     if (m.includes('photoelectric') || m.includes('planck')) return 'photoelectric';
     if (m.includes('gravity') || m.includes('orbital')) return 'gravity';
+    if (m.includes('melde') || m.includes('standing') || m.includes('wave')) return 'melde';
     return 'incline';
   }
   if (domain === 'chemistry') {
@@ -219,12 +244,14 @@ export function normalizeStudioModeKey(domain: StudioDomain, rawMode: string): s
     if (m.includes('gas') || m.includes('boyle')) return 'ideal-gas';
     if (m.includes('kinetic') || m.includes('arrhenius')) return 'kinetics';
     if (m.includes('spectro') || m.includes('beer')) return 'spectrophotometry';
+    if (m.includes('equilibrium') || m.includes('lechatelier')) return 'lechatelier';
     return 'calorimetry';
   }
   if (domain === 'biology') {
     if (m.includes('enzyme') || m.includes('catalase')) return 'enzyme';
     if (m.includes('osmosis') || m.includes('plasmolysis')) return 'osmosis';
     if (m.includes('predator') || m.includes('prey')) return 'predator-prey';
+    if (m.includes('mendel') || m.includes('genetics') || m.includes('dihybrid')) return 'mendel';
     if (m.includes('heart') || m.includes('cardio')) return 'anatomy-heart';
     if (m.includes('lung') || m.includes('respir')) return 'anatomy-lungs';
     if (m.includes('neural') || m.includes('neuron') || m.includes('synapse')) return 'anatomy-neuron';
@@ -234,6 +261,7 @@ export function normalizeStudioModeKey(domain: StudioDomain, rawMode: string): s
   if (m.includes('exoplanet') || m.includes('transit')) return 'exoplanet';
   if (m.includes('wien') || m.includes('stellar') || m.includes('spectrum')) return 'wien';
   if (m.includes('hubble') || m.includes('expansion')) return 'hubble';
+  if (m.includes('atmosphere') || m.includes('greenhouse') || m.includes('planetary')) return 'greenhouse';
   return 'kepler';
 }
 
@@ -371,6 +399,16 @@ const INSPECTION_CATALOG: Record<string, ApparatusInspectionInfo> = {
     interactionHint: 'Perbesar massa planet sentral dan amati kecepatan orbit serta kecepatan lepas meningkat.',
     paramKey: 'secondaryMass',
   },
+  'melde:string': {
+    id: 'melde:string',
+    title: 'Vibrator Elektromagnetik & Dawai Resonansi Melde',
+    category: 'Fisika · Gelombang Berdiri & Akustik',
+    roleSummary: 'Dawai terentang di atas bangku optik yang digetarkan vibrator pada frekuensi f dan ditegangkan beban gantung m melalui katrol.',
+    scientificConcept: 'Superposisi gelombang datang dan pantul membentuk simpul (node) dan perut (antinode) dengan cepat rambat v = √(F / μ).',
+    relatedFormula: 'v = √((m·g) / μ),   λ = v / f,   n = 2·L / λ',
+    interactionHint: 'Seret beban gantung kuningan atau ubah frekuensi vibrator untuk melihat jumlah perut harmonik pada dawai berubah.',
+    paramKey: 'mass',
+  },
 
   // Chemistry
   'calorimetry:vessel': {
@@ -432,6 +470,16 @@ const INSPECTION_CATALOG: Record<string, ApparatusInspectionInfo> = {
     relatedFormula: 'A = ε · b · c = −log₁₀(T)',
     interactionHint: 'Ubah konsentrasi c dan perhatikan pelemahan intensitas sinar keluar kuvet.',
     paramKey: 'concentrationMm',
+  },
+  'lechatelier:reactor': {
+    id: 'lechatelier:reactor',
+    title: 'Tabung Reaktor Kaca Berjaket Termal N₂O₄ ⇌ 2 NO₂',
+    category: 'Kimia · Kesetimbangan Dinamis',
+    roleSummary: 'Reaktor borosilikat berjaket termal dengan piston kompresi dan manometer untuk mengamati pergeseran kesetimbangan gas.',
+    scientificConcept: 'Reaksi endotermik (ΔH° = +57,2 kJ/mol) bergeser ke kanan (NO₂ cokelat pekat) saat dipanaskan, dan bergeser ke kiri (N₂O₄ pucat) saat ditekan.',
+    relatedFormula: 'Kp = (P NO₂)² / P N₂O₄ = (4·α² / (1 − α²)) · P',
+    interactionHint: 'Naikkan suhu penangas ke 70°C untuk melihat gas memekat cokelat kemerahan, atau dorong piston tekanan untuk memucatkannya.',
+    paramKey: 'equilibriumTempC',
   },
 
   // Biology & Anatomy
@@ -505,6 +553,16 @@ const INSPECTION_CATALOG: Record<string, ApparatusInspectionInfo> = {
     interactionHint: 'Ubah ketebalan selubung mielin dari 0% ke 100% dan bandingkan kecepatan rambat impuls.',
     paramKey: 'myelinThickness',
   },
+  'mendel:punnett': {
+    id: 'mendel:punnett',
+    title: 'Matriks Punnett 3D 4×4 & Heliks DNA Dihibrid',
+    category: 'Biologi · Genetika Mendel & Biostatistika',
+    roleSummary: 'Platform kisi Punnett 16 kotak dengan visualisasi biji Pisum sativum (Bulat/Keriput × Kuning/Hijau) dan batang frekuensi fenotipe F₂.',
+    scientificConcept: 'Hukum Asortasi Bebas Mendel menghasilkan rasio harapan 9:3:3:1; makin besar sampel N, nilai χ² makin stabil di bawah ambang 7,815.',
+    relatedFormula: 'χ² = Σ ((Oᵢ − Eᵢ)² / Eᵢ),   df = 3,   χ² kritis = 7,815',
+    interactionHint: 'Tingkatkan jumlah sampel keturunan N ke 640 biji untuk melihat distribusi fenotipe mendekati rasio ideal 9:3:3:1.',
+    paramKey: 'sampleSizeN',
+  },
 
   // Astronomy
   'kepler:orbit': {
@@ -557,6 +615,16 @@ const INSPECTION_CATALOG: Record<string, ApparatusInspectionInfo> = {
     interactionHint: 'Naikkan jarak galaksi d untuk mengamati pergeseran garis spektrum menjauh ke arah warna merah.',
     paramKey: 'galaxyDistanceMpc',
   },
+  'greenhouse:planet': {
+    id: 'greenhouse:planet',
+    title: 'Bola Planet, Tudung Es Albedo & Selubung Rumah Kaca',
+    category: 'Astronomi & Kebumian · Kesetimbangan Radiatif Planet',
+    roleSummary: 'Bola planet kebumian dengan tudung es kutub dinamis, selubung atmosfer inframerah, berkas surya datang/pantul, dan panah radiasi balik.',
+    scientificConcept: 'Albedo A memantulkan sinar tampak bintang, sedangkan gas rumah kaca CO₂ menyerap dan memancarkan balik inframerah ke permukaan.',
+    relatedFormula: 'T eq = [S₀·(1 − A) / (4·σ)]^(1/4),   T s = T eq · [2 / (2 − ε)]^(1/4)',
+    interactionHint: 'Naikkan konsentrasi CO₂ atau turunkan Albedo untuk melihat tudung es menyusut dan pijar inframerah atmosfer menebal.',
+    paramKey: 'greenhouseGasPpm',
+  },
 };
 
 export function resolveApparatusInspection(
@@ -583,6 +651,7 @@ export function resolveApparatusInspection(
     if (canonical === 'optics') return INSPECTION_CATALOG['optics:slit'];
     if (canonical === 'photoelectric') return INSPECTION_CATALOG['photoelectric:cell'];
     if (canonical === 'gravity') return INSPECTION_CATALOG['gravity:planet'];
+    if (canonical === 'melde') return INSPECTION_CATALOG['melde:string'];
     return INSPECTION_CATALOG['incline:block'];
   }
 
@@ -592,6 +661,7 @@ export function resolveApparatusInspection(
     if (canonical === 'ideal-gas') return INSPECTION_CATALOG['ideal-gas:piston'];
     if (canonical === 'kinetics') return INSPECTION_CATALOG['kinetics:beaker'];
     if (canonical === 'spectrophotometry') return INSPECTION_CATALOG['spectrophotometry:cuvette'];
+    if (canonical === 'lechatelier') return INSPECTION_CATALOG['lechatelier:reactor'];
     return INSPECTION_CATALOG['calorimetry:vessel'];
   }
 
@@ -602,6 +672,7 @@ export function resolveApparatusInspection(
     if (canonical === 'anatomy-heart') return INSPECTION_CATALOG['anatomy:heart'];
     if (canonical === 'anatomy-lungs') return INSPECTION_CATALOG['anatomy:lungs'];
     if (canonical === 'anatomy-neuron') return INSPECTION_CATALOG['anatomy:neuron'];
+    if (canonical === 'mendel') return INSPECTION_CATALOG['mendel:punnett'];
     return INSPECTION_CATALOG['photosynthesis:hydrilla'];
   }
 
@@ -609,5 +680,6 @@ export function resolveApparatusInspection(
   if (canonical === 'exoplanet') return INSPECTION_CATALOG['exoplanet:system'];
   if (canonical === 'wien') return INSPECTION_CATALOG['wien:star'];
   if (canonical === 'hubble') return INSPECTION_CATALOG['hubble:cosmos'];
+  if (canonical === 'greenhouse') return INSPECTION_CATALOG['greenhouse:planet'];
   return INSPECTION_CATALOG['kepler:orbit'];
 }

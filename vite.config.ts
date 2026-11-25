@@ -183,8 +183,7 @@ export default defineConfig(() => {
     },
     server: {
       allowedHosts: resolveViteAllowedHosts(),
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      ...(process.env.DISABLE_HMR === 'true' ? { hmr: false, watch: null } : {}),
     },
     preview: {
       allowedHosts: resolveViteAllowedHosts(),
