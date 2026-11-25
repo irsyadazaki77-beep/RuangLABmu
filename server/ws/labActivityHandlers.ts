@@ -59,6 +59,12 @@ export function handleRecordDelete(
   ws?: ExtWebSocket
 ): void {
   const { state } = services;
+  if (ws) {
+    const auth = authorizeTeacherAction(ws, {}, state.activeLabRooms);
+    if (!auth.authorized && ws.role !== 'Pengajar') {
+      return;
+    }
+  }
   const idx = state.experimentRecords.findIndex((r) => r.id === id);
   if (idx !== -1) {
     state.experimentRecords.splice(idx, 1);

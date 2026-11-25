@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LabRoom } from '../utils/collabProtocol';
+import { apiFetch } from '../utils/apiClient';
 
 export interface RoomSocketReconnectResult {
   status: 'rejoined';
@@ -76,7 +77,7 @@ export function useRoomSocket({
         });
 
         // 2. Execute REST fallback `/api/rooms/rejoin` for deterministic snapshot recovery
-        const response = await fetch('/api/rooms/rejoin', {
+        const response = await apiFetch('/api/rooms/rejoin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

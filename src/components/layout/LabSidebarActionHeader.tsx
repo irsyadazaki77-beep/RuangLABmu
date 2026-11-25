@@ -49,35 +49,22 @@ export const LabSidebarActionHeader: React.FC<LabSidebarActionHeaderProps> = ({
     };
   }, []);
 
-  const handleManualRecord = () => {
-    onRecordTrial();
-    triggerRecordFeedback();
-  };
-
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        onClick={handleManualRecord}
-        title="Catat data pengamatan saat ini (Pintasan keyboard: D)"
-        className="flex-1 min-w-[144px] min-h-[44px] px-3 py-2 rounded-xl comfort-btn-primary font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] focus-visible:ring-offset-1"
-      >
+    <div className="flex items-center justify-between gap-2 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] px-2.5 py-1.5">
+      <div className="flex items-center gap-1.5 min-w-0">
         {justRecorded ? (
-          <Check className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <Check className="w-3.5 h-3.5 text-[var(--comfort-success)] shrink-0" aria-hidden="true" />
         ) : (
-          <Camera className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          <Camera className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
         )}
-        <span className="tabular-nums">
+        <span className="text-2xs font-bold text-[var(--comfort-text)] tabular-nums truncate">
           {justRecorded
             ? `Data #${recordsCount} Tercatat`
-            : `+ Catat Data (${isReady ? `${recordsCount} Siap` : `${recordsCount}/${minRequired}`})`}
+            : isReady
+            ? `Data: ${recordsCount} Siap`
+            : `Progres Data: ${recordsCount}/${minRequired}`}
         </span>
-        {!justRecorded && (
-          <kbd className="hidden lg:inline-block ml-0.5 px-1 py-0 rounded bg-white/18 text-2xs font-mono font-bold leading-tight">
-            D
-          </kbd>
-        )}
-      </button>
+      </div>
 
       {onProceedToAnalysis && (
         <button
@@ -86,7 +73,7 @@ export const LabSidebarActionHeader: React.FC<LabSidebarActionHeaderProps> = ({
             labSound.playClick();
             onProceedToAnalysis();
           }}
-          className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`min-h-[34px] px-2.5 py-1 rounded-lg text-2xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             isReady
               ? 'comfort-accent-soft border font-bold hover:opacity-90'
               : 'comfort-btn-secondary'

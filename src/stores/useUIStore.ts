@@ -218,7 +218,7 @@ export const useUIStore = create<UIState>((set) => ({
   teacherViewMode: 'dashboard',
   livePerfStats: { fps: 60, qualityTier: 'high' },
   leftDrawerOpen: true,
-  rightTelemetryOpen: true,
+  rightTelemetryOpen: false,
   compactSliderMode: false,
   eyeRestSecondsLeft: EYE_REST_INTERVAL_SEC,
   eyeRestPromptOpen: false,

@@ -34,10 +34,10 @@ ENV PORT=3000
 ENV DB_PATH=/app/data/ruanglabmu.db
 ENV RUANGLAB_DB_PATH=/app/data/ruanglabmu.db
 
-# Install deterministic production dependencies from bun.lock
+# Install deterministic production dependencies from bun.lock, then remove bun binary from runner
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production \
-  && rm -rf /root/.bun/install/cache
+  && rm -rf /root/.bun/install/cache /usr/local/bin/bun
 
 # Copy compiled frontend assets, bundled server, and SQLite migrations from builder stage
 COPY --from=builder /app/dist ./dist

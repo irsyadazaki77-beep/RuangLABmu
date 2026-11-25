@@ -115,6 +115,39 @@ export function handleRoomCreate(
     ws.sessionClaims = tokenClaims;
   }
 
+  const isTokenTeacher = Boolean(
+    tokenClaims && (tokenClaims.role === 'teacher' || tokenClaims.role === 'admin')
+  );
+  const rawTeacherPayload = payload as { teacherPin?: unknown; teacherToken?: unknown };
+  const teacherAuth = isTokenTeacher
+    ? { authorized: true }
+    : verifyTeacherAuthorization({
+        socketId: ws.socketId,
+        claimedRole: 'Pengajar',
+        providedPin:
+          typeof rawTeacherPayload.teacherPin === 'string'
+            ? rawTeacherPayload.teacherPin
+            : undefined,
+        providedToken:
+          typeof rawTeacherPayload.teacherToken === 'string'
+            ? rawTeacherPayload.teacherToken
+            : undefined,
+        isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
+      });
+
+  if (!teacherAuth.authorized) {
+    ws.send(
+      JSON.stringify({
+        type: 'ROOM_ERROR',
+        payload: {
+          message: 'Akses ditolak: Hanya Pengajar terverifikasi yang dapat membuat ruangan praktikum.',
+          code: 'UNAUTHORIZED_TEACHER_ROLE',
+        },
+      })
+    );
+    return;
+  }
+
   const schoolId =
     tokenClaims?.schoolId ||
     (typeof payload.schoolId === 'string' && payload.schoolId.trim()
@@ -254,19 +287,6 @@ export function handleRoomJoin(
   const wantsTeacherRole =
     role === 'teacher' || role === 'Pengajar' || role === 'Guru';
 
-  const isExistingRoomTeacherReconnect = Boolean(
-    payload.isVerifiedTeacherReconnect ||
-      (isReconnect &&
-        Object.values(room.clients).some(
-          (c) => c.userId === resolvedUserId && c.role === 'teacher'
-        ))
-  );
-  const hasActiveOtherTeacher = Boolean(
-    room.teacherSocketId &&
-      room.teacherSocketId !== ws.socketId &&
-      !isExistingRoomTeacherReconnect
-  );
-
   const joinTokenClaims =
     typeof payload.sessionToken === 'string' && payload.sessionToken.trim()
       ? verifySessionToken(payload.sessionToken.trim())
@@ -280,6 +300,15 @@ export function handleRoomJoin(
     ws.sessionClaims = joinTokenClaims;
   }
 
+  const isExistingRoomTeacherReconnect = Boolean(
+    isVerifiedTokenTeacher ||
+      (isReconnect &&
+        room.teacherSocketId === ws.socketId &&
+        Object.values(room.clients).some(
+          (c) => c.userId === resolvedUserId && c.role === 'teacher'
+        ))
+  );
+
   const teacherAuth = verifyTeacherAuthorization({
     socketId: ws.socketId,
     claimedRole: wantsTeacherRole ? 'Pengajar' : 'Siswa',
@@ -287,8 +316,6 @@ export function handleRoomJoin(
       typeof payload.teacherPin === 'string' ? payload.teacherPin : undefined,
     providedToken:
       typeof payload.teacherToken === 'string' ? payload.teacherToken : undefined,
-    roomPin: hasActiveOtherTeacher ? undefined : room.pin,
-    roomPinHash: hasActiveOtherTeacher ? undefined : room.pinHash,
     roomTeacherSocketId: room.teacherSocketId,
     isSocketAlreadyVerifiedTeacher:
       ws.role === 'Pengajar' || isExistingRoomTeacherReconnect || isVerifiedTokenTeacher,

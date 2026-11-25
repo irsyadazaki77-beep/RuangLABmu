@@ -109,8 +109,6 @@ export function handleClientIdentify(
     claimedRole: payload.role,
     providedPin: payload.teacherPin || payload.pin,
     providedToken: payload.teacherToken,
-    roomPin: activeRoom?.pin,
-    roomPinHash: activeRoom?.pinHash,
     roomTeacherSocketId: activeRoom?.teacherSocketId,
     isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
   });
@@ -186,8 +184,6 @@ export function authorizeTeacherAction(
     claimedRole: 'Pengajar',
     providedPin,
     providedToken,
-    roomPin: room?.pin,
-    roomPinHash: room?.pinHash,
     roomTeacherSocketId: room?.teacherSocketId,
     isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
   });

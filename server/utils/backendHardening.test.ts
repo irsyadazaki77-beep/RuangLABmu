@@ -349,6 +349,7 @@ describe('Backend Security Hardening & SQLite Persistence', () => {
         socketId: 'sock-teacher-host',
         userId: 'teacher-hendra',
         userName: 'Dr. Hendra Kusuma',
+        role: 'Pengajar',
         remoteIp: '10.0.0.1',
         send: (raw: string) => sentTeacher.push(JSON.parse(raw)),
       } as unknown as import('../ws/wsTypes').ExtWebSocket;

@@ -8,7 +8,10 @@ import {
   serializeRubricJson,
   type EvaluatedRubricReport,
 } from '../../src/shared/grading/rubricEngine';
-import { requireTeacherAuthMiddleware } from '../auth/sessionToken';
+import {
+  requireAuthMiddleware,
+  requireTeacherAuthMiddleware,
+} from '../auth/sessionToken';
 import {
   DEFAULT_SCHOOL_ID,
   type DbSubmissionRecord,
@@ -449,7 +452,7 @@ export async function createSubmissionRouter({
     }
   });
 
-  router.get('/api/submissions', async (req, res) => {
+  router.get('/api/submissions', requireAuthMiddleware, async (req, res) => {
     try {
       const check = validateSubmissionsQuery(req.query);
       if (!check.ok) {
@@ -502,7 +505,7 @@ export async function createSubmissionRouter({
     }
   });
 
-  router.get('/api/gradebook', async (req, res) => {
+  router.get('/api/gradebook', requireAuthMiddleware, async (req, res) => {
     try {
       const check = validateGradebookQuery(req.query);
       if (!check.ok) {

@@ -140,7 +140,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
   return (
     <div
       data-testid="scene-3d-control-dock"
-      className={`pointer-events-auto absolute top-[54px] lg:top-[54px] z-30 flex justify-center ${corridorClass}`}
+      className={`pointer-events-auto absolute bottom-[88px] z-20 flex justify-center ${corridorClass}`}
     >
       {collapsed ? (
         <button

@@ -194,14 +194,31 @@ describe('Multi-Tenant LabRepository, Migration 002 & Idempotency Keys', () => {
       assert.equal(json2.idempotentReplay, true);
 
       // Verify schoolId query filtering on GET /api/submissions and GET /api/gradebook
-      const listSchoolNtt = await fetch(`${baseUrl}/api/submissions?schoolId=school-ntt-01`);
+      const { signSessionToken } = await import('../auth/sessionToken');
+      const nttToken = signSessionToken({
+        sub: 'teacher-ntt',
+        role: 'teacher',
+        schoolId: 'school-ntt-01',
+        displayName: 'Guru NTT',
+      }).token;
+      const otherToken = signSessionToken({
+        sub: 'teacher-other',
+        role: 'teacher',
+        schoolId: 'school-other',
+        displayName: 'Guru Lain',
+      }).token;
+      const listSchoolNtt = await fetch(`${baseUrl}/api/submissions?schoolId=school-ntt-01`, {
+        headers: { Authorization: `Bearer ${nttToken}` },
+      });
       const listSchoolNttJson = (await listSchoolNtt.json()) as {
         submissions: Array<{ id: string }>;
       };
       assert.equal(listSchoolNttJson.submissions.length, 1);
       assert.equal(listSchoolNttJson.submissions[0].id, json1.ticketCode);
 
-      const listOtherSchool = await fetch(`${baseUrl}/api/submissions?schoolId=school-other`);
+      const listOtherSchool = await fetch(`${baseUrl}/api/submissions?schoolId=school-other`, {
+        headers: { Authorization: `Bearer ${otherToken}` },
+      });
       const listOtherJson = (await listOtherSchool.json()) as {
         submissions: Array<{ id: string }>;
       };

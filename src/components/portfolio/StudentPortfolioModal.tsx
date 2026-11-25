@@ -23,6 +23,7 @@ import {
   BadgeName,
 } from '../../services/gamificationEngine';
 import { ExperimentRecord } from '../../utils/scienceEngine';
+import { apiFetch } from '../../utils/apiClient';
 import { Lab3DSnapshot } from '../ui/ScientificEnhancementSuite';
 import { resolveStudentStep } from '../../utils/telemetryRadar';
 import { labSound } from '../../utils/soundEngine';
@@ -218,7 +219,7 @@ export const StudentPortfolioModal: React.FC<StudentPortfolioModalProps> = ({
   const fetchGradeHistory = async () => {
     setIsLoadingHistory(true);
     try {
-      const res = await fetch('/api/submissions');
+      const res = await apiFetch('/api/submissions');
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.submissions)) {

@@ -119,7 +119,16 @@ describe('Backend Upgrade: Consolidated SQLite, Auth/RBAC, Pagination, Backup, W
 
     const harness = await createTestHarness({ seedLegacySubmissions: legacySeed });
     try {
-      const res = await fetch(`${harness.baseUrl}/api/submissions?schoolId=school-legacy`);
+      const { signSessionToken } = await import('../auth/sessionToken');
+      const teacherToken = signSessionToken({
+        sub: 'teacher-legacy',
+        role: 'teacher',
+        schoolId: 'school-legacy',
+        displayName: 'Guru Legacy',
+      }).token;
+      const res = await fetch(`${harness.baseUrl}/api/submissions?schoolId=school-legacy`, {
+        headers: { Authorization: `Bearer ${teacherToken}` },
+      });
       assert.equal(res.status, 200);
       const body = (await res.json()) as {
         submissions: Array<{ id: string; studentName: string }>;
