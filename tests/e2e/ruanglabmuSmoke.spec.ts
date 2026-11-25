@@ -220,6 +220,28 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     const testPin = '2468';
 
     try {
+      // 0. Autentikasi Guru terlebih dahulu agar ROOM_CREATE lolos proteksi ketat NODE_ENV=production
+      const teacherPasscode = process.env.TEACHER_SECRET_PIN || '20262026';
+      let authRes = await teacherContext.request.post('/api/auth/bootstrap-teacher', {
+        data: { teacherName: 'Guru E2E', passcode: teacherPasscode },
+      });
+      if (!authRes.ok()) {
+        authRes = await teacherContext.request.post('/api/auth/session', {
+          data: { role: 'teacher', displayName: 'Guru E2E', passcode: teacherPasscode },
+        });
+      }
+      if (authRes.ok()) {
+        const authJson = (await authRes.json()) as { token?: string; session?: unknown };
+        if (authJson.token && authJson.session) {
+          await teacherContext.addInitScript(
+            (payload: { token: string; session: unknown }) => {
+              window.sessionStorage.setItem('ruanglab_auth_session_v1', JSON.stringify(payload));
+            },
+            { token: authJson.token, session: authJson.session }
+          );
+        }
+      }
+
       await Promise.all([teacherPage.goto('/'), studentPage.goto('/')]);
 
       // 1. Guru membuka Meja Bersama dan membuat Room PIN
