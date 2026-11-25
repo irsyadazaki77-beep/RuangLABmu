@@ -370,17 +370,55 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
       telemetryMetrics={telemetryMetrics}
-      oscilloscope={{
-        primaryLabel: telemetryMetrics[0].label,
-        primaryValue: telemetryMetrics[0].value,
-        primaryUnit: telemetryMetrics[0].unit,
-        secondaryLabel: telemetryMetrics[1].label,
-        secondaryValue: telemetryMetrics[1].value,
-        secondaryUnit: telemetryMetrics[1].unit,
-        microscopicStateLabel: `Kesetimbangan Ion [H⁺] vs [OH⁻] (Veq = ${metrics.equivalenceVolumeMl} mL)`,
-        microscopicDetail: `Warna indikator bereaksi transisi pada trayek pH ekuivalen.`,
-        accentColor: '#14b8a6',
-      }}
+      oscilloscope={(() => {
+        const primaryTxt = `${telemetryMetrics[0].label} = ${telemetryMetrics[0].value} ${telemetryMetrics[0].unit}`;
+        const secondaryTxt = `${telemetryMetrics[1].label} = ${telemetryMetrics[1].value} ${telemetryMetrics[1].unit}`;
+        const modeHint = (() => {
+          switch (params.mode) {
+            case 'electrochemistry-cell':
+              return {
+                label: `Sel Volta: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Aliran elektron bergerak dari anoda (oksidasi) menuju katoda (reduksi) melalui jembatan garam.`,
+              };
+            case 'ideal-gas-boyle':
+              return {
+                label: `Gas Ideal: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Tumbukan partikel gas terhadap dinding wadah menentukan tekanan termodinamik.`,
+              };
+            case 'spectrophotometry-beer':
+              return {
+                label: `Hukum Beer-Lambert: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Absorbansi larutan sebanding lurus dengan konsentrasi molar dan panjang lintasan kuvet.`,
+              };
+            case 'chemical-equilibrium-lechatelier':
+              return {
+                label: `Kesetimbangan: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Pergeseran sistem mengikuti asas Le Chatelier untuk meminimalkan gangguan eksternal.`,
+              };
+            case 'acid-base-titration':
+              return {
+                label: `Kesetimbangan Ion [H⁺] vs [OH⁻] (Veq = ${metrics.equivalenceVolumeMl} mL)`,
+                detail: `Warna indikator bereaksi transisi pada trayek pH ekuivalen.`,
+              };
+            default:
+              return {
+                label: `Kinetika & Termokimia: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Frekuensi tumbukan efektif antar molekul menentukan laju dan perubahan entalpi reaksi.`,
+              };
+          }
+        })();
+        return {
+          primaryLabel: telemetryMetrics[0].label,
+          primaryValue: telemetryMetrics[0].value,
+          primaryUnit: telemetryMetrics[0].unit,
+          secondaryLabel: telemetryMetrics[1].label,
+          secondaryValue: telemetryMetrics[1].value,
+          secondaryUnit: telemetryMetrics[1].unit,
+          microscopicStateLabel: modeHint.label,
+          microscopicDetail: modeHint.detail,
+          accentColor: '#14b8a6',
+        };
+      })()}
       isHazardous={safetyHazard.isHazardous}
       shutterFlash={shutterFlash}
       zenMode={zenMode}

@@ -569,7 +569,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                     <motion.span
                       layoutId="lobby-view-mode-pill"
                       transition={SPRING_LAYOUT_PILL}
-                      className="absolute inset-0 rounded-lg bg-[var(--comfort-accent-solid)]"
+                      className="pointer-events-none absolute inset-0 rounded-lg bg-[var(--comfort-accent-solid)]"
                     />
                   )}
                   <Icon className="w-3.5 h-3.5 relative z-10" aria-hidden="true" />
@@ -609,7 +609,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                     <motion.span
                       layoutId="lobby-domain-active-pill"
                       transition={SPRING_LAYOUT_PILL}
-                      className="absolute inset-0 rounded-lg bg-[var(--comfort-accent-soft)] border border-[var(--comfort-accent-border)]"
+                      className="pointer-events-none absolute inset-0 rounded-lg bg-[var(--comfort-accent-soft)] border border-[var(--comfort-accent-border)]"
                     />
                   )}
                   <span className="relative z-10">{tab.label}</span>
@@ -651,7 +651,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                     <motion.span
                       layoutId="lobby-tier-active-pill"
                       transition={SPRING_LAYOUT_PILL}
-                      className="absolute inset-0 rounded-lg bg-[var(--comfort-accent-soft)] border border-[var(--comfort-accent-border)]"
+                      className="pointer-events-none absolute inset-0 rounded-lg bg-[var(--comfort-accent-soft)] border border-[var(--comfort-accent-border)]"
                     />
                   )}
                   <span className="relative z-10">{tierLabel}</span>

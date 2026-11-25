@@ -116,15 +116,16 @@ export function handleClientIdentify(
 
   if (ws.sessionClaims || ws.roomId) {
     state.pruneExpiredLocks();
+    const scoped = state.getScopedActivityState(ws.roomId, ws.schoolId);
     ws.send(
       JSON.stringify({
         type: 'init:state',
         payload: {
-          records: state.experimentRecords,
-          tasks: state.groupTasks,
-          notes: state.collabNotes,
-          students: state.studentRoster,
-          notifications: state.notifications,
+          records: scoped.experimentRecords,
+          tasks: scoped.groupTasks,
+          notes: scoped.collabNotes,
+          students: scoped.studentRoster,
+          notifications: scoped.notifications,
           paramLocks: Array.from(state.parameterLocks.values()),
         },
       })

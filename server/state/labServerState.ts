@@ -154,6 +154,14 @@ class SqliteBackedMap<K extends string, V> extends Map<K, V> {
   }
 }
 
+export interface RoomActivityState {
+  experimentRecords: ServerExperimentRecord[];
+  groupTasks: GroupTask[];
+  collabNotes: CollabNote[];
+  studentRoster: StudentProgress[];
+  notifications: ServerNotification[];
+}
+
 export interface LabServerState {
   readonly dbPath: string;
   readonly database: RuangLabDatabase;
@@ -227,6 +235,7 @@ export interface LabServerState {
   pruneIdleRooms: (now?: number) => void;
   pruneSessionSnapshots: (now?: number) => void;
   enforceCollectionBounds: () => void;
+  getScopedActivityState: (roomId?: string, schoolId?: string) => RoomActivityState;
   persistServerState: () => void;
   hydrateServerState: () => Promise<void>;
   dispose: () => void;
@@ -1001,6 +1010,40 @@ export function createLabServerState(options?: {
     });
   };
 
+  const roomActivityMap = new Map<string, RoomActivityState>();
+  const getScopedActivityState = (
+    roomId?: string,
+    schoolId?: string
+  ): RoomActivityState => {
+    const cleanRoom = roomId ? roomId.toUpperCase().trim() : '';
+    const cleanSchool = schoolId ? schoolId.trim() : DEFAULT_SCHOOL_ID;
+    if (
+      (!cleanRoom || cleanRoom === 'LAB-ALPHA') &&
+      cleanSchool === DEFAULT_SCHOOL_ID
+    ) {
+      return {
+        experimentRecords,
+        groupTasks,
+        collabNotes,
+        studentRoster,
+        notifications,
+      };
+    }
+    const scopeKey = `${cleanSchool}::${cleanRoom || '__lobby__'}`;
+    let existing = roomActivityMap.get(scopeKey);
+    if (!existing) {
+      existing = {
+        experimentRecords: [],
+        groupTasks: [],
+        collabNotes: [],
+        studentRoster: [],
+        notifications: [],
+      };
+      roomActivityMap.set(scopeKey, existing);
+    }
+    return existing;
+  };
+
   const maintenanceTimer = setInterval(() => {
     const now = Date.now();
     pruneExpiredLocks(now);
@@ -1047,6 +1090,7 @@ export function createLabServerState(options?: {
     pruneIdleRooms,
     pruneSessionSnapshots,
     enforceCollectionBounds,
+    getScopedActivityState,
     persistServerState,
     hydrateServerState,
     dispose,

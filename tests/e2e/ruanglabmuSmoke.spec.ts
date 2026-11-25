@@ -74,7 +74,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     await page.keyboard.press('Escape');
 
     // Uji pencarian modul di Katalog
-    const searchInput = page.getByPlaceholder('Cari modul atau rumus...');
+    const searchInput = page.getByPlaceholder(/Cari modul/i);
     await expect(searchInput).toBeVisible();
     await searchInput.fill('Titrasi');
 
@@ -232,7 +232,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
       await pinInputTeacher.fill(testPin);
       await teacherPage.getByRole('button', { name: 'Buka Meja Praktikum' }).click();
 
-      await expect(teacherPage.getByText(new RegExp(`MEJA AKTIF: ${testRoomId}`, 'i'))).toBeVisible();
+      await expect(teacherPage.getByText(new RegExp(`Room: ${testRoomId}`, 'i'))).toBeVisible();
 
       // 2. Siswa membuka Meja Bersama dan bergabung ke Room ID & PIN yang sama
       await studentPage.getByTestId('navbar-meja-bersama-btn').click();
@@ -480,9 +480,11 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     // Catat 2 data uji modul aktif agar regresi Stage 3 otomatis memilih dataset module-records
     for (let i = 0; i < 2; i += 1) {
       await page.getByRole('button', { name: /\+ Catat Data/i }).first().click();
+      await page.waitForTimeout(250);
       const dialogCount = await page.locator('[role="dialog"]').count();
       if (dialogCount > 0) {
         await page.keyboard.press('Escape');
+        await page.waitForTimeout(150);
         if (await page.locator('[role="dialog"]').count()) {
           await page.locator('[role="dialog"] button').first().click();
         }

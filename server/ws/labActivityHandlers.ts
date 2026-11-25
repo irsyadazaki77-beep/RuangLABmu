@@ -40,10 +40,11 @@ export function handleRecordCreate(
 ): void {
   if (!isWsIdentifiedOrInRoom(ws)) return;
   const { state } = services;
-  if (!state.experimentRecords.some((r) => r.id === rec.id)) {
-    state.experimentRecords.unshift(rec);
+  const scoped = state.getScopedActivityState(ws?.roomId, ws?.schoolId);
+  if (!scoped.experimentRecords.some((r) => r.id === rec.id)) {
+    scoped.experimentRecords.unshift(rec);
   }
-  const stu = state.studentRoster.find((s) => s.name === rec.studentName);
+  const stu = scoped.studentRoster.find((s) => s.name === rec.studentName);
   if (stu) {
     stu.trialsRecorded += 1;
     stu.completionPct = Math.min(100, stu.completionPct + 8);
@@ -55,7 +56,7 @@ export function handleRecordCreate(
   state.persistServerState();
   emitScopedActivity(services, ws, {
     type: 'record:created',
-    payload: { record: rec, students: state.studentRoster },
+    payload: { record: rec, students: scoped.studentRoster },
   });
 }
 
@@ -71,9 +72,10 @@ export function handleRecordDelete(
       return;
     }
   }
-  const idx = state.experimentRecords.findIndex((r) => r.id === id);
+  const scoped = state.getScopedActivityState(ws?.roomId, ws?.schoolId);
+  const idx = scoped.experimentRecords.findIndex((r) => r.id === id);
   if (idx !== -1) {
-    state.experimentRecords.splice(idx, 1);
+    scoped.experimentRecords.splice(idx, 1);
     state.persistServerState();
     emitScopedActivity(services, ws, {
       type: 'record:deleted',
@@ -89,8 +91,9 @@ export function handleTaskToggle(
 ): void {
   if (!isWsIdentifiedOrInRoom(ws)) return;
   const { state } = services;
+  const scoped = state.getScopedActivityState(ws?.roomId, ws?.schoolId);
   const taskId = payload.id;
-  const task = state.groupTasks.find((t) => t.id === taskId);
+  const task = scoped.groupTasks.find((t) => t.id === taskId);
   if (task) {
     task.completed = !task.completed;
     task.completedBy = task.completed
@@ -99,7 +102,7 @@ export function handleTaskToggle(
     state.persistServerState();
     emitScopedActivity(services, ws, {
       type: 'task:updated',
-      payload: { tasks: state.groupTasks },
+      payload: { tasks: scoped.groupTasks },
     });
   }
 }
@@ -111,6 +114,7 @@ export function handleTaskCreate(
 ): void {
   if (!isWsIdentifiedOrInRoom(ws)) return;
   const { state } = services;
+  const scoped = state.getScopedActivityState(ws?.roomId, ws?.schoolId);
   const title = payload.title;
   if (!title) return;
   const newTask: GroupTask = {
@@ -128,11 +132,11 @@ export function handleTaskCreate(
         : 'Fisika',
     completed: false,
   };
-  state.groupTasks.push(newTask);
+  scoped.groupTasks.push(newTask);
   state.persistServerState();
   emitScopedActivity(services, ws, {
     type: 'task:updated',
-    payload: { tasks: state.groupTasks },
+    payload: { tasks: scoped.groupTasks },
   });
 }
 
@@ -143,6 +147,7 @@ export function handleNoteCreate(
 ): void {
   if (!isWsIdentifiedOrInRoom(ws)) return;
   const { state } = services;
+  const scoped = state.getScopedActivityState(ws?.roomId, ws?.schoolId);
   const text = payload.text;
   if (!text) return;
   const note: CollabNote = {
@@ -162,8 +167,8 @@ export function handleNoteCreate(
       minute: '2-digit',
     }),
   };
-  if (!state.collabNotes.some((n) => n.id === note.id)) {
-    state.collabNotes.push(note);
+  if (!scoped.collabNotes.some((n) => n.id === note.id)) {
+    scoped.collabNotes.push(note);
     state.persistServerState();
     emitScopedActivity(services, ws, {
       type: 'note:created',
@@ -177,12 +182,14 @@ export function handleQuizSubmit(
   services: WsHandlerServices,
   ws?: ExtWebSocket
 ): void {
+  if (!isWsIdentifiedOrInRoom(ws)) return;
   const { state } = services;
+  const scoped = state.getScopedActivityState(ws?.roomId, ws?.schoolId);
   const studentName = String(payload.studentName || 'Siswa');
   const score = Number(payload.score || 0);
   const correctCount = Number(payload.correctCount || 0);
 
-  const stu = state.studentRoster.find((s) => s.name === studentName);
+  const stu = scoped.studentRoster.find((s) => s.name === studentName);
   if (stu) {
     (stu as StudentProgress & { quizScore?: number }).quizScore = score;
     stu.completionPct = Math.min(100, Math.max(stu.completionPct, 85));
@@ -202,11 +209,11 @@ export function handleQuizSubmit(
     title: `Skor LKS ${studentName} Masuk (${score}/100)`,
     message: `${studentName} menjawab ${correctCount} soal LKS dengan benar. Nilai rubrik telah diperbarui otomatis.`,
   };
-  state.notifications.unshift(notif);
+  scoped.notifications.unshift(notif);
   state.persistServerState();
   emitScopedActivity(services, ws, {
     type: 'quiz:submitted',
-    payload: { students: state.studentRoster, notification: notif },
+    payload: { students: scoped.studentRoster, notification: notif },
   });
 }
 
@@ -215,9 +222,11 @@ export function handleNotificationPush(
   services: WsHandlerServices,
   ws?: ExtWebSocket
 ): void {
+  if (!isWsIdentifiedOrInRoom(ws)) return;
   const { state } = services;
-  if (!state.notifications.some((n) => n.id === notif.id)) {
-    state.notifications.unshift(notif);
+  const scoped = state.getScopedActivityState(ws?.roomId, ws?.schoolId);
+  if (!scoped.notifications.some((n) => n.id === notif.id)) {
+    scoped.notifications.unshift(notif);
     state.persistServerState();
     emitScopedActivity(services, ws, {
       type: 'notification:pushed',

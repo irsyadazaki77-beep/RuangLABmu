@@ -430,17 +430,80 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       onDeleteRecord={onDeleteRecord}
       onBackToPreLab={() => useLabStore.getState().setWorkflowStep(1)}
       telemetryMetrics={telemetryMetrics}
-      oscilloscope={{
-        primaryLabel: telemetryMetrics[0].label,
-        primaryValue: telemetryMetrics[0].value,
-        primaryUnit: telemetryMetrics[0].unit,
-        secondaryLabel: telemetryMetrics[1].label,
-        secondaryValue: telemetryMetrics[1].value,
-        secondaryUnit: telemetryMetrics[1].unit,
-        microscopicStateLabel: `ΣF = ${metrics.netForce} N (fk = ${Math.abs(metrics.frictionForce)} N)`,
-        microscopicDetail: `W∥ = ${metrics.gravityParallel} N dan gaya normal N = ${metrics.normalForce} N.`,
-        accentColor: '#0ea5e9',
-      }}
+      oscilloscope={(() => {
+        const primaryTxt = `${telemetryMetrics[0].label} = ${telemetryMetrics[0].value} ${telemetryMetrics[0].unit}`;
+        const secondaryTxt = `${telemetryMetrics[1].label} = ${telemetryMetrics[1].value} ${telemetryMetrics[1].unit}`;
+        const modeHint = (() => {
+          switch (metrics.mode) {
+            case 'pendulum-harmonic':
+              return {
+                label: `Bandul Harmonis: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Periode osilasi bergantung pada panjang tali L dan percepatan gravitasi g (T = 2π√(L/g)).`,
+              };
+            case 'spring-hooke':
+              return {
+                label: `Pegas Hooke: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Gaya pemulih berbanding lurus dengan konstanta pegas k dan simpangan Δx.`,
+              };
+            case 'projectile-gravity':
+              return {
+                label: `Gerak Parabola: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Komponen horizontal GLB berpadu dengan komponen vertikal GLBB akibat gravitasi.`,
+              };
+            case 'collision-momentum':
+              return {
+                label: `Tumbukan: ${primaryTxt} · e = ${params.restitutionCoeff}`,
+                detail: `Hukum kekekalan momentum berlaku pada sistem terisolasi sebelum dan sesudah tumbukan.`,
+              };
+            case 'stokes-viscosity':
+              return {
+                label: `Viskositas Stokes: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Keseimbangan gaya berat, gaya apung Archimedes, dan gaya gesek fluida Stokes.`,
+              };
+            case 'ohm-wheatstone':
+              return {
+                label: `Rangkaian Listrik: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Hukum Ohm (V = I · R) dan jembatan Wheatstone menentukan kesetimbangan arus.`,
+              };
+            case 'optics-young-slit':
+              return {
+                label: `Interferensi Young: ${primaryTxt}`,
+                detail: `Beda lintasan cahaya monokromatik menghasilkan pola pita terang-gelap teratur.`,
+              };
+            case 'photoelectric-planck':
+              return {
+                label: `Efek Fotolistrik: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Foton berenergi h·f melepaskan elektron jika melampaui fungsi kerja logam Φ.`,
+              };
+            case 'orbital-gravity':
+              return {
+                label: `Gravitasi Orbital: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Gaya gravitasi Newton berperan sebagai gaya sentripetal penjaga orbit.`,
+              };
+            case 'standing-wave-melde':
+              return {
+                label: `Gelombang Melde: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Cepat rambat gelombang pada dawai bergantung pada tegangan F dan rapat massa μ.`,
+              };
+            default:
+              return {
+                label: `ΣF = ${metrics.netForce} N (fk = ${Math.abs(metrics.frictionForce)} N)`,
+                detail: `W∥ = ${metrics.gravityParallel} N dan gaya normal N = ${metrics.normalForce} N.`,
+              };
+          }
+        })();
+        return {
+          primaryLabel: telemetryMetrics[0].label,
+          primaryValue: telemetryMetrics[0].value,
+          primaryUnit: telemetryMetrics[0].unit,
+          secondaryLabel: telemetryMetrics[1].label,
+          secondaryValue: telemetryMetrics[1].value,
+          secondaryUnit: telemetryMetrics[1].unit,
+          microscopicStateLabel: modeHint.label,
+          microscopicDetail: modeHint.detail,
+          accentColor: '#0ea5e9',
+        };
+      })()}
       isHazardous={safetyHazard.isHazardous}
       shutterFlash={shutterFlash}
       zenMode={zenMode}
