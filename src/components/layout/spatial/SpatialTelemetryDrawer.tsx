@@ -113,13 +113,43 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
             {activeTab === 'metrics' ? (
               <>
                 {oscilloscope && (
-                  <div className="rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-3 py-2 text-xs text-[var(--comfort-text)] space-y-0.5">
-                    <div className="font-mono text-2xs font-bold text-[var(--comfort-accent)] truncate">
-                      {oscilloscope.microscopicStateLabel}
+                  <div className="rounded-xl bg-[var(--comfort-surface-subtle)] lab-grid-bg border border-[var(--comfort-border)] p-3 text-xs text-[var(--comfort-text)] space-y-2">
+                    <div className="space-y-0.5">
+                      <div className="font-mono text-2xs font-bold text-[var(--comfort-accent)] truncate">
+                        {oscilloscope.microscopicStateLabel}
+                      </div>
+                      <p className="text-2xs text-[var(--comfort-text-muted)] line-clamp-2 leading-relaxed">
+                        {oscilloscope.microscopicDetail}
+                      </p>
                     </div>
-                    <p className="text-2xs text-[var(--comfort-text-muted)] line-clamp-2 leading-relaxed">
-                      {oscilloscope.microscopicDetail}
-                    </p>
+                    <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-[var(--comfort-border)] font-mono text-2xs tabular-nums">
+                      <div className="px-2 py-1 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] truncate">
+                        <div className="text-[var(--comfort-text-muted)] truncate">
+                          {oscilloscope.primaryLabel}
+                        </div>
+                        <div className="font-bold text-[var(--comfort-text)]">
+                          {Number.isFinite(oscilloscope.primaryValue)
+                            ? oscilloscope.primaryValue.toFixed(2)
+                            : '0.00'}{' '}
+                          <span className="font-normal text-[var(--comfort-text-muted)]">
+                            {oscilloscope.primaryUnit}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="px-2 py-1 rounded-md bg-[var(--comfort-surface)] border border-[var(--comfort-border)] truncate">
+                        <div className="text-[var(--comfort-text-muted)] truncate">
+                          {oscilloscope.secondaryLabel}
+                        </div>
+                        <div className="font-bold text-[var(--comfort-accent)]">
+                          {Number.isFinite(oscilloscope.secondaryValue)
+                            ? oscilloscope.secondaryValue.toFixed(2)
+                            : '0.00'}{' '}
+                          <span className="font-normal text-[var(--comfort-text-muted)]">
+                            {oscilloscope.secondaryUnit}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 

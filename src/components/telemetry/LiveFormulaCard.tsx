@@ -49,9 +49,11 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
         )}
       </div>
 
-      {/* Main Governing Equation Display */}
-      <div className="rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] px-3 py-2 text-center">
-        <div className="text-2xs text-[var(--comfort-text-muted)] mb-0.5 truncate">{moduleTitle}</div>
+      {/* Main Governing Equation Display with Studio Blueprint Backdrop */}
+      <div className="relative rounded-lg bg-[var(--comfort-surface-subtle)] lab-grid-bg border border-[var(--comfort-border)] px-3 py-2.5 text-center overflow-hidden">
+        <div className="text-2xs text-[var(--comfort-text-muted)] mb-0.5 truncate font-medium">
+          {moduleTitle}
+        </div>
         <div className="font-mono text-xs sm:text-sm font-bold text-[var(--comfort-accent)] tracking-wide break-words">
           <SciFormula text={formatCleanEquation(formulaEquation || 'F = m · a')} wrap />
         </div>
@@ -89,34 +91,54 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
         </div>
       )}
 
-      {/* Derived Real-Time Computed Physics/Bio/Chem/Astro Outputs */}
+      {/* Derived Real-Time Computed Physics/Bio/Chem/Astro Outputs with Magnitude Bar */}
       {derivedOutputs.length > 0 && (
         <div className="space-y-1.5 pt-1 border-t border-[var(--comfort-border)]">
           <div className="text-2xs font-semibold text-[var(--comfort-success)]">
             Hasil Terhitung Real-Time:
           </div>
           <div className="grid grid-cols-1 gap-1.5" data-testid="live-formula-derived-outputs">
-            {derivedOutputs.map((metric) => (
-              <div
-                key={metric.id}
-                className="px-2.5 py-1.5 rounded-lg border border-[var(--comfort-success-border)] bg-[var(--comfort-success-soft)] text-2xs font-mono flex items-center justify-between gap-2"
-              >
-                <span className="text-2xs text-[var(--comfort-text)] font-sans font-medium leading-tight flex items-center gap-1.5">
-                  <span
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ backgroundColor: metric.color || 'var(--comfort-success)' }}
-                    aria-hidden="true"
-                  />
-                  <SciFormula text={metric.label} wrap />
-                </span>
-                <span className="tabular-nums font-bold shrink-0 text-[var(--comfort-success)]">
-                  {Number.isFinite(metric.value)
-                    ? metric.value.toFixed(metric.precision ?? 2)
-                    : '0.00'}
-                  {metric.unit ? ` ${metric.unit}` : ''}
-                </span>
-              </div>
-            ))}
+            {derivedOutputs.map((metric) => {
+              const span = Math.max(1e-9, metric.max - metric.min);
+              const safeVal = Number.isFinite(metric.value) ? metric.value : metric.min;
+              const fillPct = Math.min(
+                100,
+                Math.max(4, Math.round(((safeVal - metric.min) / span) * 100))
+              );
+
+              return (
+                <div
+                  key={metric.id}
+                  className="px-2.5 py-1.5 rounded-lg border border-[var(--comfort-success-border)] bg-[var(--comfort-success-soft)] text-2xs font-mono space-y-1"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-2xs text-[var(--comfort-text)] font-sans font-medium leading-tight flex items-center gap-1.5">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: metric.color || 'var(--comfort-success)' }}
+                        aria-hidden="true"
+                      />
+                      <SciFormula text={metric.label} wrap />
+                    </span>
+                    <span className="tabular-nums font-bold shrink-0 text-[var(--comfort-success)]">
+                      {Number.isFinite(metric.value)
+                        ? metric.value.toFixed(metric.precision ?? 2)
+                        : '0.00'}
+                      {metric.unit ? ` ${metric.unit}` : ''}
+                    </span>
+                  </div>
+                  <div className="w-full h-1 rounded-full bg-[var(--comfort-surface)]/80 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-150"
+                      style={{
+                        width: `${fillPct}%`,
+                        backgroundColor: metric.color || 'var(--comfort-success)',
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
