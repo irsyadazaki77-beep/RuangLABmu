@@ -503,6 +503,16 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
               key={activeModuleId}
               steps={activeExperiment.stepByStepGuide}
               recordsCount={recordsCount}
+              onOpenParameterDrawer={() => {
+                if (isDesktopViewport) {
+                  setLeftDrawerOpen(true);
+                } else {
+                  setMobileSheetTab('params');
+                  setMobileSheetExpanded(true);
+                  setMobileTab('variables');
+                }
+              }}
+              onProceedToAnalysis={onProceedToAnalysis}
             />
           )}
 

@@ -742,6 +742,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
             presets={scenarioPresets}
             sweepSteps={sweepSteps}
             accentColor="sky"
+            currentParams={params as unknown as Record<string, unknown>}
             onApplyPreset={(preset) => handleParamUpdate(preset.patch)}
             onSweepStep={(step) => {
               const nextParams = { ...params, ...(step.patch as Partial<PhysicsParams>) };

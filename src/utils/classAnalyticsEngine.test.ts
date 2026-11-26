@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { EXPERIMENT_CATALOG } from '../registry/experimentRegistry';
 import type { LabSubmission } from '../types/submissionTypes';
 import {
+  buildFullClassAnalyticsReportCsv,
   computeClassGradebookAnalytics,
+  computeClassMisconceptionClusters,
   computeDomainCurriculumProgress,
   toggleModuleBookmarkList,
 } from './classAnalyticsEngine';
@@ -39,9 +41,10 @@ describe('classAnalyticsEngine', () => {
     assert.equal(empty.passRatePct, 0);
     assert.equal(empty.histogram.length, 5);
     assert.equal(empty.weakestCriterion, null);
+    assert.equal(empty.misconceptionClusters.length, 0);
   });
 
-  it('computes score histogram, KKM pass/remedial counts, and rubric averages', () => {
+  it('computes score histogram, KKM pass/remedial counts, rubric averages, and misconception clusters', () => {
     const subs = [
       makeSubmission('1', 55, true),
       makeSubmission('2', 74, true),
@@ -68,6 +71,15 @@ describe('classAnalyticsEngine', () => {
       );
     }
     assert.ok(analytics.weakestCriterion !== null);
+    assert.equal(analytics.misconceptionClusters.length, 5);
+
+    const clusters = computeClassMisconceptionClusters(subs);
+    assert.equal(clusters.length, 5);
+
+    const csv = buildFullClassAnalyticsReportCsv(subs, 75);
+    assert.ok(csv.startsWith('\uFEFF'), 'CSV should start with UTF-8 BOM');
+    assert.ok(csv.includes('Status Ketuntasan'));
+    assert.ok(csv.includes('Siswa 1'));
 
     // Adjusting KKM higher reduces or maintains pass rate
     const strict = computeClassGradebookAnalytics(subs, 90);

@@ -22,6 +22,7 @@ import {
 import {
   compareCurveModels,
   computeResidualsAndErrorBars,
+  detectRegressionOutliersAndDiagnostics,
 } from '../../utils/dynamicWorksheetEngine';
 import { ResidualSubplot } from './ResidualSubplot';
 import { labSound } from '../../utils/soundEngine';
@@ -78,6 +79,7 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
   const [selectedPointIdx, setSelectedPointIdx] = useState<number | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const [copiedEquation, setCopiedEquation] = useState<boolean>(false);
+  const [copiedDiagnostics, setCopiedDiagnostics] = useState<boolean>(false);
 
   // Advanced Scientific Chart Toggles
   const [showErrorBars, setShowErrorBars] = useState<boolean>(true);
@@ -142,6 +144,42 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
     () => compareCurveModels(activeFitPoints.map((p) => ({ x: p.x, y: p.y1 }))),
     [activeFitPoints]
   );
+
+  const curveDiagnostics = useMemo(
+    () =>
+      detectRegressionOutliersAndDiagnostics(
+        points,
+        curveModel,
+        excludedIndices,
+        instrumentNst
+      ),
+    [points, curveModel, excludedIndices, instrumentNst]
+  );
+
+  const handleAutoExcludeDetectedOutliers = () => {
+    if (curveDiagnostics.candidateOutlierIndices.length === 0) return;
+    labSound.playSuccessChime();
+    setExcludedIndices((prev) => {
+      const next = new Set(prev);
+      for (const idx of curveDiagnostics.candidateOutlierIndices) {
+        next.add(idx);
+      }
+      return next;
+    });
+  };
+
+  const handleCopyDiagnosticReport = () => {
+    labSound.playClick();
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(curveDiagnostics.clipboardReport).then(() => {
+        setCopiedDiagnostics(true);
+        setTimeout(() => setCopiedDiagnostics(false), 1800);
+      });
+    } else {
+      setCopiedDiagnostics(true);
+      setTimeout(() => setCopiedDiagnostics(false), 1800);
+    }
+  };
 
   const hasValidY2 = useMemo(() => {
     const y2Vals = points
@@ -612,6 +650,100 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
             />{' '}
             Berongga ✕ = Outlier
           </span>
+        </div>
+      </div>
+
+      {/* Automated Curve Diagnostics & 1-Click Outlier Cleaning Panel */}
+      <div
+        data-testid="regression-diagnostics-banner"
+        className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-xs"
+      >
+        <div className="space-y-1 min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-[var(--comfort-text)]">
+              Diagnostik Kualitas Kurva Otomatis
+            </span>
+            <span className="text-[var(--comfort-border)]" aria-hidden="true">·</span>
+            <span
+              data-testid="regression-quality-label"
+              className={`font-mono text-2xs font-bold tabular-nums ${
+                curveDiagnostics.qualityTier === 'high'
+                  ? 'text-[var(--comfort-success)]'
+                  : curveDiagnostics.qualityTier === 'moderate'
+                  ? 'text-[var(--comfort-accent)]'
+                  : 'text-[var(--comfort-warning)]'
+              }`}
+            >
+              {curveDiagnostics.qualityLabel}
+            </span>
+            {curveDiagnostics.candidateOutlierIndices.length > 0 && (
+              <>
+                <span className="text-[var(--comfort-border)]" aria-hidden="true">·</span>
+                <span
+                  data-testid="detected-outliers-badge"
+                  className="font-mono text-2xs font-bold text-[var(--comfort-warning)] tabular-nums"
+                >
+                  ✕ {curveDiagnostics.candidateOutlierIndices.length} Kandidat Outlier (
+                  {curveDiagnostics.candidateOutlierLabels.join(', ')})
+                </span>
+              </>
+            )}
+          </div>
+          <p className="text-2xs text-[var(--comfort-text-muted)] leading-relaxed">
+            {curveDiagnostics.diagnosticSummary}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {curveDiagnostics.candidateOutlierIndices.length > 0 && (
+            <button
+              type="button"
+              data-testid="auto-clean-outliers-btn"
+              onClick={handleAutoExcludeDetectedOutliers}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-2xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                Kecualikan Outlier ({curveDiagnostics.candidateOutlierIndices.length}) · R² →{' '}
+                {curveDiagnostics.projectedRSquared.toFixed(4)}
+              </span>
+            </button>
+          )}
+
+          {curveDiagnostics.modelMismatchDetected && (
+            <button
+              type="button"
+              data-testid="apply-recommended-model-btn"
+              onClick={() => {
+                labSound.playSuccessChime();
+                onChangeCurveModel(curveDiagnostics.recommendedModel);
+              }}
+              className="comfort-btn-primary px-2.5 py-1.5 rounded-lg font-bold text-2xs inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            >
+              <Check className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span>Gunakan Model Rekomendasi</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            data-testid="copy-diagnostics-report-btn"
+            onClick={handleCopyDiagnosticReport}
+            title="Salin kesimpulan diagnostik regresi ke papan klip untuk ditempel ke LKS"
+            className="comfort-btn-secondary px-2.5 py-1.5 rounded-lg font-semibold text-2xs inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+          >
+            {copiedDiagnostics ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-[var(--comfort-success)]" aria-hidden="true" />
+                <span className="text-[var(--comfort-success)]">Diagnostik Tersalin</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5 text-[var(--comfort-text-muted)]" aria-hidden="true" />
+                <span>Salin Diagnostik LKS</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 

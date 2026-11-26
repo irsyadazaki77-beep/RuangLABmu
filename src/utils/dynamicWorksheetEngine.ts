@@ -347,6 +347,131 @@ export function compareCurveModels(
   };
 }
 
+export interface RegressionOutlierDiagnosticsResult {
+  candidateOutlierIndices: number[];
+  candidateOutlierLabels: string[];
+  currentRSquared: number;
+  projectedRSquared: number;
+  rSquaredGain: number;
+  qualityTier: 'high' | 'moderate' | 'low';
+  qualityLabel: string;
+  recommendedModel: CurveModelType;
+  modelMismatchDetected: boolean;
+  diagnosticSummary: string;
+  clipboardReport: string;
+}
+
+/**
+ * Pure deterministic outlier detector and scientific curve diagnostic engine.
+ * Scans residuals (using leave-one-out / median-absolute-deviation & RMSE thresholds)
+ * to identify anomalous measurements and projects R² improvement when cleaned.
+ */
+export function detectRegressionOutliersAndDiagnostics(
+  points: DataPointMultiAxis[],
+  curveModel: CurveModelType,
+  excludedIndices: Set<number> = new Set(),
+  instrumentNst?: number
+): RegressionOutlierDiagnosticsResult {
+  const activePts = points
+    .map((p, idx) => ({ p, idx }))
+    .filter((item) => !excludedIndices.has(item.idx));
+
+  const fitInputs = (activePts.length >= 2 ? activePts : points.map((p, idx) => ({ p, idx }))).map(
+    (item) => ({ x: item.p.x, y: item.p.y1 })
+  );
+
+  const currentReg = calculateCurveFitting(fitInputs, curveModel);
+  const residualStats = computeResidualsAndErrorBars(points, currentReg, instrumentNst);
+  const modelComp = compareCurveModels(fitInputs);
+
+  const candidateOutlierIndices: number[] = [];
+  const candidateOutlierLabels: string[] = [];
+
+  if (activePts.length >= 4) {
+    const activeAbsResiduals = activePts.map(
+      (item) => residualStats.residuals[item.idx]?.absResidual ?? 0
+    );
+    const sortedAbs = [...activeAbsResiduals].sort((a, b) => a - b);
+    const medianAbs = sortedAbs[Math.floor(sortedAbs.length / 2)] || 0;
+    const yVals = activePts.map((item) => item.p.y1);
+    const ySpan = Math.max(1e-6, Math.max(...yVals) - Math.min(...yVals));
+    const nstFloor = instrumentNst && instrumentNst > 0 ? instrumentNst * 1.5 : ySpan * 0.06;
+    const threshold = Math.max(nstFloor, medianAbs * 2.8, residualStats.rmse * 1.45);
+
+    for (const item of activePts) {
+      const resPt = residualStats.residuals[item.idx];
+      if (resPt && resPt.absResidual > threshold && resPt.absResidual > ySpan * 0.05) {
+        candidateOutlierIndices.push(item.idx);
+        candidateOutlierLabels.push(item.p.label || `Uji ${item.idx + 1}`);
+      }
+    }
+  }
+
+  let projectedRSquared = currentReg.rSquared;
+  if (
+    candidateOutlierIndices.length > 0 &&
+    activePts.length - candidateOutlierIndices.length >= 2
+  ) {
+    const cleanedSet = new Set([...excludedIndices, ...candidateOutlierIndices]);
+    const cleanedPts = points
+      .filter((_, idx) => !cleanedSet.has(idx))
+      .map((p) => ({ x: p.x, y: p.y1 }));
+    if (cleanedPts.length >= 2) {
+      const cleanedFit = calculateCurveFitting(cleanedPts, curveModel);
+      projectedRSquared = cleanedFit.rSquared;
+    }
+  }
+
+  const rSquaredGain = roundTo(Math.max(0, projectedRSquared - currentReg.rSquared), 4);
+  const bestAlt = modelComp.comparisons.find((c) => c.modelType === modelComp.bestModel);
+  const modelMismatchDetected = Boolean(
+    bestAlt &&
+      bestAlt.modelType !== curveModel &&
+      bestAlt.rSquared > currentReg.rSquared + 0.04
+  );
+
+  const qualityTier: 'high' | 'moderate' | 'low' =
+    currentReg.rSquared >= 0.95
+      ? 'high'
+      : currentReg.rSquared >= 0.85
+      ? 'moderate'
+      : 'low';
+
+  const qualityLabel =
+    qualityTier === 'high'
+      ? '● PRESISI TINGGI'
+      : qualityTier === 'moderate'
+      ? '▲ PRESISI MENENGAH'
+      : '✕ DEV. TINGGI';
+
+  let diagnosticSummary = '';
+  if (candidateOutlierIndices.length > 0) {
+    diagnosticSummary = `Terdeteksi ${candidateOutlierIndices.length} kandidat outlier (${candidateOutlierLabels.join(', ')}) dengan simpangan residu tajam. Mengecualikan titik tersebut meningkatkan R² dari ${currentReg.rSquared.toFixed(4)} menjadi ${projectedRSquared.toFixed(4)} (+${rSquaredGain.toFixed(4)}).`;
+  } else if (modelMismatchDetected && bestAlt) {
+    diagnosticSummary = `Pola data menunjukkan hubungan non-linier/alternatif: model ${bestAlt.modelLabel} menghasilkan R² = ${bestAlt.rSquared.toFixed(4)} (lebih akurat dibanding model saat ini R² = ${currentReg.rSquared.toFixed(4)}).`;
+  } else if (qualityTier === 'high') {
+    diagnosticSummary = `Kurva regresi sangat konsisten (${currentReg.equationString}, R² = ${currentReg.rSquared.toFixed(4)}, RMSE = ${residualStats.rmse.toFixed(3)}) tanpa pencilan signifikan.`;
+  } else {
+    diagnosticSummary = `Sebaran data memiliki R² = ${currentReg.rSquared.toFixed(4)} dan RMSE = ${residualStats.rmse.toFixed(3)}. Periksa konsistensi variabel kontrol atau tambah titik sampel.`;
+  }
+
+  const clipboardReport = `Analisis Regresi: ${currentReg.equationString} | R² = ${currentReg.rSquared.toFixed(4)} | RMSE = ${residualStats.rmse.toFixed(3)}. Diagnostik: ${diagnosticSummary}`;
+
+  return {
+    candidateOutlierIndices,
+    candidateOutlierLabels,
+    currentRSquared: roundTo(currentReg.rSquared, 4),
+    projectedRSquared: roundTo(projectedRSquared, 4),
+    rSquaredGain,
+    qualityTier,
+    qualityLabel,
+    recommendedModel: modelComp.bestModel,
+    modelMismatchDetected,
+    diagnosticSummary,
+    clipboardReport,
+  };
+}
+
 /**
  * Parses pasted CSV / TSV / semicolon-separated manual measurements into structured numeric rows.
  * Format per line: `X, Y1 [, Y2 [, Catatan]]` (headers are automatically skipped).

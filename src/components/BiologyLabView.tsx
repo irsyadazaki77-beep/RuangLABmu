@@ -476,6 +476,7 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
             presets={scenarioPresets}
             sweepSteps={sweepSteps}
             accentColor="emerald"
+            currentParams={paramsState}
             onApplyPreset={(preset) =>
               setParamsState((prev) => ({ ...prev, ...(preset.patch as Record<string, number>) }))
             }

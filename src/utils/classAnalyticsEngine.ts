@@ -24,6 +24,17 @@ export interface RubricCriterionAverage {
   maxPoints: number;
 }
 
+export interface ClassMisconceptionCluster {
+  id: string;
+  title: string;
+  criterionId: string;
+  affectedCount: number;
+  affectedPct: number;
+  severity: 'high' | 'medium' | 'low';
+  remedialAction: string;
+  studentNames: string[];
+}
+
 export interface ClassGradebookAnalytics {
   totalSubmissions: number;
   gradedCount: number;
@@ -38,6 +49,7 @@ export interface ClassGradebookAnalytics {
   histogram: ScoreHistogramBin[];
   rubricAverages: RubricCriterionAverage[];
   weakestCriterion: RubricCriterionAverage | null;
+  misconceptionClusters: ClassMisconceptionCluster[];
 }
 
 export interface DomainCurriculumProgress {
@@ -67,9 +79,169 @@ function resolveRubric(sub: LabSubmission): EvaluatedRubricReport {
   });
 }
 
+function sanitizeCsvField(raw: string | number | null | undefined): string {
+  const str = String(raw ?? '').replace(/\r?\n/g, ' ').trim();
+  const safeFormula = /^[=+\-@]/.test(str) ? `'${str}` : str;
+  return `"${safeFormula.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Pure misconception cluster detector across student submissions.
+ * Identifies specific pedagogical & experimental bottlenecks (hypothesis variables, sample density,
+ * RK4 numerical deviation, post-lab concept mastery, and evidence-based conclusion).
+ */
+export function computeClassMisconceptionClusters(
+  submissions: LabSubmission[]
+): ClassMisconceptionCluster[] {
+  const clusterDefs: Array<{
+    id: string;
+    criterionId: string;
+    title: string;
+    remedialAction: string;
+  }> = [
+    {
+      id: 'misconception-hypothesis',
+      criterionId: 'hypothesis',
+      title: 'Rumusan Hipotesis Belum Memuat Hubungan Variabel Bebas & Terikat',
+      remedialAction:
+        'Latih siswa menyusun kalimat hipotesis sebab-akibat ("Jika [variabel bebas] dinaikkan, maka [variabel terikat] akan...") sebelum masuk ke kokpit 3D.',
+    },
+    {
+      id: 'misconception-observation',
+      criterionId: 'observation_completeness',
+      title: 'Variasi Sampel Pengamatan Kurang (< 4 Titik Regresi)',
+      remedialAction:
+        'Arahkan siswa menggunakan fitur Auto-Sweep 5 Titik atau mencatat minimal 5 variasi variabel bebas agar garis regresi valid.',
+    },
+    {
+      id: 'misconception-rk4-solver',
+      criterionId: 'rk4_numerical_accuracy',
+      title: 'Deviasi Pengukuran / Outlier terhadap Model Teoretis RK4',
+      remedialAction:
+        'Minta siswa memeriksa Diagnostik Kualitas Kurva di Stage 3 untuk mengecualikan titik outlier dan mencocokkan model kurva.',
+    },
+    {
+      id: 'misconception-postlab-quiz',
+      criterionId: 'post_lab_quiz',
+      title: 'Pemahaman Konsep & Interpretasi Gradien Kurva Masih Lemah',
+      remedialAction:
+        'Bahas makna fisis kemiringan grafik (ΔY/ΔX) menggunakan Kartu Formula Interaktif bersama kelas.',
+    },
+    {
+      id: 'misconception-conclusion',
+      criterionId: 'conclusion_synthesis',
+      title: 'Kesimpulan Belum Menyertakan Bukti Angka R² / Persamaan Regresi',
+      remedialAction:
+        'Gunakan tombol "Salin Diagnostik LKS" pada grafik regresi agar siswa menuliskan bukti kuantitatif di kesimpulan.',
+    },
+  ];
+
+  if (submissions.length === 0) return [];
+
+  const total = submissions.length;
+  const results: ClassMisconceptionCluster[] = [];
+
+  for (const def of clusterDefs) {
+    const affectedStudents: string[] = [];
+
+    for (const sub of submissions) {
+      const rubric = resolveRubric(sub);
+      const crit = rubric.criteria.find((c) => c.id === def.criterionId);
+      if (crit) {
+        const ratio = crit.maxPoints > 0 ? crit.earnedPoints / crit.maxPoints : 1;
+        if (ratio < 0.72) {
+          affectedStudents.push(sub.studentName);
+        }
+      }
+    }
+
+    const affectedCount = affectedStudents.length;
+    const affectedPct = Math.round((affectedCount / total) * 100);
+    const severity: 'high' | 'medium' | 'low' =
+      affectedPct >= 45 ? 'high' : affectedPct >= 20 ? 'medium' : 'low';
+
+    results.push({
+      id: def.id,
+      title: def.title,
+      criterionId: def.criterionId,
+      affectedCount,
+      affectedPct,
+      severity,
+      remedialAction: def.remedialAction,
+      studentNames: affectedStudents.slice(0, 8),
+    });
+  }
+
+  return results.sort((a, b) => b.affectedCount - a.affectedCount);
+}
+
+/**
+ * Generates an Excel/Google-Classroom safe UTF-8 BOM CSV containing full 5-dimension rubric breakdown,
+ * KKM mastery status, regression R², and diagnostic notes for every student submission.
+ */
+export function buildFullClassAnalyticsReportCsv(
+  submissions: LabSubmission[],
+  kkmThreshold: number = 75
+): string {
+  const safeKkm = Math.max(0, Math.min(100, Math.round(kkmThreshold)));
+  const headers = [
+    'ID Laporan',
+    'Nama Siswa',
+    'Domain',
+    'ID Modul',
+    'Skor Akhir',
+    'Batas KKM',
+    'Status Ketuntasan',
+    'Hipotesis (15)',
+    'Kelengkapan Data (25)',
+    'Akurasi RK4 (30)',
+    'Kuis Pasca-Lab (15)',
+    'Sintesis Kesimpulan (15)',
+    'R-Squared Regresi',
+    'Persamaan Regresi',
+    'Diagnostik & Umpan Balik',
+    'Waktu Pengumpulan',
+  ];
+
+  const rows = submissions.map((sub) => {
+    const rubric = resolveRubric(sub);
+    const finalScore = sub.teacherGrade?.score ?? rubric.score ?? sub.quizScore ?? 0;
+    const status = finalScore >= safeKkm ? 'TUNTAS KKM' : 'PERLU REMEDIAL';
+    const getCritPts = (id: string) => {
+      const c = rubric.criteria.find((item) => item.id === id);
+      return c ? c.earnedPoints : 0;
+    };
+    const r2 = sub.regressionMetrics?.rSquared ?? 0;
+    const eq = sub.regressionMetrics?.equation || '-';
+    const feedback =
+      sub.teacherGrade?.feedback || rubric.summaryFeedback || 'Sudah dievaluasi otomatis.';
+
+    return [
+      sanitizeCsvField(sub.id),
+      sanitizeCsvField(sub.studentName),
+      sanitizeCsvField(sub.domain),
+      sanitizeCsvField(sub.moduleId),
+      sanitizeCsvField(finalScore),
+      sanitizeCsvField(safeKkm),
+      sanitizeCsvField(status),
+      sanitizeCsvField(getCritPts('hypothesis')),
+      sanitizeCsvField(getCritPts('observation_completeness')),
+      sanitizeCsvField(getCritPts('rk4_numerical_accuracy')),
+      sanitizeCsvField(getCritPts('post_lab_quiz')),
+      sanitizeCsvField(getCritPts('conclusion_synthesis')),
+      sanitizeCsvField(Number(r2).toFixed(4)),
+      sanitizeCsvField(eq),
+      sanitizeCsvField(feedback),
+      sanitizeCsvField(sub.submittedAt),
+    ].join(',');
+  });
+
+  return `\uFEFF${headers.map(sanitizeCsvField).join(',')}\n${rows.join('\n')}`;
+}
+
 /**
  * Pure analytics engine for Teacher Gradebook: computes score histogram, KKM pass rate,
- * and 5-dimension rubric averages to pinpoint class-wide learning bottlenecks.
+ * 5-dimension rubric averages, and misconception clusters to pinpoint class-wide learning bottlenecks.
  */
 export function computeClassGradebookAnalytics(
   submissions: LabSubmission[],
@@ -104,6 +276,7 @@ export function computeClassGradebookAnalytics(
       })),
       rubricAverages: [],
       weakestCriterion: null,
+      misconceptionClusters: [],
     };
   }
 
@@ -183,6 +356,8 @@ export function computeClassGradebookAnalytics(
         )
       : null;
 
+  const misconceptionClusters = computeClassMisconceptionClusters(submissions);
+
   return {
     totalSubmissions: total,
     gradedCount,
@@ -197,6 +372,7 @@ export function computeClassGradebookAnalytics(
     histogram,
     rubricAverages,
     weakestCriterion,
+    misconceptionClusters,
   };
 }
 

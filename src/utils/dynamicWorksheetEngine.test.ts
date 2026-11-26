@@ -6,6 +6,7 @@ import {
   buildModulePresetDataset,
   compareCurveModels,
   computeResidualsAndErrorBars,
+  detectRegressionOutliersAndDiagnostics,
   generateDynamicPostLabQuiz,
   generateDynamicWorksheetQuestions,
   parseManualCsvRecords,
@@ -51,6 +52,25 @@ describe('dynamicWorksheetEngine', () => {
     for (const r of result.residuals) {
       assert.ok(r.errorBarHalf >= 0.1, 'Error bar half-width should respect instrument NST/2');
     }
+  });
+
+  it('detects regression outliers automatically and projects R² improvement when cleaned', () => {
+    const pointsWithOutlier = [
+      { label: 'Uji 1', x: 10, y1: 2.0, y2: 0 },
+      { label: 'Uji 2', x: 20, y1: 4.0, y2: 0 },
+      { label: 'Uji 3 (Anomali)', x: 30, y1: 14.5, y2: 0 },
+      { label: 'Uji 4', x: 40, y1: 8.0, y2: 0 },
+      { label: 'Uji 5', x: 50, y1: 10.0, y2: 0 },
+    ];
+
+    const diag = detectRegressionOutliersAndDiagnostics(pointsWithOutlier, 'linear', new Set(), 0.1);
+    assert.ok(diag.candidateOutlierIndices.includes(2), 'Should detect index 2 as outlier candidate');
+    assert.ok(
+      diag.projectedRSquared > diag.currentRSquared,
+      `Projected R² (${diag.projectedRSquared}) should exceed current R² (${diag.currentRSquared})`
+    );
+    assert.ok(diag.rSquaredGain > 0.1);
+    assert.ok(diag.clipboardReport.includes('Analisis Regresi:'));
   });
 
   it('identifies power-law and quadratic curves in 4-model Auto-Best-Fit comparison', () => {

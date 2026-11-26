@@ -664,6 +664,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
             presets={scenarioPresets}
             sweepSteps={sweepSteps}
             accentColor="teal"
+            currentParams={params as unknown as Record<string, unknown>}
             onApplyPreset={(preset) => handleParamChange(preset.patch)}
             onSweepStep={(step) => {
               const nextParams = { ...params, ...(step.patch as Partial<ChemistryParams>) };

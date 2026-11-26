@@ -1,19 +1,37 @@
-import React from 'react';
-import { BarChart3, CheckCircle2, AlertTriangle, Award, Target, FileCheck2 } from 'lucide-react';
-import type { ClassGradebookAnalytics } from '../../utils/classAnalyticsEngine';
+import React, { useState } from 'react';
+import {
+  BarChart3,
+  CheckCircle2,
+  AlertTriangle,
+  Award,
+  Target,
+  FileCheck2,
+  Download,
+  Printer,
+  Check,
+} from 'lucide-react';
+import {
+  buildFullClassAnalyticsReportCsv,
+  type ClassGradebookAnalytics,
+} from '../../utils/classAnalyticsEngine';
+import type { LabSubmission } from '../../types/submissionTypes';
+import { labSound } from '../../utils/soundEngine';
 import { Accordion } from '../ui/Accordion';
 
 export interface GradebookClassAnalyticsPanelProps {
   analytics: ClassGradebookAnalytics;
   kkmThreshold: number;
   onChangeKkm: (val: number) => void;
+  submissions?: LabSubmission[];
 }
 
 export const GradebookClassAnalyticsPanel: React.FC<GradebookClassAnalyticsPanelProps> = ({
   analytics,
   kkmThreshold,
   onChangeKkm,
+  submissions = [],
 }) => {
+  const [exportedFeedback, setExportedFeedback] = useState<string | null>(null);
   const maxBinCount = Math.max(1, ...analytics.histogram.map((b) => b.count));
 
   // Prioritize lowest-scoring rubric dimensions first so the 2-point preview highlights remedial targets
@@ -22,6 +40,31 @@ export const GradebookClassAnalyticsPanel: React.FC<GradebookClassAnalyticsPanel
   );
   const previewDimensions = prioritizedDimensions.slice(0, 2);
   const extraDimensions = prioritizedDimensions.slice(2);
+
+  const handleExportFullReportCsv = () => {
+    labSound.playSuccessChime();
+    const csvStr = buildFullClassAnalyticsReportCsv(submissions, kkmThreshold);
+    const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `rapor-analitik-lengkap-ruanglabmu-kkm${kkmThreshold}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setExportedFeedback('Rapor Lengkap CSV Diunduh');
+    setTimeout(() => setExportedFeedback(null), 2500);
+  };
+
+  const handlePrintClassAnalyticsSummary = () => {
+    labSound.playClick();
+    if (typeof window !== 'undefined' && typeof window.print === 'function') {
+      window.print();
+    }
+    setExportedFeedback('Siap Dicetak');
+    setTimeout(() => setExportedFeedback(null), 2200);
+  };
 
   const renderRubricDimension = (crit: ClassGradebookAnalytics['rubricAverages'][number]) => {
     const isWeakest = analytics.weakestCriterion?.id === crit.id;
@@ -62,42 +105,73 @@ export const GradebookClassAnalyticsPanel: React.FC<GradebookClassAnalyticsPanel
       data-testid="teacher-class-analytics-panel"
       className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-5 bg-[var(--comfort-surface)]"
     >
-      {/* Top Bar: KKM Control + Overview */}
+      {/* Top Bar: KKM Control + Full Report Export Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)]">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-sm font-bold text-[var(--comfort-text)]">
             <BarChart3 className="w-4 h-4 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
-            <span>Analitik Distribusi Nilai &amp; Ketuntasan KKM Kelas</span>
+            <span>Analitik Distribusi Nilai, Miskonsepsi &amp; Ketuntasan KKM Kelas</span>
           </div>
           <p className="text-xs text-[var(--comfort-text-muted)]">
             Berdasarkan {analytics.totalSubmissions} laporan terfilter ({analytics.gradedCount} sudah dinilai, {analytics.pendingCount} belum dinilai)
           </p>
         </div>
 
-        <div className="flex items-center gap-3 bg-[var(--comfort-surface)] px-3.5 py-2 rounded-xl border border-[var(--comfort-border)]">
-          <label
-            htmlFor="teacher-kkm-slider"
-            className="text-xs font-semibold text-[var(--comfort-text)] whitespace-nowrap"
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-3 bg-[var(--comfort-surface)] px-3.5 py-2 rounded-xl border border-[var(--comfort-border)]">
+            <label
+              htmlFor="teacher-kkm-slider"
+              className="text-xs font-semibold text-[var(--comfort-text)] whitespace-nowrap"
+            >
+              Batas KKM:
+            </label>
+            <input
+              id="teacher-kkm-slider"
+              data-testid="teacher-kkm-slider"
+              type="range"
+              min={50}
+              max={95}
+              step={5}
+              value={kkmThreshold}
+              onChange={(e) => onChangeKkm(Number(e.target.value))}
+              className="w-24 sm:w-32 accent-[var(--comfort-accent)] cursor-pointer"
+            />
+            <span
+              data-testid="teacher-kkm-value"
+              className="font-mono text-sm font-bold text-[var(--comfort-accent)] tabular-nums w-8 text-right"
+            >
+              {kkmThreshold}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            data-testid="export-full-class-report-csv-btn"
+            onClick={handleExportFullReportCsv}
+            className="px-3.5 py-2 min-h-[38px] rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs transition-colors"
           >
-            Batas KKM:
-          </label>
-          <input
-            id="teacher-kkm-slider"
-            data-testid="teacher-kkm-slider"
-            type="range"
-            min={50}
-            max={95}
-            step={5}
-            value={kkmThreshold}
-            onChange={(e) => onChangeKkm(Number(e.target.value))}
-            className="w-28 sm:w-36 accent-[var(--comfort-accent)] cursor-pointer"
-          />
-          <span
-            data-testid="teacher-kkm-value"
-            className="font-mono text-sm font-bold text-[var(--comfort-accent)] tabular-nums w-8 text-right"
+            {exportedFeedback === 'Rapor Lengkap CSV Diunduh' ? (
+              <>
+                <Check className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <span>{exportedFeedback}</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <span>Ekspor Rapor Lengkap (CSV)</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            data-testid="print-class-analytics-btn"
+            onClick={handlePrintClassAnalyticsSummary}
+            className="px-3 py-2 min-h-[38px] rounded-xl bg-[var(--comfort-surface)] hover:opacity-90 text-[var(--comfort-text)] border border-[var(--comfort-border)] text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors"
           >
-            {kkmThreshold}
-          </span>
+            <Printer className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] shrink-0" aria-hidden="true" />
+            <span>Cetak Ringkasan</span>
+          </button>
         </div>
       </div>
 
@@ -292,7 +366,7 @@ export const GradebookClassAnalyticsPanel: React.FC<GradebookClassAnalyticsPanel
           </div>
         </div>
 
-        {/* 5-Criterion Rubric Breakdown with Progressive Disclosure (2 priority dimensions visible initially) */}
+        {/* 5-Criterion Rubric Breakdown with Progressive Disclosure */}
         <div className="lg:col-span-5 space-y-4">
           <Accordion
             title="Capaian Dimensi Rubrik Kelas"
@@ -340,6 +414,81 @@ export const GradebookClassAnalyticsPanel: React.FC<GradebookClassAnalyticsPanel
           )}
         </div>
       </div>
+
+      {/* Pemetaan Miskonsepsi & Diagnostik Ilmiah Kelas */}
+      {analytics.misconceptionClusters && analytics.misconceptionClusters.length > 0 && (
+        <div
+          data-testid="class-misconception-map-card"
+          className="p-4 sm:p-5 rounded-2xl bg-[var(--comfort-elevated)] border border-[var(--comfort-border)] space-y-3.5"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--comfort-border)] pb-2.5">
+            <div>
+              <h3 className="text-sm font-bold text-[var(--comfort-text)]">
+                Pemetaan Miskonsepsi &amp; Pola Kesalahan Ilmiah Kelas
+              </h3>
+              <p className="text-2xs text-[var(--comfort-text-muted)]">
+                Deteksi otomatis berdasarkan analisis rubrik 5-dimensi, kepadatan sampel, dan deviasi numerik RK4
+              </p>
+            </div>
+            <span className="text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
+              {analytics.misconceptionClusters.filter((c) => c.affectedCount > 0).length} klaster aktif
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {analytics.misconceptionClusters.map((cluster) => {
+              const severityText =
+                cluster.severity === 'high'
+                  ? '▲ PRIORITAS TINGGI'
+                  : cluster.severity === 'medium'
+                  ? '● PERLU PERHATIAN'
+                  : '✓ TERKENDALI';
+              const severityColor =
+                cluster.severity === 'high'
+                  ? 'text-[var(--comfort-warning)]'
+                  : cluster.severity === 'medium'
+                  ? 'text-[var(--comfort-accent)]'
+                  : 'text-[var(--comfort-success)]';
+
+              return (
+                <div
+                  key={cluster.id}
+                  data-testid={`misconception-cluster-${cluster.criterionId}`}
+                  className="p-3.5 rounded-xl bg-[var(--comfort-surface)] border border-[var(--comfort-border)] space-y-2"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="text-xs font-bold text-[var(--comfort-text)] leading-snug">
+                      {cluster.title}
+                    </h4>
+                    <span className={`font-mono text-2xs font-bold whitespace-nowrap shrink-0 tabular-nums ${severityColor}`}>
+                      {severityText}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
+                    <span>
+                      Siswa Terdampak: <strong className="text-[var(--comfort-text)]">{cluster.affectedCount}</strong> / {analytics.totalSubmissions} ({cluster.affectedPct}%)
+                    </span>
+                  </div>
+
+                  <p className="text-2xs text-[var(--comfort-text-muted)] leading-relaxed">
+                    <strong className="text-[var(--comfort-text)]">Saran Intervensi:</strong> {cluster.remedialAction}
+                  </p>
+
+                  {cluster.studentNames.length > 0 && (
+                    <div className="pt-1 border-t border-[var(--comfort-border)] text-2xs text-[var(--comfort-text-muted)] truncate">
+                      <span>Siswa: </span>
+                      <span className="font-semibold text-[var(--comfort-text)]">
+                        {cluster.studentNames.join(' · ')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
