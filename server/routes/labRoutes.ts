@@ -86,19 +86,111 @@ export function createLabRouter({
     res.json({ rooms });
   });
 
-  router.get('/api/lab-state', requireAuthMiddleware, (_req, res) => {
+  router.get('/api/lab-state', requireAuthMiddleware, (req, res) => {
     state.pruneExpiredLocks();
+    const requestedRoomId =
+      typeof req.query?.roomId === 'string' && req.query.roomId.trim()
+        ? req.query.roomId.trim().toUpperCase()
+        : req.authSession?.roomId
+        ? req.authSession.roomId.trim().toUpperCase()
+        : undefined;
+    const requestedSchoolId =
+      req.authSession?.schoolId ||
+      (typeof req.query?.schoolId === 'string' && req.query.schoolId.trim()
+        ? req.query.schoolId.trim()
+        : DEFAULT_SCHOOL_ID);
+    const scoped = state.getScopedActivityState(requestedRoomId, requestedSchoolId);
+    const paramLocks = Array.from(state.parameterLocks.values()).filter((lock) => {
+      const lockMeta = lock as { roomId?: string; schoolId?: string };
+      if (lockMeta.schoolId && lockMeta.schoolId !== requestedSchoolId) {
+        return false;
+      }
+      if (!requestedRoomId) return true;
+      return !lockMeta.roomId || lockMeta.roomId.toUpperCase() === requestedRoomId;
+    });
     res.json({
-      records: state.experimentRecords,
-      tasks: state.groupTasks,
-      notes: state.collabNotes,
-      students: state.studentRoster,
-      notifications: state.notifications,
-      paramLocks: Array.from(state.parameterLocks.values()),
+      records: scoped.experimentRecords,
+      tasks: scoped.groupTasks,
+      notes: scoped.collabNotes,
+      students: scoped.studentRoster,
+      notifications: scoped.notifications,
+      paramLocks,
     });
   });
 
-  router.post('/api/session/autosave', (req, res) => {
+  router.get('/api/session/autosave', requireAuthMiddleware, (req, res) => {
+    const rawKey =
+      typeof req.query?.storageKey === 'string' ? req.query.storageKey.trim() : '';
+    if (!rawKey) {
+      res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        code: 'INVALID_STORAGE_KEY',
+        message: 'Parameter query storageKey wajib diisi.',
+      });
+      return;
+    }
+
+    const existing = state.sessionSnapshots.get(rawKey);
+    if (!existing) {
+      res.status(404).json({
+        error: 'NOT_FOUND',
+        code: 'SESSION_SNAPSHOT_NOT_FOUND',
+        message: 'Sesi autosave tidak ditemukan.',
+      });
+      return;
+    }
+
+    const requestedSchoolId =
+      req.authSession?.schoolId ||
+      (typeof req.query?.schoolId === 'string' && req.query.schoolId.trim()
+        ? req.query.schoolId.trim()
+        : DEFAULT_SCHOOL_ID);
+    const existingSchoolId = existing.schoolId || DEFAULT_SCHOOL_ID;
+    if (existingSchoolId !== requestedSchoolId) {
+      res.status(403).json({
+        error: 'Akses ditolak: Kunci sesi dimiliki oleh sekolah lain.',
+        code: 'SCHOOL_TENANT_MISMATCH',
+      });
+      return;
+    }
+
+    const isTeacherOrAdmin =
+      req.authSession?.role === 'teacher' || req.authSession?.role === 'admin';
+    if (!isTeacherOrAdmin && existing.ownerTokenHash) {
+      const headerToken = req.headers['x-session-token'];
+      const rawToken =
+        typeof headerToken === 'string' && headerToken.trim() ? headerToken.trim() : '';
+      const claimedStudentId =
+        req.authSession?.sub ||
+        (typeof req.query?.studentId === 'string' && req.query.studentId.trim()
+          ? req.query.studentId.trim()
+          : '');
+      const effectiveOwnerSecret = rawToken
+        ? `token:${rawToken}`
+        : claimedStudentId
+        ? `student:${claimedStudentId}:ip:${rateLimitKeyGenerator(req)}`
+        : `ip:${rateLimitKeyGenerator(req)}`;
+
+      if (!verifyRoomPinTimingSafe(effectiveOwnerSecret, existing.ownerTokenHash)) {
+        res.status(403).json({
+          error: 'Akses ditolak: Token kepemilikan sesi (sessionToken) tidak valid.',
+          code: 'SESSION_OWNERSHIP_MISMATCH',
+        });
+        return;
+      }
+    }
+
+    res.json({
+      status: 'ok',
+      storageKey: rawKey,
+      version: existing.version,
+      session: existing.session,
+      updatedAt: existing.updatedAt,
+      schoolId: existingSchoolId,
+    });
+  });
+
+  router.post('/api/session/autosave', async (req, res) => {
     const headerIdemKey = req.headers['x-idempotency-key'];
     const rawBodyObj =
       req.body && typeof req.body === 'object' && !Array.isArray(req.body)
@@ -126,7 +218,7 @@ export function createLabRouter({
     } = check.data;
 
     if (clientMutationId) {
-      const existingIdem = state.repository.getIdempotencyKey(
+      const existingIdem = await state.asyncRepository.getIdempotencyKey(
         clientMutationId,
         schoolId,
         'POST /api/session/autosave'
@@ -153,6 +245,7 @@ export function createLabRouter({
         : null;
     const claimedStudentId =
       bodyStudentId ||
+      req.authSession?.sub ||
       (sessionObj && typeof sessionObj.studentId === 'string' && sessionObj.studentId.trim()
         ? sessionObj.studentId.trim()
         : '');
@@ -248,12 +341,16 @@ export function createLabRouter({
       savedAt: now,
     };
     if (clientMutationId) {
-      state.repository.saveIdempotencyKey({
+      const idemRecord = {
         key: clientMutationId,
         schoolId,
         endpoint: 'POST /api/session/autosave',
         responseJson: JSON.stringify(responseBody),
-      });
+      };
+      state.repository.saveIdempotencyKey(idemRecord);
+      if (state.asyncRepository.driver === 'postgres') {
+        await state.asyncRepository.saveIdempotencyKey(idemRecord);
+      }
     }
 
     res.json(responseBody);

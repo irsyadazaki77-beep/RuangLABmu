@@ -25,49 +25,12 @@ interface AuthStoreState {
   isTeacherAuthenticated: () => boolean;
 }
 
-const AUTH_SESSION_STORAGE_KEY = 'ruanglab_auth_session_v1';
-
-function loadInitialAuth(): { token: string | null; session: ClientAuthSession | null } {
-  if (typeof window === 'undefined') return { token: null, session: null };
-  try {
-    const raw = window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY);
-    if (!raw) return { token: null, session: null };
-    const parsed = JSON.parse(raw) as { token?: string; session?: ClientAuthSession };
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (
-      typeof parsed?.token === 'string' &&
-      parsed.token &&
-      parsed.session &&
-      typeof parsed.session.exp === 'number' &&
-      parsed.session.exp > nowSec
-    ) {
-      return { token: parsed.token, session: parsed.session };
-    }
-    window.sessionStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
-  } catch {
-    // Ignore sessionStorage parse errors
-  }
-  return { token: null, session: null };
-}
-
-const initialAuth = loadInitialAuth();
-
 export const useAuthStore = create<AuthStoreState>((set, get) => ({
-  token: initialAuth.token,
-  session: initialAuth.session,
+  token: null,
+  session: null,
   authPromptOpen: false,
   authPromptReason: null,
   setAuth: (token, session) => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(
-          AUTH_SESSION_STORAGE_KEY,
-          JSON.stringify({ token, session })
-        );
-      }
-    } catch {
-      // Ignore storage quota errors
-    }
     set({
       token,
       session,
@@ -76,13 +39,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
     });
   },
   clearAuth: () => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
-      }
-    } catch {
-      // Ignore storage errors
-    }
     set({
       token: null,
       session: null,

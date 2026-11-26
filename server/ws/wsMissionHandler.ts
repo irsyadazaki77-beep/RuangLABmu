@@ -9,7 +9,8 @@ export function applyCustomMissionToRoom(
   activeLabRooms: Map<string, LabRoom>,
   roomIdRaw: string,
   mission: CustomAIMissionPayload | null,
-  teacherName?: string
+  teacherName?: string,
+  schoolId?: string
 ): LabRoom {
   const targetRoomId = (roomIdRaw || 'LAB-ALPHA').toUpperCase().trim();
   const now = Date.now();
@@ -20,6 +21,7 @@ export function applyCustomMissionToRoom(
       roomId: targetRoomId,
       pin: newPin,
       pinHash: hashRoomPin(newPin),
+      schoolId: schoolId?.trim() || 'default-school',
       domain: mission?.domain || 'physics',
       moduleId: mission?.moduleId || 'newton-incline',
       teacherName: teacherName || mission?.createdByTeacher || 'Dr. Hendra Kusuma',
@@ -33,6 +35,9 @@ export function applyCustomMissionToRoom(
   } else {
     room.customMission = mission;
     room.lastActivityAt = now;
+    if (schoolId && !room.schoolId) {
+      room.schoolId = schoolId.trim();
+    }
     if (mission) {
       room.domain = mission.domain;
       room.moduleId = mission.moduleId;
@@ -52,29 +57,29 @@ export function handleRoomSetCustomMission(
     .toUpperCase()
     .trim();
 
-  const existingRoom = state.activeLabRooms.get(targetRoomId);
-  if (existingRoom) {
-    const auth = authorizeTeacherAction(
-      ws,
-      payload,
-      state.activeLabRooms,
-      targetRoomId,
-      true
-    );
-    if (!auth.authorized) return;
-  }
+  const auth = authorizeTeacherAction(
+    ws,
+    payload,
+    state.activeLabRooms,
+    targetRoomId,
+    true
+  );
+  if (!auth.authorized) return;
 
   const teacherName =
     typeof payload.teacherName === 'string' && payload.teacherName.trim()
       ? payload.teacherName.trim()
       : ws.userName;
   const customMission = payload.customMission ?? null;
+  const effectiveSchoolId =
+    auth.room?.schoolId || ws.sessionClaims?.schoolId || ws.schoolId || 'default-school';
 
   const updatedRoom = applyCustomMissionToRoom(
     state.activeLabRooms,
     targetRoomId,
     customMission,
-    teacherName
+    teacherName,
+    effectiveSchoolId
   );
   state.pruneIdleRooms();
   const sanitizedRoom = sanitizeRoomForBroadcast(updatedRoom);

@@ -244,6 +244,9 @@ export function handleTeacherFeedback(
   const auth = authorizeTeacherAction(ws, payload, state.activeLabRooms);
   if (!auth.authorized) return;
 
+  const effectiveRoomId = auth.targetRoomId || ws.roomId;
+  const scoped = state.getScopedActivityState(effectiveRoomId, ws.schoolId);
+
   const targetStudentId =
     typeof payload.targetStudentId === 'string' ? payload.targetStudentId : undefined;
   const message = payload.message;
@@ -252,7 +255,9 @@ export function handleTeacherFeedback(
       ? payload.author
       : 'Dr. Hendra Kusuma';
 
-  const targetStu = state.studentRoster.find((s) => s.id === targetStudentId);
+  const targetStu =
+    scoped.studentRoster.find((s) => s.id === targetStudentId) ||
+    state.studentRoster.find((s) => s.id === targetStudentId);
   const notif: ServerNotification = {
     id: `notif-tf-${Date.now()}`,
     timestamp: new Date().toLocaleTimeString('id-ID', {
@@ -267,7 +272,7 @@ export function handleTeacherFeedback(
       : 'Pengumuman Kelas dari Pengajar',
     message: `${author}: "${message}"`,
   };
-  state.notifications.unshift(notif);
+  scoped.notifications.unshift(notif);
   const note: CollabNote = {
     id: `note-tf-${Date.now()}`,
     groupId: targetStu ? targetStu.groupId : 'Semua Kelompok',
@@ -279,7 +284,7 @@ export function handleTeacherFeedback(
       minute: '2-digit',
     }),
   };
-  state.collabNotes.push(note);
+  scoped.collabNotes.push(note);
   if (targetStu && targetStu.status === 'Butuh Bantuan') {
     targetStu.status = 'Nominal';
   }
@@ -289,9 +294,14 @@ export function handleTeacherFeedback(
     ws,
     {
       type: 'teacher:broadcasted',
-      payload: { notification: notif, note, students: state.studentRoster },
+      payload: {
+        notification: notif,
+        note,
+        students:
+          scoped.studentRoster.length > 0 ? scoped.studentRoster : state.studentRoster,
+      },
     },
-    auth.targetRoomId || undefined
+    effectiveRoomId || undefined
   );
 }
 
@@ -303,6 +313,9 @@ export function handleMysteryBroadcast(
   const { state } = services;
   const auth = authorizeTeacherAction(ws, payload, state.activeLabRooms);
   if (!auth.authorized) return;
+
+  const effectiveRoomId = auth.targetRoomId || ws.roomId;
+  const scoped = state.getScopedActivityState(effectiveRoomId, ws.schoolId);
 
   const challenge = payload.challenge;
   const author =
@@ -326,7 +339,7 @@ export function handleMysteryBroadcast(
     title: `UJIAN PRAKTIKUM MISTERI: ${title}`,
     message: `${author} mengirim sampel misteri [${codename}] ke meja kerja Anda.`,
   };
-  state.notifications.unshift(notif);
+  scoped.notifications.unshift(notif);
   state.persistServerState();
   emitScopedActivity(
     services,
@@ -335,7 +348,7 @@ export function handleMysteryBroadcast(
       type: 'mystery:broadcasted',
       payload: { challenge, notification: notif },
     },
-    auth.targetRoomId || undefined
+    effectiveRoomId || undefined
   );
 }
 
@@ -344,14 +357,18 @@ export function handleMysterySubmit(
   services: WsHandlerServices,
   ws?: ExtWebSocket
 ): void {
+  if (!isWsIdentifiedOrInRoom(ws)) return;
   const { state } = services;
+  const scoped = state.getScopedActivityState(ws?.roomId, ws?.schoolId);
   const studentName = String(payload.studentName || 'Siswa');
   const challengeTitle = String(payload.challengeTitle || 'Ujian Misteri');
   const result = payload.result;
   const score = Number(result.score || 0);
   const passed = Boolean(result.passed);
 
-  const stu = state.studentRoster.find((s) => s.name === studentName);
+  const stu =
+    scoped.studentRoster.find((s) => s.name === studentName) ||
+    state.studentRoster.find((s) => s.name === studentName);
   if (stu) {
     stu.completionPct = Math.min(100, Math.max(stu.completionPct, score));
     stu.currentActivity = `Ujian Sampel Misteri: ${score}/100 (${passed ? 'LULUS' : 'REMEDIAL'})`;
@@ -373,14 +390,15 @@ export function handleMysterySubmit(
     title: `Hasil Ujian Misteri ${studentName}: ${score}/100`,
     message: `${studentName} menebak ${guessVal}${guessUnit} pada "${challengeTitle}" (Galat: ${errPct}%).`,
   };
-  state.notifications.unshift(notif);
+  scoped.notifications.unshift(notif);
   state.persistServerState();
   emitScopedActivity(services, ws, {
     type: 'mystery:submitted',
     payload: {
       studentName,
       result,
-      students: state.studentRoster,
+      students:
+        scoped.studentRoster.length > 0 ? scoped.studentRoster : state.studentRoster,
       notification: notif,
     },
   });

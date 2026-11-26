@@ -39,6 +39,13 @@ export function recordAiRequestMetrics(
   if (!ok) aiErrorsTotal += 1;
 }
 
+export function resetAiRuntimeMetricsForTest(): void {
+  aiRequestsTotal = 0;
+  aiErrorsTotal = 0;
+  aiStreamsTotal = 0;
+  aiTotalLatencyMs = 0;
+}
+
 export function isGeminiConfigured(): boolean {
   const key = process.env.GEMINI_API_KEY?.trim();
   return Boolean(key && key !== 'MY_GEMINI_API_KEY');
@@ -80,11 +87,15 @@ export async function runWithAiRetryAndTimeout<T>(
     timeoutMs?: number;
     maxRetries?: number;
     baseDelayMs?: number;
+    isStream?: boolean;
+    skipMetrics?: boolean;
   }
 ): Promise<T> {
   const timeoutMs = options?.timeoutMs ?? 20_000;
   const maxRetries = options?.maxRetries ?? 2;
   const baseDelayMs = options?.baseDelayMs ?? 350;
+  const isStream = Boolean(options?.isStream);
+  const skipMetrics = Boolean(options?.skipMetrics);
   const startedAt = Date.now();
 
   let lastError: unknown;
@@ -99,7 +110,9 @@ export async function runWithAiRetryAndTimeout<T>(
           timer.unref?.();
         }),
       ]);
-      recordAiRequestMetrics(Date.now() - startedAt, true);
+      if (!skipMetrics) {
+        recordAiRequestMetrics(Date.now() - startedAt, true, isStream);
+      }
       return result;
     } catch (err) {
       lastError = err;
@@ -111,13 +124,17 @@ export async function runWithAiRetryAndTimeout<T>(
         error: err instanceof Error ? err.message : String(err),
       });
       if (!shouldRetry) {
-        recordAiRequestMetrics(Date.now() - startedAt, false);
+        if (!skipMetrics) {
+          recordAiRequestMetrics(Date.now() - startedAt, false, isStream);
+        }
         throw err;
       }
       const delay = baseDelayMs * Math.pow(2, attempt);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
-  recordAiRequestMetrics(Date.now() - startedAt, false);
+  if (!skipMetrics) {
+    recordAiRequestMetrics(Date.now() - startedAt, false, isStream);
+  }
   throw lastError;
 }

@@ -101,22 +101,26 @@ export function handleClientIdentify(
 
   if (tokenVerifiedTeacher) {
     ws.role = 'Pengajar';
-    return;
+  } else {
+    const authCheck = verifyTeacherAuthorization({
+      socketId: ws.socketId,
+      claimedRole: payload.role,
+      providedPin: payload.teacherPin || payload.pin,
+      providedToken: payload.teacherToken,
+      roomTeacherSocketId: activeRoom?.teacherSocketId,
+      isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
+    });
+    ws.role = authCheck.authorized ? 'Pengajar' : 'Siswa';
   }
-
-  const authCheck = verifyTeacherAuthorization({
-    socketId: ws.socketId,
-    claimedRole: payload.role,
-    providedPin: payload.teacherPin || payload.pin,
-    providedToken: payload.teacherToken,
-    roomTeacherSocketId: activeRoom?.teacherSocketId,
-    isSocketAlreadyVerifiedTeacher: ws.role === 'Pengajar',
-  });
-  ws.role = authCheck.authorized ? 'Pengajar' : 'Siswa';
 
   if (ws.sessionClaims || ws.roomId) {
     state.pruneExpiredLocks();
     const scoped = state.getScopedActivityState(ws.roomId, ws.schoolId);
+    const paramLocks = Array.from(state.parameterLocks.values()).filter((lock) => {
+      if (!ws.roomId) return true;
+      const lockRoomId = (lock as { roomId?: string }).roomId;
+      return !lockRoomId || lockRoomId.toUpperCase() === ws.roomId;
+    });
     ws.send(
       JSON.stringify({
         type: 'init:state',
@@ -126,7 +130,7 @@ export function handleClientIdentify(
           notes: scoped.collabNotes,
           students: scoped.studentRoster,
           notifications: scoped.notifications,
-          paramLocks: Array.from(state.parameterLocks.values()),
+          paramLocks,
         },
       })
     );

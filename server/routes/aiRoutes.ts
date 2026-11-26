@@ -93,7 +93,6 @@ async function buildCustomMissionScenario(
   const ai = getSharedGeminiClient();
 
   if (ai && caseStudyPrompt) {
-    const startMs = Date.now();
     try {
       const missionPrompt = `Anda adalah Arsitek Kurikulum Sains & Praktikum Virtual 3D RuangLABmu.
 Guru memilih modul dasar: "${blueprint.moduleTitle}" (ID: ${blueprint.moduleId}, Domain: ${blueprint.domain}).
@@ -156,7 +155,6 @@ Buat skenario misi praktikum kontekstual berbahasa Indonesia dalam format JSON t
         })
       );
 
-      recordAiRequestMetrics(Date.now() - startMs, true);
       const parsed = JSON.parse(response.text || '{}');
       return normalizeCustomMissionPayload(
         parsed,
@@ -164,7 +162,6 @@ Buat skenario misi praktikum kontekstual berbahasa Indonesia dalam format JSON t
         'gemini-api'
       );
     } catch (err) {
-      recordAiRequestMetrics(Date.now() - startMs, false);
       logger.warn('Gemini custom mission generation failed; falling back to deterministic engine', {
         moduleId,
         error: err instanceof Error ? err.message : String(err),
@@ -224,6 +221,19 @@ export function createAiRouter({
             });
             return;
           }
+          const existingRoom = state.activeLabRooms.get(check.data.roomId);
+          if (
+            existingRoom &&
+            existingRoom.roomId !== 'LAB-ALPHA' &&
+            (existingRoom.schoolId || 'default-school') !== session.schoolId
+          ) {
+            res.status(403).json({
+              error: 'FORBIDDEN',
+              code: 'SCHOOL_TENANT_MISMATCH',
+              message: 'Akses ditolak: Ruangan ini milik sekolah lain.',
+            });
+            return;
+          }
         }
 
         const mission = await buildCustomMissionScenario(check.data);
@@ -233,7 +243,8 @@ export function createAiRouter({
             state.activeLabRooms,
             mission.roomId,
             mission,
-            req.authSession?.displayName || mission.createdByTeacher
+            req.authSession?.displayName || mission.createdByTeacher,
+            req.authSession?.schoolId
           );
           sanitizedRoom = sanitizeRoomForBroadcast(updatedRoom);
           state.recordAuditLog({
@@ -284,11 +295,26 @@ export function createAiRouter({
 
       const session = req.authSession!;
       const { roomId, mission, teacherName } = check.data;
+      const existingRoom = state.activeLabRooms.get(roomId);
+      if (
+        existingRoom &&
+        existingRoom.roomId !== 'LAB-ALPHA' &&
+        (existingRoom.schoolId || 'default-school') !== session.schoolId
+      ) {
+        res.status(403).json({
+          error: 'FORBIDDEN',
+          code: 'SCHOOL_TENANT_MISMATCH',
+          message: 'Akses ditolak: Ruangan ini milik sekolah lain.',
+        });
+        return;
+      }
+
       const updatedRoom = applyCustomMissionToRoom(
         state.activeLabRooms,
         roomId,
         mission,
-        teacherName || session.displayName
+        teacherName || session.displayName,
+        session.schoolId
       );
       const sanitizedRoom = sanitizeRoomForBroadcast(updatedRoom);
 
@@ -346,6 +372,19 @@ export function createAiRouter({
             });
             return;
           }
+          const existingRoom = state.activeLabRooms.get(check.data.missionInput.roomId);
+          if (
+            existingRoom &&
+            existingRoom.roomId !== 'LAB-ALPHA' &&
+            (existingRoom.schoolId || 'default-school') !== session.schoolId
+          ) {
+            res.status(403).json({
+              error: 'FORBIDDEN',
+              code: 'SCHOOL_TENANT_MISMATCH',
+              message: 'Akses ditolak: Ruangan ini milik sekolah lain.',
+            });
+            return;
+          }
         }
 
         const mission = await buildCustomMissionScenario(check.data.missionInput);
@@ -355,7 +394,8 @@ export function createAiRouter({
             state.activeLabRooms,
             mission.roomId,
             mission,
-            req.authSession?.displayName || mission.createdByTeacher
+            req.authSession?.displayName || mission.createdByTeacher,
+            req.authSession?.schoolId
           );
           sanitizedRoom = sanitizeRoomForBroadcast(updatedRoom);
           emitRoomMission(updatedRoom.roomId, {
@@ -388,7 +428,6 @@ export function createAiRouter({
       const ai = getSharedGeminiClient();
 
       if (ai) {
-        const startMs = Date.now();
         try {
           const prompt = `Data Telemetri Eksperimen Siswa (JSON):\n${JSON.stringify(telemetry, null, 2)}\n\nBerikan respons Dr. LabMu dalam 3 bagian: observasiSingkat, insightKonseptual, pertanyaanPemantik, serta opsional uiActions bila perlu menggerakkan kamera 3D / X-Ray / sorot slider.`;
 
@@ -433,7 +472,6 @@ export function createAiRouter({
             })
           );
 
-          recordAiRequestMetrics(Date.now() - startMs, true);
           const parsed = JSON.parse(response.text || '{}');
           if (
             parsed.observasiSingkat &&
@@ -444,7 +482,6 @@ export function createAiRouter({
             return;
           }
         } catch (err) {
-          recordAiRequestMetrics(Date.now() - startMs, false);
           logger.warn('Gemini /api/dr-labmu/ask failed; using local Socratic engine', {
             requestId: res.locals?.requestId,
             error: err instanceof Error ? err.message : String(err),
@@ -529,7 +566,7 @@ ${activeQuery.slice(0, 600)}
               contents: promptContext,
               config: { systemInstruction: DR_LABMU_SYSTEM_INSTRUCTION },
             }),
-          { maxRetries: 1, timeoutMs: 25_000 }
+          { maxRetries: 1, timeoutMs: 25_000, isStream: true, skipMetrics: true }
         );
 
         let streamedChars = 0;
@@ -544,8 +581,8 @@ ${activeQuery.slice(0, 600)}
           }
         }
 
+        recordAiRequestMetrics(Date.now() - startMs, true, true);
         if (!clientDisconnected && !res.writableEnded) {
-          recordAiRequestMetrics(Date.now() - startMs, true);
           if (fallbackActions.length > 0) {
             writeSseEvent(res, 'actions', { uiActions: fallbackActions });
           }
@@ -559,7 +596,7 @@ ${activeQuery.slice(0, 600)}
         }
         return;
       } catch (err) {
-        recordAiRequestMetrics(Date.now() - startMs, false);
+        recordAiRequestMetrics(Date.now() - startMs, false, true);
         logger.error('Gemini streaming failed on /api/ai/dr-labmu/stream', {
           requestId: res.locals?.requestId,
           error: err instanceof Error ? err.message : String(err),
@@ -634,7 +671,6 @@ ${activeQuery.slice(0, 600)}
 
       const ai = getSharedGeminiClient();
       if (ai && activeQuery) {
-        const startMs = Date.now();
         try {
           const promptContext = `[KONTEKS TELEMETRI SAAT INI]:
 ${telemetry ? JSON.stringify(telemetry, null, 2) : `Domain: Sains\nTopik: Praktikum Virtual`}
@@ -651,7 +687,6 @@ ${activeQuery.slice(0, 600)}
             })
           );
 
-          recordAiRequestMetrics(Date.now() - startMs, true);
           const replyText = (response.text || '').trim();
           if (replyText) {
             res.json({
@@ -662,7 +697,6 @@ ${activeQuery.slice(0, 600)}
             return;
           }
         } catch (err) {
-          recordAiRequestMetrics(Date.now() - startMs, false);
           logger.warn('Gemini /api/ai/dr-labmu failed; using local Socratic engine', {
             requestId: res.locals?.requestId,
             error: err instanceof Error ? err.message : String(err),
@@ -724,7 +758,6 @@ ${activeQuery.slice(0, 600)}
 
       const ai = getSharedGeminiClient();
       if (ai) {
-        const startMs = Date.now();
         try {
           const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
           const imagePart = {
@@ -749,14 +782,12 @@ Berikan bimbingan Sokratik cerdas:
             })
           );
 
-          recordAiRequestMetrics(Date.now() - startMs, true);
           const replyText = (response.text || '').trim();
           if (replyText) {
             res.json({ reply: replyText, source: 'gemini-vision' });
             return;
           }
         } catch (err) {
-          recordAiRequestMetrics(Date.now() - startMs, false);
           logger.warn('Gemini vision-diagnose failed; using local diagnostic fallback', {
             requestId: res.locals?.requestId,
             error: err instanceof Error ? err.message : String(err),

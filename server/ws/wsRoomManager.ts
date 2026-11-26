@@ -473,6 +473,48 @@ export function handleRoomRejoin(
     return;
   }
 
+  if (restored.participant.role === 'teacher') {
+    const rejoinRaw = payload as {
+      sessionToken?: unknown;
+      teacherPin?: unknown;
+      teacherToken?: unknown;
+    };
+    const tokenClaims =
+      typeof rejoinRaw.sessionToken === 'string' && rejoinRaw.sessionToken.trim()
+        ? verifySessionToken(rejoinRaw.sessionToken.trim())
+        : ws.sessionClaims;
+    const isVerifiedTokenTeacher = Boolean(
+      tokenClaims &&
+        (tokenClaims.role === 'teacher' || tokenClaims.role === 'admin') &&
+        tokenClaims.schoolId === (restored.room?.schoolId || restored.dbRoom.school_id || DEFAULT_SCHOOL_ID)
+    );
+    const teacherCheck = verifyTeacherAuthorization({
+      socketId: ws.socketId,
+      claimedRole: 'Pengajar',
+      providedPin:
+        typeof rejoinRaw.teacherPin === 'string' ? rejoinRaw.teacherPin : undefined,
+      providedToken:
+        typeof rejoinRaw.teacherToken === 'string' ? rejoinRaw.teacherToken : undefined,
+      roomTeacherSocketId: restored.room?.teacherSocketId,
+      isSocketAlreadyVerifiedTeacher:
+        ws.role === 'Pengajar' || isVerifiedTokenTeacher,
+    });
+    if (!teacherCheck.authorized) {
+      state.database.setParticipantConnected(restored.dbRoom.pin, participantId, false);
+      ws.send(
+        JSON.stringify({
+          type: 'ROOM_ERROR',
+          payload: {
+            message:
+              'Pemulihan sesi Pengajar ditolak: Token sesi atau PIN Guru diperlukan untuk memulihkan akun Pengajar.',
+            code: 'UNAUTHORIZED_TEACHER_ROLE',
+          },
+        })
+      );
+      return;
+    }
+  }
+
   if (restored.room) {
     handleRoomJoin(
       ws,
@@ -526,6 +568,7 @@ export function handleSimulationSnapshotPush(
   payload: WsPayloadOf<'SIMULATION_SNAPSHOT_PUSH'>,
   services: WsHandlerServices
 ): void {
+  if (!ws.roomId && !ws.sessionClaims && !ws.userId) return;
   const { state, broadcastRoom } = services;
   const roomPin =
     typeof payload.roomPin === 'string' && payload.roomPin.trim()
@@ -534,15 +577,24 @@ export function handleSimulationSnapshotPush(
   const params = payload.params;
   if (!roomPin || !params || typeof params !== 'object') return;
 
+  const targetRoomId =
+    (typeof payload.roomId === 'string' && payload.roomId.trim().toUpperCase()) ||
+    ws.roomId;
+  if (targetRoomId && state.activeLabRooms.has(targetRoomId)) {
+    const activeRoom = state.activeLabRooms.get(targetRoomId)!;
+    const roomSchool = activeRoom.schoolId || DEFAULT_SCHOOL_ID;
+    const socketSchool = ws.schoolId || DEFAULT_SCHOOL_ID;
+    if (roomSchool !== socketSchool) {
+      return;
+    }
+  }
+
   const now = Date.now();
   const saved = state.saveRoomSimulationSnapshot(
     roomPin,
     params as Record<string, unknown>,
     now
   );
-  const targetRoomId =
-    (typeof payload.roomId === 'string' && payload.roomId.trim().toUpperCase()) ||
-    ws.roomId;
   if (targetRoomId) {
     broadcastRoom(
       targetRoomId,
@@ -645,7 +697,8 @@ export function cleanupSocketRoomAndLocks(
             },
           },
           undefined,
-          ws.roomId
+          ws.roomId,
+          ws.schoolId
         );
       }
     }
@@ -657,7 +710,8 @@ export function cleanupSocketRoomAndLocks(
           payload: { userId: ws.userId, groupId: ws.groupId },
         },
         undefined,
-        ws.roomId
+        ws.roomId,
+        ws.schoolId
       );
     }
   }

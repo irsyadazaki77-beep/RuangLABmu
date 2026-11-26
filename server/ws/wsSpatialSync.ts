@@ -38,7 +38,8 @@ export function handleTeacherLaserRay(
       ws.groupId,
       { type: 'TEACHER_LASER_RAY', payload: validated },
       ws,
-      ws.roomId
+      ws.roomId,
+      ws.schoolId
     );
   }
 }
@@ -74,7 +75,8 @@ export function handleTeacherCameraSync(
       ws.groupId,
       { type: 'TEACHER_CAMERA_SYNC', payload: validated },
       ws,
-      ws.roomId
+      ws.roomId,
+      ws.schoolId
     );
   }
 }
@@ -86,15 +88,19 @@ export function handleCursor3DMove(
 ): void {
   ws.userId = payload.userId;
   ws.userName = payload.userName;
-  ws.role = payload.role;
+  // Never allow an unverified socket to escalate ws.role to 'Pengajar' via CURSOR_3D_MOVE
+  const effectiveRole: 'Siswa' | 'Pengajar' =
+    ws.role === 'Pengajar' ? 'Pengajar' : 'Siswa';
+  ws.role = effectiveRole;
   ws.groupId = payload.groupId;
   ws.domain = payload.domain;
 
   services.broadcastGroup(
     payload.groupId,
-    { type: 'CURSOR_3D_MOVE', payload },
+    { type: 'CURSOR_3D_MOVE', payload: { ...payload, role: effectiveRole } },
     ws,
-    ws.roomId
+    ws.roomId,
+    ws.schoolId
   );
 }
 
@@ -107,7 +113,8 @@ export function handleCursor3DLeave(
     payload.groupId,
     { type: 'CURSOR_3D_LEAVE', payload },
     ws,
-    ws.roomId
+    ws.roomId,
+    ws.schoolId
   );
 }
 
@@ -130,8 +137,10 @@ export function handleParamLockAcquire(
     now > existing.expiresAt ||
     existing.lockedByUserId === reqLock.lockedByUserId
   ) {
-    const grantedLock: ParameterLockPayload = {
+    const grantedLock: ParameterLockPayload & { roomId?: string; schoolId?: string } = {
       ...reqLock,
+      ...(ws.roomId ? { roomId: ws.roomId } : {}),
+      ...(ws.schoolId ? { schoolId: ws.schoolId } : {}),
       expiresAt:
         now +
         (reqLock.expiresAt && reqLock.expiresAt > now
@@ -144,7 +153,8 @@ export function handleParamLockAcquire(
       reqLock.groupId,
       { type: 'PARAM_LOCK_ACQUIRE', payload: grantedLock },
       undefined,
-      ws.roomId
+      ws.roomId,
+      ws.schoolId
     );
   }
 }
@@ -165,7 +175,8 @@ export function handleParamLockRelease(
       groupId,
       { type: 'PARAM_LOCK_RELEASE', payload },
       undefined,
-      ws.roomId
+      ws.roomId,
+      ws.schoolId
     );
   }
 }
@@ -179,7 +190,8 @@ export function handleParamValueSync(
     payload.groupId,
     { type: 'PARAM_VALUE_SYNC', payload },
     ws,
-    ws.roomId
+    ws.roomId,
+    ws.schoolId
   );
 }
 
@@ -199,6 +211,7 @@ export function handleParamLockResetAll(
   if (!auth.authorized) return;
 
   const targetRoomId = auth.targetRoomId;
+  const teacherSchoolId = ws.schoolId || auth.room?.schoolId || 'default-school';
   const targetGroupId =
     typeof payload.groupId === 'string' && payload.groupId.trim()
       ? payload.groupId.trim()
@@ -206,8 +219,23 @@ export function handleParamLockResetAll(
 
   let clearedCount = 0;
   for (const [key, lock] of Array.from(state.parameterLocks.entries())) {
+    const lockMeta = lock as ParameterLockPayload & { roomId?: string; schoolId?: string };
+    const lockSchoolId = lockMeta.schoolId || 'default-school';
+    if (lockSchoolId !== teacherSchoolId) {
+      continue;
+    }
     const keyPrefix = key.split(':')[0]?.toUpperCase().trim();
-    const matchesRoom = keyPrefix === targetRoomId || targetRoomId === 'LAB-ALPHA';
+    const lockRoomId = lockMeta.roomId ? lockMeta.roomId.toUpperCase().trim() : undefined;
+    const isKnownOtherRoom =
+      (lockRoomId && lockRoomId !== targetRoomId) ||
+      (state.activeLabRooms.has(keyPrefix) && keyPrefix !== targetRoomId);
+    if (isKnownOtherRoom) {
+      continue;
+    }
+    const matchesRoom =
+      keyPrefix === targetRoomId ||
+      lockRoomId === targetRoomId ||
+      (targetRoomId === 'LAB-ALPHA' && !lockRoomId && !state.activeLabRooms.has(keyPrefix));
     const matchesGroup = Boolean(targetGroupId && lock.groupId === targetGroupId);
     if (matchesRoom || matchesGroup) {
       state.parameterLocks.delete(key);
@@ -234,9 +262,8 @@ export function handleParamLockResetAll(
     broadcastRoom(targetRoomId, syncMsg);
     broadcastRoom(targetRoomId, resetMsg);
   } else if (services.broadcastSchool) {
-    const schoolId = ws.schoolId || 'default-school';
-    services.broadcastSchool(schoolId, syncMsg);
-    services.broadcastSchool(schoolId, resetMsg);
+    services.broadcastSchool(teacherSchoolId, syncMsg);
+    services.broadcastSchool(teacherSchoolId, resetMsg);
   } else {
     broadcastAll(syncMsg);
     broadcastAll(resetMsg);

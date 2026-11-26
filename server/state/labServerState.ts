@@ -332,7 +332,9 @@ export function createLabServerState(options?: {
     onSet: (key, lock) =>
       repository.upsertParameterLock({
         key,
-        schoolId: DEFAULT_SCHOOL_ID,
+        schoolId:
+          (lock as ParameterLockPayload & { schoolId?: string }).schoolId ||
+          DEFAULT_SCHOOL_ID,
         roomId: (lock as ParameterLockPayload & { roomId?: string }).roomId || null,
         payloadJson: JSON.stringify(lock),
         expiresAt: Number.isFinite(lock.expiresAt) ? lock.expiresAt : Date.now() + 60_000,
@@ -691,22 +693,37 @@ export function createLabServerState(options?: {
     }
   };
 
+  const roomActivityMap = new Map<string, RoomActivityState>();
+
+  const enforceBoundsForCollection = (col: RoomActivityState) => {
+    if (col.experimentRecords.length > limits.MAX_EXPERIMENT_RECORDS) {
+      col.experimentRecords.length = limits.MAX_EXPERIMENT_RECORDS;
+    }
+    if (col.groupTasks.length > limits.MAX_GROUP_TASKS) {
+      col.groupTasks.splice(0, col.groupTasks.length - limits.MAX_GROUP_TASKS);
+    }
+    if (col.collabNotes.length > limits.MAX_COLLAB_NOTES) {
+      col.collabNotes.splice(0, col.collabNotes.length - limits.MAX_COLLAB_NOTES);
+    }
+    if (col.studentRoster.length > limits.MAX_STUDENT_ROSTER) {
+      col.studentRoster.splice(0, col.studentRoster.length - limits.MAX_STUDENT_ROSTER);
+    }
+    if (col.notifications.length > limits.MAX_NOTIFICATIONS) {
+      col.notifications.length = limits.MAX_NOTIFICATIONS;
+    }
+  };
+
   const enforceCollectionBounds = () => {
     pruneExpiredNotifications();
-    if (experimentRecords.length > limits.MAX_EXPERIMENT_RECORDS) {
-      experimentRecords.length = limits.MAX_EXPERIMENT_RECORDS;
-    }
-    if (groupTasks.length > limits.MAX_GROUP_TASKS) {
-      groupTasks.splice(0, groupTasks.length - limits.MAX_GROUP_TASKS);
-    }
-    if (collabNotes.length > limits.MAX_COLLAB_NOTES) {
-      collabNotes.splice(0, collabNotes.length - limits.MAX_COLLAB_NOTES);
-    }
-    if (studentRoster.length > limits.MAX_STUDENT_ROSTER) {
-      studentRoster.splice(0, studentRoster.length - limits.MAX_STUDENT_ROSTER);
-    }
-    if (notifications.length > limits.MAX_NOTIFICATIONS) {
-      notifications.length = limits.MAX_NOTIFICATIONS;
+    enforceBoundsForCollection({
+      experimentRecords,
+      groupTasks,
+      collabNotes,
+      studentRoster,
+      notifications,
+    });
+    for (const scoped of roomActivityMap.values()) {
+      enforceBoundsForCollection(scoped);
     }
     pruneExpiredLocks();
     pruneIdleRooms();
@@ -717,6 +734,7 @@ export function createLabServerState(options?: {
     enforceCollectionBounds();
     // Single source of truth: persist strictly to consolidated SQLite tables (no flat JSON dual-writes)
     repository.syncLabCollections({
+      schoolId: DEFAULT_SCHOOL_ID,
       records: experimentRecords as unknown as Array<Record<string, unknown>>,
       tasks: groupTasks as unknown as Array<Record<string, unknown>>,
       notes: collabNotes as unknown as Array<Record<string, unknown>>,
@@ -724,6 +742,51 @@ export function createLabServerState(options?: {
       notifications: notifications as unknown as Array<Record<string, unknown>>,
       notificationTtlMs: limits.NOTIFICATION_TTL_MS,
     });
+
+    // Persist non-default school tenant activity scopes to SQLite
+    const tenantAggregates = new Map<string, RoomActivityState>();
+    for (const [scopeKey, scopedState] of roomActivityMap.entries()) {
+      const [schoolId] = scopeKey.split('::');
+      if (!schoolId || schoolId === DEFAULT_SCHOOL_ID) continue;
+      let agg = tenantAggregates.get(schoolId);
+      if (!agg) {
+        agg = {
+          experimentRecords: [],
+          groupTasks: [],
+          collabNotes: [],
+          studentRoster: [],
+          notifications: [],
+        };
+        tenantAggregates.set(schoolId, agg);
+      }
+      for (const r of scopedState.experimentRecords) {
+        if (!agg.experimentRecords.some((x) => x.id === r.id)) agg.experimentRecords.push(r);
+      }
+      for (const t of scopedState.groupTasks) {
+        if (!agg.groupTasks.some((x) => x.id === t.id)) agg.groupTasks.push(t);
+      }
+      for (const n of scopedState.collabNotes) {
+        if (!agg.collabNotes.some((x) => x.id === n.id)) agg.collabNotes.push(n);
+      }
+      for (const s of scopedState.studentRoster) {
+        if (!agg.studentRoster.some((x) => x.id === s.id)) agg.studentRoster.push(s);
+      }
+      for (const notif of scopedState.notifications) {
+        if (!agg.notifications.some((x) => x.id === notif.id)) agg.notifications.push(notif);
+      }
+    }
+
+    for (const [schoolId, agg] of tenantAggregates.entries()) {
+      repository.syncLabCollections({
+        schoolId,
+        records: agg.experimentRecords as unknown as Array<Record<string, unknown>>,
+        tasks: agg.groupTasks as unknown as Array<Record<string, unknown>>,
+        notes: agg.collabNotes as unknown as Array<Record<string, unknown>>,
+        students: agg.studentRoster as unknown as Array<Record<string, unknown>>,
+        notifications: agg.notifications as unknown as Array<Record<string, unknown>>,
+        notificationTtlMs: limits.NOTIFICATION_TTL_MS,
+      });
+    }
   };
 
   const hydrateServerState = async () => {
@@ -828,6 +891,7 @@ export function createLabServerState(options?: {
 
     enforceCollectionBounds();
     repository.syncLabCollections({
+      schoolId: DEFAULT_SCHOOL_ID,
       records: experimentRecords as unknown as Array<Record<string, unknown>>,
       tasks: groupTasks as unknown as Array<Record<string, unknown>>,
       notes: collabNotes as unknown as Array<Record<string, unknown>>,
@@ -837,7 +901,6 @@ export function createLabServerState(options?: {
     });
   };
 
-  const roomActivityMap = new Map<string, RoomActivityState>();
   const getScopedActivityState = (
     roomId?: string,
     schoolId?: string
@@ -859,13 +922,24 @@ export function createLabServerState(options?: {
     const scopeKey = `${cleanSchool}::${cleanRoom || '__lobby__'}`;
     let existing = roomActivityMap.get(scopeKey);
     if (!existing) {
-      existing = {
-        experimentRecords: [],
-        groupTasks: [],
-        collabNotes: [],
-        studentRoster: [],
-        notifications: [],
-      };
+      if (!cleanRoom && cleanSchool !== DEFAULT_SCHOOL_ID) {
+        const persisted = repository.loadLabCollections(cleanSchool);
+        existing = {
+          experimentRecords: persisted.records as unknown as ServerExperimentRecord[],
+          groupTasks: persisted.tasks as unknown as GroupTask[],
+          collabNotes: persisted.notes as unknown as CollabNote[],
+          studentRoster: persisted.students as unknown as StudentProgress[],
+          notifications: persisted.notifications as unknown as ServerNotification[],
+        };
+      } else {
+        existing = {
+          experimentRecords: [],
+          groupTasks: [],
+          collabNotes: [],
+          studentRoster: [],
+          notifications: [],
+        };
+      }
       roomActivityMap.set(scopeKey, existing);
     }
     return existing;

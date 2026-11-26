@@ -14,6 +14,7 @@ import {
 import { createAdminRouter } from '../routes/adminRoutes';
 import { createAiRouter } from '../routes/aiRoutes';
 import { createAuthRouter } from '../routes/authRoutes';
+import { createLabRouter } from '../routes/labRoutes';
 import { createSubmissionRouter } from '../routes/submissionRoutes';
 import { createLabServerState, type LabServerState } from '../state/labServerState';
 import { createCollabSocketServer } from '../ws/collabSocketServer';
@@ -59,6 +60,7 @@ async function createTestHarness(opts?: {
 
   app.use(createAuthRouter({ state, authRateLimitMax: 200 }));
   app.use(createAdminRouter({ state }));
+  app.use(createLabRouter({ state, getPort: () => 3000 }));
   app.use(
     await createSubmissionRouter({
       rootDir: tmpDir,
@@ -682,6 +684,363 @@ describe('Backend Upgrade: Consolidated SQLite, Auth/RBAC, Pagination, Backup, W
       if (prevKey !== undefined) {
         process.env.GEMINI_API_KEY = prevKey;
       }
+      await harness.cleanup();
+    }
+  });
+
+  it('delivers init:state to JWT-authenticated teachers on client:identify and scopes teacher:feedback / mystery events by tenant and room', async () => {
+    const harness = await createTestHarness();
+    try {
+      const teacherTokenA = signSessionToken({
+        sub: 'teacher:school-a:1',
+        displayName: 'Guru Sekolah A',
+        role: 'teacher',
+        schoolId: 'school-a',
+      }).token;
+
+      const wsTeacher = new WebSocket(harness.wsUrl);
+      await new Promise<void>((resolve) => wsTeacher.once('open', () => resolve()));
+
+      const initStatePromise = new Promise<{
+        type: string;
+        payload: { notes: Array<{ text: string }>; notifications: Array<{ title: string }> };
+      }>((resolve) => {
+        wsTeacher.on('message', (raw) => {
+          const msg = JSON.parse(raw.toString());
+          if (msg.type === 'init:state') {
+            resolve(msg);
+          }
+        });
+      });
+
+      wsTeacher.send(
+        JSON.stringify({
+          type: 'client:identify',
+          payload: {
+            userId: 'teacher:school-a:1',
+            userName: 'Guru Sekolah A',
+            role: 'Pengajar',
+            sessionToken: teacherTokenA,
+          },
+        })
+      );
+
+      const initMsg = await initStatePromise;
+      assert.equal(initMsg.type, 'init:state');
+      assert.ok(Array.isArray(initMsg.payload.notes));
+
+      // Teacher sends feedback in school-a; must mutate school-a scoped state, NOT default-school
+      const defaultNotesBefore = harness.state.collabNotes.length;
+      const defaultNotifsBefore = harness.state.notifications.length;
+
+      const feedbackBroadcastPromise = new Promise<{ type: string }>((resolve) => {
+        wsTeacher.on('message', (raw) => {
+          const msg = JSON.parse(raw.toString());
+          if (msg.type === 'teacher:broadcasted') {
+            resolve(msg);
+          }
+        });
+      });
+
+      wsTeacher.send(
+        JSON.stringify({
+          type: 'teacher:feedback',
+          payload: {
+            author: 'Guru Sekolah A',
+            message: 'Periksa kembali kalibrasi neraca pegas kelompok kalian.',
+            sessionToken: teacherTokenA,
+          },
+        })
+      );
+
+      await feedbackBroadcastPromise;
+      wsTeacher.close();
+
+      // Default school collections must remain untouched
+      assert.equal(harness.state.collabNotes.length, defaultNotesBefore);
+      assert.equal(harness.state.notifications.length, defaultNotifsBefore);
+
+      // School-A scoped state has the teacher feedback note and notification
+      const scopedSchoolA = harness.state.getScopedActivityState(undefined, 'school-a');
+      assert.equal(scopedSchoolA.collabNotes.length, 1);
+      assert.match(scopedSchoolA.collabNotes[0].text, /kalibrasi neraca pegas/);
+      assert.equal(scopedSchoolA.notifications.length, 1);
+
+      // Verify SQLite persistence of non-default school collections
+      const persistedSchoolA = harness.state.repository.loadLabCollections('school-a');
+      assert.equal(persistedSchoolA.notes.length, 1);
+      assert.equal(persistedSchoolA.notifications.length, 1);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  it('records AI runtime metrics once per invocation without double-counting and tracks stream requests', async () => {
+    const {
+      getAiRuntimeMetrics,
+      resetAiRuntimeMetricsForTest,
+      runWithAiRetryAndTimeout,
+    } = await import('../services/geminiClient');
+
+    resetAiRuntimeMetricsForTest();
+
+    const res1 = await runWithAiRetryAndTimeout('unit_test_unary', async () => 'ok');
+    assert.equal(res1, 'ok');
+
+    const res2 = await runWithAiRetryAndTimeout(
+      'unit_test_stream',
+      async () => 'stream-ok',
+      { isStream: true }
+    );
+    assert.equal(res2, 'stream-ok');
+
+    await assert.rejects(
+      () =>
+        runWithAiRetryAndTimeout(
+          'unit_test_fail',
+          async () => {
+            throw new Error('non-transient failure');
+          },
+          { maxRetries: 0 }
+        ),
+      /non-transient failure/
+    );
+
+    const metrics = getAiRuntimeMetrics();
+    assert.equal(metrics.requestsTotal, 3);
+    assert.equal(metrics.streamsTotal, 1);
+    assert.equal(metrics.errorsTotal, 1);
+  });
+
+  it('prevents CURSOR_3D_MOVE role escalation to Pengajar and rejects unauthenticated ROOM_SET_CUSTOM_MISSION on new rooms', async () => {
+    const harness = await createTestHarness();
+    try {
+      const studentToken = signSessionToken({
+        sub: 'stu-escalate-1',
+        displayName: 'Siswa Nakal',
+        role: 'student',
+        schoolId: 'school-a',
+      }).token;
+
+      const wsStudent = new WebSocket(harness.wsUrl);
+      await new Promise<void>((resolve) => wsStudent.once('open', () => resolve()));
+
+      const roomErrors: Array<{ code?: string; message?: string }> = [];
+      wsStudent.on('message', (raw) => {
+        const msg = JSON.parse(raw.toString());
+        if (msg.type === 'ROOM_ERROR') {
+          roomErrors.push(msg.payload);
+        }
+      });
+
+      wsStudent.send(
+        JSON.stringify({
+          type: 'client:identify',
+          payload: {
+            userId: 'stu-escalate-1',
+            userName: 'Siswa Nakal',
+            role: 'Siswa',
+            sessionToken: studentToken,
+          },
+        })
+      );
+
+      await new Promise((r) => setTimeout(r, 40));
+
+      // Attempt privilege escalation via forged CURSOR_3D_MOVE role='Pengajar'
+      wsStudent.send(
+        JSON.stringify({
+          type: 'CURSOR_3D_MOVE',
+          payload: {
+            userId: 'stu-escalate-1',
+            userName: 'Siswa Nakal',
+            role: 'Pengajar',
+            groupId: 'Kelompok 1',
+            domain: 'fisika',
+            color: '#ef4444',
+            position: [1, 2, 3],
+            normal: [0, 1, 0],
+            updatedAt: Date.now(),
+            schoolId: 'school-a',
+          },
+        })
+      );
+
+      await new Promise((r) => setTimeout(r, 40));
+
+      // Attempt teacher-only ROOM_SET_CUSTOM_MISSION on a brand-new room without valid teacher auth
+      wsStudent.send(
+        JSON.stringify({
+          type: 'ROOM_SET_CUSTOM_MISSION',
+          payload: {
+            roomId: 'LAB-FORGED-99',
+            customMission: null,
+          },
+        })
+      );
+
+      await new Promise((r) => setTimeout(r, 60));
+      wsStudent.close();
+
+      assert.equal(roomErrors.length, 1);
+      assert.equal(roomErrors[0]?.code, 'UNAUTHORIZED_TEACHER');
+      assert.equal(harness.state.activeLabRooms.has('LAB-FORGED-99'), false);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  it('prevents student teacherGrade spoofing on POST /api/submissions and enforces tenant isolation on mission publishing, lab-state, and autosave recovery', async () => {
+    const harness = await createTestHarness();
+    try {
+      const teacherTokenA = signSessionToken({
+        sub: 'teacher-a',
+        displayName: 'Guru A',
+        role: 'teacher',
+        schoolId: 'school-a',
+      }).token;
+      const teacherTokenB = signSessionToken({
+        sub: 'teacher-b',
+        displayName: 'Guru B',
+        role: 'teacher',
+        schoolId: 'school-b',
+      }).token;
+      const studentTokenA = signSessionToken({
+        sub: 'student-a1',
+        displayName: 'Siswa A1',
+        role: 'student',
+        schoolId: 'school-a',
+      }).token;
+      const studentTokenB = signSessionToken({
+        sub: 'student-b1',
+        displayName: 'Siswa B1',
+        role: 'student',
+        schoolId: 'school-b',
+      }).token;
+
+      // 1. Student submits with spoofed teacherGrade=100; server must ignore spoofed grade and leave teacherGrade undefined
+      const spoofRes = await fetch(`${harness.baseUrl}/api/submissions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${studentTokenA}`,
+        },
+        body: JSON.stringify({
+          id: 'SUB-SPOOF-TEST-1',
+          studentName: 'Siswa A1',
+          studentId: 'student-a1',
+          roomId: 'ROOM-A',
+          domain: 'Fisika',
+          moduleId: 'newton-incline',
+          submittedAt: new Date().toISOString(),
+          hypothesisText: 'Hipotesis singkat oleh siswa percobaan.',
+          observationData: [{ x: 1, y: 2 }],
+          regressionMetrics: { rSquared: 0.75, slope: 1.5, equation: 'y = 1.5x' },
+          quizAnswers: [],
+          quizScore: 40,
+          conclusionText: 'Kesimpulan singkat percobaan.',
+          teacherGrade: {
+            score: 100,
+            feedback: 'Nilai palsu dari request siswa',
+            gradedAt: new Date().toISOString(),
+          },
+        }),
+      });
+      assert.equal(spoofRes.status, 201);
+      const spoofBody = (await spoofRes.json()) as {
+        submission: {
+          teacherGrade?: { score: number; feedback: string };
+          autoRubric?: { score: number };
+        };
+      };
+      assert.notEqual(spoofBody.submission.teacherGrade?.score, 100);
+      assert.equal(spoofBody.submission.teacherGrade?.score, spoofBody.submission.autoRubric?.score);
+      assert.notEqual(
+        spoofBody.submission.teacherGrade?.feedback,
+        'Nilai palsu dari request siswa'
+      );
+
+      // 2. Teacher A publishes mission to room LAB-SCHOOL-A; Teacher B (school-b) must get 403 SCHOOL_TENANT_MISMATCH
+      const missionPayload = {
+        mission: {
+          id: 'mission-school-a',
+          title: 'Misi Resmi Sekolah A',
+          domain: 'chemistry',
+          moduleId: 'acid-base-titration',
+          narrative: 'Uji konsentrasi larutan standar.',
+        },
+      };
+      const pubARes = await fetch(`${harness.baseUrl}/api/rooms/LAB-SCHOOL-A/mission`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${teacherTokenA}`,
+        },
+        body: JSON.stringify(missionPayload),
+      });
+      assert.equal(pubARes.status, 200);
+
+      const pubBRes = await fetch(`${harness.baseUrl}/api/rooms/LAB-SCHOOL-A/mission`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${teacherTokenB}`,
+        },
+        body: JSON.stringify(missionPayload),
+      });
+      assert.equal(pubBRes.status, 403);
+      const pubBBody = (await pubBRes.json()) as { code?: string };
+      assert.equal(pubBBody.code, 'SCHOOL_TENANT_MISMATCH');
+
+      // 3. Autosave created by Student A cannot be read by Student B or Teacher B
+      const saveRes = await fetch(`${harness.baseUrl}/api/session/autosave`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${studentTokenA}`,
+        },
+        body: JSON.stringify({
+          storageKey: 'autosave-key-stu-a1',
+          version: 1,
+          studentId: 'student-a1',
+          schoolId: 'school-a',
+          session: { voltage: 12, resistance: 4 },
+        }),
+      });
+      assert.equal(saveRes.status, 200);
+
+      const getOwnAutosave = await fetch(
+        `${harness.baseUrl}/api/session/autosave?storageKey=autosave-key-stu-a1&schoolId=school-a`,
+        {
+          headers: { Authorization: `Bearer ${studentTokenA}` },
+        }
+      );
+      assert.equal(getOwnAutosave.status, 200);
+      const ownAutosaveBody = (await getOwnAutosave.json()) as {
+        status: string;
+        session?: { voltage: number };
+      };
+      assert.equal(ownAutosaveBody.status, 'ok');
+      assert.equal(ownAutosaveBody.session?.voltage, 12);
+
+      const getCrossTenantAutosave = await fetch(
+        `${harness.baseUrl}/api/session/autosave?storageKey=autosave-key-stu-a1&schoolId=school-a`,
+        {
+          headers: { Authorization: `Bearer ${teacherTokenB}` },
+        }
+      );
+      assert.equal(getCrossTenantAutosave.status, 403);
+      const crossAutosaveBody = (await getCrossTenantAutosave.json()) as { code?: string };
+      assert.equal(crossAutosaveBody.code, 'SCHOOL_TENANT_MISMATCH');
+
+      const getOtherStudentAutosave = await fetch(
+        `${harness.baseUrl}/api/session/autosave?storageKey=autosave-key-stu-a1&schoolId=school-a`,
+        {
+          headers: { Authorization: `Bearer ${studentTokenB}` },
+        }
+      );
+      assert.equal(getOtherStudentAutosave.status, 403);
+    } finally {
       await harness.cleanup();
     }
   });

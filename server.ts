@@ -427,6 +427,16 @@ async function startServer() {
   );
   app.use(createAiRouter({ state, broadcastAll, broadcastRoom }));
 
+  // Return structured JSON 404 for unknown /api/* routes instead of falling through to SPA index.html
+  app.use('/api', (req, res) => {
+    res.status(404).json({
+      error: 'NOT_FOUND',
+      code: 'API_ENDPOINT_NOT_FOUND',
+      message: `Endpoint API tidak ditemukan: ${req.method} ${req.originalUrl}`,
+      requestId: res.locals?.requestId,
+    });
+  });
+
   // Global Express API error handler (structured JSON + request correlation ID)
   app.use(
     (

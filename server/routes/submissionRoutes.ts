@@ -262,10 +262,9 @@ export async function createSubmissionRouter({
       submittedAt: sub.submittedAt,
     };
 
+    state.repository.upsertSubmission(submissionInput);
     if (state.asyncRepository.driver === 'postgres') {
       await state.asyncRepository.upsertSubmission(submissionInput);
-    } else {
-      state.repository.upsertSubmission(submissionInput);
     }
 
     state.saveGradebookEntry({
@@ -376,6 +375,11 @@ export async function createSubmissionRouter({
       });
       const rubricJson = serializeRubricJson(autoRubric);
 
+      const isVerifiedTeacherOrAdmin = Boolean(
+        req.authSession &&
+          (req.authSession.role === 'teacher' || req.authSession.role === 'admin')
+      );
+
       const newSubmission: LabSubmissionRecord = {
         id,
         schoolId,
@@ -394,11 +398,14 @@ export async function createSubmissionRouter({
         telemetryLog: payload.telemetryLog,
         autoRubric,
         rubricJson,
-        teacherGrade: payload.teacherGrade ?? {
-          score: autoRubric.score,
-          feedback: autoRubric.summaryFeedback,
-          gradedAt: new Date().toISOString(),
-        },
+        teacherGrade:
+          isVerifiedTeacherOrAdmin && payload.teacherGrade
+            ? payload.teacherGrade
+            : {
+                score: autoRubric.score,
+                feedback: autoRubric.summaryFeedback,
+                gradedAt: new Date().toISOString(),
+              },
       };
 
       await persistSingleSubmissionToDb(newSubmission);
@@ -415,7 +422,12 @@ export async function createSubmissionRouter({
         title: `Laporan Dikumpulkan: ${newSubmission.studentName}`,
         message: `${newSubmission.studentName} mengumpulkan laporan [${newSubmission.moduleId}] — Skor Rubrik: ${autoRubric.score}/100 (Tiket: ${newSubmission.id}).`,
       };
-      state.notifications.unshift(notif);
+      const scopedRoomState = state.getScopedActivityState(newSubmission.roomId, schoolId);
+      scopedRoomState.notifications.unshift(notif);
+      const scopedLobbyState = state.getScopedActivityState(undefined, schoolId);
+      if (scopedLobbyState !== scopedRoomState) {
+        scopedLobbyState.notifications.unshift(notif);
+      }
       state.persistServerState();
 
       emitSchoolEvent(schoolId, {
