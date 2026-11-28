@@ -1,7 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
 import { logger } from '../utils/logger';
 
-export const DR_LABMU_MODEL = 'gemini-4-hydrogen' as const;
+export const DR_LABMU_MODEL =
+  (process.env.GEMINI_MODEL || '').trim() || 'gemini-4-hydrogen';
 
 let cachedClient: GoogleGenAI | null = null;
 let cachedKey: string | null = null;

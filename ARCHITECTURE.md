@@ -8,7 +8,7 @@
 
 | Lapisan | Teknologi & Pustaka Utama | Peran Arsitektural |
 | :--- | :--- | :--- |
-| **Frontend Runtime** | React 19 + TypeScript (`strict: true`) + Vite 6 | UI deklaratif dengan *domain-level code-splitting* (`React.lazy` + `Suspense`) untuk modul Fisika, Kimia, Biologi, dan Astronomi. |
+| **Frontend Runtime** | React 19 + TypeScript 7 (`strict: true`) + Vite 8 | UI deklaratif dengan *domain-level code-splitting* (`React.lazy` + `Suspense`) untuk modul Fisika, Kimia, Biologi, dan Astronomi. |
 | **State Management** | Zustand + `useShallow` | Penyimpanan reaktif tersegmentasi (`useLabStore`, `useUIStore`, `useCollabStore`) tanpa *unnecessary re-render* pada loop 60 FPS. |
 | **3D Spatial & WebXR** | Three.js + PostProcessing + WebXR | Mesin visualisasi 3D PBR (`ACESFilmicToneMapping`, `toneMappingExposure = 0.98`, `SRGBColorSpace`), gelas borosilikat IOR 1.47, *3D measurement tools* (mistar, busur derajat, probe digital), dan *WebGL Context-Loss ErrorBoundary*. |
 | **Numerical Solver** | Web Worker (`src/workers/simulation.worker.ts`, `src/workers/domains/*`, `src/workers/integrators/*`) | Integrator persamaan diferensial biasa **Runge-Kutta Orde 4 (`rk4.ts`)** dan **Velocity Verlet Simlektik (`verlet.ts`)** *off-main-thread* dengan solver per domain (`physics.ts`, `chemistry.ts`, `biology.ts`, `astronomy.ts`), `SharedArrayBuffer` ring buffer (`simulationBuffer.ts`), dan *timeline scrubber* (`simulationTimelineBuffer.ts`). |
