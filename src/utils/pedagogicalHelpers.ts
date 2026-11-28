@@ -438,6 +438,27 @@ export function getPhysicsParameterFeedback(
       : 'Resonansi gelombang berdiri tercapai saat L = n·(λ/2).';
   }
 
+  if (mode === 'faraday-induction') {
+    if (paramKey === 'coilTurnsN') {
+      return isSmp
+        ? 'Lilitan kawat diperbanyak -> jarum galvanometer menyimpang makin lebar dan lampu menyala lebih terang!'
+        : 'Hukum Faraday (εₘₐₓ = N·B·A·ω): menambah jumlah lilitan N melipatgandakan GGL induksi secara linear.';
+    }
+    if (paramKey === 'magnetOscillationHz') {
+      return isSmp
+        ? 'Magnet digerakkan makin cepat -> perubahan fluks berlangsung kilat sehingga listrik induksi melonjak!'
+        : 'Frekuensi osilasi f mempercepat laju dΦ/dt (ω = 2πf) sehingga GGL puncak εₘₐₓ meningkat.';
+    }
+    if (paramKey === 'magneticFieldTesla') {
+      return isSmp
+        ? 'Magnet lebih kuat -> garis gaya magnet lebih rapat -> tegangan listrik yang dihasilkan membesar.'
+        : 'Kerapatan fluks B memperbesar fluks puncak Φₘₐₓ = B·A dan menaikkan εₘₐₓ secara proporsional.';
+    }
+    return isSmp
+      ? 'Hambatan beban lebih kecil membuat arus listrik yang mengalir di rangkaian lebih besar.'
+      : 'Sesuai Hukum Ohm (Iₘₐₓ = εₘₐₓ / R), penurunan beban R menaikkan arus induksi dan daya disipasi.';
+  }
+
   return isSmp
     ? 'Menggeser variabel ini langsung mengubah hasil pengukuran di ruang 3D.'
     : 'Perubahan variabel bebas ini memperbarui keadaan sistem secara deterministik.';
@@ -549,6 +570,22 @@ export function getChemistryParameterFeedback(
         ? 'Tekanan piston diperbesar -> molekul gas terdorong bergabung menjadi N₂O₄ yang lebih hemat ruang!'
         : 'Asas Le Chatelier: kenaikan tekanan total P menggeser kesetimbangan ke koefisien mol gas lebih kecil (1 mol N₂O₄) sehingga α turun.';
     }
+  }
+
+  if (mode === 'electrolysis-faraday') {
+    if (paramKey === 'electrolysisCurrentA') {
+      return isSmp
+        ? 'Arus listrik DC diperbesar -> pelapisan logam di katoda makin tebal cepat dan gelembung gas O₂ di anoda makin ramai!'
+        : 'Hukum I Faraday (m = Ar·I·t / n·F): menaikkan kuat arus I memperbesar laju transfer elektron nₑ dan endapan katoda secara linear.';
+    }
+    if (paramKey === 'electrolysisTimeMin') {
+      return isSmp
+        ? 'Waktu elektrolisis diperpanjang -> makin banyak muatan listrik mengalir dan endapan logam makin berat.'
+        : 'Muatan total Q = I·t bertambah linear terhadap waktu sehingga massa endapan logam dan volume O₂ ikut meningkat.';
+    }
+    return isSmp
+      ? 'Jenis logam elektrolit menentukan massa atom dan jumlah elektron yang dibutuhkan per ion untuk mengendap.'
+      : 'Massa ekuivalen kimia e = Ar / n mengatur efisiensi massa endapan per Faraday muatan (96.485 C/mol e⁻).';
   }
 
   // thermo-calorimetry & reaction-kinetics-arrhenius
@@ -796,6 +833,30 @@ export function getBiologyParameterFeedback(
       : 'Gradien konsentrasi ion menggeser potensial kesetimbangan Nernst (ENa / EK) & membran.';
   }
 
+  if (moduleId === 'dna-pcr-electrophoresis') {
+    if (paramKey === 'annealingTempC') {
+      return Math.abs(value - 58) <= 3
+        ? isSmp
+          ? 'Suhu ~58 °C pas untuk penempelan primer PCR -> hasil penggandaan DNA melimpah dan pita UV menyala sangat terang!'
+          : 'Tₐ ≈ 58 °C berada pada suhu leleh primer optimum -> efisiensi amplifikasi (E) mendekati 96%!'
+        : isSmp
+        ? 'Suhu annealing meleset jauh dari 58 °C -> primer sulit menempel sempurna sehingga pita DNA di gel redup.'
+        : 'Deviasi suhu Tₐ menurunkan efisiensi annealing E(Tₐ) secara Gaussian sehingga jumlah salinan DNA turun tajam.';
+    }
+    if (paramKey === 'dnaFragmentBp') {
+      return value <= 400
+        ? isSmp
+          ? 'Potongan DNA pendek/ringan -> mudah menyelinap melewati pori gel agarosa dan meluncur paling jauh!'
+          : 'Ukuran fragmen bp kecil memiliki mobilitas elektroforetik tinggi (d ∝ 1/log₁₀ bp) menuju kutub anoda (+).'
+        : isSmp
+        ? 'Potongan DNA panjang/besar -> lebih tertahan oleh jaring gel agarosa sehingga berpindah lebih dekat ke sumur.'
+        : 'Fragmen DNA panjang mengalami hambatan sterik lebih besar di matriks agarosa.';
+    }
+    return isSmp
+      ? 'Tegangan lebih tinggi atau gel lebih renggang mempercepat laju migrasi pita DNA menuju kutub positif (+).'
+      : 'Tegangan V dan konsentrasi agarosa (%) mengatur medan listrik pendorong serta ukuran pori pengayak gel.';
+  }
+
   return isSmp
     ? 'Mengubah variabel ini langsung memengaruhi proses biologis pada model 3D.'
     : 'Perubahan parameter fisiologis ini memperbarui respons biologis sistem.';
@@ -921,6 +982,22 @@ export function getAstronomyParameterFeedback(
       : 'Fluks bintang S₀ berbanding lurus dengan pangkat empat suhu ekuilibrium radiatif (Teq⁴ ∝ S₀).';
   }
 
+  if (mode === 'doppler-redshift-binary') {
+    if (paramKey === 'binaryInclinationDeg') {
+      return isSmp
+        ? 'Sudut kemiringan makin sejajar pandangan (mendekati 90°) -> pergeseran garis merah & biru spektrum makin lebar!'
+        : 'Efek proyeksi radial K₁ = v₁·sin(i): saat inklinasi i → 90°, amplitudo kecepatan radial & Δλ Doppler mencapai maksimum.';
+    }
+    if (paramKey === 'binarySeparationAu') {
+      return isSmp
+        ? 'Kedua bintang dijauhkan -> periode orbit makin lama dan gerakan bintang melambat.'
+        : 'Hukum Kepler III (P = √[a³/(M₁+M₂)]): separasi a membesar memperpanjang periode orbit & menurunkan kelajuan orbital.';
+    }
+    return isSmp
+      ? 'Bintang yang lebih berat berputar di lintasan lebih sempit dekat pusat massa daripada pasangannya.'
+      : 'Rasio massa M₁/M₂ membagi jari-jari orbit barisenter (r₁/r₂ = M₂/M₁) dan membalik perbandingan semi-amplitudo K₁/K₂.';
+  }
+
   return isSmp
     ? 'Mengubah parameter ini langsung memperbarui simulasi tata surya dan kosmos 3D.'
     : 'Parameter astrofisika diperbarui secara real-time pada pemodelan 3D.';
@@ -1034,6 +1111,18 @@ function inferReadableAxes(
   }
   if (hint.includes('rumah kaca') || hint.includes('albedo') || hint.includes('greenhouse')) {
     return { xLabel: 'Konsentrasi CO₂ / Albedo', yLabel: 'Suhu Permukaan (Ts)' };
+  }
+  if (hint.includes('induksi') || hint.includes('solenoida') || hint.includes('fluks')) {
+    return { xLabel: 'Jumlah Lilitan / Frekuensi (N / f)', yLabel: 'GGL Puncak Induksi (εₘₐₓ)' };
+  }
+  if (hint.includes('elektrolisis')) {
+    return { xLabel: 'Muatan Listrik (Q = I·t)', yLabel: 'Massa Endapan Katoda (m)' };
+  }
+  if (hint.includes('pcr') || hint.includes('agarosa') || hint.includes('elektroforesis')) {
+    return { xLabel: 'Ukuran Fragmen / Tegangan (bp / V)', yLabel: 'Jarak Migrasi / Fluoresensi' };
+  }
+  if (hint.includes('biner') || hint.includes('doppler')) {
+    return { xLabel: 'Sudut Inklinasi / Separasi (i / a)', yLabel: 'Semi-Amplitudo RV (K₁)' };
   }
 
   const dom = (domain || records[0]?.domain || '').toLowerCase();

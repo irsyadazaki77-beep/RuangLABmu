@@ -144,6 +144,8 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
         return { ...base, separationDistance: Math.max(2, Number((base.separationDistance * 0.65).toFixed(1))) };
       case 'standing-wave-melde':
         return { ...base, waveFrequency: Math.min(120, Math.round((base.waveFrequency ?? 50) + 25)) };
+      case 'faraday-induction':
+        return { ...base, coilTurnsN: Math.min(400, Math.round((base.coilTurnsN ?? 120) * 1.5)) };
       default:
         return { ...base, mass: Math.min(30, Number((base.mass * 2).toFixed(1))) };
     }
@@ -234,6 +236,12 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
           { id: 'vwave', label: 'Cepat Rambat (v)', value: metrics.meldeWaveSpeed, min: 0, max: 120, unit: 'm/s', color: '#0ea5e9' },
           { id: 'lambda', label: 'Panjang Gelombang (λ)', value: metrics.meldeWavelength, min: 0, max: 3, unit: 'm', color: '#10b981' },
           { id: 'harm', label: 'Orde Harmonik (n)', value: metrics.meldeHarmonicNumber, min: 0.5, max: 8, unit: 'perut', color: '#f59e0b' },
+        ]
+      : metrics.mode === 'faraday-induction'
+      ? [
+          { id: 'emf', label: 'GGL Puncak (εₘₐₓ)', value: metrics.faradayPeakEmfV, min: 0, max: 15, unit: 'V', color: '#0ea5e9' },
+          { id: 'imax', label: 'Arus Induksi (Iₘₐₓ)', value: metrics.faradayPeakCurrentMa, min: 0, max: 1000, unit: 'mA', color: '#10b981' },
+          { id: 'flux', label: 'Fluks Puncak (Φₘₐₓ)', value: metrics.faradayPeakFluxMwb, min: 0, max: 10, unit: 'mWb', color: '#f59e0b' },
         ]
       : [
           { id: 'accel', label: 'Percepatan (a)', value: metrics.acceleration, min: -20, max: 35, unit: 'm/s²', color: '#0ea5e9' },
@@ -329,6 +337,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
     'photoelectric-planck': 'photoelectric-planck',
     'orbital-gravity': 'gravity-orbital',
     'standing-wave-melde': 'standing-wave-melde',
+    'faraday-induction': 'faraday-induction',
   };
   const moduleRecords = filterRecordsForModule(records, 'Fisika', modeToCatalogId[params.mode]);
 
@@ -358,6 +367,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       'photoelectric-planck': 'Uji Efek Fotolistrik Planck',
       'orbital-gravity': 'Uji Gravitasi Universal Newton',
       'standing-wave-melde': 'Uji Resonansi Dawai Melde',
+      'faraday-induction': 'Uji Induksi Elektromagnetik Faraday–Lenz',
     };
     const title = titleMap[p.mode] || 'Uji Eksperimen Fisika';
 
@@ -405,18 +415,35 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
       pSum = `m=${p.mass}kg, L=${p.stringLength ?? 1.2}m, f=${p.waveFrequency ?? 50}Hz`;
       numX = p.mass;
       numY1 = m.meldeWaveSpeed;
+    } else if (m.mode === 'faraday-induction') {
+      pSum = `N=${p.coilTurnsN ?? 120}, B=${p.magneticFieldTesla ?? 0.45}T, f=${p.magnetOscillationHz ?? 1.2}Hz`;
+      numX = p.coilTurnsN ?? 120;
+      numY1 = m.faradayPeakEmfV;
     }
+
+    const recordMetrics: Record<string, number | string> =
+      m.mode === 'faraday-induction'
+        ? {
+            'GGL Puncak (εₘₐₓ)': `${m.faradayPeakEmfV} V`,
+            'Arus Induksi (Iₘₐₓ)': `${m.faradayPeakCurrentMa} mA`,
+            'Fluks Puncak (Φₘₐₓ)': `${m.faradayPeakFluxMwb} mWb`,
+          }
+        : {
+            'Percepatan (a)': `${m.acceleration} m/s²`,
+            'Kecepatan v(t)': `${inst.speed} m/s`,
+            'Jangkauan (R)': m.mode === 'projectile-gravity' ? `${m.projectileRange} m` : '0 m',
+          };
 
     onRecordExperiment(
       title,
       pSum,
-      {
-        'Percepatan (a)': `${m.acceleration} m/s²`,
-        'Kecepatan v(t)': `${inst.speed} m/s`,
-        'Jangkauan (R)': m.mode === 'projectile-gravity' ? `${m.projectileRange} m` : '0 m',
-      },
+      recordMetrics,
       noteOverride ?? (hypothesisNote?.hypothesisText || ''),
-      { x: numX, y1: numY1, y2: inst.speed }
+      {
+        x: numX,
+        y1: numY1,
+        y2: m.mode === 'faraday-induction' ? m.faradayPeakCurrentMa : inst.speed,
+      }
     );
   };
 
@@ -484,6 +511,11 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               return {
                 label: `Gelombang Melde: ${primaryTxt} · ${secondaryTxt}`,
                 detail: `Cepat rambat gelombang pada dawai bergantung pada tegangan F dan rapat massa μ.`,
+              };
+            case 'faraday-induction':
+              return {
+                label: `Hukum Faraday–Lenz: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `GGL induksi ε = -N·(dΦ/dt) menghasilkan arus bolak-balik yang melawan perubahan fluks magnetik.`,
               };
             default:
               return {
@@ -576,6 +608,22 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
                 summaryA: `f=${params.waveFrequency ?? 50}Hz · n=${metrics.meldeHarmonicNumber}`,
                 summaryB: `f=${realityBParams.waveFrequency ?? 75}Hz · n=${metricsB.meldeHarmonicNumber}`,
                 delta: `Δn = ${(deltaN >= 0 ? '+' : '')}${deltaN.toFixed(2)} perut`,
+              };
+            }
+            if (metrics.mode === 'faraday-induction' && metricsB.mode === 'faraday-induction') {
+              const deltaEmf = metricsB.faradayPeakEmfV - metrics.faradayPeakEmfV;
+              return {
+                key: 'coilTurnsN' as const,
+                label: 'Jumlah Lilitan N (B)',
+                unit: 'lilitan',
+                min: 20,
+                max: 400,
+                step: 10,
+                valA: params.coilTurnsN ?? 120,
+                valB: realityBParams.coilTurnsN ?? 180,
+                summaryA: `N=${params.coilTurnsN ?? 120} · εₘₐₓ=${metrics.faradayPeakEmfV}V`,
+                summaryB: `N=${realityBParams.coilTurnsN ?? 180} · εₘₐₓ=${metricsB.faradayPeakEmfV}V`,
+                delta: `Δε = ${(deltaEmf >= 0 ? '+' : '')}${deltaEmf.toFixed(2)} V`,
               };
             }
             const deltaA = metricsB.acceleration - metrics.acceleration;
@@ -735,6 +783,7 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
               <option value="photoelectric-planck">Efek Fotolistrik &amp; Konstanta Planck</option>
               <option value="orbital-gravity">Gravitasi Universal &amp; Orbit Satelit</option>
               <option value="standing-wave-melde">Gelombang Berdiri &amp; Resonansi Dawai Melde</option>
+              <option value="faraday-induction">Induksi Elektromagnetik Faraday–Lenz &amp; Fluks</option>
             </select>
           </div>
 

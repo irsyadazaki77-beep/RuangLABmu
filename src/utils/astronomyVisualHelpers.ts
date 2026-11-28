@@ -32,6 +32,8 @@ export function normalizeAstronomyMode(mode: string | undefined | null): Astrono
       return 'hubble-expansion';
     case 'planetary-atmosphere-greenhouse':
       return 'planetary-atmosphere-greenhouse';
+    case 'doppler-redshift-binary':
+      return 'doppler-redshift-binary';
     case 'solar-kepler':
     default:
       return 'solar-kepler';
@@ -103,6 +105,91 @@ export function evaluateKeplerOrbitPoint(
   const tangentZ = bRatio * cosE * scaledRadius;
 
   return { ox, oy, oz, b, tangentX, tangentY, tangentZ };
+}
+
+export interface KeplerInstantaneousDynamics {
+  /** Instantaneous heliocentric distance r(E) = a * (1 - e cos E) in AU */
+  instantRadiusAu: number;
+  /** Exact Vis-Viva orbital speed v(r) = 29.7847 * sqrt(M * (2/r - 1/a)) in km/s */
+  instantVelocityKmS: number;
+  /** Velocity vector arrow length scaled proportionally to v(r) / v_mean */
+  velocityArrowLen: number;
+  /** Gravity vector arrow length scaled monotonically with 1 / r^2 */
+  gravityArrowLen: number;
+  /** Solar insolation / comet tail activity factor proportional to (a / r)^2 */
+  insolationRatio: number;
+}
+
+/**
+ * Evaluates exact instantaneous Vis-Viva speed v(r) and inverse-square gravity scaling F ∝ 1/r²
+ * at eccentric anomaly E so 3D vectors dynamically grow at perihelion and shrink at aphelion.
+ */
+export function computeKeplerInstantaneousDynamics(
+  eccentricAnomalyRad: number,
+  semiMajorAxisAu: number,
+  eccentricity: number,
+  starMassSolar = 1.0
+): KeplerInstantaneousDynamics {
+  const a = Math.max(0.05, Number.isFinite(semiMajorAxisAu) ? semiMajorAxisAu : 1.0);
+  const e = Math.max(0, Math.min(0.95, Number.isFinite(eccentricity) ? eccentricity : 0.0167));
+  const M = Math.max(0.08, Number.isFinite(starMassSolar) ? starMassSolar : 1.0);
+  const V_EARTH_KMS = 29.7847;
+
+  const instantRadiusAu = Math.max(1e-4, a * (1 - e * Math.cos(eccentricAnomalyRad)));
+  const vMean = V_EARTH_KMS * Math.sqrt(M / a);
+  const instantVelocityKmS = V_EARTH_KMS * Math.sqrt(Math.max(1e-6, M * (2 / instantRadiusAu - 1 / a)));
+
+  const velRatio = instantVelocityKmS / Math.max(1e-4, vMean);
+  const velocityArrowLen = Math.min(2.6, Math.max(0.55, 1.35 * velRatio));
+
+  const insolationRatio = Math.pow(a / instantRadiusAu, 2);
+  // Smooth log-compressed inverse-square scaling so perihelion gravity spike is vivid without clipping star
+  const gravityArrowLen = Math.min(2.4, Math.max(0.55, 1.15 * Math.pow(insolationRatio, 0.35)));
+
+  return {
+    instantRadiusAu: Number(instantRadiusAu.toFixed(4)),
+    instantVelocityKmS: Number(instantVelocityKmS.toFixed(2)),
+    velocityArrowLen: Number(velocityArrowLen.toFixed(3)),
+    gravityArrowLen: Number(gravityArrowLen.toFixed(3)),
+    insolationRatio: Number(insolationRatio.toFixed(3)),
+  };
+}
+
+/**
+ * Computes physically exact galactic differential angular velocity ω = v / R
+ * so inner stars orbit faster in rad/s than outer stars, and dark-matter halo boosts outer ω.
+ */
+export function computeMilkyWayAngularSpeed(
+  radiusKpc: number,
+  orbitalVelocityKmS: number
+): number {
+  const safeR = Math.max(0.5, Number.isFinite(radiusKpc) ? radiusKpc : 8.2);
+  const safeV = Math.max(10, Number.isFinite(orbitalVelocityKmS) ? orbitalVelocityKmS : 220);
+  // Normalized so Earth/Sun at R=8.2 kpc, v=220 km/s yields ~0.72 rad/s visual cadence
+  const omega = (safeV / safeR) * (8.2 / 220) * 0.72;
+  return Number(Math.min(3.5, Math.max(0.12, omega)).toFixed(4));
+}
+
+/**
+ * Evaluates exact Planck spectral radiance B(λ, T) normalized to peak = 1.0 at Wien λ_max = b / T.
+ * Uses physical hc / k_B = 1.438776877e7 nm·K.
+ */
+export function computePlanckNormalizedIntensity(wavelengthNm: number, tempK: number): number {
+  const HC_OVER_KB_NM_K = 1.438776877e7;
+  const WIEN_B_NM_K = 2.897771955e6;
+  const safeT = Math.max(1000, Math.min(50000, Number.isFinite(tempK) ? tempK : 5778));
+  const safeWl = Math.max(40, Number.isFinite(wavelengthNm) ? wavelengthNm : 500);
+
+  const raw = (wl: number) => {
+    const x = HC_OVER_KB_NM_K / (wl * safeT);
+    if (x > 250) return 0;
+    return 1 / (Math.pow(wl, 5) * (Math.exp(x) - 1));
+  };
+
+  const lambdaPeak = WIEN_B_NM_K / safeT;
+  const peakVal = raw(lambdaPeak);
+  if (peakVal <= 0) return 0;
+  return Number(Math.max(0, Math.min(1, raw(safeWl) / peakVal)).toFixed(5));
 }
 
 /**
@@ -203,3 +290,90 @@ export function redshiftToGalaxyColorHex(redshiftZ: number): number {
 
   return (r << 16) | (g << 8) | b;
 }
+
+export interface BinaryDopplerVisualState {
+  phaseRad: number;
+  star1Pos: [number, number, number];
+  star2Pos: [number, number, number];
+  star1RadialVelKms: number;
+  star2RadialVelKms: number;
+  star1LambdaNm: number;
+  star2LambdaNm: number;
+  star1DeltaLambdaNm: number;
+  star2DeltaLambdaNm: number;
+  orbitRadius1Scene: number;
+  orbitRadius2Scene: number;
+}
+
+/**
+ * Evaluates instantaneous barycentric positions M1*r1 = M2*r2 on an inclined orbit,
+ * radial velocities v_r = v * sin(i) * cos/sin(phi), and shifted H-alpha 656.28 nm lines.
+ */
+export function computeBinaryDopplerVisualState(
+  params: {
+    binaryMass1Solar?: number;
+    binaryMass2Solar?: number;
+    binarySeparationAu?: number;
+    binaryInclinationDeg?: number;
+  },
+  timeSec: number
+): BinaryDopplerVisualState {
+  const m1 = Math.max(0.2, params.binaryMass1Solar ?? 2.2);
+  const m2 = Math.max(0.1, params.binaryMass2Solar ?? 1.0);
+  const aAu = Math.max(0.05, params.binarySeparationAu ?? 0.45);
+  const incDeg = Math.max(0, Math.min(90, params.binaryInclinationDeg ?? 75));
+  const incRad = (incDeg * Math.PI) / 180;
+
+  const totalM = m1 + m2;
+  const periodDays = Math.sqrt(Math.pow(aAu, 3) / totalM) * 365.25;
+  const vRelKms = 29.7847 * Math.sqrt(totalM / aAu);
+  const k1 = vRelKms * (m2 / totalM) * Math.sin(incRad);
+  const k2 = vRelKms * (m1 / totalM) * Math.sin(incRad);
+
+  // Scene total separation scaled cleanly between 3.2 and 5.6 world units
+  const sepScene = Math.min(5.6, Math.max(3.2, 3.0 + aAu * 1.4));
+  const orbitRadius1Scene = sepScene * (m2 / totalM);
+  const orbitRadius2Scene = sepScene * (m1 / totalM);
+
+  // Visual orbital angular speed inversely proportional to orbital period
+  const omegaVis = Math.max(0.35, Math.min(2.6, 55 / Math.max(12, periodDays)));
+  const phaseRad = Math.max(0, timeSec) * omegaVis;
+
+  const cosP = Math.cos(phaseRad);
+  const sinP = Math.sin(phaseRad);
+  const cosI = Math.cos(incRad);
+
+  // Observer sits along +Z axis; inclination tilts the Z-axis out of the sky plane into Y-Z
+  // At phaseRad = 0: star1 is at (+r1, 0, 0) moving toward +Z (receding? Wait: observer at +Z means moving +Z = approaching (-vr, blueshift)!)
+  const s1x = orbitRadius1Scene * cosP;
+  const s1z = orbitRadius1Scene * sinP * Math.sin(incRad);
+  const s1y = orbitRadius1Scene * sinP * cosI;
+
+  const s2x = -orbitRadius2Scene * cosP;
+  const s2z = -orbitRadius2Scene * sinP * Math.sin(incRad);
+  const s2y = -orbitRadius2Scene * sinP * cosI;
+
+  // Radial velocity (+ = receding / redshift, - = approaching / blueshift): proportional to -cos(phase) * sin(i)
+  const star1RadialVelKms = -k1 * cosP;
+  const star2RadialVelKms = k2 * cosP;
+
+  const H_ALPHA_NM = 656.28;
+  const C_KMS = 299792.458;
+  const star1DeltaLambdaNm = H_ALPHA_NM * (star1RadialVelKms / C_KMS);
+  const star2DeltaLambdaNm = H_ALPHA_NM * (star2RadialVelKms / C_KMS);
+
+  return {
+    phaseRad,
+    star1Pos: [Number(s1x.toFixed(4)), Number(s1y.toFixed(4)), Number(s1z.toFixed(4))],
+    star2Pos: [Number(s2x.toFixed(4)), Number(s2y.toFixed(4)), Number(s2z.toFixed(4))],
+    star1RadialVelKms: Number(star1RadialVelKms.toFixed(2)),
+    star2RadialVelKms: Number(star2RadialVelKms.toFixed(2)),
+    star1LambdaNm: Number((H_ALPHA_NM + star1DeltaLambdaNm).toFixed(4)),
+    star2LambdaNm: Number((H_ALPHA_NM + star2DeltaLambdaNm).toFixed(4)),
+    star1DeltaLambdaNm: Number(star1DeltaLambdaNm.toFixed(4)),
+    star2DeltaLambdaNm: Number(star2DeltaLambdaNm.toFixed(4)),
+    orbitRadius1Scene: Number(orbitRadius1Scene.toFixed(3)),
+    orbitRadius2Scene: Number(orbitRadius2Scene.toFixed(3)),
+  };
+}
+

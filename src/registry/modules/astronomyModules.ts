@@ -455,5 +455,102 @@ export const ASTRONOMY_MODULES: ExperimentModule[] = [
       return { equilibriumTempK, surfaceTempK, surfaceTempC, greenhouseWarmingDeltaK };
     },
   },
+
+  {
+    id: 'doppler-redshift-binary',
+    title: 'Bintang Biner Spektroskopik & Pergeseran Doppler H-α',
+    domain: 'astronomi',
+    subCategory: 'Astrofisika Bintang & Spektroskopi',
+    supportedTiers: ['SMA', 'Mahasiswa'],
+    difficulty: 2,
+    estimatedMinutes: 35,
+    objectives: {
+      SMP: [
+        'Mengamati dua bintang yang saling mengorbit titik pusat massa bersama (barisenter) di ruang angkasa.',
+        'Memahami mengapa garis spektrum cahaya bintang tampak bergeser ke arah biru saat mendekat dan ke arah merah saat menjauh.',
+      ],
+      SMA: [
+        'Menghitung periode orbit sistem bintang ganda menggunakan Hukum III Kepler umum P = √[a³ / (M₁ + M₂)] tahun.',
+        'Menentukan kecepatan radial maksimum bintang primer (K₁) dan sekunder (K₂) serta pergeseran panjang gelombang Doppler garis Hidrogen Alfa (H-α = 656,28 nm).',
+      ],
+      Mahasiswa: [
+        'Memodelkan efek sudut inklinasi bidang orbit sin(i) terhadap kurva kecepatan radial spektroskopik ganda (SB2) dan rasio massa q = M₂/M₁ = K₁/K₂.',
+        'Menganalisis bagaimana pengukuran Δλₘₐₓ dan periode P memungkinkan astronom menimbang massa bintang secara langsung tanpa mengunjunginya.',
+      ],
+    },
+    theorySummary:
+      'Sebagian besar bintang di galaksi berada dalam sistem bintang ganda (biner) yang saling mengorbit pusat massa bersama (barisenter) dengan periode Hukum III Kepler P = √[a³/(M₁ + M₂)] tahun. Ketika bidang orbit bintang dimiringkan sebesar sudut inklinasi i terhadap garis pandang pengamat, komponen kecepatan sepanjang garis pandang vᵣ = v·sin(i) menghasilkan efek Doppler relativistik-nonrelativistik Δλ/λ₀ = vᵣ/c. Akibatnya, garis serapan Hidrogen Alfa diam (H-α = 656,28 nm) berosilasi periodik antara pergeseran biru (blueshift saat bintang mendekati Bumi) dan pergeseran merah (redshift saat bintang menjauh).',
+    keyEquations: [
+      'P = \\sqrt{\\frac{a^3}{M_1 + M_2}} \\text{ tahun} \\times 365,25\\text{ hari}',
+      'K_1 = v_1 \\sin(i) = \\frac{M_2}{M_1 + M_2} \\cdot 29,785\\sqrt{\\frac{M_1+M_2}{a}}\\sin(i)',
+      '\\Delta\\lambda_{\\max} = \\lambda_0 \\cdot \\frac{K_1}{c} \\quad (\\lambda_0 = 656,28\\text{ nm})',
+    ],
+    apparatusList: [
+      'Model Orbit 3D Bintang Biner Sekeliling Barisenter dengan Bidang Inklinasi Variabel (0°–90°)',
+      'Spektrograf Resolusi Tinggi Terkalibrasi Garis Hidrogen Alfa (H-α = 656,28 nm)',
+      'Perekam Kurva Kecepatan Radial (Radial Velocity Plotter) Bintang Primer & Sekunder',
+    ],
+    safetyNotes: [
+      'Untuk sistem bintang biner dengan bidang orbit tegak lurus garis pandang (face-on, i = 0°), kecepatan radial vᵣ = 0 sehingga pergeseran Doppler tidak terdeteksi.',
+    ],
+    parameters: [
+      { key: 'binaryMass1Solar', label: 'Massa Bintang Primer (M₁)', unit: 'M☉', min: 0.5, max: 8.0, step: 0.1, defaultValue: 2.2, variableRole: 'bebas' },
+      { key: 'binaryMass2Solar', label: 'Massa Bintang Sekunder (M₂)', unit: 'M☉', min: 0.3, max: 5.0, step: 0.1, defaultValue: 1.0, variableRole: 'bebas' },
+      { key: 'binarySeparationAu', label: 'Jarak Pisah Orbit (a)', unit: 'AU', min: 0.10, max: 2.00, step: 0.05, defaultValue: 0.45, variableRole: 'bebas', instrumentType: 'ruler' },
+      { key: 'binaryInclinationDeg', label: 'Inklinasi Bidang Orbit (i)', unit: '°', min: 0, max: 90, step: 5, defaultValue: 75, variableRole: 'kontrol' },
+    ],
+    outputs: [
+      { key: 'binaryPeriodDays', label: 'Periode Orbit Biner (P)', unit: 'hari', formulaLatex: 'P = 365,25\\sqrt{a^3/(M_1+M_2)}', precision: 1 },
+      { key: 'binaryRadialVel1Kms', label: 'Semi-Amplitudo Primer (K₁)', unit: 'km/s', formulaLatex: 'K_1 = v_1 \\sin(i)', precision: 2 },
+      { key: 'binaryRadialVel2Kms', label: 'Semi-Amplitudo Sekunder (K₂)', unit: 'km/s', formulaLatex: 'K_2 = v_2 \\sin(i)', precision: 2 },
+      { key: 'binaryMaxDopplerShiftNm', label: 'Pergeseran Doppler H-α (Δλ)', unit: 'nm', formulaLatex: '\\Delta\\lambda = 656,28\\cdot K_1/c', precision: 4 },
+    ],
+    defaultRegressionAxes: { xKey: 'binaryInclinationDeg', yKey: 'binaryMaxDopplerShiftNm', expectedSlopeMeaning: 'Ketergantungan Sinusoidal Pergeseran Doppler H-α terhadap Inklinasi Orbit i' },
+    preLabQuiz: [
+      {
+        id: 'bin-q1',
+        question: 'Jika sistem bintang biner memiliki sudut inklinasi orbit i = 0° (bidang orbit terlihat tepat dari atas / face-on dari Bumi), berapakah pergeseran Doppler Δλ garis H-α yang teramati?',
+        options: [
+          'Maksimum karena seluruh kecepatan orbit mengarah ke Bumi',
+          'Nol (Δλ = 0 nm), karena seluruh gerak bintang tegak lurus terhadap garis pandang pengamat sehingga vᵣ = v·sin(0°) = 0',
+          'Setengah dari nilai maksimum',
+          'Bergeser permanen hanya ke warna merah',
+        ],
+        correctIndex: 1,
+        explanation: 'Efek Doppler garis spektrum hanya peka terhadap komponen kecepatan sepanjang garis pandang (vᵣ = v·sin i). Saat i = 0°, sin(0°) = 0 sehingga tidak ada gerak mendekat/menjauh terhadap pengamat.',
+      },
+      {
+        id: 'bin-q2',
+        question: 'Dari kurva spektroskopik bintang ganda teramati bahwa bintang sekunder memiliki semi-amplitudo kecepatan radial K₂ = 80 km/s sedangkan bintang primer hanya K₁ = 40 km/s. Apa kesimpulan tentang perbandingan massanya?',
+        options: [
+          'Massa bintang primer M₁ sama besar dengan massa bintang sekunder M₂',
+          'Massa bintang primer M₁ dua kali lebih besar daripada bintang sekunder M₂ (M₁/M₂ = K₂/K₁ = 2)',
+          'Massa bintang sekunder M₂ dua kali lebih besar daripada M₁',
+          'Kedua bintang tidak saling terikat gravitasi',
+        ],
+        correctIndex: 1,
+        explanation: 'Karena kedua bintang mengitari pusat massa bersama (M₁·r₁ = M₂·r₂), bintang bermassa lebih kecil mengorbit lebih jauh dan bergerak lebih cepat: M₁/M₂ = K₂/K₁ = 80/40 = 2.',
+      },
+    ],
+    computeStep: (params) => {
+      const m1 = Math.max(0.2, params.binaryMass1Solar ?? 2.2);
+      const m2 = Math.max(0.1, params.binaryMass2Solar ?? 1.0);
+      const a = Math.max(0.05, params.binarySeparationAu ?? 0.45);
+      const incRad = (Math.max(0, Math.min(90, params.binaryInclinationDeg ?? 75)) * Math.PI) / 180;
+      const totalM = m1 + m2;
+      const binaryPeriodDays = Number((Math.sqrt(Math.pow(a, 3) / totalM) * 365.25).toFixed(1));
+      const vRel = 29.7847 * Math.sqrt(totalM / a);
+      const binaryRadialVel1Kms = Number((vRel * (m2 / totalM) * Math.sin(incRad)).toFixed(2));
+      const binaryRadialVel2Kms = Number((vRel * (m1 / totalM) * Math.sin(incRad)).toFixed(2));
+      const binaryMaxDopplerShiftNm = Number((656.28 * (binaryRadialVel1Kms / 299792.458)).toFixed(4));
+      return {
+        binaryPeriodDays,
+        binaryRadialVel1Kms,
+        binaryRadialVel2Kms,
+        binaryMaxDopplerShiftNm,
+      };
+    },
+  },
 ];
+
 

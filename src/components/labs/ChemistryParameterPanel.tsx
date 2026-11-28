@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChemistryParams, ChemistryMetrics } from '../../utils/scienceEngine';
+import { ChemistryParams, ChemistryMetrics, ELECTROLYSIS_PRESETS } from '../../utils/scienceEngine';
 import {
   EducationLevel,
   getChemistryParameterFeedback,
@@ -288,6 +288,90 @@ export const ChemistryParameterPanel: React.FC<ChemistryParameterPanelProps> = (
                   getChemistryParameterFeedback(params.mode, 'n2o4InitialConcM', v, lvl)
                 }
                 onChange={(v) => onParamChange({ n2o4InitialConcM: v })}
+              />
+            </>
+          ) : params.mode === 'electrolysis-faraday' ? (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-2xs font-bold text-[var(--comfort-text-muted)] uppercase tracking-wider block">
+                  Larutan Elektrolit &amp; Logam Endapan:
+                </label>
+                <select
+                  value={params.electrolysisElectrolyteId ?? 'cuso4'}
+                  onChange={(e) => {
+                    const nextId = e.target.value as NonNullable<ChemistryParams['electrolysisElectrolyteId']>;
+                    const preset = ELECTROLYSIS_PRESETS.find((el) => el.id === nextId) ?? ELECTROLYSIS_PRESETS[0];
+                    labSound.playClick();
+                    onParamChange({
+                      electrolysisElectrolyteId: preset.id,
+                      electrolysisMolarMass: preset.molarMassAr,
+                      electrolysisValenceN: preset.valenceN,
+                    });
+                  }}
+                  className="w-full text-xs p-2 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-[var(--comfort-text)] font-semibold"
+                >
+                  {ELECTROLYSIS_PRESETS.map((el) => (
+                    <option key={el.id} value={el.id}>
+                      {el.name} · Ar={el.molarMassAr}, n={el.valenceN}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <TactileParameterControl
+                paramKey="electrolysisCurrentA"
+                label="Arus Listrik DC (I)"
+                unit="A"
+                value={params.electrolysisCurrentA ?? 2.5}
+                min={0.5}
+                max={8.0}
+                step={0.25}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getChemistryParameterFeedback(params.mode, 'electrolysisCurrentA', v, lvl)
+                }
+                onChange={(v) => onParamChange({ electrolysisCurrentA: v })}
+              />
+              <TactileParameterControl
+                paramKey="electrolysisTimeMin"
+                label="Waktu Elektrolisis (t)"
+                unit="menit"
+                value={params.electrolysisTimeMin ?? 30}
+                min={5}
+                max={120}
+                step={5}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getChemistryParameterFeedback(params.mode, 'electrolysisTimeMin', v, lvl)
+                }
+                onChange={(v) => onParamChange({ electrolysisTimeMin: v })}
+              />
+              <TactileParameterControl
+                paramKey="electrolysisMolarMass"
+                label="Massa Atom Relatif (Ar)"
+                unit="g/mol"
+                value={params.electrolysisMolarMass ?? 63.55}
+                min={10}
+                max={210}
+                step={0.5}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getChemistryParameterFeedback(params.mode, 'electrolysisMolarMass', v, lvl)
+                }
+                onChange={(v) => onParamChange({ electrolysisMolarMass: v })}
+              />
+              <TactileParameterControl
+                paramKey="electrolysisValenceN"
+                label="Valensi Elektron (n)"
+                unit="e⁻"
+                value={params.electrolysisValenceN ?? 2}
+                min={1}
+                max={4}
+                step={1}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getChemistryParameterFeedback(params.mode, 'electrolysisValenceN', v, lvl)
+                }
+                onChange={(v) => onParamChange({ electrolysisValenceN: v })}
               />
             </>
           ) : (

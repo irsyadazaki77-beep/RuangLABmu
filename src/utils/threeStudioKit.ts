@@ -226,7 +226,7 @@ export interface LabBenchTextureSet {
 }
 
 /**
- * Builds procedural phenolic/granite laboratory workbench PBR maps.
+ * Builds high-resolution procedural phenolic/epoxy granite laboratory workbench PBR maps.
  */
 export function createLabBenchTextures(
   baseHex: string | number,
@@ -235,7 +235,7 @@ export function createLabBenchTextures(
   options?: { neutralAlbedo?: boolean }
 ): LabBenchTextureSet | null {
   if (typeof document === 'undefined') return null;
-  const size = 256;
+  const size = 512;
 
   const albedoCanvas = document.createElement('canvas');
   albedoCanvas.width = size;
@@ -255,7 +255,7 @@ export function createLabBenchTextures(
   if (!aCtx || !rCtx || !bCtx) return null;
 
   // Neutral high-luminance mineral base avoids double color multiplication when MeshStandardMaterial.color applies theme tint
-  const baseColor = options?.neutralAlbedo ? new THREE.Color(0xf2f2f2) : new THREE.Color(baseHex);
+  const baseColor = options?.neutralAlbedo ? new THREE.Color(0xf2f4f7) : new THREE.Color(baseHex);
   const rBase = Math.round(baseColor.r * 255);
   const gBase = Math.round(baseColor.g * 255);
   const bBase = Math.round(baseColor.b * 255);
@@ -263,42 +263,69 @@ export function createLabBenchTextures(
   aCtx.fillStyle = `rgb(${rBase},${gBase},${bBase})`;
   aCtx.fillRect(0, 0, size, size);
 
-  rCtx.fillStyle = 'rgb(148,148,148)';
+  rCtx.fillStyle = 'rgb(132,132,132)';
   rCtx.fillRect(0, 0, size, size);
 
   bCtx.fillStyle = 'rgb(128,128,128)';
   bCtx.fillRect(0, 0, size, size);
 
-  // Subtle mineral epoxy speckle & micro-grain
-  for (let i = 0; i < 1600; i += 1) {
+  // Subtle low-frequency resin clouding for realistic phenolic slab depth
+  for (let i = 0; i < 42; i += 1) {
+    const cx = seededNoise(i, 3, 5) * size;
+    const cy = seededNoise(i, 7, 13) * size;
+    const rad = 28 + seededNoise(i, 11, 23) * 58;
+    const delta = (seededNoise(i, 17, 31) - 0.5) * 14;
+    const g = aCtx.createRadialGradient(cx, cy, 4, cx, cy, rad);
+    const rr = Math.max(0, Math.min(255, Math.round(rBase + delta)));
+    const gg = Math.max(0, Math.min(255, Math.round(gBase + delta)));
+    const bb = Math.max(0, Math.min(255, Math.round(bBase + delta)));
+    g.addColorStop(0, `rgba(${rr},${gg},${bb},0.22)`);
+    g.addColorStop(1, `rgba(${rr},${gg},${bb},0)`);
+    aCtx.fillStyle = g;
+    aCtx.beginPath();
+    aCtx.arc(cx, cy, rad, 0, Math.PI * 2);
+    aCtx.fill();
+
+    const rPatch = Math.max(96, Math.min(176, Math.round(132 - delta * 1.6)));
+    const rg = rCtx.createRadialGradient(cx, cy, 4, cx, cy, rad);
+    rg.addColorStop(0, `rgba(${rPatch},${rPatch},${rPatch},0.26)`);
+    rg.addColorStop(1, `rgba(${rPatch},${rPatch},${rPatch},0)`);
+    rCtx.fillStyle = rg;
+    rCtx.beginPath();
+    rCtx.arc(cx, cy, rad, 0, Math.PI * 2);
+    rCtx.fill();
+  }
+
+  // Fine mineral epoxy quartz/feldspar speckle & micro-grain
+  for (let i = 0; i < 4200; i += 1) {
     const px = seededNoise(i, 1, 3) * size;
     const py = seededNoise(i, 2, 7) * size;
-    const rad = 0.6 + seededNoise(i, 3, 11) * 1.4;
-    const lum = (seededNoise(i, 4, 17) - 0.5) * 26;
+    const rad = 0.7 + seededNoise(i, 3, 11) * 1.9;
+    const lum = (seededNoise(i, 4, 17) - 0.5) * 32;
 
     const rr = Math.max(0, Math.min(255, Math.round(rBase + lum)));
     const gg = Math.max(0, Math.min(255, Math.round(gBase + lum)));
     const bb = Math.max(0, Math.min(255, Math.round(bBase + lum)));
-    aCtx.fillStyle = `rgba(${rr},${gg},${bb},0.35)`;
+    aCtx.fillStyle = `rgba(${rr},${gg},${bb},0.34)`;
     aCtx.fillRect(px, py, rad, rad);
 
-    const roughVal = Math.max(95, Math.min(205, Math.round(145 + lum * 1.4)));
+    const roughVal = Math.max(82, Math.min(198, Math.round(132 + lum * 1.45)));
     rCtx.fillStyle = `rgb(${roughVal},${roughVal},${roughVal})`;
     rCtx.fillRect(px, py, rad, rad);
 
-    const bumpVal = Math.max(90, Math.min(165, Math.round(128 + lum * 0.9)));
+    const bumpVal = Math.max(92, Math.min(164, Math.round(128 + lum * 0.85)));
     bCtx.fillStyle = `rgb(${bumpVal},${bumpVal},${bumpVal})`;
     bCtx.fillRect(px, py, rad, rad);
   }
 
-  // Faint wiped benchtop seam grid
-  aCtx.strokeStyle = 'rgba(255,255,255,0.035)';
-  aCtx.lineWidth = 1;
-  aCtx.strokeRect(0.5, 0.5, size - 1, size - 1);
+  // Subtle phenolic slab expansion joint seam
+  aCtx.strokeStyle = 'rgba(255,255,255,0.03)';
+  aCtx.lineWidth = 1.5;
+  aCtx.strokeRect(1, 1, size - 2, size - 2);
 
-  rCtx.strokeStyle = 'rgb(190,190,190)';
-  rCtx.lineWidth = 1;
-  rCtx.strokeRect(0.5, 0.5, size - 1, size - 1);
+  rCtx.strokeStyle = 'rgb(186,186,186)';
+  rCtx.lineWidth = 1.5;
+  rCtx.strokeRect(1, 1, size - 2, size - 2);
 
   const configure = (canvas: HTMLCanvasElement, srgb: boolean) => {
     const tex = new THREE.CanvasTexture(canvas);
@@ -327,6 +354,200 @@ export function createLabBenchTextures(
   };
 }
 
+/**
+ * Generates procedural architectural laboratory ceramic/terrazzo floor tile PBR maps.
+ */
+export function createLabFloorTileTextures(
+  repeatX = 12,
+  repeatY = 12
+): LabBenchTextureSet | null {
+  if (typeof document === 'undefined') return null;
+  const size = 512;
+
+  const albedoCanvas = document.createElement('canvas');
+  albedoCanvas.width = size;
+  albedoCanvas.height = size;
+  const aCtx = albedoCanvas.getContext('2d');
+
+  const roughCanvas = document.createElement('canvas');
+  roughCanvas.width = size;
+  roughCanvas.height = size;
+  const rCtx = roughCanvas.getContext('2d');
+
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = size;
+  bumpCanvas.height = size;
+  const bCtx = bumpCanvas.getContext('2d');
+
+  if (!aCtx || !rCtx || !bCtx) return null;
+
+  // Neutral high-value ceramic base so material.color applies exact theme tint cleanly
+  aCtx.fillStyle = '#eceff3';
+  aCtx.fillRect(0, 0, size, size);
+  rCtx.fillStyle = 'rgb(142,142,142)';
+  rCtx.fillRect(0, 0, size, size);
+  bCtx.fillStyle = 'rgb(138,138,138)';
+  bCtx.fillRect(0, 0, size, size);
+
+  // Subtle tile-to-tile tonal variation (2x2 tiles per texture repeat)
+  const tile = size / 2;
+  const tileShades = [0, -5, -3, 2];
+  for (let ty = 0; ty < 2; ty += 1) {
+    for (let tx = 0; tx < 2; tx += 1) {
+      const shade = 236 + tileShades[ty * 2 + tx];
+      aCtx.fillStyle = `rgb(${shade},${shade + 1},${shade + 3})`;
+      aCtx.fillRect(tx * tile, ty * tile, tile, tile);
+      const rVal = 136 + tileShades[ty * 2 + tx] * 3;
+      rCtx.fillStyle = `rgb(${rVal},${rVal},${rVal})`;
+      rCtx.fillRect(tx * tile, ty * tile, tile, tile);
+    }
+  }
+
+  // Fine terrazzo aggregate mineral flecks
+  for (let i = 0; i < 1800; i += 1) {
+    const px = seededNoise(i, 5, 19) * size;
+    const py = seededNoise(i, 9, 23) * size;
+    const rad = 0.8 + seededNoise(i, 13, 37) * 2.2;
+    const delta = (seededNoise(i, 17, 41) - 0.5) * 28;
+    const v = Math.max(180, Math.min(252, Math.round(232 + delta)));
+    aCtx.fillStyle = `rgba(${v},${v},${v + 2},0.35)`;
+    aCtx.fillRect(px, py, rad, rad);
+  }
+
+  // Crisp recessed grout lines
+  const drawGrout = (ctx: CanvasRenderingContext2D, color: string, lineW: number) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineW;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(size, 0);
+    ctx.moveTo(0, tile);
+    ctx.lineTo(size, tile);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, size);
+    ctx.moveTo(tile, 0);
+    ctx.lineTo(tile, size);
+    ctx.stroke();
+  };
+  drawGrout(aCtx, 'rgba(130, 142, 158, 0.52)', 4);
+  drawGrout(rCtx, 'rgb(232,232,232)', 5);
+  drawGrout(bCtx, 'rgb(64,64,64)', 5);
+
+  const configure = (canvas: HTMLCanvasElement, srgb: boolean) => {
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(repeatX, repeatY);
+    tex.anisotropy = 8;
+    tex.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    tex.needsUpdate = true;
+    return tex;
+  };
+
+  const map = configure(albedoCanvas, true);
+  const roughnessMap = configure(roughCanvas, false);
+  const bumpMap = configure(bumpCanvas, false);
+
+  return {
+    map,
+    roughnessMap,
+    bumpMap,
+    dispose: () => {
+      map.dispose();
+      roughnessMap.dispose();
+      bumpMap.dispose();
+    },
+  };
+}
+
+/**
+ * Generates a subtle precision anti-static laboratory work-mat overlay texture
+ * with perimeter framing, calibrated metric ruler ticks along the front edge, and alignment crosshairs.
+ */
+export function createCuttingMatOverlayTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const w = 1024;
+  const h = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Subtle micro-dot ESD silicone surface texture
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.024)';
+  for (let y = 24; y < h - 24; y += 16) {
+    for (let x = 24; x < w - 24; x += 16) {
+      ctx.fillRect(x, y, 1.5, 1.5);
+    }
+  }
+
+  const padX = 34;
+  const padY = 28;
+  const innerW = w - padX * 2;
+  const innerH = h - padY * 2;
+
+  // Fine metric calibration grid inside perimeter
+  ctx.strokeStyle = 'rgba(226, 236, 248, 0.08)';
+  ctx.lineWidth = 1;
+  const cols = 20;
+  const rows = 10;
+  for (let c = 1; c < cols; c += 1) {
+    const x = padX + (innerW * c) / cols;
+    ctx.beginPath();
+    ctx.moveTo(x, padY);
+    ctx.lineTo(x, padY + innerH);
+    ctx.stroke();
+  }
+  for (let r = 1; r < rows; r += 1) {
+    const y = padY + (innerH * r) / rows;
+    ctx.beginPath();
+    ctx.moveTo(padX, y);
+    ctx.lineTo(padX + innerW, y);
+    ctx.stroke();
+  }
+
+  // Crisp outer perimeter border
+  ctx.strokeStyle = 'rgba(226, 236, 248, 0.24)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(padX, padY, innerW, innerH);
+
+  // Calibrated metric ruler markings along front edge (bottom of canvas maps to +Z front edge)
+  ctx.strokeStyle = 'rgba(226, 236, 248, 0.34)';
+  ctx.fillStyle = 'rgba(226, 236, 248, 0.42)';
+  ctx.font = '600 11px "IBM Plex Mono", ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  const totalCm = 100;
+  for (let cm = 0; cm <= totalCm; cm += 1) {
+    const x = padX + (innerW * cm) / totalCm;
+    const isTen = cm % 10 === 0;
+    const isFive = cm % 5 === 0;
+    const tickH = isTen ? 14 : isFive ? 9 : 5;
+    ctx.lineWidth = isTen ? 1.8 : 1;
+    ctx.beginPath();
+    ctx.moveTo(x, padY + innerH);
+    ctx.lineTo(x, padY + innerH - tickH);
+    ctx.stroke();
+    if (isTen && cm > 0 && cm < totalCm) {
+      ctx.fillText(`${cm}`, x, padY + innerH - 18);
+    }
+  }
+
+  // Subtle laboratory mat corner technical label
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(226, 236, 248, 0.32)';
+  ctx.font = '600 10px "IBM Plex Mono", ui-monospace, monospace';
+  ctx.fillText('ESD PRECISION BENCH MAT · METRIC SCALE (cm)', padX + 10, padY + 18);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 export interface BrushedMetalTextureSet {
   roughnessMap: THREE.CanvasTexture;
   bumpMap: THREE.CanvasTexture;
@@ -334,11 +555,11 @@ export interface BrushedMetalTextureSet {
 }
 
 /**
- * Generates directional brushed stainless steel / anodized aluminum textures.
+ * Generates high-resolution directional brushed stainless steel / anodized aluminum textures.
  */
 export function createBrushedMetalTextures(): BrushedMetalTextureSet | null {
   if (typeof document === 'undefined') return null;
-  const size = 256;
+  const size = 512;
 
   const rCanvas = document.createElement('canvas');
   rCanvas.width = size;
@@ -352,19 +573,30 @@ export function createBrushedMetalTextures(): BrushedMetalTextureSet | null {
 
   if (!rCtx || !bCtx) return null;
 
-  rCtx.fillStyle = 'rgb(84,84,84)';
+  rCtx.fillStyle = 'rgb(76,76,76)';
   rCtx.fillRect(0, 0, size, size);
   bCtx.fillStyle = 'rgb(128,128,128)';
   bCtx.fillRect(0, 0, size, size);
 
   for (let y = 0; y < size; y += 1) {
-    const jitter = (seededNoise(y, 13, 29) - 0.5) * 44;
-    const rVal = Math.max(46, Math.min(132, Math.round(86 + jitter)));
-    const bVal = Math.max(96, Math.min(160, Math.round(128 + jitter * 0.65)));
+    const coarse = (seededNoise(Math.floor(y / 3), 5, 11) - 0.5) * 26;
+    const fine = (seededNoise(y, 13, 29) - 0.5) * 34;
+    const rVal = Math.max(38, Math.min(132, Math.round(78 + coarse + fine)));
+    const bVal = Math.max(92, Math.min(164, Math.round(128 + (coarse + fine) * 0.65)));
     rCtx.fillStyle = `rgb(${rVal},${rVal},${rVal})`;
     rCtx.fillRect(0, y, size, 1);
     bCtx.fillStyle = `rgb(${bVal},${bVal},${bVal})`;
     bCtx.fillRect(0, y, size, 1);
+  }
+
+  // Subtle horizontal micro-burnish streaks for realistic machined steel sheen
+  for (let i = 0; i < 180; i += 1) {
+    const sy = Math.floor(seededNoise(i, 7, 43) * size);
+    const sx = seededNoise(i, 11, 53) * size;
+    const sw = 40 + seededNoise(i, 19, 61) * 180;
+    const bright = seededNoise(i, 23, 71) > 0.5;
+    rCtx.fillStyle = bright ? 'rgba(52,52,52,0.35)' : 'rgba(116,116,116,0.28)';
+    rCtx.fillRect(sx, sy, sw, 1);
   }
 
   const makeTex = (canvas: HTMLCanvasElement) => {
@@ -381,6 +613,57 @@ export function createBrushedMetalTextures(): BrushedMetalTextureSet | null {
   const roughnessMap = makeTex(rCanvas);
   const bumpMap = makeTex(bCanvas);
 
+  return {
+    roughnessMap,
+    bumpMap,
+    dispose: () => {
+      roughnessMap.dispose();
+      bumpMap.dispose();
+    },
+  };
+}
+
+/**
+ * Generates procedural helical machined leadscrew / knurled shaft bump & roughness maps
+ * so elevation jack rods and micrometer screws look genuinely machined without heavy geometry.
+ */
+export function createThreadedRodTextures(repeatY = 6): BrushedMetalTextureSet | null {
+  if (typeof document === 'undefined') return null;
+  const w = 128;
+  const h = 128;
+  const rCanvas = document.createElement('canvas');
+  rCanvas.width = w;
+  rCanvas.height = h;
+  const rCtx = rCanvas.getContext('2d');
+  const bCanvas = document.createElement('canvas');
+  bCanvas.width = w;
+  bCanvas.height = h;
+  const bCtx = bCanvas.getContext('2d');
+  if (!rCtx || !bCtx) return null;
+
+  for (let y = 0; y < h; y += 1) {
+    const wave = Math.sin((y / h) * Math.PI * 16) * 0.5 + 0.5;
+    const rVal = Math.round(52 + (1 - wave) * 95);
+    const bVal = Math.round(48 + wave * 176);
+    rCtx.fillStyle = `rgb(${rVal},${rVal},${rVal})`;
+    rCtx.fillRect(0, y, w, 1);
+    bCtx.fillStyle = `rgb(${bVal},${bVal},${bVal})`;
+    bCtx.fillRect(0, y, w, 1);
+  }
+
+  const makeTex = (canvas: HTMLCanvasElement) => {
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(1, repeatY);
+    tex.anisotropy = 4;
+    tex.colorSpace = THREE.NoColorSpace;
+    tex.needsUpdate = true;
+    return tex;
+  };
+
+  const roughnessMap = makeTex(rCanvas);
+  const bumpMap = makeTex(bCanvas);
   return {
     roughnessMap,
     bumpMap,
@@ -858,8 +1141,12 @@ export interface StudioWorkbenchResult {
 }
 
 /**
- * Builds a clean, studio-grade laboratory bench with phenolic texture, brushed aluminum rail edge,
- * contact shadow floor, and unobtrusive metric GridHelper.
+ * Builds a photorealistic, architectural studio-grade laboratory workstation with:
+ * - 512px phenolic epoxy granite benchtop + recessed calibrated ESD metric lab mat
+ * - Anodized brushed aluminum perimeter bullnose trim & corner hex bolts
+ * - Rear phenolic backsplash with brushed stainless service rail & lab power/sensor outlet console
+ * - Heavy-duty powder-coated steel tubular legs, cross-stretchers & rubber leveling feet
+ * - Procedural ceramic terrazzo tiled laboratory floor + subtle architectural studio back wall
  */
 export function createStudioWorkbenchGroup(
   colors: SceneThemeColors,
@@ -877,17 +1164,28 @@ export function createStudioWorkbenchGroup(
   const depth = options?.depth ?? 6.4;
   const thickness = options?.thickness ?? 0.32;
   const benchY = options?.benchY ?? 0.16;
-  const floorY = options?.floorY ?? -0.02;
+  const benchTopY = benchY + thickness * 0.5;
+  const benchBottomY = benchY - thickness * 0.5;
+  // Ground the architectural laboratory floor realistically below the waist-high bench legs
+  const requestedFloorY = options?.floorY ?? -0.02;
+  const floorY = Math.min(requestedFloorY, benchBottomY - 2.65);
 
   const group = new THREE.Group();
   const benchTex = createLabBenchTextures(colors.tableHex, 4, 2.5, { neutralAlbedo: true });
   const metalTex = createBrushedMetalTextures();
+  const floorTileTex = createLabFloorTileTextures(14, 14);
+  const cuttingMatTex = createCuttingMatOverlayTexture();
 
-  const floorGeo = new THREE.PlaneGeometry(46, 46);
+  const floorGeo = new THREE.PlaneGeometry(54, 54);
   const floorMat = new THREE.MeshStandardMaterial({
     color: colors.floorHex ?? 0xd8e0ea,
-    roughness: 0.85,
-    metalness: 0.08,
+    map: floorTileTex?.map ?? null,
+    roughnessMap: floorTileTex?.roughnessMap ?? null,
+    bumpMap: floorTileTex?.bumpMap ?? null,
+    bumpScale: 0.012,
+    roughness: 0.68,
+    metalness: 0.06,
+    envMapIntensity: 0.65,
   });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
@@ -902,9 +1200,9 @@ export function createStudioWorkbenchGroup(
     colors.gridPrimaryHex ?? 0x9aa8ba,
     colors.gridSecondaryHex ?? 0xc7d0dc
   );
-  gridHelper.position.y = floorY + 0.01;
+  gridHelper.position.y = floorY + 0.012;
   (gridHelper.material as THREE.Material).transparent = true;
-  (gridHelper.material as THREE.Material).opacity = 0.22;
+  (gridHelper.material as THREE.Material).opacity = 0.16;
   group.add(gridHelper);
 
   const applyGridColors = (primaryHex?: number, secondaryHex?: number) => {
@@ -924,17 +1222,51 @@ export function createStudioWorkbenchGroup(
     colorAttr.needsUpdate = true;
   };
 
+  // Subtle architectural laboratory back-wall & wainscoting rail (gives studio room depth without visual clutter)
+  const wallGeo = new THREE.PlaneGeometry(52, 20);
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(colors.backgroundHex ?? 0xdce4ee).lerp(
+      new THREE.Color(colors.floorHex ?? 0xc8d2df),
+      0.32
+    ),
+    roughness: 0.9,
+    metalness: 0.02,
+    envMapIntensity: 0.3,
+  });
+  const backWall = new THREE.Mesh(wallGeo, wallMat);
+  backWall.position.set(0, floorY + 10, -13.5);
+  backWall.receiveShadow = true;
+  group.add(backWall);
+
+  const dadoRailGeo = new THREE.BoxGeometry(52, 0.09, 0.08);
+  const dadoRailMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(colors.backgroundHex ?? 0xdce4ee).lerp(
+      new THREE.Color(colors.floorHex ?? 0xc8d2df),
+      0.52
+    ),
+    roughness: 0.72,
+    metalness: 0.12,
+  });
+  const dadoRail = new THREE.Mesh(dadoRailGeo, dadoRailMat);
+  dadoRail.position.set(0, benchTopY + 0.48, -13.44);
+  group.add(dadoRail);
+
+  const baseboardGeo = new THREE.BoxGeometry(52, 0.24, 0.12);
+  const baseboardMesh = new THREE.Mesh(baseboardGeo, dadoRailMat);
+  baseboardMesh.position.set(0, floorY + 0.12, -13.42);
+  group.add(baseboardMesh);
+
   // Beveled phenolic laboratory benchtop
-  const benchGeo = new RoundedBoxGeometry(width, thickness, depth, 4, 0.04);
+  const benchGeo = new RoundedBoxGeometry(width, thickness, depth, 4, 0.045);
   const benchTopMat = new THREE.MeshStandardMaterial({
-    color: colors.tableHex ?? 0xc2ccd8,
+    color: colors.tableHex ?? 0x6b7c90,
     map: benchTex?.map ?? null,
     roughnessMap: benchTex?.roughnessMap ?? null,
     bumpMap: benchTex?.bumpMap ?? null,
-    bumpScale: 0.008,
-    roughness: 0.44,
+    bumpScale: 0.007,
+    roughness: 0.42,
     metalness: 0.08,
-    envMapIntensity: 0.68,
+    envMapIntensity: 0.82,
   });
   const benchMesh = new THREE.Mesh(benchGeo, benchTopMat);
   benchMesh.position.y = benchY;
@@ -942,14 +1274,14 @@ export function createStudioWorkbenchGroup(
   benchMesh.receiveShadow = true;
   group.add(benchMesh);
 
-  // Subtle recessed laboratory anti-static work-mat inset on top of benchtop
-  const matInsetW = width - 0.9;
-  const matInsetD = depth - 0.85;
+  // Recessed laboratory anti-static ESD work-mat inset on top of benchtop
+  const matInsetW = width - 0.82;
+  const matInsetD = depth - 0.82;
   const workMatGeo = new THREE.PlaneGeometry(matInsetW, matInsetD);
   const workMatMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(colors.tableHex ?? 0xc2ccd8).multiplyScalar(0.92),
+    color: new THREE.Color(colors.tableHex ?? 0x6b7c90).multiplyScalar(0.86),
     roughnessMap: benchTex?.roughnessMap ?? null,
-    roughness: 0.76,
+    roughness: 0.78,
     metalness: 0.04,
     polygonOffset: true,
     polygonOffsetFactor: -1,
@@ -957,20 +1289,37 @@ export function createStudioWorkbenchGroup(
   });
   const workMatMesh = new THREE.Mesh(workMatGeo, workMatMat);
   workMatMesh.rotation.x = -Math.PI / 2;
-  workMatMesh.position.y = benchY + thickness * 0.5 + 0.002;
+  workMatMesh.position.y = benchTopY + 0.002;
   workMatMesh.receiveShadow = true;
   group.add(workMatMesh);
 
-  // Anodized brushed aluminum front/perimeter trim band
+  // Crisp calibrated metric scale & technical framing decal over work mat
+  const matScaleGeo = new THREE.PlaneGeometry(matInsetW, matInsetD);
+  const matScaleMat = new THREE.MeshBasicMaterial({
+    map: cuttingMatTex,
+    transparent: true,
+    opacity: cuttingMatTex ? 0.78 : 0,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+  const matScaleMesh = new THREE.Mesh(matScaleGeo, matScaleMat);
+  matScaleMesh.rotation.x = -Math.PI / 2;
+  matScaleMesh.position.y = benchTopY + 0.004;
+  matScaleMesh.visible = Boolean(cuttingMatTex);
+  group.add(matScaleMesh);
+
+  // Anodized brushed aluminum bullnose front/perimeter trim band
   const trimGeo = new RoundedBoxGeometry(width + 0.12, thickness * 0.44, depth + 0.12, 3, 0.028);
   const trimMat = new THREE.MeshStandardMaterial({
-    color: colors.trimHex ?? 0x64748b,
+    color: colors.trimHex ?? 0x94a3b8,
     roughnessMap: metalTex?.roughnessMap ?? null,
     bumpMap: metalTex?.bumpMap ?? null,
     bumpScale: 0.004,
-    metalness: 0.82,
-    roughness: 0.24,
-    envMapIntensity: 0.88,
+    metalness: 0.84,
+    roughness: 0.22,
+    envMapIntensity: 1.05,
   });
   const trimMesh = new THREE.Mesh(trimGeo, trimMat);
   trimMesh.position.y = benchY - thickness * 0.24;
@@ -978,64 +1327,181 @@ export function createStudioWorkbenchGroup(
   trimMesh.receiveShadow = true;
   group.add(trimMesh);
 
-  // Rear phenolic laboratory backsplash curb & brushed aluminum cap rail
-  const curbGeo = new RoundedBoxGeometry(width - 0.08, 0.22, 0.14, 3, 0.025);
+  // Stainless hex mounting bolts along front aluminum rail
+  const boltGeo = new THREE.CylinderGeometry(0.036, 0.036, 0.04, 6);
+  const boltMat = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0,
+    metalness: 0.92,
+    roughness: 0.18,
+    envMapIntensity: 1.15,
+  });
+  const frontBoltZ = depth * 0.5 + 0.068;
+  [-width * 0.44, -width * 0.18, width * 0.18, width * 0.44].forEach((bx) => {
+    const bolt = new THREE.Mesh(boltGeo, boltMat);
+    bolt.rotation.x = Math.PI / 2;
+    bolt.position.set(bx, benchY - thickness * 0.24, frontBoltZ);
+    group.add(bolt);
+  });
+
+  // Rear phenolic laboratory backsplash curb & brushed aluminum instrument cap rail
+  const curbGeo = new RoundedBoxGeometry(width - 0.06, 0.26, 0.16, 3, 0.025);
   const curbMesh = new THREE.Mesh(curbGeo, benchTopMat);
-  curbMesh.position.set(0, benchY + thickness * 0.5 + 0.09, -depth * 0.5 + 0.12);
+  curbMesh.position.set(0, benchTopY + 0.11, -depth * 0.5 + 0.12);
   curbMesh.castShadow = true;
   curbMesh.receiveShadow = true;
   group.add(curbMesh);
 
-  const curbRailGeo = new RoundedBoxGeometry(width - 0.04, 0.036, 0.16, 2, 0.012);
+  const curbRailGeo = new RoundedBoxGeometry(width - 0.02, 0.042, 0.18, 2, 0.012);
   const curbRailMesh = new THREE.Mesh(curbRailGeo, trimMat);
-  curbRailMesh.position.set(0, benchY + thickness * 0.5 + 0.205, -depth * 0.5 + 0.12);
+  curbRailMesh.position.set(0, benchTopY + 0.245, -depth * 0.5 + 0.12);
   group.add(curbRailMesh);
 
-  // Grounded structural steel underframe apron beneath the benchtop (eliminates floating-slab look)
-  const apronH = 0.22;
-  const apronGeo = new RoundedBoxGeometry(width - 0.72, apronH, depth - 0.68, 2, 0.02);
-  const apronMat = new THREE.MeshStandardMaterial({
+  // Rear bench utility power / sensor port console (subtle laboratory realism anchor)
+  const outletBoxGeo = new RoundedBoxGeometry(0.92, 0.2, 0.18, 2, 0.02);
+  const outletBoxMat = new THREE.MeshStandardMaterial({
     color: 0x334155,
     roughnessMap: metalTex?.roughnessMap ?? null,
-    metalness: 0.72,
+    metalness: 0.68,
     roughness: 0.34,
-    envMapIntensity: 0.65,
+    envMapIntensity: 0.85,
+  });
+  const outletFaceGeo = new THREE.BoxGeometry(0.24, 0.12, 0.02);
+  const outletFaceMat = new THREE.MeshStandardMaterial({
+    color: 0x0f172a,
+    roughness: 0.6,
+    metalness: 0.2,
+  });
+  const outletLedGeo = new THREE.SphereGeometry(0.02, 10, 10);
+  const outletLedMat = new THREE.MeshStandardMaterial({
+    color: 0x10b981,
+    emissive: 0x10b981,
+    emissiveIntensity: 1.4,
+    roughness: 0.2,
+  });
+
+  [-width * 0.34, width * 0.34].forEach((ox) => {
+    const outletBox = new THREE.Mesh(outletBoxGeo, outletBoxMat);
+    outletBox.position.set(ox, benchTopY + 0.16, -depth * 0.5 + 0.22);
+    outletBox.castShadow = true;
+    const faceL = new THREE.Mesh(outletFaceGeo, outletFaceMat);
+    faceL.position.set(-0.2, 0, 0.09);
+    const faceR = new THREE.Mesh(outletFaceGeo, outletFaceMat);
+    faceR.position.set(0.14, 0, 0.09);
+    const led = new THREE.Mesh(outletLedGeo, outletLedMat);
+    led.position.set(0.36, 0.03, 0.092);
+    outletBox.add(faceL, faceR, led);
+    group.add(outletBox);
+  });
+
+  // Grounded structural steel underframe apron + 4 tubular industrial legs + cross-stretchers + rubber leveling feet
+  const apronH = 0.26;
+  const apronGeo = new RoundedBoxGeometry(width - 0.72, apronH, depth - 0.68, 2, 0.02);
+  const apronMat = new THREE.MeshStandardMaterial({
+    color: 0x2b3749,
+    roughnessMap: metalTex?.roughnessMap ?? null,
+    metalness: 0.74,
+    roughness: 0.32,
+    envMapIntensity: 0.78,
   });
   const apronMesh = new THREE.Mesh(apronGeo, apronMat);
-  apronMesh.position.y = benchY - thickness * 0.5 - apronH * 0.42;
+  apronMesh.position.y = benchBottomY - apronH * 0.48;
+  apronMesh.castShadow = true;
   group.add(apronMesh);
 
+  const legHeight = Math.max(0.2, benchBottomY - floorY - 0.08);
+  const legGeo = new RoundedBoxGeometry(0.22, legHeight, 0.22, 2, 0.025);
+  const footGeo = new THREE.CylinderGeometry(0.14, 0.17, 0.08, 16);
+  const footMat = new THREE.MeshStandardMaterial({
+    color: 0x111827,
+    roughness: 0.86,
+    metalness: 0.08,
+  });
+  const legInsetX = width * 0.5 - 0.52;
+  const legInsetZ = depth * 0.5 - 0.52;
+  const legPositions: [number, number][] = [
+    [-legInsetX, -legInsetZ],
+    [legInsetX, -legInsetZ],
+    [-legInsetX, legInsetZ],
+    [legInsetX, legInsetZ],
+  ];
+  legPositions.forEach(([lx, lz]) => {
+    const leg = new THREE.Mesh(legGeo, apronMat);
+    leg.position.set(lx, floorY + 0.08 + legHeight * 0.5, lz);
+    leg.castShadow = true;
+    const foot = new THREE.Mesh(footGeo, footMat);
+    foot.position.set(lx, floorY + 0.04, lz);
+    group.add(leg, foot);
+  });
+
+  // Steel horizontal side & rear cross-stretchers locking the leg frame together
+  const sideBarGeo = new RoundedBoxGeometry(0.12, 0.12, depth - 1.1, 2, 0.015);
+  const rearBarGeo = new RoundedBoxGeometry(width - 1.1, 0.12, 0.12, 2, 0.015);
+  const stretcherY = floorY + Math.min(0.65, legHeight * 0.28);
+  const leftBar = new THREE.Mesh(sideBarGeo, apronMat);
+  leftBar.position.set(-legInsetX, stretcherY, 0);
+  const rightBar = new THREE.Mesh(sideBarGeo, apronMat);
+  rightBar.position.set(legInsetX, stretcherY, 0);
+  const rearBar = new THREE.Mesh(rearBarGeo, apronMat);
+  rearBar.position.set(0, stretcherY, -legInsetZ);
+  group.add(leftBar, rightBar, rearBar);
+
   // Grounded floor contact shadow spread smoothly under the entire bench footprint
-  const benchFloorShadow = createContactShadowPlane(width * 0.56, depth * 0.58, 0.34);
-  benchFloorShadow.position.y = floorY + 0.008;
+  const benchFloorShadow = createContactShadowPlane(width * 0.62, depth * 0.64, 0.38);
+  benchFloorShadow.position.y = floorY + 0.01;
   group.add(benchFloorShadow);
 
   // Subtle grounded contact-shadow AO pad centered on benchtop for apparatus seating
-  const contactPad = createContactShadowPlane(width * 0.36, depth * 0.36, 0.32);
-  contactPad.position.y = benchY + thickness * 0.5 + 0.005;
+  const contactPad = createContactShadowPlane(width * 0.36, depth * 0.36, 0.26);
+  contactPad.position.y = benchTopY + 0.006;
   group.add(contactPad);
 
   const updateTheme = (nextColors: SceneThemeColors) => {
-    benchTopMat.color.setHex(nextColors.tableHex ?? 0xc2ccd8);
-    workMatMat.color.setHex(nextColors.tableHex ?? 0xc2ccd8).multiplyScalar(0.92);
+    benchTopMat.color.setHex(nextColors.tableHex ?? 0x6b7c90);
+    workMatMat.color.setHex(nextColors.tableHex ?? 0x6b7c90).multiplyScalar(0.86);
     floorMat.color.setHex(nextColors.floorHex ?? 0xd8e0ea);
-    trimMat.color.setHex(nextColors.trimHex ?? 0x64748b);
+    trimMat.color.setHex(nextColors.trimHex ?? 0x94a3b8);
+    dadoRailMat.color
+      .setHex(nextColors.backgroundHex ?? 0xdce4ee)
+      .lerp(new THREE.Color(nextColors.floorHex ?? 0xc8d2df), 0.52);
+    wallMat.color
+      .setHex(nextColors.backgroundHex ?? 0xdce4ee)
+      .lerp(new THREE.Color(nextColors.floorHex ?? 0xc8d2df), 0.32);
     applyGridColors(nextColors.gridPrimaryHex, nextColors.gridSecondaryHex);
   };
 
   const dispose = () => {
     floorGeo.dispose();
     floorMat.dispose();
+    wallGeo.dispose();
+    wallMat.dispose();
+    dadoRailGeo.dispose();
+    dadoRailMat.dispose();
+    baseboardGeo.dispose();
     benchGeo.dispose();
     benchTopMat.dispose();
     workMatGeo.dispose();
     workMatMat.dispose();
+    matScaleGeo.dispose();
+    matScaleMat.dispose();
     trimGeo.dispose();
     trimMat.dispose();
+    boltGeo.dispose();
+    boltMat.dispose();
     curbGeo.dispose();
     curbRailGeo.dispose();
+    outletBoxGeo.dispose();
+    outletBoxMat.dispose();
+    outletFaceGeo.dispose();
+    outletFaceMat.dispose();
+    outletLedGeo.dispose();
+    outletLedMat.dispose();
     apronGeo.dispose();
     apronMat.dispose();
+    legGeo.dispose();
+    footGeo.dispose();
+    footMat.dispose();
+    sideBarGeo.dispose();
+    rearBarGeo.dispose();
     benchFloorShadow.geometry.dispose();
     const bfsMat = benchFloorShadow.material as THREE.MeshBasicMaterial;
     bfsMat.map?.dispose();
@@ -1047,6 +1513,8 @@ export function createStudioWorkbenchGroup(
     gridHelper.dispose();
     benchTex?.dispose();
     metalTex?.dispose();
+    floorTileTex?.dispose();
+    cuttingMatTex?.dispose();
   };
 
   return {
@@ -1768,14 +2236,14 @@ export function createBorosilicateGlassMaterial(
   } = options;
 
   if (liteDeviceMode) {
-    // High-gloss optical borosilicate look with zero extra transmission/physical shader pass (fast on 3T/SwiftShader)
+    // High-gloss optical borosilicate look with crisp Fresnel specular reflections (fast on 3T/SwiftShader)
     return new THREE.MeshStandardMaterial({
       color,
-      metalness: 0.16,
-      roughness: 0.05,
+      metalness: 0.18,
+      roughness: 0.04,
       transparent: true,
       opacity: Math.max(0.24, Math.min(0.42, tintOpacity)),
-      envMapIntensity: 1.65,
+      envMapIntensity: 1.95,
       emissive,
       emissiveIntensity,
       depthWrite: false,
@@ -1785,17 +2253,19 @@ export function createBorosilicateGlassMaterial(
   const mat = new THREE.MeshPhysicalMaterial({
     color,
     metalness: 0.0,
-    roughness: 0.04,
+    roughness: 0.035,
     transmission: 0.93,
     transparent: true,
     opacity: tintOpacity,
     ior,
     thickness,
+    specularIntensity: 1.0,
+    specularColor: new THREE.Color(0xffffff),
     attenuationColor: new THREE.Color(0xcce6f8),
-    attenuationDistance: 3.2,
+    attenuationDistance: 3.4,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.03,
-    envMapIntensity: 1.35,
+    clearcoatRoughness: 0.025,
+    envMapIntensity: 1.55,
     emissive,
     emissiveIntensity,
     depthWrite: false,
@@ -1805,6 +2275,21 @@ export function createBorosilicateGlassMaterial(
     baseOpacity: tintOpacity,
   };
   return mat;
+}
+
+/**
+ * Creates a subtle specular borosilicate edge/rim highlight material for flask lips,
+ * rolled beaker rims, and optical bezels so glassware silhouettes stay crisp on light and dark backdrops.
+ */
+export function createGlassRimHighlightMaterial(color = 0xeef8ff): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.22,
+    roughness: 0.05,
+    transparent: true,
+    opacity: 0.62,
+    envMapIntensity: 1.85,
+  });
 }
 
 /**

@@ -343,6 +343,11 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           sampleSizeN: 'biji',
           alleleFreqR: '',
           alleleFreqY: '',
+          annealingTempC: '°C',
+          electrophoresisVoltageV: 'V',
+          dnaFragmentBp: 'bp',
+          pcrCycles: 'siklus',
+          agaroseConcPct: '%',
         };
         const unit = unitMap[paramKey] || '';
         const formatted = Number.isInteger(newValue) ? `${newValue}` : newValue.toFixed(2);
@@ -606,7 +611,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           className={`pointer-events-none absolute flex items-center gap-2 rounded-xl studio-hud-surface border px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
             isFullscreen
               ? 'bottom-16 left-4'
-              : `bottom-[118px] lg:bottom-[104px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
+              : `bottom-[96px] lg:bottom-[100px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[320px] xl:left-[340px]' : 'left-3'}`
           }`}
         >
           <Ruler className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -618,14 +623,14 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
       )}
 
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-[118px] lg:bottom-[104px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-emerald-500/45 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
+        <div className="pointer-events-none absolute bottom-[96px] lg:bottom-[100px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-emerald-500/45 px-3.5 py-1.5 shadow-xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
           <span className="text-[var(--comfort-hud-muted)]">{dragToast.label}:</span>
           <span className="font-bold text-emerald-700 dark:text-emerald-300">{dragToast.value}</span>
         </div>
       )}
 
       {snapToast && (
-        <div className="pointer-events-none absolute bottom-[118px] lg:bottom-[104px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-emerald-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
+        <div className="pointer-events-none absolute bottom-[96px] lg:bottom-[100px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-emerald-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
           <span>{snapToast}</span>
         </div>
       )}
@@ -635,7 +640,7 @@ export const BiologyScene3D: React.FC<BiologyScene3DProps> = ({
           className={`pointer-events-auto absolute w-52 sm:w-56 rounded-xl studio-hud-surface p-2 shadow-xl z-20 ${
             isFullscreen
               ? 'bottom-16 left-4'
-              : `${showRuler3D ? 'bottom-[162px] lg:bottom-[148px]' : 'bottom-[118px] lg:bottom-[104px]'} ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
+              : `${showRuler3D ? 'bottom-[198px] lg:bottom-[140px]' : 'bottom-[96px] lg:bottom-[100px]'} ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[320px] xl:left-[340px]' : 'left-3'}`
           }`}
         >
           <div className="flex items-center justify-between gap-1.5 px-1 pb-0.5 text-emerald-700 dark:text-emerald-400 text-2xs font-semibold">

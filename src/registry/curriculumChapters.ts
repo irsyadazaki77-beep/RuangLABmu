@@ -71,7 +71,7 @@ export const CURRICULUM_CHAPTERS: CurriculumChapter[] = [
       'Menganalisis frekuensi ambang f0 dan penentuan konstanta Planck (h) melalui potensial henti elektron foto.',
     ],
     prerequisites: ['Hukum Newton & Rangkaian DC', 'Gelombang transversal & konsep foton'],
-    moduleIds: ['collision-momentum', 'standing-wave-melde', 'ohm-wheatstone', 'optics-young-slit', 'photoelectric-planck'],
+    moduleIds: ['collision-momentum', 'standing-wave-melde', 'ohm-wheatstone', 'faraday-induction', 'optics-young-slit', 'photoelectric-planck'],
     realWorldTheme: 'Sensor panel surya fotovoltaik, serat optik telekomunikasi & jembatan pengukuran listrik',
   },
   {
@@ -109,7 +109,7 @@ export const CURRICULUM_CHAPTERS: CurriculumChapter[] = [
       'Menerapkan Hukum Lambert-Beer (A = ε·b·c) untuk analisis konsentrasi zat terlarut berwarna.',
     ],
     prerequisites: ['Konsep pH dan asam basa', 'Penyetaraan reaksi redoks'],
-    moduleIds: ['acid-base-titration', 'redox-electrochemistry', 'spectrophotometry-beer'],
+    moduleIds: ['acid-base-titration', 'redox-electrochemistry', 'electrolysis-faraday', 'spectrophotometry-beer'],
     realWorldTheme: 'Industri baterai kendaraan listrik nikel, pengolahan air bersih & uji laboratorium klinis',
   },
   {
@@ -129,7 +129,7 @@ export const CURRICULUM_CHAPTERS: CurriculumChapter[] = [
       'Memodelkan siklus osilasi populasi mangsa dan pemangsa menggunakan persamaan Lotka-Volterra.',
     ],
     prerequisites: ['Struktur sel tumbuhan & hewan', 'Konsep rantai makanan'],
-    moduleIds: ['photosynthesis-ingenhousz', 'enzyme-catalase', 'osmosis-plasmolysis', 'predator-prey-dynamics', 'mendel-genetics-dihybrid'],
+    moduleIds: ['photosynthesis-ingenhousz', 'enzyme-catalase', 'osmosis-plasmolysis', 'predator-prey-dynamics', 'mendel-genetics-dihybrid', 'dna-pcr-electrophoresis'],
     realWorldTheme: 'Pertanian hidroponik modern, bioteknologi fermentasi & konservasi satwa liar Indonesia',
   },
   {
@@ -168,7 +168,7 @@ export const CURRICULUM_CHAPTERS: CurriculumChapter[] = [
       'Mengklasifikasikan kelas spektral bintang Harvard dan menghitung kecepatan resesi galaksi (v = H0·d).',
     ],
     prerequisites: ['Gravitasi Newton', 'Spektrum gelombang elektromagnetik'],
-    moduleIds: ['solar-kepler', 'planetary-atmosphere-greenhouse', 'milky-way-rotation', 'exoplanet-transit', 'stellar-wien-spectrum', 'hubble-expansion'],
+    moduleIds: ['solar-kepler', 'planetary-atmosphere-greenhouse', 'milky-way-rotation', 'exoplanet-transit', 'stellar-wien-spectrum', 'doppler-redshift-binary', 'hubble-expansion'],
     realWorldTheme: 'Eksplorasi wahana antariksa, observatorium Bosscha/Timau NTT & pencarian kehidupan ekstrasurya',
   },
 ];

@@ -364,5 +364,56 @@ export const ASTRONOMY_PEDAGOGY: Record<string, ModulePedagogyBundle> = {
         'Di planet Venus, konsentrasi CO₂ mencapai 96,5% dengan tekanan 92 atm (ε mendekati 1 dalam atmosfer berlapis-banyak), memicu efek rumah kaca pelarian (runaway greenhouse) yang memanggang permukaannya hingga 737 K (464 °C).',
     },
   },
+
+  'doppler-redshift-binary': {
+    keyTakeaways: [
+      'Dua bintang dalam sistem biner saling mengorbit titik pusat massa bersama (barisenter) dengan periode Hukum III Kepler P = √[a³ / (M₁ + M₂)] tahun.',
+      'Bintang bermassa lebih kecil mengorbit lebih jauh dari barisenter dengan kecepatan orbit lebih besar: v₁/v₂ = M₂/M₁.',
+      'Komponen kecepatan radial vᵣ = v·sin(i) menggeser garis spektrum H-α (656,28 nm) menuju biru saat mendekati Bumi dan menuju merah saat menjauhi Bumi.',
+    ],
+    everydayAnalogy: {
+      title: 'Dua Penari Es Bergandengan Sambil Membunyikan Sirine',
+      scenario:
+        'Seorang penari dewasa (berat) dan seorang anak kecil (ringan) berpegangan tangan dan berputar mengelilingi titik tengah keseimbangan sambil membunyikan peluit: anak kecil berputar di lingkaran lebih lebar dan lebih cepat.',
+      connection:
+        'Saat masing-masing penari berputar mendekati penonton, nada peluit terdengar lebih tinggi (pergeseran biru cahaya), lalu terdengar lebih rendah saat berputar menjauh (pergeseran merah).',
+    },
+    formulaBreakdown: [
+      { symbol: 'M₁', name: 'Massa bintang primer', unit: 'M☉', role: 'bebas', explanation: 'Menentukan posisi barisenter dan memperbesar kecepatan orbit pasangan serta total gaya gravitasi.' },
+      { symbol: 'a', name: 'Jarak pisah orbit biner', unit: 'AU', role: 'bebas', explanation: 'Sumbu semi-mayor relatif antar dua bintang; jarak makin rapat menghasilkan orbit makin cepat.' },
+      { symbol: 'i', name: 'Sudut inklinasi bidang orbit', unit: '°', role: 'bebas', explanation: 'Sudut kemiringan bidang orbit terhadap garis pandang Bumi; proyeksi radialnya mengikuti sin(i).' },
+      { symbol: 'Δλ', name: 'Pergeseran Doppler H-α', unit: 'nm', role: 'terikat', explanation: 'Simpangan panjang gelombang maksimum garis Hidrogen 656,28 nm akibat kecepatan radial K₁.' },
+    ],
+    workedExample: {
+      question:
+        'Sistem bintang ganda memiliki massa M₁ = 2,0 M☉ dan M₂ = 1,0 M☉ pada jarak pisah a = 0,45 AU dengan inklinasi i = 90° (edge-on). Hitung periode orbit P dalam hari dan kecepatan radial maksimum bintang primer K₁!',
+      given: ['M₁ = 2,0 M☉', 'M₂ = 1,0 M☉', 'a = 0,45 AU', 'i = 90° (sin 90° = 1)'],
+      steps: [
+        'Hitung periode Hukum III Kepler: P = √[0,45³ / (2,0 + 1,0)] = √(0,091125 / 3) ≈ 0,1743 tahun × 365,25 ≈ 63,7 hari.',
+        'Hitung kelajuan orbit relatif: v rel = 29,785 × √[(2 + 1) / 0,45] ≈ 76,90 km/s.',
+        'Hitung semi-amplitudo kecepatan bintang primer: K₁ = v rel × [M₂ / (M₁ + M₂)] × sin(90°) = 76,90 × (1/3) ≈ 25,63 km/s.',
+      ],
+      answer: 'P ≈ 63,7 hari dan K₁ ≈ 25,63 km/s (Δλ ≈ 0,0561 nm)',
+      physicalMeaning:
+        'Bintang sekunder yang massanya setengah primer bergerak dua kali lebih cepat (K₂ ≈ 51,27 km/s), sehingga dua set garis H-α tampak berpisah saling menjauh lalu berhimpit dua kali tiap periode.',
+    },
+    glossary: [
+      { term: 'Barisenter', definition: 'Titik pusat massa sistem dua benda tempat kedua bintang berputar mengelilinginya secara seimbang (M₁·r₁ = M₂·r₂).' },
+      { term: 'Garis Hidrogen Alfa (H-α)', definition: 'Garis spektrum khas hidrogen pada panjang gelombang diam 656,28 nm di daerah merah cahaya tampak.' },
+      { term: 'Pergeseran Biru & Merah', definition: 'Pemendekan panjang gelombang tampak saat sumber cahaya mendekat (blueshift) dan pemanjangan saat menjauh (redshift).' },
+      { term: 'Inklinasi Orbit (i)', definition: 'Sudut antara bidang orbit sistem bintang dan bidang langit pengamat (0° = face-on, 90° = edge-on).' },
+    ],
+    deepDiveContent: {
+      historicalContext:
+        'Edward Charles Pickering dan Antonia Maury (1889) menemukan bintang biner spektroskopik pertama (Mizar A) melalui pemisahan periodik garis spektrum pada pelat fotografi Observatorium Harvard.',
+      derivationLatex: [
+        'P^2 = \\frac{4\\pi^2 a^3}{G(M_1 + M_2)}, \\quad K_1 = \\frac{2\\pi a_1 \\sin i}{P}',
+        '\\frac{\\Delta\\lambda}{\\lambda_0} = \\frac{v_r}{c}, \\quad \\frac{M_1}{M_2} = \\frac{K_2}{K_1}',
+      ],
+      advancedConcept:
+        'Pada biner spektroskopik garis-ganda (SB2) yang juga mengalami gerhana (eclipsing binary, i ≈ 90°), gabungan kurva kecepatan radial dan kurva cahaya menghasilkan massa absolut dan radius kedua bintang secara eksak.',
+    },
+  },
 };
+
 

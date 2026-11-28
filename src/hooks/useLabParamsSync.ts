@@ -126,6 +126,7 @@ export function useLabParamsSync({
       'gravity-orbital': 'orbital-gravity',
       'orbital-gravity': 'orbital-gravity',
       'standing-wave-melde': 'standing-wave-melde',
+      'faraday-induction': 'faraday-induction',
     };
     const chemistryModeMap: Record<string, typeof chemistryParams.mode> = {
       'thermo-calorimetry': 'thermo-calorimetry',
@@ -136,6 +137,7 @@ export function useLabParamsSync({
       'reaction-kinetics-arrhenius': 'reaction-kinetics-arrhenius',
       'spectrophotometry-beer': 'spectrophotometry-beer',
       'chemical-equilibrium-lechatelier': 'chemical-equilibrium-lechatelier',
+      'electrolysis-faraday': 'electrolysis-faraday',
     };
     const astronomyModeMap: Record<string, typeof astronomyParams.mode> = {
       'solar-kepler': 'solar-kepler',
@@ -147,6 +149,7 @@ export function useLabParamsSync({
       'hubble-expansion': 'hubble-expansion',
       'hubble-expansion-universe': 'hubble-expansion',
       'planetary-atmosphere-greenhouse': 'planetary-atmosphere-greenhouse',
+      'doppler-redshift-binary': 'doppler-redshift-binary',
     };
 
     if (physicsModeMap[activeModuleId]) {

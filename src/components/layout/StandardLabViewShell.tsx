@@ -365,8 +365,8 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
 
   const centerCorridorClass = [
     'left-2.5 right-2.5 sm:left-3 sm:right-3',
-    isLeftVisible ? 'lg:left-[316px] xl:left-[336px]' : 'lg:left-3',
-    isRightVisible ? 'lg:right-[324px] xl:right-[344px]' : 'lg:right-3',
+    isLeftVisible ? 'lg:left-[320px] xl:left-[340px]' : 'lg:left-3',
+    isRightVisible ? 'lg:right-[328px] xl:right-[348px]' : 'lg:right-3',
   ].join(' ');
 
   if (isMiniViewportMode) {
@@ -391,8 +391,8 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
       >
         {dualModeActive && dualViewport ? (
           <div
-            className={`w-full h-full pt-[58px] pb-[88px] px-3 overflow-hidden bg-[var(--comfort-bg)] transition-[padding] duration-200 ${
-              isLeftVisible ? 'lg:pl-[316px] xl:pl-[336px]' : ''
+            className={`w-full h-full pt-[56px] pb-[88px] px-3 overflow-hidden bg-[var(--comfort-bg)] transition-[padding] duration-200 ${
+              isLeftVisible ? 'lg:pl-[320px] xl:pl-[340px]' : ''
             }`}
           >
             {dualViewport}
@@ -443,60 +443,12 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
         onOpenDrLabMu={handleOpenDrLabMu}
       />
 
-      {/* 2.5. Floating Live Readout Mini-HUD when Right Telemetry Drawer is Closed */}
-      {showFloatingLiveReadout && (
+      {/* 3. Unified Non-Overlapping Center Overlay Stack (Guided Steps + Module Top Overlay + Compact Live Readout) */}
+      {(hasGuidedSteps || hasTopOverlay || showFloatingLiveReadout) && (
         <div
-          data-testid="floating-live-readout-hud"
-          className="pointer-events-auto hidden lg:flex items-center gap-2 absolute top-[58px] right-3 z-20 px-2.5 py-1.5 rounded-xl studio-hud-surface border border-[var(--comfort-border)] shadow-md text-2xs"
-        >
-          <button
-            type="button"
-            onClick={handleToggleRightDrawer}
-            title="Buka Panel Telemetri Lengkap (])"
-            className="flex items-center gap-2 cursor-pointer hover:opacity-90"
-          >
-            <Activity className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
-            {telemetryMetrics.slice(0, 2).map((metric, idx) => (
-              <div
-                key={metric.id}
-                className={`flex items-baseline gap-1 ${
-                  idx > 0 ? 'pl-2 border-l border-[var(--comfort-border)]' : ''
-                }`}
-              >
-                <span className="text-[var(--comfort-hud-muted)] font-medium truncate max-w-[96px]">
-                  {metric.label.split(' ')[0]}:
-                </span>
-                <span className="font-mono font-bold text-[var(--comfort-hud-text)] tabular-nums">
-                  {typeof metric.value === 'number'
-                    ? Number(metric.value.toFixed(metric.precision ?? 2))
-                    : metric.value}
-                </span>
-                {metric.unit && (
-                  <span className="font-mono text-[var(--comfort-hud-muted)]">{metric.unit}</span>
-                )}
-              </div>
-            ))}
-          </button>
-          <button
-            type="button"
-            data-testid="floating-hud-record-btn"
-            onClick={() => {
-              labSound.playRecordSuccess();
-              emitLabEvent(LAB_EVENTS.RECORD_TRIAL, { source: 'dock', timestamp: Date.now() });
-            }}
-            title="[D] Catat Data Pengamatan Sekarang"
-            className="ml-1 px-2 py-0.5 rounded-lg bg-[var(--comfort-accent)] hover:opacity-95 text-white font-bold flex items-center gap-1 cursor-pointer shrink-0"
-          >
-            <PlusCircle className="w-3 h-3 shrink-0" aria-hidden="true" />
-            <span>Catat</span>
-          </button>
-        </div>
-      )}
-
-      {/* 3. Unified Non-Overlapping Center Overlay Stack (Guided Steps + Module Top Overlay) */}
-      {(hasGuidedSteps || hasTopOverlay) && (
-        <div
-          className={`pointer-events-none absolute top-[58px] z-20 flex flex-col items-center gap-1.5 transition-[left,right] duration-200 ${centerCorridorClass}`}
+          className={`pointer-events-none absolute top-[64px] z-20 flex-col items-center gap-1.5 transition-[left,right] duration-200 ${
+            mobileSheetExpanded ? 'hidden lg:flex' : 'flex'
+          } ${centerCorridorClass}`}
         >
           {hasGuidedSteps && activeExperiment?.stepByStepGuide && (
             <GuidedLabStepsOverlay
@@ -516,11 +468,72 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
             />
           )}
 
-          {hasTopOverlay && (
-            <div className="w-full flex items-center justify-start">
-              <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 max-w-full">
-                {topOverlay}
-              </div>
+          {(hasTopOverlay || showFloatingLiveReadout) && (
+            <div className="w-full flex flex-wrap items-center justify-between gap-1.5">
+              {hasTopOverlay ? (
+                <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 max-w-full">
+                  {topOverlay}
+                </div>
+              ) : (
+                <div />
+              )}
+
+              {showFloatingLiveReadout && (
+                <div
+                  data-testid="floating-live-readout-hud"
+                  className="pointer-events-auto ml-auto flex items-center gap-2 px-2.5 py-1 rounded-xl studio-hud-surface border border-[var(--comfort-border)] shadow-sm text-2xs"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isDesktopViewport) {
+                        handleToggleRightDrawer();
+                      } else {
+                        setMobileSheetTab('telemetry');
+                        setMobileSheetExpanded(true);
+                        setMobileTab('telemetry');
+                      }
+                    }}
+                    title="Buka Panel Telemetri Lengkap (])"
+                    className="flex items-center gap-2 cursor-pointer hover:opacity-90"
+                  >
+                    <Activity className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
+                    {telemetryMetrics.slice(0, 2).map((metric, idx) => (
+                      <div
+                        key={metric.id}
+                        className={`flex items-baseline gap-1 ${
+                          idx > 0 ? 'pl-2 border-l border-[var(--comfort-border)]' : ''
+                        }`}
+                      >
+                        <span className="text-[var(--comfort-hud-muted)] font-medium truncate max-w-[76px] sm:max-w-[96px]">
+                          {metric.label.split(' ')[0]}:
+                        </span>
+                        <span className="font-mono font-bold text-[var(--comfort-hud-text)] tabular-nums">
+                          {typeof metric.value === 'number'
+                            ? Number(metric.value.toFixed(metric.precision ?? 2))
+                            : metric.value}
+                        </span>
+                        {metric.unit && (
+                          <span className="font-mono text-[var(--comfort-hud-muted)]">{metric.unit}</span>
+                        )}
+                      </div>
+                    ))}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="floating-hud-record-btn"
+                    onClick={() => {
+                      labSound.playRecordSuccess();
+                      emitLabEvent(LAB_EVENTS.RECORD_TRIAL, { source: 'dock', timestamp: Date.now() });
+                    }}
+                    title="[D] Catat Data Pengamatan Sekarang"
+                    className="hidden sm:flex ml-0.5 px-2 py-0.5 rounded-lg bg-[var(--comfort-accent)] hover:opacity-95 text-white font-bold items-center gap-1 cursor-pointer shrink-0"
+                  >
+                    <PlusCircle className="w-3 h-3 shrink-0" aria-hidden="true" />
+                    <span>Catat</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

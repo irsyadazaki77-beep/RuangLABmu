@@ -86,6 +86,12 @@ const PHYSICS_CAMERAS: ModeCameraMap = {
     top: { pos: [0.0, 12.8, 0.5], target: [0.0, 1.3, 0.0] },
     focus: { pos: [2.1, 2.3, 5.8], target: [0.0, 1.55, 0.0] },
   },
+  faraday: {
+    isometric: { pos: [4.8, 4.6, 10.4], target: [0.0, 1.55, 0.0] },
+    front: { pos: [0.0, 2.5, 11.6], target: [0.0, 1.55, 0.0] },
+    top: { pos: [0.0, 12.8, 0.5], target: [0.0, 1.35, 0.0] },
+    focus: { pos: [2.2, 2.4, 5.8], target: [0.15, 1.55, 0.0] },
+  },
 };
 
 const CHEMISTRY_CAMERAS: ModeCameraMap = {
@@ -130,6 +136,12 @@ const CHEMISTRY_CAMERAS: ModeCameraMap = {
     front: { pos: [0.0, 2.6, 11.2], target: [0.0, 1.6, 0.0] },
     top: { pos: [0.0, 13.0, 0.5], target: [0.0, 1.4, 0.0] },
     focus: { pos: [2.0, 2.4, 5.4], target: [0.0, 1.55, 0.0] },
+  },
+  electrolysis: {
+    isometric: { pos: [4.4, 4.8, 10.4], target: [0.0, 1.5, 0.0] },
+    front: { pos: [0.0, 2.5, 11.4], target: [0.0, 1.5, 0.0] },
+    top: { pos: [0.0, 13.0, 0.5], target: [0.0, 1.3, 0.0] },
+    focus: { pos: [2.1, 2.4, 5.6], target: [0.0, 1.5, 0.0] },
   },
 };
 
@@ -182,6 +194,12 @@ const BIOLOGY_CAMERAS: ModeCameraMap = {
     top: { pos: [0.0, 8.2, 0.5], target: [0.0, 0.0, 0.0] },
     focus: { pos: [1.55, 0.85, 4.2], target: [0.2, 0.05, 0.0] },
   },
+  pcr: {
+    isometric: { pos: [4.1, 4.6, 9.6], target: [0.0, 1.25, 0.0] },
+    front: { pos: [0.0, 2.4, 10.6], target: [0.0, 1.25, 0.0] },
+    top: { pos: [0.0, 12.2, 0.5], target: [0.0, 0.9, 0.0] },
+    focus: { pos: [1.8, 2.2, 5.0], target: [0.4, 1.1, 0.0] },
+  },
 };
 
 const ASTRONOMY_CAMERAS: ModeCameraMap = {
@@ -221,6 +239,12 @@ const ASTRONOMY_CAMERAS: ModeCameraMap = {
     top: { pos: [0.0, 14.0, 0.5], target: [0, 0, 0] },
     focus: { pos: [2.0, 2.0, 6.8], target: [0, 0.1, 0] },
   },
+  'binary-doppler': {
+    isometric: { pos: [3.2, 4.8, 12.0], target: [0, 0.2, 0] },
+    front: { pos: [0.0, 1.2, 12.8], target: [0, 0.2, 0] },
+    top: { pos: [0.0, 15.2, 0.5], target: [0, 0, 0] },
+    focus: { pos: [2.2, 2.4, 7.8], target: [0, 0.2, 0] },
+  },
 };
 
 export function normalizeStudioModeKey(domain: StudioDomain, rawMode: string): string {
@@ -236,10 +260,12 @@ export function normalizeStudioModeKey(domain: StudioDomain, rawMode: string): s
     if (m.includes('photoelectric') || m.includes('planck')) return 'photoelectric';
     if (m.includes('gravity') || m.includes('orbital')) return 'gravity';
     if (m.includes('melde') || m.includes('standing') || m.includes('wave')) return 'melde';
+    if (m.includes('faraday') || m.includes('induction')) return 'faraday';
     return 'incline';
   }
   if (domain === 'chemistry') {
     if (m.includes('titration') || m.includes('acid')) return 'titration';
+    if (m.includes('electrolysis')) return 'electrolysis';
     if (m.includes('electro') || m.includes('redox')) return 'electrochemistry';
     if (m.includes('gas') || m.includes('boyle')) return 'ideal-gas';
     if (m.includes('kinetic') || m.includes('arrhenius')) return 'kinetics';
@@ -252,6 +278,7 @@ export function normalizeStudioModeKey(domain: StudioDomain, rawMode: string): s
     if (m.includes('osmosis') || m.includes('plasmolysis')) return 'osmosis';
     if (m.includes('predator') || m.includes('prey')) return 'predator-prey';
     if (m.includes('mendel') || m.includes('genetics') || m.includes('dihybrid')) return 'mendel';
+    if (m.includes('pcr') || m.includes('electrophoresis') || m.includes('dna')) return 'pcr';
     if (m.includes('heart') || m.includes('cardio')) return 'anatomy-heart';
     if (m.includes('lung') || m.includes('respir')) return 'anatomy-lungs';
     if (m.includes('neural') || m.includes('neuron') || m.includes('synapse')) return 'anatomy-neuron';
@@ -262,6 +289,7 @@ export function normalizeStudioModeKey(domain: StudioDomain, rawMode: string): s
   if (m.includes('wien') || m.includes('stellar') || m.includes('spectrum')) return 'wien';
   if (m.includes('hubble') || m.includes('expansion')) return 'hubble';
   if (m.includes('atmosphere') || m.includes('greenhouse') || m.includes('planetary')) return 'greenhouse';
+  if (m.includes('binary') || m.includes('doppler')) return 'binary-doppler';
   return 'kepler';
 }
 
@@ -625,6 +653,46 @@ const INSPECTION_CATALOG: Record<string, ApparatusInspectionInfo> = {
     interactionHint: 'Naikkan konsentrasi CO₂ atau turunkan Albedo untuk melihat tudung es menyusut dan pijar inframerah atmosfer menebal.',
     paramKey: 'greenhouseGasPpm',
   },
+  'faraday:solenoid': {
+    id: 'faraday:solenoid',
+    title: 'Solenoida Induksi Faraday–Lenz & Magnet Neodymium',
+    category: 'Fisika · Elektromagnetisme',
+    roleSummary: 'Kumparan tembaga variabel, aktuator osilasi magnet batang N–S, galvanometer nol-tengah, lampu beban, dan osiloskop GGL waktu nyata.',
+    scientificConcept: 'Perubahan fluks magnetik Φ(t) membangkitkan GGL induksi ε = −N·dΦ/dt dengan arah medan lawan sesuai Hukum Lenz.',
+    relatedFormula: 'Φₘₐₓ = B·A,   εₘₐₓ = N·B·A·(2πf),   Iₘₐₓ = εₘₐₓ / R',
+    interactionHint: 'Ubah jumlah lilitan N atau frekuensi osilasi f untuk mengamati simpangan galvanometer dan amplitudo gelombang osiloskop.',
+    paramKey: 'coilTurnsN',
+  },
+  'electrolysis:tank': {
+    id: 'electrolysis:tank',
+    title: 'Tangki Sel Elektrolisis & Elektroplating Faraday',
+    category: 'Kimia · Elektrokimia & Stoikiometri',
+    roleSummary: 'Tangki borosilikat dengan katoda pelapis logam, anoda grafit penghasil gelembung gas O₂, serta catu daya amperemeter DC.',
+    scientificConcept: 'Arus DC I selama waktu t menggerakkan nₑ = Q/F mol elektron untuk mereduksi kation logam menjadi lapisan logam di katoda.',
+    relatedFormula: 'Q = I·t,   m = (Ar·I·t) / (n·F),   V(O₂) = (nₑ/4)·22.414 mL',
+    interactionHint: 'Ganti larutan elektrolit atau naikkan kuat arus I untuk melihat katoda menebal lebih cepat dan gelembung O₂ anoda meningkat.',
+    paramKey: 'electrolysisCurrentA',
+  },
+  'pcr:gelbox': {
+    id: 'pcr:gelbox',
+    title: 'Mesin Thermal Cycler PCR & Tangki Gel Agarosa UV',
+    category: 'Biologi · Biologi Molekuler',
+    roleSummary: 'Thermal Cycler 3-tahap suhu berulang (95 °C → Tₐ → 72 °C) terhubung ke kotak elektroforesis gel agarosa di bawah sinar UV.',
+    scientificConcept: 'PCR menggandakan DNA secara eksponensial N = N₀·(1 + E)^c, lalu gel agarosa memisahkan fragmen DNA menurut log₁₀ panjang bp.',
+    relatedFormula: 'N = N₀·(1 + E)^c,   d ∝ V / log₁₀(bp)',
+    interactionHint: 'Setel suhu annealing Tₐ di 58 °C untuk pita UV terterang, lalu geser panjang fragmen bp untuk melihat pergeseran posisi pita.',
+    paramKey: 'annealingTempC',
+  },
+  'binary:system': {
+    id: 'binary:system',
+    title: 'Sistem Bintang Biner & Spektrograf Pergeseran Doppler H-α',
+    category: 'Astronomi · Astrofisika Bintang',
+    roleSummary: 'Dua bintang mengorbit pusat massa bersama (barisenter) pada bidang inklinasi i disertai kurva kecepatan radial & spektrum H-α 656,28 nm.',
+    scientificConcept: 'Gerak mendekat/menjauh terhadap pengamat menggeser panjang gelombang H-α ke biru dan merah sebanding dengan v·sin(i).',
+    relatedFormula: 'P = √[a³ / (M₁ + M₂)],   K₁ = v₁·sin(i),   Δλ = 656,28·K₁ / c',
+    interactionHint: 'Ubah sudut inklinasi i menuju 90° (edge-on) untuk memaksimalkan pemisahan dua garis serapan H-α.',
+    paramKey: 'binaryInclinationDeg',
+  },
 };
 
 export function resolveApparatusInspection(
@@ -652,12 +720,14 @@ export function resolveApparatusInspection(
     if (canonical === 'photoelectric') return INSPECTION_CATALOG['photoelectric:cell'];
     if (canonical === 'gravity') return INSPECTION_CATALOG['gravity:planet'];
     if (canonical === 'melde') return INSPECTION_CATALOG['melde:string'];
+    if (canonical === 'faraday') return INSPECTION_CATALOG['faraday:solenoid'];
     return INSPECTION_CATALOG['incline:block'];
   }
 
   if (domain === 'chemistry') {
     if (canonical === 'titration') return INSPECTION_CATALOG['titration:burette'];
     if (canonical === 'electrochemistry') return INSPECTION_CATALOG['electrochemistry:cell'];
+    if (canonical === 'electrolysis') return INSPECTION_CATALOG['electrolysis:tank'];
     if (canonical === 'ideal-gas') return INSPECTION_CATALOG['ideal-gas:piston'];
     if (canonical === 'kinetics') return INSPECTION_CATALOG['kinetics:beaker'];
     if (canonical === 'spectrophotometry') return INSPECTION_CATALOG['spectrophotometry:cuvette'];
@@ -673,6 +743,7 @@ export function resolveApparatusInspection(
     if (canonical === 'anatomy-lungs') return INSPECTION_CATALOG['anatomy:lungs'];
     if (canonical === 'anatomy-neuron') return INSPECTION_CATALOG['anatomy:neuron'];
     if (canonical === 'mendel') return INSPECTION_CATALOG['mendel:punnett'];
+    if (canonical === 'pcr') return INSPECTION_CATALOG['pcr:gelbox'];
     return INSPECTION_CATALOG['photosynthesis:hydrilla'];
   }
 
@@ -681,5 +752,6 @@ export function resolveApparatusInspection(
   if (canonical === 'wien') return INSPECTION_CATALOG['wien:star'];
   if (canonical === 'hubble') return INSPECTION_CATALOG['hubble:cosmos'];
   if (canonical === 'greenhouse') return INSPECTION_CATALOG['greenhouse:planet'];
+  if (canonical === 'binary-doppler') return INSPECTION_CATALOG['binary:system'];
   return INSPECTION_CATALOG['kepler:orbit'];
 }

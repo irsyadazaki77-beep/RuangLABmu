@@ -188,7 +188,7 @@ export function formatCleanEquation(rawEquation: string): string {
   for (let pass = 0; pass < 3; pass += 1) {
     const next = eq
       .replace(/_\{([^{}]+)\}/g, '_$1')
-      .replace(/\^\{([^{}]+)\}/g, '^$1');
+      .replace(/\^\{([^{}/]+)\}/g, '^$1');
     if (next === eq) break;
     eq = next;
   }
@@ -197,7 +197,13 @@ export function formatCleanEquation(rawEquation: string): string {
     .replace(/\\dot\{([A-Za-z])\}/g, '$1\u0307')
     .replace(/\\bar\{([A-Za-z])\}/g, '$1\u0304')
     .replace(/\\vec\{([A-Za-z])\}/g, '$1\u20D7')
-    .replace(/\\sqrt\{\\frac\{([^{}]+)\}\{([^{}]+)\}\}/g, '√($1 / $2)')
+    .replace(/\\sqrt\{\\frac\{([^{}]+)\}\{([^{}]+)\}\}/g, (_m, num: string, den: string) => {
+      const cleanNum = num.trim();
+      const cleanDen = den.trim();
+      const fmtNum = /[+-]/.test(cleanNum) ? `(${cleanNum})` : cleanNum;
+      const fmtDen = /[+-]/.test(cleanDen) ? `(${cleanDen})` : cleanDen;
+      return `√(${fmtNum} / ${fmtDen})`;
+    })
     .replace(/\\left\(\s*\\frac\{([^{}]+)\}\{([^{}]+)\}\s*\\right\)/g, '($1 / $2)');
 
   // Iteratively resolve \frac{num}{den} (handles nested braces up to 4 levels)
@@ -229,7 +235,7 @@ export function formatCleanEquation(rawEquation: string): string {
     .replace(/\\\{/g, '{')
     .replace(/\\\}/g, '}')
     .replace(/_\{([^}]+)\}/g, '_$1')
-    .replace(/\^\{([^}]+)\}/g, '^$1')
+    .replace(/\^\{([^}/]+)\}/g, '^$1')
     .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
     .replace(/\\left\(/g, '(')
     .replace(/\\right\)/g, ')')
@@ -237,6 +243,7 @@ export function formatCleanEquation(rawEquation: string): string {
     .replace(/\\right\]/g, ']')
     .replace(/\\Sigma/g, 'Σ')
     .replace(/\\Delta/g, 'Δ')
+    .replace(/\\Phi/g, 'Φ')
     .replace(/\\Psi/g, 'Ψ')
     .replace(/\\lambda/g, 'λ')
     .replace(/\\theta/g, 'θ')
@@ -265,9 +272,12 @@ export function formatCleanEquation(rawEquation: string): string {
     .replace(/\\le(?![A-Za-z])/g, ' ≤ ')
     .replace(/\\ge(?![A-Za-z])/g, ' ≥ ')
     .replace(/\\infty/g, '∞')
+    .replace(/\\qquad/g, '  ')
     .replace(/\\quad/g, ' ')
+    .replace(/\\!/g, '')
     .replace(/_\\(max|min)\b/g, '_$1')
     .replace(/\\(arcsin|arccos|arctan|sin|cos|tan|log|ln|max|min|exp)\b/g, ' $1')
+    .replace(/e\^-/g, 'e⁻')
     .replace(/_\s+/g, '_')
     .replace(/_\*/g, '_*')
     .replace(/\\/g, '')

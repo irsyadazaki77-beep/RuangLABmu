@@ -680,5 +680,56 @@ export const PHYSICS_PEDAGOGY: Record<string, ModulePedagogyBundle> = {
         'Pada instrumen musik berdawai, warna bunyi (timbre) ditentukan oleh superposisi nada dasar (n = 1) bersama deret harmonik atasnya (n = 2, 3, 4, ...) yang berosilasi serentak.',
     },
   },
+
+  'faraday-induction': {
+    keyTakeaways: [
+      'Gaya gerak listrik (GGL) induksi muncul hanya ketika terjadi perubahan fluks magnetik terhadap waktu: ε = −N·(dΦ/dt).',
+      'Untuk magnet yang berosilasi harmonik berfrekuensi f menembus kumparan berpenampang A dengan N lilitan, GGL puncaknya memenuhi εₘₐₓ = N·B·A·(2πf).',
+      'Hukum Lenz menyatakan arus induksi selalu menghasilkan medan magnet yang melawan perubahan fluks magnetik penyebabnya.',
+    ],
+    everydayAnalogy: {
+      title: 'Dinamo Sepeda yang Menerangkan Lampu Saat Kayuhan Cepat',
+      scenario:
+        'Saat Anda mengayuh sepeda lebih cepat di malam hari, roda kecil dinamo berputar lebih kencang sehingga lampu depan sepeda menyala jauh lebih terang, lalu meredup dan padam saat sepeda berhenti.',
+      connection:
+        'Putaran cepat menaikkan frekuensi perubahan fluks magnetik f sehingga GGL induksi εₘₐₓ = N·B·A·(2πf) membesar; ketika kayuhan berhenti (f = 0), perubahan fluks nol dan lampu langsung padam.',
+    },
+    formulaBreakdown: [
+      { symbol: 'N', name: 'Jumlah lilitan kumparan', unit: 'lilitan', role: 'bebas', explanation: 'Tiap lilitan menyumbang tegangan induksi secara seri sehingga total GGL berbanding lurus dengan N.' },
+      { symbol: 'B', name: 'Kuat medan magnetik', unit: 'T', role: 'bebas', explanation: 'Kerapatan garis gaya magnet permanen yang menembus luas penampang kumparan.' },
+      { symbol: 'f', name: 'Frekuensi osilasi magnet', unit: 'Hz', role: 'bebas', explanation: 'Menentukan laju perubahan fluks sudut ω = 2πf yang langsung melipatgandakan εₘₐₓ.' },
+      { symbol: 'εₘₐₓ', name: 'GGL induksi puncak', unit: 'V', role: 'terikat', explanation: 'Tegangan maksimum sinusoidal yang terbaca pada osiloskop dan menyuplai arus beban Iₘₐₓ = εₘₐₓ/R.' },
+    ],
+    workedExample: {
+      question:
+        'Sebuah kumparan memiliki N = 100 lilitan dengan luas penampang A = 20 cm² (0,002 m²). Magnet batang berosilasi di dalamnya pada frekuensi f = 2,0 Hz dengan puncak medan B = 0,50 T. Hitung fluks maksimum Φₘₐₓ dan GGL induksi puncak εₘₐₓ!',
+      given: ['N = 100 lilitan', 'A = 20 cm² = 0,002 m²', 'B = 0,50 T', 'f = 2,0 Hz'],
+      steps: [
+        'Hitung fluks magnetik maksimum: Φₘₐₓ = B × A = 0,50 × 0,002 = 0,001 Wb = 1,00 mWb.',
+        'Hitung frekuensi sudut osilasi: ω = 2πf = 2 × π × 2,0 ≈ 12,566 rad/s.',
+        'Hitung GGL induksi puncak: εₘₐₓ = N × Φₘₐₓ × ω = 100 × 0,001 × 12,566 ≈ 1,257 V.',
+      ],
+      answer: 'Φₘₐₓ = 1,00 mWb dan εₘₐₓ ≈ 1,257 V',
+      physicalMeaning:
+        'Jika hambatan beban total R = 10 Ω, arus induksi bolak-balik mencapai puncak 125,7 mA dengan jarum galvanometer berayun simetris ke kiri dan ke kanan.',
+    },
+    glossary: [
+      { term: 'Fluks Magnetik (Φ)', definition: 'Banyaknya garis medan magnet B yang menembus secara tegak lurus bidang seluas A (Φ = B·A·cos θ dalam Weber).' },
+      { term: 'Hukum Faraday', definition: 'Hukum dasar elektromagnetisme yang menyatakan besar GGL induksi sebanding dengan laju perubahan fluks magnetik terhadap waktu.' },
+      { term: 'Hukum Lenz', definition: 'Aturan kekekalan energi elektromagnetik bahwa arah arus induksi selalu menentang perubahan fluks magnetik yang menimbulkannya.' },
+      { term: 'Galvanometer Nol-Tengah', definition: 'Instrumen pengukur arus lemah dua arah dengan posisi nol di tengah skala untuk mendeteksi polaritas arus bolak-balik.' },
+    ],
+    deepDiveContent: {
+      historicalContext:
+        'Michael Faraday (1831) di Royal Institution London menemukan bahwa medan magnet dapat melahirkan arus listrik asalkan fluksnya berubah, lalu Heinrich Lenz (1834) merumuskan kaidah arah berlawanannya.',
+      derivationLatex: [
+        '\\Phi(t) = B A \\cos(2\\pi f t) \\implies \\varepsilon(t) = -N \\frac{d\\Phi}{dt} = N B A (2\\pi f) \\sin(2\\pi f t)',
+        '\\varepsilon_{\\max} = N B A (2\\pi f), \\quad P_{\\text{avg}} = \\frac{1}{T}\\int_0^T \\frac{\\varepsilon^2(t)}{R}dt = \\frac{\\varepsilon_{\\max}^2}{2R}',
+      ],
+      advancedConcept:
+        'Tanda minus dalam Hukum Faraday menjamin kekekalan energi: apabila arus induksi justru membantu mempercepat magnet, energi listrik gratis akan tercipta tanpa usaha mekanik.',
+    },
+  },
 };
+
 

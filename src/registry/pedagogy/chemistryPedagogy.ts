@@ -440,5 +440,56 @@ export const CHEMISTRY_PEDAGOGY: Record<string, ModulePedagogyBundle> = {
         'Berbeda dengan perubahan tekanan atau konsentrasi yang hanya menggeser kuosien reaksi Qp menuju Kp yang sama, perubahan suhu secara langsung mengubah lanskap energi bebas Gibbs standar ΔG° = −RT ln Kp.',
     },
   },
+
+  'electrolysis-faraday': {
+    keyTakeaways: [
+      'Elektrolisis menggunakan sumber energi listrik DC untuk menggerakkan reaksi redoks non-spontan: reduksi kation di katoda (−) dan oksidasi di anoda (+).',
+      'Hukum I Faraday menyatakan massa zat yang mengendap di katoda berbanding lurus dengan muatan listrik Q = I·t: m = (Ar · I · t) / (n · F).',
+      'Satu Faraday (F = 96.485 C/mol) adalah besarnya muatan listrik yang dibawa oleh 1 mol elektron.',
+    ],
+    everydayAnalogy: {
+      title: 'Truk Pengangkut Batu Bata dengan Tarif Tetap Per Muatan',
+      scenario:
+        'Bayangkan setiap elektron adalah satu tiket pengangkut ion logam menuju dinding katoda: makin besar arus listrik (jumlah truk per detik) dan makin lama waktu berjalan, makin tebal lapisan logam yang menempel.',
+      connection:
+        'Ion bermuatan +1 (Ag⁺) hanya butuh 1 tiket elektron untuk mengendap sedangkan Cu²⁺ butuh 2 tiket elektron, sehingga jumlah elektron per mol menentukan massa endapan m = (Ar·Q)/(n·F).',
+    },
+    formulaBreakdown: [
+      { symbol: 'I', name: 'Kuat arus listrik DC', unit: 'A', role: 'bebas', explanation: 'Laju aliran muatan listrik per detik (1 Ampere = 1 Coulomb/detik).' },
+      { symbol: 't', name: 'Durasi elektrolisis', unit: 'menit', role: 'bebas', explanation: 'Lamanya arus mengalir; dalam rumus Q = I·t wajib dikonversi menjadi detik (×60).' },
+      { symbol: 'Ar', name: 'Massa atom relatif logam', unit: 'g/mol', role: 'bebas', explanation: 'Massa 1 mol atom logam terendapkan (misalnya Cu = 63,55; Ag = 107,87).' },
+      { symbol: 'm', name: 'Massa logam terendapkan', unit: 'g', role: 'terikat', explanation: 'Berat lapisan pelapis logam baru yang menempel di katoda: m = (Ar·I·t)/(n·F).' },
+    ],
+    workedExample: {
+      question:
+        'Larutan CuSO₄ (Ar Cu = 63,55 g/mol, n = 2) dielektrolisis dengan kuat arus tetap I = 2,5 A selama t = 30 menit memakai elektroda grafit inert. Hitung muatan Q, mol elektron nₑ, dan massa tembaga yang melapisi katoda!',
+      given: ['I = 2,5 A', 't = 30 menit = 1800 s', 'Ar Cu = 63,55 g/mol', 'n = 2', 'F = 96.485 C/mol'],
+      steps: [
+        'Hitung muatan listrik total: Q = I × t = 2,5 × 1800 = 4500 C.',
+        'Hitung mol elektron yang mengalir: nₑ = Q / F = 4500 / 96.485 ≈ 0,04664 mol.',
+        'Hitung massa tembaga di katoda: m = (Ar × Q) / (n × F) = (63,55 × 4500) / (2 × 96.485) ≈ 1,482 g.',
+      ],
+      answer: 'Q = 4500 C; nₑ ≈ 0,0466 mol; m ≈ 1,482 g Cu',
+      physicalMeaning:
+        'Bersamaan dengan pelapisan 1,482 g tembaga merah kecokelatan pada katoda, di anoda inert terbentuk gas oksigen murni sekitar (0,04664/4) × 22414 ≈ 261,3 mL pada kondisi STP.',
+    },
+    glossary: [
+      { term: 'Katoda (−)', definition: 'Elektroda tempat terjadinya reaksi reduksi kation menjadi endapan logam murni pada sel elektrolisis.' },
+      { term: 'Anoda Inert (+)', definition: 'Elektroda tak reaktif (seperti grafit atau platina) tempat oksidasi air menghasilkan gas oksigen O₂ dan ion H⁺.' },
+      { term: 'Konstanta Faraday (F)', definition: 'Muatan total satu mol elektron yang bernilai F = Nₐ · e ≈ 96.485 Coulomb/mol.' },
+      { term: 'Massa Ekuivalen (Ar/n)', definition: 'Massa logam yang dihasilkan oleh tepat satu mol elektron (1 Faraday muatan).' },
+    ],
+    deepDiveContent: {
+      historicalContext:
+        'Michael Faraday (1833) merumuskan dua hukum kuantitatif elektrolisis sekaligus menciptakan istilah elektroda, anoda, katoda, kation, dan anion bersama filsuf William Whewell.',
+      derivationLatex: [
+        'Q = I \\cdot t, \\quad n_{\\text{logam}} = \\frac{n_{e^-}}{n} = \\frac{I \\cdot t}{n \\cdot F}',
+        'm = n_{\\text{logam}} \\cdot A_r = \\frac{A_r \\cdot I \\cdot t}{n \\cdot F}',
+      ],
+      advancedConcept:
+        'Pada skala industri, efisiensi arus aktual (Faradaic efficiency) sedikit di bawah 100% jika sebagian elektron ikut mereduksi ion H⁺ menjadi gas hidrogen sampingan pada tegangan berlebih.',
+    },
+  },
 };
+
 

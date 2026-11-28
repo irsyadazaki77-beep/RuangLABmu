@@ -129,6 +129,11 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
         return { ...base, galaxyDistanceMpc: Math.min(600, (base.galaxyDistanceMpc ?? 120) + 180) };
       case 'planetary-atmosphere-greenhouse':
         return { ...base, greenhouseGasPpm: Math.min(2000, (base.greenhouseGasPpm ?? 420) + 450) };
+      case 'doppler-redshift-binary':
+        return {
+          ...base,
+          binaryInclinationDeg: (base.binaryInclinationDeg ?? 75) > 50 ? 25 : 85,
+        };
       default:
         return { ...base, customSemiMajorAxisAu: Math.min(30, Number((base.customSemiMajorAxisAu * 1.8).toFixed(1))) };
     }
@@ -176,6 +181,12 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
           { id: 'tsurf', label: 'Suhu Permukaan (Ts)', value: metrics.surfaceTempK ?? 288.4, min: 150, max: 500, unit: 'K', color: '#38bdf8' },
           { id: 'teq', label: 'Suhu Ekuilibrium (Teq)', value: metrics.equilibriumTempK ?? 254.9, min: 150, max: 400, unit: 'K', color: '#10b981' },
           { id: 'dgh', label: 'Efek Rumah Kaca (ΔT)', value: metrics.greenhouseWarmingDeltaK ?? 33.5, min: 0, max: 120, unit: 'K', color: '#f59e0b' },
+        ]
+      : params.mode === 'doppler-redshift-binary'
+      ? [
+          { id: 'k1', label: 'Kec. Radial K₁', value: metrics.binaryRadialVel1Kms ?? 17.7, min: 0, max: 120, unit: 'km/s', color: '#38bdf8' },
+          { id: 'dl', label: 'Geseran H-α (Δλ)', value: metrics.binaryMaxDopplerShiftNm ?? 0.0387, min: 0, max: 0.3, unit: 'nm', color: '#10b981' },
+          { id: 'pbin', label: 'Periode Biner (P)', value: metrics.binaryPeriodDays ?? 61.6, min: 0, max: 600, unit: 'hari', color: '#f59e0b' },
         ]
       : [
           { id: 'period', label: 'Periode Orbit (T)', value: metrics.orbitalPeriodYears, min: 0, max: 165, unit: 'Tahun', color: '#38bdf8' },
@@ -251,6 +262,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
     'stellar-wien-spectrum': 'stellar-wien-spectrum',
     'hubble-expansion': 'hubble-expansion',
     'planetary-atmosphere-greenhouse': 'planetary-atmosphere-greenhouse',
+    'doppler-redshift-binary': 'doppler-redshift-binary',
   };
   const moduleRecords = filterRecordsForModule(records, 'Astronomi', modeToCatalogId[params.mode]);
 
@@ -278,6 +290,8 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
         ? 'Spektrum Benda Hitam & Hukum Wien'
         : p.mode === 'planetary-atmosphere-greenhouse'
         ? 'Atmosfer Planet, Albedo & Efek Rumah Kaca'
+        : p.mode === 'doppler-redshift-binary'
+        ? 'Bintang Biner Spektroskopik & Doppler H-α'
         : 'Ekspansi Kosmik & Hukum Hubble';
 
     let pSum = `a=${p.customSemiMajorAxisAu} AU, e=${p.customEccentricity}, T=${m.orbitalPeriodYears} thn`;
@@ -304,18 +318,35 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
       pSum = `A=${p.planetaryAlbedo ?? 0.30}, CO₂=${p.greenhouseGasPpm ?? 420} ppm, S=${p.stellarFluxFactor ?? 1.0} S₀`;
       numX = p.greenhouseGasPpm ?? 420;
       numY1 = m.surfaceTempK ?? 288.4;
+    } else if (p.mode === 'doppler-redshift-binary') {
+      pSum = `M₁=${p.binaryMass1Solar ?? 2.2}M☉, M₂=${p.binaryMass2Solar ?? 1.0}M☉, a=${p.binarySeparationAu ?? 0.45}AU, i=${p.binaryInclinationDeg ?? 75}°`;
+      numX = p.binaryInclinationDeg ?? 75;
+      numY1 = m.binaryRadialVel1Kms ?? 17.7;
     }
+
+    const recordMetrics: Record<string, number | string> =
+      p.mode === 'doppler-redshift-binary'
+        ? {
+            'Kec. Radial K₁': `${m.binaryRadialVel1Kms ?? 17.7} km/s`,
+            'Geseran H-α (Δλ)': `${m.binaryMaxDopplerShiftNm ?? 0.0387} nm`,
+            'Periode Biner (P)': `${m.binaryPeriodDays ?? 61.6} hari`,
+          }
+        : {
+            'Periode Orbit (T)': `${m.orbitalPeriodYears} Tahun`,
+            'Kecepatan Orbit': `${m.meanOrbitalVelocityKms} km/s`,
+            'Rasio Kepler a³/T²': m.keplerRatioT2OverA3,
+          };
 
     onRecordExperiment(
       title,
       pSum,
-      {
-        'Periode Orbit (T)': `${m.orbitalPeriodYears} Tahun`,
-        'Kecepatan Orbit': `${m.meanOrbitalVelocityKms} km/s`,
-        'Rasio Kepler a³/T²': m.keplerRatioT2OverA3,
-      },
+      recordMetrics,
       noteOverride ?? (hypothesisNote?.hypothesisText || ''),
-      { x: numX, y1: numY1, y2: m.meanOrbitalVelocityKms }
+      {
+        x: numX,
+        y1: numY1,
+        y2: p.mode === 'doppler-redshift-binary' ? (m.binaryMaxDopplerShiftNm ?? 0.0387) : m.meanOrbitalVelocityKms,
+      }
     );
   };
 
@@ -356,6 +387,11 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               return {
                 label: `Hukum Hubble: v = ${metrics.hubbleRecessionVelocityKmS ?? 8400} km/s · z = ${(metrics.hubbleRedshiftZ ?? 0.028).toFixed(3)}`,
                 detail: `Kecepatan resesi galaksi berbanding lurus dengan jarak kosmologisnya (v = H₀ · d).`,
+              };
+            case 'doppler-redshift-binary':
+              return {
+                label: `Biner Spektroskopik: K₁ = ${(metrics.binaryRadialVel1Kms ?? 17.7).toFixed(2)} km/s · Δλ = ${(metrics.binaryMaxDopplerShiftNm ?? 0.0387).toFixed(4)} nm`,
+                detail: `Garis H-α (656,28 nm) terpecah menjadi komponen blueshift dan redshift seiring kedua bintang mengorbit barisenter.`,
               };
             default:
               return {
@@ -453,6 +489,21 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                   delta: `ΔTs = ${(deltaTs >= 0 ? '+' : '')}${deltaTs.toFixed(1)} K`,
                 };
               }
+              case 'doppler-redshift-binary': {
+                const deltaK = (metricsB.binaryRadialVel1Kms ?? 0) - (metrics.binaryRadialVel1Kms ?? 0);
+                return {
+                  key: 'binaryInclinationDeg' as const,
+                  label: 'Inklinasi Orbit i (B)',
+                  unit: '°',
+                  min: 5,
+                  max: 90,
+                  step: 5,
+                  valB: realityBParams.binaryInclinationDeg ?? 25,
+                  summaryA: `i=${params.binaryInclinationDeg ?? 75}° · K₁=${metrics.binaryRadialVel1Kms}km/s`,
+                  summaryB: `i=${realityBParams.binaryInclinationDeg ?? 25}° · K₁=${metricsB.binaryRadialVel1Kms}km/s`,
+                  delta: `ΔK₁ = ${(deltaK >= 0 ? '+' : '')}${deltaK.toFixed(2)} km/s`,
+                };
+              }
               default:
                 return {
                   key: 'customSemiMajorAxisAu' as const,
@@ -503,6 +554,10 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
                         ? params.starEffectiveTempK
                         : astroVar.key === 'galaxyDistanceMpc'
                         ? params.galaxyDistanceMpc ?? 120
+                        : astroVar.key === 'greenhouseGasPpm'
+                        ? params.greenhouseGasPpm ?? 420
+                        : astroVar.key === 'binaryInclinationDeg'
+                        ? params.binaryInclinationDeg ?? 75
                         : params.customSemiMajorAxisAu
                     }
                     onChange={(nextVal) =>
@@ -604,6 +659,7 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
               <option value="stellar-wien-spectrum">Hukum Wien &amp; Radiasi Benda Hitam</option>
               <option value="hubble-expansion">Ekspansi Alam Semesta &amp; Hukum Hubble</option>
               <option value="planetary-atmosphere-greenhouse">Atmosfer Planet, Albedo &amp; Efek Rumah Kaca</option>
+              <option value="doppler-redshift-binary">Bintang Biner Spektroskopik &amp; Pergeseran Doppler</option>
             </select>
           </div>
 

@@ -834,10 +834,10 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
         {/* Flat Compact Filter & Inline Search Bar */}
         <div
           data-testid="lobby-compact-filter-bar"
-          className="flex flex-col xl:flex-row xl:items-center justify-between gap-2 px-3 py-2.5 bg-[var(--comfort-surface-subtle)]/50"
+          className="flex flex-col lg:flex-row lg:flex-wrap xl:flex-nowrap items-stretch lg:items-center justify-between gap-2 px-3 py-2.5 bg-[var(--comfort-surface-subtle)]/50"
         >
           {/* Inline Quick Search Input (Shortcut '/') */}
-          <div className="relative flex items-center w-full lg:w-56 xl:w-64 shrink-0">
+          <div className="relative flex items-center w-full lg:w-48 xl:w-52 shrink-0">
             <Search
               className="w-3.5 h-3.5 text-[var(--comfort-text-muted)] absolute left-2.5 pointer-events-none"
               aria-hidden="true"
@@ -923,7 +923,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
           <span className="hidden lg:block w-px h-4 bg-[var(--comfort-border)] shrink-0" aria-hidden="true" />
 
           {/* Domain Filter Tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar">
             {[
               { id: 'all', label: 'Semua' },
               { id: 'fisika', label: 'Fisika' },
@@ -940,7 +940,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
                     labSound.playClick();
                     setLobbySelectedDomain(tab.id as ScienceDomain | 'all');
                   }}
-                  className={`relative px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  className={`relative px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                     isSelected
                       ? 'text-[var(--comfort-accent)]'
                       : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)]'

@@ -15,6 +15,11 @@ import {
   calculateRespiratoryLungs,
   calculateNeuralSynapse,
 } from '../../utils/engines/biologyEngine';
+import {
+  computeHeartVisualKinematics,
+  computeLungsVisualKinematics,
+  computeNeuronVisualKinematics,
+} from '../../utils/biologyVisualHelpers';
 import { SpatialCursorPayload } from '../../utils/collabProtocol';
 import { attachTeacherCollabBridge } from '../../utils/spatialCursorGroup';
 import { ComfortThemeMode, getSceneThemeColors, type SceneThemeColors } from '../ui/VisualComfortToolbar';
@@ -637,42 +642,80 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       const rbcCount = 120;
       const rbcGeo = new THREE.SphereGeometry(0.055, 10, 10);
       rbcGeo.scale(1, 0.45, 1);
-      const sysStream = new THREE.InstancedMesh(
-        rbcGeo,
-        new THREE.MeshStandardMaterial({ color: 0xff2a55, emissive: 0x991b1b, emissiveIntensity: 0.55 }),
-        rbcCount
-      );
+      const sysRbcMat = new THREE.MeshStandardMaterial({
+        color: 0xff2a55,
+        emissive: 0x991b1b,
+        emissiveIntensity: 0.55,
+      });
+      const sysStream = new THREE.InstancedMesh(rbcGeo, sysRbcMat, rbcCount);
       const pulStream = new THREE.InstancedMesh(
         rbcGeo,
         new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x1d4ed8, emissiveIntensity: 0.45 }),
         rbcCount
       );
       innerGroup.add(sysStream, pulStream);
+
+      // Visible yellow lipid atherosclerotic plaque collar inside/around ascending aorta when vesselRadiusRatio < 1
+      const plaqueMat = new THREE.MeshStandardMaterial({
+        color: 0xfacc15,
+        emissive: 0xca8a04,
+        emissiveIntensity: 0.25,
+        roughness: 0.55,
+        transparent: true,
+        opacity: 0.85,
+      });
+      const plaqueCollar = new THREE.Mesh(new THREE.TorusGeometry(0.145, 0.045, 12, 24), plaqueMat);
+      plaqueCollar.position.set(0.28, 1.05, 0.08);
+      plaqueCollar.rotation.set(Math.PI / 2 - 0.18, 0, -0.15);
+      plaqueCollar.visible = false;
+      plaqueCollar.name = 'Plak Aterosklerosis (Penyempitan Lumen Poiseuille)';
+      innerGroup.add(plaqueCollar);
+
       let lastEcgKey = '';
 
       updateFrame = (t) => {
         const hr = paramsRef.current.heartRateBpm ?? 72;
         const radiusRatio = paramsRef.current.vesselRadiusRatio ?? 1.0;
-        const ecgKey = `${Math.round(hr)}_${radiusRatio.toFixed(2)}`;
+        const viscosity = paramsRef.current.bloodViscosity ?? 3.5;
+        const exercise = paramsRef.current.exerciseIntensity ?? 20;
+        const hk = computeHeartVisualKinematics(paramsRef.current, t);
+
+        const ecgKey = `${Math.round(hr)}_${radiusRatio.toFixed(2)}_${viscosity.toFixed(1)}_${Math.round(exercise)}`;
         if (ecgKey !== lastEcgKey) {
           lastEcgKey = ecgKey;
-          const hMetrics = evalHeart(paramsRef.current);
           updateInstrumentPanelTexture(ecgScreenTex, {
             title: 'HEMODYNAMIC MONITOR',
             primaryText: `${Math.round(hr)} bpm`,
-            secondaryText: `CO ${hMetrics.cardiacOutputLMin.toFixed(1)} L/m · MAP ${Math.round(hMetrics.meanArterialPressure)} mmHg`,
-            accentHex: '#fb7185',
+            secondaryText: `CO ${hk.metrics.cardiacOutputLMin.toFixed(1)}L · SV ${Math.round(hk.metrics.strokeVolumeMl)} · MAP ${Math.round(hk.metrics.meanArterialPressure)}`,
+            accentHex: hk.metrics.meanArterialPressure > 115 ? '#f97316' : '#fb7185',
           });
         }
         const phase = (t * (hr / 60)) % 1.0;
         const sysPulse = phase < 0.32 ? Math.sin((phase / 0.32) * Math.PI) : 0;
         const atrPulse = phase > 0.78 ? Math.sin(((phase - 0.78) / 0.22) * Math.PI) : 0;
+        const strokeAmp = Math.min(0.22, Math.max(0.07, 0.14 * hk.svRatio));
 
-        leftVentricle.scale.set(0.85 * (1 - 0.14 * sysPulse), 1.35 * (1 - 0.09 * sysPulse), 0.85 * (1 - 0.14 * sysPulse));
-        rightVentricle.scale.set(0.82 * (1 - 0.13 * sysPulse), 1.22 * (1 - 0.08 * sysPulse), 0.78 * (1 - 0.13 * sysPulse));
+        leftVentricle.scale.set(
+          0.85 * (1 - strokeAmp * sysPulse),
+          1.35 * (1 - strokeAmp * 0.65 * sysPulse),
+          0.85 * (1 - strokeAmp * sysPulse)
+        );
+        rightVentricle.scale.set(
+          0.82 * (1 - strokeAmp * 0.92 * sysPulse),
+          1.22 * (1 - strokeAmp * 0.58 * sysPulse),
+          0.78 * (1 - strokeAmp * 0.92 * sysPulse)
+        );
         leftAtrium.scale.setScalar(1 - 0.11 * atrPulse);
         rightAtrium.scale.setScalar(1 - 0.11 * atrPulse);
         aortaArch.scale.set(radiusRatio, 1 + 0.06 * sysPulse, radiusRatio);
+
+        // Atherosclerotic plaque buildup & darker viscous blood when viscosity/stenosis increase
+        plaqueCollar.visible = hk.plaqueSeverity > 0.06;
+        if (plaqueCollar.visible) {
+          plaqueCollar.scale.setScalar(0.55 + hk.plaqueSeverity * 0.95);
+        }
+        const viscDarken = Math.min(1, Math.max(0, (viscosity - 3.5) / 5.5));
+        sysRbcMat.color.setRGB(1.0 - viscDarken * 0.32, 0.16 * (1 - viscDarken * 0.4), 0.33 * (1 - viscDarken * 0.35));
 
         // Valve aperture kinematics: Aortic opens on systole, Mitral opens during diastole filling
         aorticLeaflets.forEach((lf, idx) => {
@@ -685,7 +728,8 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
           lf.rotation.z = dir * (0.15 + diastoleOpen * 0.85);
         });
 
-        const speed = (hr / 60) * 0.65;
+        // Poiseuille-synced RBC stream speed (drops steeply with vasoconstriction or high viscosity!)
+        const speed = hk.rbcFlowSpeed;
         for (let i = 0; i < rbcCount; i++) {
           const u = (i / rbcCount + t * speed) % 1;
           const ang = u * Math.PI * 2;
@@ -889,46 +933,52 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       const o2Mesh = new THREE.InstancedMesh(gasGeo, new THREE.MeshBasicMaterial({ color: 0x38bdf8 }), gasCount);
       const co2Mesh = new THREE.InstancedMesh(gasGeo, new THREE.MeshBasicMaterial({ color: 0xfb923c }), gasCount);
       innerGroup.add(o2Mesh, co2Mesh);
+      const alvHealthyColor = new THREE.Color(0xfda4af);
+      const alvHypoxicColor = new THREE.Color(0x6366f1);
+      const alvHealthyEmissive = new THREE.Color(0x9f1239);
+      const alvHypoxicEmissive = new THREE.Color(0x312e81);
       let lastSpiroKey = '';
 
       updateFrame = (t, _dt, particleScale) => {
         const rr = paramsRef.current.respirationRate ?? 15;
         const effort = paramsRef.current.diaphragmEffort ?? 50;
         const resistance = paramsRef.current.airwayResistance ?? 1.0;
-        const spiroKey = `${Math.round(rr)}_${Math.round(effort)}_${resistance.toFixed(2)}`;
+        const altitude = paramsRef.current.altitudeMeters ?? 0;
+        const lk = computeLungsVisualKinematics(paramsRef.current, t);
+
+        const spiroKey = `${Math.round(rr)}_${Math.round(effort)}_${resistance.toFixed(2)}_${Math.round(altitude)}`;
         if (spiroKey !== lastSpiroKey) {
           lastSpiroKey = spiroKey;
-          const lMetrics = calculateRespiratoryLungs({
-            respirationRate: rr,
-            diaphragmEffort: effort,
-            airwayResistance: resistance,
-            altitudeMeters: paramsRef.current.altitudeMeters ?? 0,
-          });
           updateInstrumentPanelTexture(spiroScreenTex, {
             title: 'DIGITAL SPIROMETER',
-            primaryText: `${Math.round(lMetrics.tidalVolumeMl)} mL`,
-            secondaryText: `RR ${Math.round(rr)} /m · MV ${lMetrics.minuteVentilationLMin.toFixed(1)} L/m`,
-            accentHex: '#38bdf8',
+            primaryText: `SpO₂ ${lk.metrics.spo2Percent.toFixed(0)}%`,
+            secondaryText: `VT ${Math.round(lk.metrics.tidalVolumeMl)}mL · MV ${lk.metrics.minuteVentilationLMin.toFixed(1)} L/m`,
+            accentHex: lk.metrics.spo2Percent < 88 ? '#f87171' : lk.metrics.spo2Percent < 94 ? '#fbbf24' : '#38bdf8',
           });
         }
-        const breath = 0.5 - 0.5 * Math.cos(2 * Math.PI * (rr / 60) * t);
-        const amp = (0.08 + (effort / 100) * 0.22) / Math.max(0.85, Math.sqrt(resistance));
 
         const bronchusCaliber = Math.max(0.55, 1.15 - (resistance - 1) * 0.18);
         leftBronchus.scale.set(1, bronchusCaliber, bronchusCaliber);
         rightBronchus.scale.set(1, bronchusCaliber, bronchusCaliber);
 
-        rightLung.scale.set(0.88 * (1 + amp * breath), 1.42 * (1 + amp * 0.75 * breath), 0.78 * (1 + amp * breath));
-        leftLung.scale.set(0.82 * (1 + amp * breath), 1.38 * (1 + amp * 0.75 * breath), 0.76 * (1 + amp * breath));
-        diaphragm.position.y = -1.28 - breath * amp * 1.1;
-        alveoliClusters.forEach((cluster) => cluster.scale.setScalar(0.88 + breath * amp * 1.35));
+        // Exact Boyle volume-driven thoracic expansion & diaphragm excursion
+        const exp = lk.deltaVolFrac * 0.24;
+        rightLung.scale.set(0.88 * (1 + exp), 1.42 * (1 + exp * 0.72), 0.78 * (1 + exp));
+        leftLung.scale.set(0.82 * (1 + exp), 1.38 * (1 + exp * 0.72), 0.76 * (1 + exp));
+        diaphragm.position.y = -1.28 - lk.deltaVolFrac * 0.34;
+        alveoliClusters.forEach((cluster) => cluster.scale.setScalar(0.88 + lk.deltaVolFrac * 0.38));
+
+        // Altitude/hypoxia capillary color shift (healthy rose -> cyanotic violet as SpO2 drops)
+        alvMat.color.copy(alvHealthyColor).lerp(alvHypoxicColor, lk.hypoxiaRatio);
+        alvMat.emissive.copy(alvHealthyEmissive).lerp(alvHypoxicEmissive, lk.hypoxiaRatio);
 
         const activeGas = Math.max(30, Math.round(gasCount * particleScale));
         o2Mesh.count = activeGas;
         co2Mesh.count = activeGas;
+        const gasFlowSpeed = Math.max(0.18, (rr / 60) * (0.45 / Math.sqrt(Math.max(0.5, resistance))));
         for (let i = 0; i < activeGas; i++) {
           const side = i % 2 === 0 ? 1 : -1;
-          const u = ((i / activeGas) + t * (rr / 60) * 0.45) % 1;
+          const u = ((i / activeGas) + t * gasFlowSpeed) % 1;
           dummy.position.set(side * (0.35 + u * 0.95), 1.15 - u * 1.35 + Math.sin(t * 2 + i) * 0.08, Math.cos(i * 1.7 + t) * 0.35);
           dummy.updateMatrix();
           o2Mesh.setMatrixAt(i, dummy.matrix);
@@ -1024,12 +1074,8 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
 
       // Rounded Schwann capsule myelin sheaths separated by Ranvier nodes + Na+ Channel Rings
       const myelinSegments: THREE.Mesh[] = [];
-      const ranvierChannelMat = new THREE.MeshStandardMaterial({
-        color: 0x22d3ee,
-        emissive: 0x0891b2,
-        emissiveIntensity: 0.65,
-        roughness: 0.25,
-      });
+      const ranvierNodeMats: THREE.MeshStandardMaterial[] = [];
+      const ranvierNodeXs: number[] = [];
       for (let s = 0; s < 4; s++) {
         const segX = -1.05 + s * 0.88;
         const seg = new THREE.Mesh(new THREE.CapsuleGeometry(0.21, 0.44, 8, 20), myelinMat);
@@ -1049,12 +1095,20 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
         rootGroup.add(seg);
 
         if (s < 3) {
+          const nodeMat = new THREE.MeshStandardMaterial({
+            color: 0x22d3ee,
+            emissive: 0x0891b2,
+            emissiveIntensity: 0.65,
+            roughness: 0.25,
+          });
           const ranvierRing = new THREE.Mesh(
             new THREE.TorusGeometry(0.115, 0.024, 10, 20),
-            ranvierChannelMat
+            nodeMat
           );
           ranvierRing.rotation.y = Math.PI / 2;
           ranvierRing.position.set(segX + 0.44, 0, 0);
+          ranvierNodeMats.push(nodeMat);
+          ranvierNodeXs.push(segX + 0.44);
           innerGroup.add(ranvierRing);
         }
       }
@@ -1147,19 +1201,29 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
       updateFrame = (t, _dt, particleScale) => {
         const stim = paramsRef.current.stimulusVoltageMv ?? -35;
         const myelin = paramsRef.current.myelinThickness ?? 75;
-        const fired = stim >= -55;
-        const patchKey = `${Math.round(stim)}_${Math.round(myelin)}_${fired}`;
+        const naOut = paramsRef.current.extracellularNaMm ?? 145;
+        const kOut = paramsRef.current.extracellularKMm ?? 4.5;
+        const nk = computeNeuronVisualKinematics(paramsRef.current, t);
+        const fired = nk.metrics.actionPotentialTriggered;
+
+        const patchKey = `${Math.round(stim)}_${Math.round(myelin)}_${Math.round(naOut)}_${kOut.toFixed(1)}_${fired}`;
         if (patchKey !== lastPatchKey) {
           lastPatchKey = patchKey;
           updateInstrumentPanelTexture(patchScreenTex, {
             title: 'PATCH-CLAMP AMPLIFIER',
-            primaryText: `${stim >= 0 ? '+' : ''}${Math.round(stim)} mV`,
-            secondaryText: fired ? `POTENSIAL AKSI · Mielin ${Math.round(myelin)}%` : 'SUB-AMBANG (< -55 mV)',
+            primaryText: `${nk.metrics.conductionVelocityMs.toFixed(0)} m/s`,
+            secondaryText: fired
+              ? `${stim >= 0 ? '+' : ''}${Math.round(stim)}mV · ENa +${Math.round(nk.metrics.nernstNaMv)}mV`
+              : `${stim}mV · SUB-AMBANG`,
             accentHex: fired ? '#22d3ee' : '#fb923c',
           });
         }
-        const scaleMyelin = 0.45 + (myelin / 100) * 0.75;
-        myelinSegments.forEach((seg) => seg.scale.set(scaleMyelin, 1, scaleMyelin));
+        const showMyelin = myelin > 2;
+        const scaleMyelin = 0.42 + (myelin / 100) * 0.78;
+        myelinSegments.forEach((seg) => {
+          seg.visible = showMyelin;
+          seg.scale.set(scaleMyelin, 1, scaleMyelin);
+        });
 
         channelReceptors.forEach((chMat) => {
           chMat.color.setHex(fired ? 0x4ade80 : 0x64748b);
@@ -1167,19 +1231,33 @@ export const AnatomySubScene3D: React.FC<AnatomySubScene3DProps> = ({
           chMat.emissiveIntensity = fired ? 1.15 : 0.2;
         });
 
-        if (fired) {
-          const speed = 0.8 + (myelin / 100) * 1.8;
-          const u = (t * speed) % 1;
+        if (fired && nk.pulseRateHz > 0) {
+          const u = (t * nk.pulseRateHz) % 1;
+          const pulseX = -1.6 + u * 3.85;
           pulseRing.visible = true;
-          pulseRing.position.set(-1.6 + u * 3.85, Math.abs(Math.sin(u * Math.PI * 4)) * (0.06 + (myelin / 100) * 0.14), 0);
+          // Saltatory arc jumps higher when heavily myelinated, slides flat along axon when unmyelinated
+          const jumpAmp = showMyelin ? 0.06 + (myelin / 100) * 0.18 : 0.015;
+          pulseRing.position.set(pulseX, Math.abs(Math.sin(u * Math.PI * 4)) * jumpAmp, 0);
+
+          // Flash each Node of Ranvier Na+ channel brightly as the depolarizing wave leaps across it
+          for (let rIdx = 0; rIdx < ranvierNodeMats.length; rIdx++) {
+            const dist = Math.abs(pulseX - ranvierNodeXs[rIdx]);
+            const flash = Math.max(0, 1 - dist / 0.42);
+            ranvierNodeMats[rIdx].emissiveIntensity = 0.55 + flash * 2.4;
+            ranvierNodeMats[rIdx].color.setHex(flash > 0.35 ? 0xfef08a : 0x22d3ee);
+          }
         } else {
           pulseRing.visible = false;
+          for (let rIdx = 0; rIdx < ranvierNodeMats.length; rIdx++) {
+            ranvierNodeMats[rIdx].emissiveIntensity = 0.35;
+            ranvierNodeMats[rIdx].color.setHex(0x22d3ee);
+          }
         }
 
         const activeNt = Math.max(16, Math.round(ntCount * particleScale));
         ntMesh.count = activeNt;
         for (let i = 0; i < activeNt; i++) {
-          const prog = fired ? ((t * 1.4 + i / activeNt) % 1) : 0.05;
+          const prog = fired ? ((t * Math.max(0.8, nk.pulseRateHz * 0.9) + i / activeNt) % 1) : 0.05;
           dummy.position.set(2.45 + prog * 0.58, Math.sin(i * 2.1 + t * 3) * 0.32 * prog, Math.cos(i * 1.7 + t * 2) * 0.32 * prog);
           dummy.scale.setScalar(fired ? 1 : 0.35);
           dummy.updateMatrix();

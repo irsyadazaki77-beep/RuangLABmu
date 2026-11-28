@@ -395,7 +395,7 @@ export const MainLabWorkspace: React.FC = () => {
                   (remoteTeacherCameraSync?.enabled || remoteTeacherLaser?.active) && (
                     <div
                       data-testid="student-follow-teacher-cam-pill"
-                      className="absolute bottom-[126px] lg:bottom-[92px] left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl studio-hud-surface border border-[var(--comfort-accent-border)] text-xs text-[var(--comfort-hud-text)] shadow-xl max-w-[calc(100vw-24px)]"
+                      className="absolute bottom-[156px] lg:bottom-[98px] left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl studio-hud-surface border border-[var(--comfort-accent-border)] text-xs text-[var(--comfort-hud-text)] shadow-xl max-w-[calc(100vw-24px)]"
                     >
                       {remoteTeacherLaser?.active && (
                         <span className="inline-flex items-center gap-1.5 text-[var(--comfort-danger)] font-semibold">

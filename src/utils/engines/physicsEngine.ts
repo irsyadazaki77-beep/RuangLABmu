@@ -9,7 +9,8 @@ export type PhysicsMode =
   | 'ohm-wheatstone'
   | 'optics-young-slit'
   | 'photoelectric-planck'
-  | 'standing-wave-melde';
+  | 'standing-wave-melde'
+  | 'faraday-induction';
 
 export interface PhysicsParams {
   mass: number; // kg (0.5 - 50)
@@ -52,6 +53,12 @@ export interface PhysicsParams {
   stringLength?: number; // m (0.5 - 2.5)
   linearMassDensity?: number; // kg/m (0.001 - 0.025)
   waveFrequency?: number; // Hz (10 - 120)
+  // Faraday-Lenz Electromagnetic Induction
+  coilTurnsN?: number; // N (20 - 400 lilitan)
+  magneticFieldTesla?: number; // B (0.05 - 1.50 T)
+  magnetOscillationHz?: number; // f (0.2 - 4.0 Hz)
+  coilAreaCm2?: number; // A (5 - 60 cm²)
+  loadResistanceOhm?: number; // R (2 - 60 Ohm)
 }
 
 export function normalizeLegacyPhysicsParams(
@@ -171,6 +178,15 @@ export interface StandingWaveMeldeMetrics extends PhysicsMetricsBase {
   meldeFundamentalFreq: number; // f1 = v / (2*L) (Hz)
 }
 
+export interface FaradayInductionMetrics extends PhysicsMetricsBase {
+  mode: 'faraday-induction';
+  faradayPeakFluxMwb: number; // Phi_max = B * A (mWb)
+  faradayPeakEmfV: number; // emf_max = N * B * A * (2 * pi * f) (V)
+  faradayPeakCurrentMa: number; // I_max = (emf_max / R) * 1000 (mA)
+  faradayAvgPowerW: number; // P_avg = emf_max^2 / (2 * R) (W)
+  faradayAngularFreqRadS: number; // omega = 2 * pi * f (rad/s)
+}
+
 export type PhysicsMetrics =
   | NewtonInclineMetrics
   | ProjectileGravityMetrics
@@ -182,7 +198,8 @@ export type PhysicsMetrics =
   | OhmWheatstoneMetrics
   | OpticsYoungSlitMetrics
   | PhotoelectricPlanckMetrics
-  | StandingWaveMeldeMetrics;
+  | StandingWaveMeldeMetrics
+  | FaradayInductionMetrics;
 
 export interface KinematicsInstant {
   time: number; // s
@@ -490,6 +507,29 @@ export function calculatePhysicsMetrics(params: PhysicsParams): PhysicsMetrics {
         meldeWavelength: safeRound(wavelength, 3),
         meldeHarmonicNumber: safeRound(harmonicNumber, 2),
         meldeFundamentalFreq: safeRound(fundamentalFreq, 2),
+      };
+    }
+
+    case 'faraday-induction': {
+      const N = Math.max(1, finiteOr(params.coilTurnsN, 120));
+      const B = Math.max(0.01, finiteOr(params.magneticFieldTesla, 0.45));
+      const f = Math.max(0.05, finiteOr(params.magnetOscillationHz, 1.2));
+      const areaCm2 = Math.max(1, finiteOr(params.coilAreaCm2, 25));
+      const R = Math.max(0.5, finiteOr(params.loadResistanceOhm, 12));
+      const areaM2 = areaCm2 * 1e-4;
+      const omega = 2 * Math.PI * f;
+      const peakFluxWb = B * areaM2;
+      const peakEmfV = N * peakFluxWb * omega;
+      const peakCurrentA = peakEmfV / R;
+      const avgPowerW = (peakEmfV * peakEmfV) / (2 * R);
+      return {
+        ...base,
+        mode: 'faraday-induction',
+        faradayPeakFluxMwb: safeRound(peakFluxWb * 1000, 3),
+        faradayPeakEmfV: safeRound(peakEmfV, 3),
+        faradayPeakCurrentMa: safeRound(peakCurrentA * 1000, 1),
+        faradayAvgPowerW: safeRound(avgPowerW, 3),
+        faradayAngularFreqRadS: safeRound(omega, 2),
       };
     }
 

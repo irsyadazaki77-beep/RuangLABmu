@@ -53,9 +53,9 @@ export const Scene3DInspectorCard: React.FC<Scene3DInspectorCardProps> = ({
   const isRightOpen = !zenMode && rightTelemetryOpen;
 
   const corridorClass = [
-    'left-3 right-3',
-    isLeftOpen ? 'lg:left-[332px] xl:left-[344px]' : 'lg:left-4',
-    isRightOpen ? 'lg:right-[348px] xl:right-[360px]' : 'lg:right-4',
+    'left-2.5 right-2.5 sm:left-3 sm:right-3',
+    isLeftOpen ? 'lg:left-[320px] xl:left-[340px]' : 'lg:left-3',
+    isRightOpen ? 'lg:right-[328px] xl:right-[348px]' : 'lg:right-3',
   ].join(' ');
 
   const handleOpenParameters = () => {
@@ -79,7 +79,7 @@ export const Scene3DInspectorCard: React.FC<Scene3DInspectorCardProps> = ({
       data-testid="scene-3d-inspector-card"
       role="dialog"
       aria-label={`Inspeksi alat ${info.title}`}
-      className={`pointer-events-none absolute bottom-[122px] lg:bottom-[106px] z-30 flex justify-center ${corridorClass}`}
+      className={`pointer-events-none absolute bottom-[96px] lg:bottom-[100px] z-30 flex justify-center ${corridorClass}`}
     >
       <div className="pointer-events-auto w-full max-w-[420px] rounded-xl studio-hud-surface shadow-xl p-3.5 space-y-2.5 text-[var(--comfort-hud-text)]">
         <div className="flex items-start justify-between gap-2 pb-2 border-b border-[var(--comfort-border)]">

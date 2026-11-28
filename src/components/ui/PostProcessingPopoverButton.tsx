@@ -27,7 +27,10 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
   idleClass,
 }) => {
   const [open, setOpen] = useState(false);
-  const [anchorPos, setAnchorPos] = useState<{ top: number; right: number }>({ top: 96, right: 16 });
+  const [anchorPos, setAnchorPos] = useState<{ top?: number; bottom?: number; right: number }>({
+    bottom: 96,
+    right: 16,
+  });
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -47,11 +50,19 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
     const rightOffset = Math.max(12, window.innerWidth - rect.right);
-    const maxRight = Math.max(12, window.innerWidth - 284);
-    setAnchorPos({
-      top: Math.round(rect.bottom + 8),
-      right: Math.round(Math.min(rightOffset, maxRight)),
-    });
+    const maxRight = Math.max(12, window.innerWidth - 288);
+    const clampedRight = Math.round(Math.min(rightOffset, maxRight));
+    if (rect.top > window.innerHeight * 0.5) {
+      setAnchorPos({
+        bottom: Math.max(12, Math.round(window.innerHeight - rect.top + 8)),
+        right: clampedRight,
+      });
+    } else {
+      setAnchorPos({
+        top: Math.max(12, Math.round(rect.bottom + 8)),
+        right: clampedRight,
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -94,8 +105,12 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
             role="dialog"
             aria-label="Pengaturan Post-Processing 3D"
             data-testid="postfx-popover-panel"
-            style={{ top: anchorPos.top, right: anchorPos.right }}
-            className="fixed z-[90] w-[276px] rounded-xl p-3 shadow-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] text-left"
+            style={{
+              ...(anchorPos.top !== undefined ? { top: anchorPos.top } : {}),
+              ...(anchorPos.bottom !== undefined ? { bottom: anchorPos.bottom } : {}),
+              right: anchorPos.right,
+            }}
+            className="fixed z-[90] w-[276px] max-h-[calc(100vh-24px)] overflow-y-auto rounded-xl p-3 shadow-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] text-left"
           >
             <div className="flex items-center justify-between gap-2 pb-2 mb-2.5 border-b border-[var(--comfort-border)]">
               <div className="flex items-center gap-1.5">

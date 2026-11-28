@@ -75,7 +75,13 @@ export const SciFormula: React.FC<SciFormulaProps> = ({
 }) => {
   if (!text) return null;
 
-  let processed = normalizeUnicodeSuperscriptsAndSubscripts(text);
+  let processed = normalizeUnicodeSuperscriptsAndSubscripts(
+    text
+      .replace(/\\Phi/g, 'Φ')
+      .replace(/\\qquad/g, '  ')
+      .replace(/\\quad/g, ' ')
+      .replace(/\\!/g, '')
+  );
   for (const [pattern, replacement] of SYMBOL_REPLACEMENTS) {
     processed = processed.replace(pattern, replacement);
   }

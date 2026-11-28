@@ -2,6 +2,7 @@ import React from 'react';
 import { DomainSchematicProps } from './PhysicsSchematics';
 
 export const BiologySchematics: React.FC<DomainSchematicProps> = ({
+  moduleId,
   keyText,
   accent,
 }) => {
@@ -220,7 +221,53 @@ export const BiologySchematics: React.FC<DomainSchematicProps> = ({
     );
   }
 
-  // 7. Cell Osmosis & Plasmolysis Membrane (osmosis-plasmolysis)
+  // 7. DNA PCR Amplification & Agarose Gel Electrophoresis (dna-pcr-electrophoresis)
+  if (
+    moduleId === 'dna-pcr-electrophoresis' ||
+    keyText.includes('pcr') ||
+    keyText.includes('elektroforesis') ||
+    keyText.includes('agarosa') ||
+    keyText.includes('dna')
+  ) {
+    return (
+      <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Thermal Cycler Temperature Profile (left) */}
+        <path
+          d="M 28 42 L 42 22 L 58 22 L 68 62 L 82 62 L 94 38 L 110 38"
+          stroke="#f59e0b"
+          strokeWidth="1.8"
+        />
+        <text x="32" y="17" fill="#f59e0b" fontSize="7.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          95° → Tₐ → 72°C
+        </text>
+        <text x="32" y="82" fill={accent} fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          N₀·(1+E)ᶜ
+        </text>
+        {/* Agarose Gel Slab (right) */}
+        <rect x="132" y="16" width="110" height="78" rx="4" fill="#0f172a" fillOpacity="0.35" stroke="#38bdf8" />
+        <text x="120" y="24" fill="#ef4444" fontSize="9" fontWeight="bold" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          −
+        </text>
+        <text x="120" y="92" fill="#10b981" fontSize="9" fontWeight="bold" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          +
+        </text>
+        {/* Wells */}
+        <rect x="148" y="22" width="22" height="5" fill="#94a3b8" stroke="none" />
+        <rect x="196" y="22" width="22" height="5" fill="#94a3b8" stroke="none" />
+        {/* Ladder Bands (Lane 1) */}
+        {[34, 46, 58, 70, 82].map((y) => (
+          <rect key={y} x="148" y={y} width="22" height="3" rx="1" fill="#38bdf8" fillOpacity="0.7" stroke="none" />
+        ))}
+        {/* Amplified Target DNA Band (Lane 2) */}
+        <rect x="194" y="54" width="26" height="5" rx="1.5" fill="#10b981" stroke="#34d399" />
+        <text x="184" y="105" fill="#10b981" fontSize="8" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          Gel UV (bp)
+        </text>
+      </g>
+    );
+  }
+
+  // 8. Cell Osmosis & Plasmolysis Membrane (osmosis-plasmolysis)
   return (
     <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
       {/* Semipermeable phospholipid bilayer */}

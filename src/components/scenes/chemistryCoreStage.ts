@@ -10,6 +10,7 @@ import {
   createContactShadowPlane,
   createErlenmeyerProfilePoints,
   createFunnelProfilePoints,
+  createGlassRimHighlightMaterial,
   createGraduatedScaleTexture,
   createInstancedParticlePool,
   createInstrumentPanelTexture,
@@ -22,6 +23,10 @@ import {
 } from '../../utils/scienceEngine';
 import { labSound } from '../../utils/soundEngine';
 import { globalMultiApparatusEngine } from '../../utils/engines/multiApparatusEngine';
+import {
+  computeCalorimeterVisualState,
+  computeTitrationVisualState,
+} from '../../utils/chemistryVisualHelpers';
 import { buildChemistrySpecialRigs } from './ChemistryRigs';
 import type {
   ConceptLabelDomRef,
@@ -81,18 +86,23 @@ export function createLiquidWobbleMaterial(initialHex: number, initialOpacity = 
         vec3 normal = normalize(vNormal);
         vec3 viewDir = normalize(vViewPos);
         float ndotv = abs(dot(viewDir, normal));
-        float fresnel = pow(1.0 - ndotv, 2.6);
-        float topSheen = smoothstep(0.65, 0.99, normal.y) * 0.16;
+        float fresnel = pow(1.0 - ndotv, 2.5);
+        float topSheen = smoothstep(0.62, 0.99, normal.y) * 0.22;
 
-        // Subtle Beer-Lambert vertical optical depth + clean capillary surface sheen
-        vec3 deepColor = uColor * (0.76 + 0.28 * vUv.y);
+        // Crisp studio softbox specular glint across liquid surface & meniscus
+        vec3 keyLightDir = normalize(vec3(0.48, 0.78, 0.42));
+        vec3 halfVec = normalize(keyLightDir + viewDir);
+        float specGlint = pow(max(dot(normal, halfVec), 0.0), 44.0) * 0.55;
+
+        // Subtle Beer-Lambert vertical optical depth + capillary meniscus rim sheen
+        vec3 deepColor = uColor * (0.72 + 0.34 * vUv.y);
         vec3 surfaceHighlight = mix(
           deepColor,
           uRimColor,
-          clamp(fresnel * 0.36 + topSheen + clamp(vWaveHeight * 1.6, 0.0, 0.1), 0.0, 0.62)
-        );
+          clamp(fresnel * 0.44 + topSheen + clamp(vWaveHeight * 1.8, 0.0, 0.12), 0.0, 0.68)
+        ) + uRimColor * specGlint;
 
-        gl_FragColor = vec4(surfaceHighlight, clamp(uOpacity + fresnel * 0.1, 0.0, 0.92));
+        gl_FragColor = vec4(surfaceHighlight, clamp(uOpacity + fresnel * 0.14 + specGlint * 0.15, 0.0, 0.94));
       }
     `,
     transparent: true,
@@ -110,6 +120,8 @@ export interface ChemistryCoreStageUpdateInput {
   isLite: boolean;
   particleScale?: number;
   reacting: boolean;
+  reactionProgress?: number;
+  redoxPairId?: string;
   isSimTimeAdvancing: boolean;
   showConceptLabels: boolean;
 }
@@ -134,42 +146,45 @@ export function buildChemistryCoreStage(
   initialTitrantMl: number
 ): ChemistryCoreStageHandle {
   const metalTex = createBrushedMetalTextures();
-  const buretteScaleTex = createGraduatedScaleTexture(50, 'mL', 25, {
+  const buretteScaleTex = createGraduatedScaleTexture(100, 'mL', 25, {
     invertTopToBottom: true,
   });
   const beakerScaleTex = createGraduatedScaleTexture(250, 'mL', 25);
 
   const darkFrameMat = new THREE.MeshStandardMaterial({
-    color: 0x1e293b,
+    color: 0x2c3a4e,
     roughnessMap: metalTex?.roughnessMap ?? null,
     bumpMap: metalTex?.bumpMap ?? null,
     bumpScale: 0.005,
-    metalness: 0.62,
-    roughness: 0.36,
-    envMapIntensity: 0.55,
+    metalness: 0.72,
+    roughness: 0.28,
+    envMapIntensity: 0.88,
   });
   const brushedSteelMat = new THREE.MeshStandardMaterial({
-    color: 0xcbd5e1,
+    color: 0xdce4ee,
     roughnessMap: metalTex?.roughnessMap ?? null,
     bumpMap: metalTex?.bumpMap ?? null,
     bumpScale: 0.006,
-    metalness: 0.88,
-    roughness: 0.24,
-    envMapIntensity: 0.85,
+    metalness: 0.9,
+    roughness: 0.2,
+    envMapIntensity: 1.18,
   });
   const brassMat = new THREE.MeshStandardMaterial({
-    color: 0xd97706,
+    color: 0xe5a524,
     roughnessMap: metalTex?.roughnessMap ?? null,
-    metalness: 0.84,
-    roughness: 0.26,
-    envMapIntensity: 0.8,
+    bumpMap: metalTex?.bumpMap ?? null,
+    bumpScale: 0.004,
+    metalness: 0.9,
+    roughness: 0.2,
+    envMapIntensity: 1.18,
   });
   const glassMat = createBorosilicateGlassMaterial(initialLiteOrSw, {
     color: 0xecfeff,
-    tintOpacity: 0.3,
+    tintOpacity: 0.32,
     ior: 1.47,
-    thickness: 0.35,
+    thickness: 0.36,
   });
+  const glassRimMat = createGlassRimHighlightMaterial(0xeef8ff);
   const graduationOverlayMat = (tex: THREE.CanvasTexture | null) =>
     new THREE.MeshBasicMaterial({
       map: tex,
@@ -194,13 +209,29 @@ export function buildChemistryCoreStage(
   calVessel.castShadow = true;
   thermoGroup.add(calVessel);
 
+  // Realistic lab Dewar insulating jacket with front observation cutout window so students see liquid volume & catalyst pellets
+  const calJacketMat = new THREE.MeshStandardMaterial({
+    color: 0x526275,
+    roughnessMap: metalTex?.roughnessMap ?? null,
+    bumpMap: metalTex?.bumpMap ?? null,
+    bumpScale: 0.005,
+    metalness: 0.34,
+    roughness: 0.46,
+    side: THREE.DoubleSide,
+  });
   const calJacket = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.48, 1.48, 1.65, 40, 1, true),
-    darkFrameMat
+    new THREE.CylinderGeometry(1.48, 1.48, 1.58, 40, 1, true, 0.46, Math.PI * 2 - 0.92),
+    calJacketMat
   );
-  calJacket.position.set(0, 1.15, 0);
+  calJacket.position.set(0, 1.12, 0);
   calJacket.castShadow = true;
-  thermoGroup.add(calJacket);
+  const calJacketTopBand = new THREE.Mesh(new THREE.TorusGeometry(1.485, 0.026, 10, 44), brassMat);
+  calJacketTopBand.rotation.x = Math.PI / 2;
+  calJacketTopBand.position.set(0, 1.91, 0);
+  const calJacketBotBand = new THREE.Mesh(new THREE.TorusGeometry(1.485, 0.028, 10, 44), brassMat);
+  calJacketBotBand.rotation.x = Math.PI / 2;
+  calJacketBotBand.position.set(0, 0.33, 0);
+  thermoGroup.add(calJacket, calJacketTopBand, calJacketBotBand);
 
   const calLiquidMat = createLiquidWobbleMaterial(0x38bdf8, 0.76);
   liquidShaderMaterials.push(calLiquidMat);
@@ -296,6 +327,81 @@ export function buildChemistryCoreStage(
   calThermometerGroup.add(calThermGlass, calThermBulb, calThermColumn, calThermTopCap);
   thermoGroup.add(calThermometerGroup);
 
+  // Digital Calorimeter OLED Display Console beside calorimeter vessel
+  const calOledTex = createInstrumentPanelTexture({
+    title: 'DIGITAL CALORIMETER',
+    primaryText: '25.0 °C',
+    secondaryText: 'ΔT = 0.0 °C · STABIL',
+    accentHex: '#38bdf8',
+    width: 256,
+    height: 128,
+  });
+  let lastCalOledKey = '';
+  const calConsoleBox = new THREE.Mesh(
+    new RoundedBoxGeometry(1.42, 0.72, 0.68, 3, 0.04),
+    darkFrameMat
+  );
+  calConsoleBox.position.set(2.35, 0.65, 0.35);
+  calConsoleBox.rotation.y = -0.32;
+  calConsoleBox.castShadow = true;
+  const calOledPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.22, 0.52),
+    new THREE.MeshBasicMaterial({ map: calOledTex })
+  );
+  calOledPlane.position.set(0, 0.04, 0.348);
+  calConsoleBox.add(calOledPlane);
+  thermoGroup.add(calConsoleBox);
+
+  // Exothermic rising heat shimmer vapor particles + Endothermic icy frost condensation sleeve + Catalyst pellets
+  const CAL_VAPOR_COUNT = 16;
+  const calVaporMat = new THREE.MeshBasicMaterial({
+    color: 0xfed7aa,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  const calVaporPool = createInstancedParticlePool(
+    CAL_VAPOR_COUNT,
+    new THREE.SphereGeometry(0.14, 10, 10),
+    calVaporMat,
+    thermoGroup
+  );
+  calVaporPool.mesh.visible = false;
+
+  const calFrostMat = new THREE.MeshStandardMaterial({
+    color: 0xe0f2fe,
+    emissive: 0x38bdf8,
+    emissiveIntensity: 0.28,
+    transparent: true,
+    opacity: 0,
+    roughness: 0.78,
+    metalness: 0.05,
+    depthWrite: false,
+  });
+  const calFrostRing = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.495, 1.495, 1.56, 36, 1, true),
+    calFrostMat
+  );
+  calFrostRing.position.set(0, 1.15, 0);
+  calFrostRing.visible = false;
+  thermoGroup.add(calFrostRing);
+
+  const calCatalystGroup = new THREE.Group();
+  const catPelletMat = new THREE.MeshStandardMaterial({
+    color: 0x334155,
+    metalness: 0.78,
+    roughness: 0.32,
+  });
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const r = 0.38 + (i % 3) * 0.22;
+    const pellet = new THREE.Mesh(new THREE.DodecahedronGeometry(0.085, 0), catPelletMat);
+    pellet.position.set(Math.cos(a) * r, 0.41, Math.sin(a) * r);
+    calCatalystGroup.add(pellet);
+  }
+  calCatalystGroup.visible = false;
+  thermoGroup.add(calCatalystGroup);
+
   // 2. Acid-Base Titration 3D Group
   const titrationGroup = new THREE.Group();
   scene.add(titrationGroup);
@@ -346,37 +452,78 @@ export function buildChemistryCoreStage(
   stirrerFrontBezel.add(stirrerOledScreen);
 
   const stirrerKnob = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.085, 0.095, 0.12, 18),
+    new THREE.CylinderGeometry(0.085, 0.098, 0.13, 20),
     brassMat
   );
   stirrerKnob.rotation.x = Math.PI / 2 - 0.35;
   stirrerKnob.position.set(0.48, 0.43, 1.4);
+  const knobTick1 = new THREE.Mesh(
+    new THREE.BoxGeometry(0.016, 0.02, 0.07),
+    new THREE.MeshBasicMaterial({ color: 0xf8fafc })
+  );
+  knobTick1.position.set(0, 0.068, -0.028);
+  stirrerKnob.add(knobTick1);
 
   const stirrerKnob2 = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.085, 0.095, 0.12, 18),
+    new THREE.CylinderGeometry(0.085, 0.098, 0.13, 20),
     brushedSteelMat
   );
   stirrerKnob2.rotation.x = Math.PI / 2 - 0.35;
   stirrerKnob2.position.set(0.8, 0.43, 1.4);
+  const knobTick2 = new THREE.Mesh(
+    new THREE.BoxGeometry(0.016, 0.02, 0.07),
+    new THREE.MeshBasicMaterial({ color: 0x0f172a })
+  );
+  knobTick2.position.set(0, 0.068, -0.028);
+  stirrerKnob2.add(knobTick2);
+
+  // Machined aluminum chassis trim band + glazed white ceramic top plate with heating target ring
+  const stirrerTrimBand = new THREE.Mesh(
+    new RoundedBoxGeometry(2.43, 0.045, 2.43, 2, 0.014),
+    brushedSteelMat
+  );
+  stirrerTrimBand.position.set(0, 0.525, 0);
 
   const porcelainTile = new THREE.Mesh(
     new RoundedBoxGeometry(2.12, 0.06, 2.12, 2, 0.02),
-    new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.22, metalness: 0.02, envMapIntensity: 0.85 })
+    new THREE.MeshPhysicalMaterial({
+      color: 0xf8fafc,
+      roughness: 0.14,
+      metalness: 0.02,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.08,
+      envMapIntensity: 1.05,
+    })
   );
   porcelainTile.position.set(0, 0.56, 0);
   porcelainTile.receiveShadow = true;
+
+  const hotplateRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.92, 0.96, 40),
+    new THREE.MeshBasicMaterial({
+      color: 0x94a3b8,
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide,
+    })
+  );
+  hotplateRing.rotation.x = -Math.PI / 2;
+  hotplateRing.position.set(0, 0.593, 0);
+
   const titrationStirBar = new THREE.Mesh(
     new THREE.CylinderGeometry(0.05, 0.05, 0.52, 12),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.18 })
   );
   titrationStirBar.rotation.z = Math.PI / 2;
   titrationStirBar.position.set(0, 0.68, 0);
   titrationGroup.add(
     stirrerChassis,
+    stirrerTrimBand,
     stirrerFrontBezel,
     stirrerKnob,
     stirrerKnob2,
     porcelainTile,
+    hotplateRing,
     titrationStirBar
   );
 
@@ -460,10 +607,10 @@ export function buildChemistryCoreStage(
   const stopcockAxle = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.72, 16), brassMat);
   stopcockAxle.rotation.z = Math.PI / 2;
   stopcockAxle.castShadow = true;
-  stopcockAxle.userData = { draggableParam: 'titrantAddedMl', min: 0, max: 50, step: 0.5, label: 'Volume Titran Vb' };
+  stopcockAxle.userData = { draggableParam: 'titrantAddedMl', min: 0, max: 100, step: 0.5, label: 'Volume Titran Vb' };
   const stopcockWing = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.36, 0.06, 2, 0.015), darkFrameMat);
   stopcockWing.position.set(0.38, 0, 0);
-  stopcockWing.userData = { draggableParam: 'titrantAddedMl', min: 0, max: 50, step: 0.5, label: 'Volume Titran Vb' };
+  stopcockWing.userData = { draggableParam: 'titrantAddedMl', min: 0, max: 100, step: 0.5, label: 'Volume Titran Vb' };
   stopcock.add(stopcockAxle, stopcockWing);
   titrationGroup.add(stopcock);
 
@@ -490,6 +637,63 @@ export function buildChemistryCoreStage(
   flaskMesh.position.set(0, 0.56, 0);
   flaskMesh.castShadow = true;
   titrationGroup.add(flaskMesh);
+
+  // Luminous borosilicate rolled rim rings on Erlenmeyer lip, base heel, and burette top
+  const flaskLipRing = new THREE.Mesh(new THREE.TorusGeometry(0.41, 0.026, 12, 36), glassRimMat);
+  flaskLipRing.rotation.x = Math.PI / 2;
+  flaskLipRing.position.set(0, 2.69, 0);
+  const flaskBaseRim = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.024, 12, 44), glassRimMat);
+  flaskBaseRim.rotation.x = Math.PI / 2;
+  flaskBaseRim.position.set(0, 0.61, 0);
+  const buretteLipRing = new THREE.Mesh(new THREE.TorusGeometry(0.184, 0.018, 10, 28), glassRimMat);
+  buretteLipRing.rotation.x = Math.PI / 2;
+  buretteLipRing.position.set(0, 6.49, 0);
+  titrationGroup.add(flaskLipRing, flaskBaseRim, buretteLipRing);
+
+  // Realistic glass pH electrode probe dipped into the Erlenmeyer flask with arched coaxial cable to pH meter
+  const phProbeGroup = new THREE.Group();
+  const phProbeBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.042, 0.038, 1.85, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.32,
+      metalness: 0.25,
+    })
+  );
+  phProbeBody.position.set(0.32, 1.98, 0.04);
+  phProbeBody.rotation.z = -0.22;
+  const phProbeGlassTip = new THREE.Mesh(
+    new THREE.SphereGeometry(0.042, 14, 14),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.78,
+      roughness: 0.08,
+      envMapIntensity: 1.5,
+    })
+  );
+  phProbeGlassTip.position.set(0.12, 1.09, 0.04);
+  const phProbeCap = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.056, 0.048, 0.22, 16),
+    brassMat
+  );
+  phProbeCap.position.set(0.52, 2.88, 0.04);
+  phProbeCap.rotation.z = -0.22;
+
+  const probeCableCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.55, 2.98, 0.04),
+    new THREE.Vector3(1.08, 3.28, -0.18),
+    new THREE.Vector3(1.72, 2.62, -0.28),
+    new THREE.Vector3(2.12, 1.25, -0.16),
+    new THREE.Vector3(2.18, 0.68, -0.05),
+  ]);
+  const probeCableMesh = new THREE.Mesh(
+    new THREE.TubeGeometry(probeCableCurve, 28, 0.022, 10, false),
+    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.65, metalness: 0.15 })
+  );
+  probeCableMesh.castShadow = true;
+  phProbeGroup.add(phProbeBody, phProbeGlassTip, phProbeCap, probeCableMesh);
+  titrationGroup.add(phProbeGroup);
 
   const flaskNeckAnchor = new THREE.Object3D();
   flaskNeckAnchor.name = 'anchor-flask-neck-in';
@@ -620,7 +824,8 @@ export function buildChemistryCoreStage(
     width: 256,
     height: 128,
   });
-  let lastPhOledRounded = -1;
+  let lastPhOledKey = '';
+  let lastStirrerOledKey = '';
 
   const phScaleGroup = new THREE.Group();
   phScaleGroup.position.set(2.35, 0.29, 0.12);
@@ -851,21 +1056,41 @@ export function buildChemistryCoreStage(
       flaskMeniscusMat.color.setStyle(m.indicatorColorHex);
       radialColorDiscMat.color.setStyle(m.indicatorColorHex);
 
+      const va = p.analyteVolumeMl ?? 50;
       const vb = p.titrantAddedMl ?? 0;
-      const level = Math.max(0.1, 3.8 * (1 - vb / 50));
+      const rpm = p.stirringRpm ?? 420;
+      const tempC = p.initialTempC ?? 25;
+      const titState = computeTitrationVisualState(va, vb, rpm);
+
+      // Burette liquid drains over full 0..100 mL slider capacity
+      const level = Math.max(0.14, 3.8 * titState.buretteFillFrac);
       buretteLiquid.scale.set(1, level / 3.8, 1);
       const liquidCenterY = 2.45 + level / 2;
       buretteLiquid.position.set(0, liquidCenterY, 0);
       buretteMeniscusRing.position.set(0, liquidCenterY + level / 2 - 0.02, 0);
 
+      // Erlenmeyer flask liquid level visibly rises as total volume (Va + Vb) increases
+      const flaskH = 0.96 * titState.flaskVolumeScale;
+      const flaskBottomY = 0.58;
+      const flaskSurfaceY = flaskBottomY + flaskH;
+      analyteSolution.scale.set(1, titState.flaskVolumeScale, 1);
+      analyteSolution.position.set(0, flaskBottomY + flaskH * 0.5, 0);
+      flaskMeniscusRing.position.set(0, flaskSurfaceY, 0);
+      const meniscusRadiusScale = Math.max(0.62, Math.min(1.12, 1.16 - titState.flaskVolumeScale * 0.22));
+      flaskMeniscusRing.scale.set(meniscusRadiusScale, meniscusRadiusScale, 1);
+      radialColorDisc.position.set(0, flaskSurfaceY + 0.004, 0);
+      rippleRing1.position.set(0, flaskSurfaceY + 0.007, 0);
+      rippleRing2.position.set(0, flaskSurfaceY + 0.008, 0);
+
       const dropRate = reacting || wobbleBoost > 0.01 ? 2.4 : vb > 0 ? 1.15 : 0;
-      if (dropRate > 0 && vb < 50) {
+      if (dropRate > 0 && vb < 100) {
         const dropPhase = (t * dropRate) % 1.0;
         const dropCycle = Math.floor(t * dropRate);
         fallingDropMesh.visible = dropPhase < 0.72;
         if (fallingDropMesh.visible) {
           const fallProgress = dropPhase / 0.72;
-          const dropY = 1.92 - fallProgress * fallProgress * 0.39;
+          const fallSpan = Math.max(0.18, 1.92 - flaskSurfaceY);
+          const dropY = 1.92 - fallProgress * fallProgress * fallSpan;
           fallingDropMesh.position.set(0, dropY, 0);
         } else if (isSimTimeAdvancing && reacting && lastDropImpactCycle !== dropCycle) {
           lastDropImpactCycle = dropCycle;
@@ -875,25 +1100,25 @@ export function buildChemistryCoreStage(
         const ripplePhase1 = (t * dropRate - 0.72 + 1.0) % 1.0;
         const ripplePhase2 = (t * dropRate - 0.32 + 1.0) % 1.0;
         rippleRing1.visible = true;
-        rippleRing1.scale.setScalar(0.35 + ripplePhase1 * 5.8);
+        rippleRing1.scale.setScalar((0.35 + ripplePhase1 * 5.2) * meniscusRadiusScale);
         rippleRingMat1.opacity = Math.max(0, (1 - ripplePhase1) * 0.68);
 
         rippleRing2.visible = !isLite;
         if (!isLite) {
-          rippleRing2.scale.setScalar(0.35 + ripplePhase2 * 5.8);
+          rippleRing2.scale.setScalar((0.35 + ripplePhase2 * 5.2) * meniscusRadiusScale);
           rippleRingMat2.opacity = Math.max(0, (1 - ripplePhase2) * 0.45);
         }
 
         const radialPulse = 0.35 + 0.65 * Math.sin(ripplePhase1 * Math.PI);
         radialColorDisc.visible = true;
-        radialColorDisc.scale.setScalar(0.28 + ripplePhase1 * 0.72);
+        radialColorDisc.scale.setScalar((0.28 + ripplePhase1 * 0.72) * meniscusRadiusScale);
         radialColorDiscMat.opacity = 0.25 + radialPulse * 0.35;
       } else {
         fallingDropMesh.visible = false;
         rippleRing1.visible = false;
         rippleRing2.visible = false;
         radialColorDisc.visible = vb > 0;
-        radialColorDisc.scale.setScalar(0.95);
+        radialColorDisc.scale.setScalar(0.95 * meniscusRadiusScale);
         radialColorDiscMat.opacity = 0.32;
       }
 
@@ -901,9 +1126,9 @@ export function buildChemistryCoreStage(
       const currentPhVal = m.currentPh ?? 7;
       const phFrac = Math.min(1, Math.max(0, currentPhVal / 14));
       phPointerMesh.position.y = 0.54 + phFrac * 2.04;
-      const roundedPhKey = Math.round(currentPhVal * 50);
-      if (roundedPhKey !== lastPhOledRounded) {
-        lastPhOledRounded = roundedPhKey;
+      const phKey = `${currentPhVal.toFixed(2)}|${tempC.toFixed(1)}`;
+      if (phKey !== lastPhOledKey) {
+        lastPhOledKey = phKey;
         const zoneLabel =
           currentPhVal < 6.4 ? 'ZONA ASAM' : currentPhVal > 7.6 ? 'ZONA BASA' : 'EKUIVALEN';
         const accentHex =
@@ -911,22 +1136,85 @@ export function buildChemistryCoreStage(
         updateInstrumentPanelTexture(phMeterOledTex, {
           title: 'DIGITAL pH METER',
           primaryText: `pH ${currentPhVal.toFixed(2)}`,
-          secondaryText: `${zoneLabel} · 25.0 °C`,
+          secondaryText: `${zoneLabel} · ${tempC.toFixed(1)} °C`,
           accentHex,
         });
       }
-      // Rotate PTFE stir bar & visibly open/close stopcock valve when dripping
-      titrationStirBar.rotation.y = t * (reacting || wobbleBoost > 0.01 ? 9.5 : 3.2);
+
+      const stirrerKey = `${Math.round(rpm)}|${tempC.toFixed(1)}`;
+      if (stirrerKey !== lastStirrerOledKey) {
+        lastStirrerOledKey = stirrerKey;
+        updateInstrumentPanelTexture(stirrerOledTex, {
+          title: 'STIRRER PRO',
+          primaryText: `${Math.round(rpm)} RPM`,
+          secondaryText: `${tempC.toFixed(1)} °C · V=${(va + vb).toFixed(0)}mL`,
+          accentHex: '#2dd4bf',
+        });
+      }
+
+      // Rotate PTFE stir bar using live RPM & visibly open/close stopcock valve when dripping
+      titrationStirBar.rotation.y += titState.stirAngularStep * (reacting || wobbleBoost > 0.01 ? 1.45 : 0.75);
       stopcockWing.rotation.x = THREE.MathUtils.lerp(
         stopcockWing.rotation.x,
-        dropRate > 0 && vb < 50 ? 0 : Math.PI / 2,
+        dropRate > 0 && vb < 100 ? 0 : Math.PI / 2,
         0.18
       );
     } else if (p.mode === 'thermo-calorimetry') {
-      const liveTempC = m.finalTempC ?? p.initialTempC ?? 25;
-      const tempFrac = Math.max(0.12, Math.min(1.0, (liveTempC - 5) / 90));
-      calThermColumn.scale.y = THREE.MathUtils.lerp(calThermColumn.scale.y, tempFrac, 0.15);
-      calStirBar.rotation.y = t * (reacting ? 8.0 : 2.8);
+      const calState = computeCalorimeterVisualState(
+        p.initialTempC ?? 25,
+        m.finalTempC ?? p.initialTempC ?? 25,
+        p.solutionVolumeMl ?? 200,
+        p.stirringRpm ?? 400,
+        input.reactionProgress ?? 1,
+        reacting
+      );
+
+      // Update live liquid height from solutionVolumeMl & thermal color from Exo/Endo T(t)
+      const liqH = 1.6 * calState.liquidHeightScale;
+      calLiquid.scale.set(1, calState.liquidHeightScale, 1);
+      calLiquid.position.set(0, 0.34 + liqH * 0.5, 0);
+      calMeniscusRing.position.set(0, 0.34 + liqH - 0.01, 0);
+      calLiquidMat.uniforms.uColor.value.setHex(calState.liquidColorHex);
+      (calMeniscusRing.material as THREE.MeshPhysicalMaterial).color.setHex(calState.liquidColorHex);
+
+      // Thermometer alcohol/mercury column matches live T(t)
+      calThermColumn.scale.y = THREE.MathUtils.lerp(calThermColumn.scale.y, calState.mercuryFillScale, 0.16);
+      calStirBar.rotation.y += calState.stirAngularStep;
+      calCatalystGroup.visible = Boolean(p.useCatalyst);
+
+      // Exothermic heat vapor particles rising from lid vent
+      calVaporPool.mesh.visible = calState.thermalVaporIntensity > 0.05;
+      if (calVaporPool.mesh.visible) {
+        calVaporMat.opacity = calState.thermalVaporIntensity * 0.42;
+        const activeV = Math.max(6, Math.round(CAL_VAPOR_COUNT * particleScale));
+        for (let i = 0; i < activeV; i++) {
+          const cyc = (elapsed * 0.75 + i / activeV) % 1.0;
+          const vx = Math.sin(elapsed * 2.0 + i * 1.7) * (0.18 + cyc * 0.42);
+          const vy = 2.95 + cyc * 1.65;
+          const vz = Math.cos(elapsed * 1.8 + i * 1.3) * (0.18 + cyc * 0.42);
+          calVaporPool.setTransform(i, vx, vy, vz, 0.5 + cyc * 1.15);
+        }
+        calVaporPool.commit(activeV);
+      }
+
+      // Endothermic icy frost condensation ring on outer calorimeter jacket
+      calFrostRing.visible = calState.frostCondensationIntensity > 0.05;
+      if (calFrostRing.visible) {
+        calFrostMat.opacity = calState.frostCondensationIntensity * 0.52;
+      }
+
+      const calKey = `${calState.liveTempC.toFixed(1)}|${calState.deltaTempLiveC.toFixed(1)}|${Boolean(p.useCatalyst)}`;
+      if (calKey !== lastCalOledKey) {
+        lastCalOledKey = calKey;
+        const signStr = calState.deltaTempLiveC >= 0 ? '+' : '';
+        const modeTag = calState.isExothermic ? 'EKSOTERM' : calState.isEndothermic ? 'ENDOTERM' : 'STABIL';
+        updateInstrumentPanelTexture(calOledTex, {
+          title: 'DIGITAL CALORIMETER',
+          primaryText: `${calState.liveTempC.toFixed(1)} °C`,
+          secondaryText: `ΔT=${signStr}${calState.deltaTempLiveC.toFixed(1)}°C · ${modeTag}`,
+          accentHex: calState.isExothermic ? '#fb923c' : calState.isEndothermic ? '#38bdf8' : '#34d399',
+        });
+      }
     }
 
     specialRigs.update({
@@ -936,6 +1224,7 @@ export function buildChemistryCoreStage(
       isLite,
       particleScale,
       reacting,
+      redoxPairId: input.redoxPairId,
       isSimTimeAdvancing,
     });
 
@@ -1073,6 +1362,18 @@ export function buildChemistryCoreStage(
       reusableConceptPos[2].set(0, 0.95, 1.55);
       reusableConceptEntries[2].text = `Penangas T = ${(p.equilibriumTempC ?? 25).toFixed(0)} °C · Kp = ${(m.leChatelierKp ?? 0.142).toFixed(3)}`;
       reusableConceptEntries[2].active = true;
+    } else if (p.mode === 'electrolysis-faraday') {
+      reusableConceptPos[0].set(-1.05, 2.85, 0.15);
+      reusableConceptEntries[0].text = `Katoda (−) · Endapan m = ${(m.electrolysisMassDepositedG ?? 0).toFixed(3)} g`;
+      reusableConceptEntries[0].active = true;
+
+      reusableConceptPos[1].set(1.05, 2.85, 0.15);
+      reusableConceptEntries[1].text = `Anoda (+) Grafit · Gas O₂ = ${(m.electrolysisAnodeGasMl ?? 0).toFixed(1)} mL`;
+      reusableConceptEntries[1].active = true;
+
+      reusableConceptPos[2].set(3.0, 2.35, -0.05);
+      reusableConceptEntries[2].text = `Arus I = ${(p.electrolysisCurrentA ?? 2.5).toFixed(2)} A · Q = ${(m.electrolysisChargeC ?? 0).toFixed(0)} C`;
+      reusableConceptEntries[2].active = true;
     }
     return reusableConceptEntries;
   };
@@ -1088,6 +1389,9 @@ export function buildChemistryCoreStage(
       metalTex?.dispose();
       buretteScaleTex?.dispose();
       beakerScaleTex?.dispose();
+      stirrerOledTex?.dispose();
+      phMeterOledTex?.dispose();
+      calOledTex?.dispose();
       phScaleTex.dispose();
     },
   };

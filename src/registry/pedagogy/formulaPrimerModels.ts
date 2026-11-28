@@ -1375,5 +1375,190 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
     buildIntuitiveSentence: (_activeVar, v, outcome) =>
       `Dengan albedo A = ${v.A} dan kadar CO₂ = ${v.co2} ppm, efek rumah kaca menahan radiasi inframerah sehingga suhu rata-rata permukaan planet stabil di ${outcome} °C.`,
   },
+
+  'faraday-induction': {
+    moduleId: 'faraday-induction',
+    title: 'Intuisi Hukum Induksi Faraday–Lenz',
+    outcomeSymbol: 'εₘₐₓ',
+    outcomeLabel: 'GGL Induksi Puncak',
+    outcomeUnit: 'V',
+    variables: [
+      {
+        key: 'N',
+        symbol: 'N',
+        label: 'Jumlah Lilitan Kumparan',
+        unit: 'lilitan',
+        min: 20,
+        max: 400,
+        step: 10,
+        defaultValue: 120,
+        role: 'independent',
+        colorClass: 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
+        paramKey: 'coilTurnsN',
+      },
+      {
+        key: 'B',
+        symbol: 'B',
+        label: 'Medan Magnetik',
+        unit: 'T',
+        min: 0.05,
+        max: 1.5,
+        step: 0.05,
+        defaultValue: 0.45,
+        role: 'independent',
+        colorClass: 'text-sky-600 dark:text-sky-400 border-sky-500/40 bg-sky-500/10',
+        paramKey: 'magneticFieldTesla',
+      },
+      {
+        key: 'f',
+        symbol: 'f',
+        label: 'Frekuensi Osilasi Magnet',
+        unit: 'Hz',
+        min: 0.2,
+        max: 4.0,
+        step: 0.1,
+        defaultValue: 1.2,
+        role: 'independent',
+        colorClass: 'text-amber-600 dark:text-amber-400 border-amber-500/40 bg-amber-500/10',
+        paramKey: 'magnetOscillationHz',
+      },
+    ],
+    computeOutcome: (v) => {
+      const areaM2 = 25 * 1e-4;
+      return Number((v.N * v.B * areaM2 * 2 * Math.PI * v.f).toFixed(2));
+    },
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Dengan N = ${v.N} lilitan kumparan (A = 25 cm²), medan magnet B = ${v.B} T yang berosilasi pada f = ${v.f} Hz membangkitkan GGL induksi puncak sebesar ${outcome} V.`,
+  },
+
+  'electrolysis-faraday': {
+    moduleId: 'electrolysis-faraday',
+    title: 'Intuisi Hukum I Faraday Elektroplating',
+    outcomeSymbol: 'm',
+    outcomeLabel: 'Massa Endapan Katoda',
+    outcomeUnit: 'g',
+    variables: [
+      {
+        key: 'I',
+        symbol: 'I',
+        label: 'Kuat Arus Listrik DC',
+        unit: 'A',
+        min: 0.2,
+        max: 8.0,
+        step: 0.1,
+        defaultValue: 2.5,
+        role: 'independent',
+        colorClass: 'text-sky-600 dark:text-sky-400 border-sky-500/40 bg-sky-500/10',
+        paramKey: 'electrolysisCurrentA',
+      },
+      {
+        key: 'tMin',
+        symbol: 't',
+        label: 'Durasi Elektrolisis',
+        unit: 'menit',
+        min: 5,
+        max: 120,
+        step: 5,
+        defaultValue: 30,
+        role: 'independent',
+        colorClass: 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
+        paramKey: 'electrolysisTimeMin',
+      },
+    ],
+    computeOutcome: (v) => {
+      const chargeC = v.I * v.tMin * 60;
+      return Number(((63.55 * chargeC) / (2 * 96485)).toFixed(3));
+    },
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Arus DC sebesar I = ${v.I} A selama t = ${v.tMin} menit mengalirkan elektron ke katoda larutan CuSO₄ dan mengendapkan ${outcome} g logam tembaga murni.`,
+  },
+
+  'dna-pcr-electrophoresis': {
+    moduleId: 'dna-pcr-electrophoresis',
+    title: 'Intuisi Amplifikasi Eksponensial DNA PCR',
+    outcomeSymbol: 'log₁₀N',
+    outcomeLabel: 'Skala Log Salinan DNA',
+    outcomeUnit: 'log₁₀',
+    variables: [
+      {
+        key: 'c',
+        symbol: 'c',
+        label: 'Jumlah Siklus PCR',
+        unit: 'siklus',
+        min: 5,
+        max: 35,
+        step: 1,
+        defaultValue: 25,
+        role: 'independent',
+        colorClass: 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
+        paramKey: 'pcrCycles',
+      },
+      {
+        key: 'Ta',
+        symbol: 'Ta',
+        label: 'Suhu Penempelan Primer',
+        unit: '°C',
+        min: 45,
+        max: 72,
+        step: 1,
+        defaultValue: 58,
+        role: 'independent',
+        colorClass: 'text-amber-600 dark:text-amber-400 border-amber-500/40 bg-amber-500/10',
+        paramKey: 'annealingTempC',
+      },
+    ],
+    computeOutcome: (v) => {
+      const eff = Math.max(0.04, Math.min(1.0, Math.exp(-Math.pow((v.Ta - 58) / 7.5, 2))));
+      return Number((1 + v.c * Math.log10(1 + eff)).toFixed(2));
+    },
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Setelah c = ${v.c} siklus PCR pada suhu annealing Ta = ${v.Ta} °C, jumlah salinan DNA meningkat secara eksponensial hingga skala log₁₀ N = ${outcome}.`,
+  },
+
+  'doppler-redshift-binary': {
+    moduleId: 'doppler-redshift-binary',
+    title: 'Intuisi Kecepatan Radial & Doppler Biner',
+    outcomeSymbol: 'K₁',
+    outcomeLabel: 'Semi-Amplitudo Primer',
+    outcomeUnit: 'km/s',
+    variables: [
+      {
+        key: 'M2',
+        symbol: 'M₂',
+        label: 'Massa Bintang Sekunder',
+        unit: 'M☉',
+        min: 0.3,
+        max: 5.0,
+        step: 0.1,
+        defaultValue: 1.0,
+        role: 'independent',
+        colorClass: 'text-sky-600 dark:text-sky-400 border-sky-500/40 bg-sky-500/10',
+        paramKey: 'binaryMass2Solar',
+      },
+      {
+        key: 'inc',
+        symbol: 'i',
+        label: 'Inklinasi Bidang Orbit',
+        unit: '°',
+        min: 0,
+        max: 90,
+        step: 5,
+        defaultValue: 75,
+        role: 'independent',
+        colorClass: 'text-amber-600 dark:text-amber-400 border-amber-500/40 bg-amber-500/10',
+        paramKey: 'binaryInclinationDeg',
+      },
+    ],
+    computeOutcome: (v) => {
+      const m1 = 2.2;
+      const a = 0.45;
+      const tot = m1 + v.M2;
+      const vRel = 29.7847 * Math.sqrt(tot / a);
+      return Number((vRel * (v.M2 / tot) * Math.sin((v.inc * Math.PI) / 180)).toFixed(2));
+    },
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Dengan massa pasangan M₂ = ${v.M2} M☉ dan inklinasi bidang orbit i = ${v.inc}°, proyeksi kecepatan radial bintang primer mencapai K₁ = ${outcome} km/s yang menggeser garis spektrum H-α.`,
+  },
 };
+
 

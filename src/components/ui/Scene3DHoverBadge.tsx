@@ -28,7 +28,7 @@ export const Scene3DHoverBadge: React.FC<Scene3DHoverBadgeProps> = ({
   return (
     <div
       data-testid="scene-3d-hover-badge"
-      className={`pointer-events-none absolute bottom-16 left-1/2 z-30 flex -translate-x-1/2 max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium shadow-lg transition-all duration-150 ${ACCENT_CLASSES[accent]}`}
+      className={`pointer-events-none absolute bottom-[96px] lg:bottom-[100px] left-1/2 z-30 flex -translate-x-1/2 max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium shadow-lg transition-all duration-150 ${ACCENT_CLASSES[accent]}`}
       role="status"
       aria-live="polite"
     >

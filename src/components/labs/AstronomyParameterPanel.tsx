@@ -252,6 +252,65 @@ export const AstronomyParameterPanel: React.FC<AstronomyParameterPanelProps> = (
                 onChange={(v) => onParamPatch({ stellarFluxFactor: v })}
               />
             </>
+          ) : params.mode === 'doppler-redshift-binary' ? (
+            <>
+              <TactileParameterControl
+                paramKey="binaryMass1Solar"
+                label="Massa Bintang Primer (M₁)"
+                unit="M☉"
+                value={params.binaryMass1Solar ?? 2.2}
+                min={0.3}
+                max={8.0}
+                step={0.1}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getAstronomyParameterFeedback(params.mode, 'binaryMass1Solar', v, lvl)
+                }
+                onChange={(v) => onParamPatch({ binaryMass1Solar: v })}
+              />
+              <TactileParameterControl
+                paramKey="binaryMass2Solar"
+                label="Massa Bintang Sekunder (M₂)"
+                unit="M☉"
+                value={params.binaryMass2Solar ?? 1.0}
+                min={0.2}
+                max={6.0}
+                step={0.1}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getAstronomyParameterFeedback(params.mode, 'binaryMass2Solar', v, lvl)
+                }
+                onChange={(v) => onParamPatch({ binaryMass2Solar: v })}
+              />
+              <TactileParameterControl
+                paramKey="binarySeparationAu"
+                label="Jarak Pisah Biner (a)"
+                unit="AU"
+                value={params.binarySeparationAu ?? 0.45}
+                min={0.1}
+                max={2.0}
+                step={0.05}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getAstronomyParameterFeedback(params.mode, 'binarySeparationAu', v, lvl)
+                }
+                onChange={(v) => onParamPatch({ binarySeparationAu: v })}
+              />
+              <TactileParameterControl
+                paramKey="binaryInclinationDeg"
+                label="Sudut Inklinasi Orbit (i)"
+                unit="°"
+                value={params.binaryInclinationDeg ?? 75}
+                min={5}
+                max={90}
+                step={5}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) =>
+                  getAstronomyParameterFeedback(params.mode, 'binaryInclinationDeg', v, lvl)
+                }
+                onChange={(v) => onParamPatch({ binaryInclinationDeg: v })}
+              />
+            </>
           ) : (
             <>
               <TactileParameterControl

@@ -835,5 +835,101 @@ export const PHYSICS_MODULES: ExperimentModule[] = [
       return { tensionForce, waveSpeed, wavelength, harmonicLoops };
     },
   },
+
+  {
+    id: 'faraday-induction',
+    title: 'Induksi Elektromagnetik Faraday–Lenz & Generator Fluks',
+    domain: 'fisika',
+    subCategory: 'Elektromagnetisme & Induksi',
+    supportedTiers: ['SMP', 'SMA', 'Mahasiswa'],
+    difficulty: 2,
+    estimatedMinutes: 35,
+    objectives: {
+      SMP: [
+        'Mengamati bagaimana gerakan keluar-masuk magnet batang di dalam kumparan menghasilkan arus listrik dan menyalakan lampu.',
+        'Memahami hubungan antara kecepatan gerak magnet dengan besar simpangan jarum galvanometer.',
+      ],
+      SMA: [
+        'Membuktikan Hukum Induksi Faraday bahwa gaya gerak listrik induksi sebanding dengan laju perubahan fluks magnetik (ε = −N·dΦ/dt).',
+        'Memverifikasi Hukum Lenz bahwa arah arus induksi selalu menentang perubahan fluks magnetik penyebabnya.',
+      ],
+      Mahasiswa: [
+        'Menganalisis GGL puncak sinusoidal εₘₐₓ = N·B·A·(2πf), arus beban Iₘₐₓ = εₘₐₓ/R, dan daya disipasi rata-rata Pᵣₐₜₐ = εₘₐₓ²/(2R).',
+        'Menguji sifat beda fase 90° antara fluks magnetik Φ(t) = B·A·cos(ωt) dan GGL induksi ε(t) = εₘₐₓ·sin(ωt).',
+      ],
+    },
+    theorySummary:
+      'Menurut Hukum Induksi Faraday, perubahan fluks magnetik (Φ = B·A·cos θ) yang menembus kumparan berjumlah N lilitan menginduksikan gaya gerak listrik sebesar ε = −N·(dΦ/dt). Ketika magnet batang berosilasi harmonik dengan frekuensi f sehingga fluks berubah seperti Φ(t) = B·A·cos(2πft), maka GGL induksi sesaat memenuhi ε(t) = N·B·A·(2πf)·sin(2πft) dengan nilai puncak εₘₐₓ = N·B·A·2πf. Tanda negatif mencerminkan Hukum Lenz: medan magnet induksi selalu berlawanan arah untuk melawan perubahan fluks asal.',
+    keyEquations: [
+      '\\Phi_{\\max} = B \\cdot A',
+      '\\varepsilon_{\\max} = N \\cdot B \\cdot A \\cdot (2\\pi f)',
+      'I_{\\max} = \\frac{\\varepsilon_{\\max}}{R}, \\quad P_{\\text{avg}} = \\frac{\\varepsilon_{\\max}^2}{2R}',
+    ],
+    apparatusList: [
+      'Kumparan solenoida tembaga variabel (N = 20–400 lilitan) dengan penampang dapat diatur',
+      'Magnet batang permanen Neodymium N–S terpasang pada aktuator osilasi harmonik presisi',
+      'Galvanometer nol-tengah presisi, lampu pijar beban & osiloskop sinyal GGL ε(t) waktu nyata',
+    ],
+    safetyNotes: [
+      'Jauhkan kartu magnetik, jam tangan mekanik, dan alat ukur sensitif dari magnet Neodymium kuat.',
+      'Pastikan hambatan beban R tidak disetel terlalu kecil saat GGL puncak tinggi untuk mencegah panas berlebih pada kumparan.',
+    ],
+    parameters: [
+      { key: 'coilTurnsN', label: 'Jumlah Lilitan Kumparan (N)', unit: 'lilitan', min: 20, max: 400, step: 10, defaultValue: 120, variableRole: 'bebas' },
+      { key: 'magneticFieldTesla', label: 'Kuat Medan Magnetik (B)', unit: 'T', min: 0.05, max: 1.50, step: 0.05, defaultValue: 0.45, variableRole: 'bebas' },
+      { key: 'magnetOscillationHz', label: 'Frekuensi Osilasi Magnet (f)', unit: 'Hz', min: 0.2, max: 4.0, step: 0.1, defaultValue: 1.2, variableRole: 'bebas', instrumentType: 'stopwatch' },
+      { key: 'coilAreaCm2', label: 'Luas Penampang Kumparan (A)', unit: 'cm²', min: 5, max: 60, step: 5, defaultValue: 25, variableRole: 'kontrol', instrumentType: 'ruler' },
+      { key: 'loadResistanceOhm', label: 'Hambatan Beban Total (R)', unit: 'Ω', min: 2, max: 60, step: 2, defaultValue: 12, variableRole: 'kontrol', instrumentType: 'voltmeter' },
+    ],
+    outputs: [
+      { key: 'faradayPeakFluxMwb', label: 'Fluks Magnetik Puncak (Φₘₐₓ)', unit: 'mWb', formulaLatex: '\\Phi_{\\max} = B \\cdot A', precision: 3 },
+      { key: 'faradayPeakEmfV', label: 'GGL Induksi Puncak (εₘₐₓ)', unit: 'V', formulaLatex: '\\varepsilon_{\\max} = N B A (2\\pi f)', precision: 3 },
+      { key: 'faradayPeakCurrentMa', label: 'Arus Induksi Puncak (Iₘₐₓ)', unit: 'mA', formulaLatex: 'I_{\\max} = \\varepsilon_{\\max} / R', precision: 1 },
+      { key: 'faradayAvgPowerW', label: 'Daya Beban Rata-rata (Pᵣₐₜₐ)', unit: 'W', formulaLatex: 'P_{\\text{avg}} = \\varepsilon_{\\max}^2 / (2R)', precision: 3 },
+    ],
+    defaultRegressionAxes: { xKey: 'coilTurnsN', yKey: 'faradayPeakEmfV', expectedSlopeMeaning: 'Linearitas GGL Induksi Puncak εₘₐₓ terhadap Jumlah Lilitan N' },
+    preLabQuiz: [
+      {
+        id: 'faraday-q1',
+        question: 'Sebuah magnet batang digerakkan keluar-masuk kumparan dengan frekuensi f yang digandakan (2× semula), sementara N, B, dan A tetap. Bagaimana pengaruhnya terhadap GGL induksi puncak εₘₐₓ?',
+        options: [
+          'GGL puncak menjadi setengahnya karena waktu interaksi lebih singkat',
+          'GGL puncak menjadi 2 kali lipat semula karena laju perubahan fluks dΦ/dt berbanding lurus dengan frekuensi f',
+          'GGL puncak tetap sama karena fluks maksimum B·A tidak berubah',
+          'GGL puncak menjadi 4 kali lipat semula',
+        ],
+        correctIndex: 1,
+        explanation: 'Walaupun fluks puncak B·A tetap, kecepatan perubahan fluks (2πf) bertambah 2 kali lipat sehingga GGL puncak εₘₐₓ = N·B·A·(2πf) ikut menjadi 2 kali lipat.',
+      },
+      {
+        id: 'faraday-q2',
+        question: 'Ketika kutub Utara (N) magnet didorong mendekati kumparan, Hukum Lenz menjelaskan bahwa ujung kumparan yang menghadap magnet akan bertindak sebagai kutub:',
+        options: [
+          'Selatan (S) agar menarik magnet masuk lebih cepat',
+          'Utara (N) untuk menolak kedatangan magnet dan melawan pertambahan fluks',
+          'Netral tanpa kutub magnetik',
+          'Berubah-ubah acak tanpa pola arah',
+        ],
+        correctIndex: 1,
+        explanation: 'Hukum Lenz menyatakan arus induksi menghasilkan medan magnetik yang menentang perubahan fluks penyebabnya: kedatangan kutub Utara dilawan oleh kutub Utara induksi.',
+      },
+    ],
+    computeStep: (params) => {
+      const N = Math.max(1, params.coilTurnsN ?? 120);
+      const B = Math.max(0.01, params.magneticFieldTesla ?? 0.45);
+      const f = Math.max(0.05, params.magnetOscillationHz ?? 1.2);
+      const areaCm2 = Math.max(1, params.coilAreaCm2 ?? 25);
+      const R = Math.max(0.5, params.loadResistanceOhm ?? 12);
+      const areaM2 = areaCm2 * 1e-4;
+      const omega = 2 * Math.PI * f;
+      const peakFluxWb = B * areaM2;
+      const faradayPeakFluxMwb = Number((peakFluxWb * 1000).toFixed(3));
+      const faradayPeakEmfV = Number((N * peakFluxWb * omega).toFixed(3));
+      const faradayPeakCurrentMa = Number(((faradayPeakEmfV / R) * 1000).toFixed(1));
+      const faradayAvgPowerW = Number(((faradayPeakEmfV * faradayPeakEmfV) / (2 * R)).toFixed(3));
+      return { faradayPeakFluxMwb, faradayPeakEmfV, faradayPeakCurrentMa, faradayAvgPowerW };
+    },
+  },
 ];
+
 

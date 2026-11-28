@@ -2,6 +2,7 @@ import React from 'react';
 import { DomainSchematicProps } from './PhysicsSchematics';
 
 export const ChemistrySchematics: React.FC<DomainSchematicProps> = ({
+  moduleId,
   keyText,
   accent,
 }) => {
@@ -32,7 +33,77 @@ export const ChemistrySchematics: React.FC<DomainSchematicProps> = ({
     );
   }
 
-  // 2. Voltaic / Galvanic Cell & Nernst (redox-electrochemistry)
+  // 2. Faraday Electrolysis Cell (electrolysis-faraday) - checked before redox 'elektro'
+  if (
+    moduleId === 'electrolysis-faraday' ||
+    keyText.includes('electrolysis') ||
+    keyText.includes('elektrolisis') ||
+    keyText.includes('faraday')
+  ) {
+    return (
+      <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Electrolytic Tank & Solution */}
+        <path d="M 74 36 L 74 92 Q 74 96 78 96 L 198 96 Q 202 96 202 92 L 202 36" />
+        <rect x="76" y="54" width="124" height="40" fill="#0284c7" fillOpacity="0.16" stroke="none" />
+        {/* Cathode (-) with Copper Deposit */}
+        <rect x="98" y="34" width="10" height="50" rx="1.5" fill="#c87533" fillOpacity="0.35" stroke="#c87533" />
+        <text x="90" y="90" fill="#c87533" fontSize="8" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          Katoda (-)
+        </text>
+        {/* Anode (+) with O2 Bubbles */}
+        <rect x="168" y="34" width="10" height="50" rx="1.5" fill="#94a3b8" fillOpacity="0.3" stroke="#94a3b8" />
+        <circle cx="164" cy="64" r="2" fill="#38bdf8" stroke="none" />
+        <circle cx="182" cy="58" r="2.2" fill="#38bdf8" stroke="none" />
+        <text x="155" y="90" fill="#38bdf8" fontSize="8" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          O₂↑ (+)
+        </text>
+        {/* DC Power Supply at top */}
+        <path d="M 103 34 L 103 16 L 126 16" />
+        <path d="M 150 16 L 173 16 L 173 34" />
+        <rect x="126" y="8" width="24" height="16" rx="3" fill={accent} fillOpacity="0.2" />
+        <text x="132" y="19" fill={accent} fontSize="8.5" fontWeight="bold" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          DC
+        </text>
+        <text x="208" y="54" fill="#f59e0b" fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          m=ArIt/nF
+        </text>
+      </g>
+    );
+  }
+
+  // 3. Le Chatelier Chemical Equilibrium (chemical-equilibrium-lechatelier)
+  if (
+    moduleId === 'chemical-equilibrium-lechatelier' ||
+    keyText.includes('lechatelier') ||
+    keyText.includes('kesetimbangan') ||
+    keyText.includes('equilibrium')
+  ) {
+    return (
+      <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Equilibrium Cylinder with N2O4 <-> 2 NO2 */}
+        <path d="M 52 24 L 52 90 L 128 90 L 128 24" />
+        <rect x="54" y="46" width="72" height="42" fill="#c2410c" fillOpacity="0.22" stroke="none" />
+        <rect x="54" y="40" width="72" height="7" fill={accent} fillOpacity="0.3" />
+        <line x1="90" y1="14" x2="90" y2="40" strokeWidth="2" />
+        <text x="64" y="70" fill="#f59e0b" fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          N₂O₄ ⇌ 2NO₂
+        </text>
+        {/* Equilibrium shift diagram on right */}
+        <line x1="154" y1="44" x2="226" y2="44" stroke="#f59e0b" strokeWidth="1.8" />
+        <path d="M 220 40 L 226 44 L 220 48" stroke="#f59e0b" strokeWidth="1.8" />
+        <line x1="226" y1="56" x2="154" y2="56" stroke="#38bdf8" strokeWidth="1.8" />
+        <path d="M 160 52 L 154 56 L 160 60" stroke="#38bdf8" strokeWidth="1.8" />
+        <text x="160" y="34" fill="#f59e0b" fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          ΔH = +57.2 kJ
+        </text>
+        <text x="166" y="76" fill={accent} fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          Kₚ(T) · P
+        </text>
+      </g>
+    );
+  }
+
+  // 4. Voltaic / Galvanic Cell & Nernst (redox-electrochemistry)
   if (keyText.includes('redox') || keyText.includes('elektro') || keyText.includes('volta')) {
     return (
       <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">

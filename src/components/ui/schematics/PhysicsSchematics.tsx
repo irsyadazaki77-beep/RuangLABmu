@@ -374,7 +374,77 @@ export const PhysicsSchematics: React.FC<DomainSchematicProps> = ({
     );
   }
 
-  // 10. Universal Gravitation & Escape Velocity (gravity-orbital)
+  // 10. Standing Wave & Melde String Resonance (standing-wave-melde)
+  if (keyText.includes('melde') || keyText.includes('standing-wave') || keyText.includes('dawai')) {
+    return (
+      <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Vibrator block on left */}
+        <rect x="26" y="42" width="22" height="24" rx="3" fill={accent} fillOpacity="0.2" />
+        <text x="32" y="57" fill={accent} fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          f
+        </text>
+        {/* Equilibrium string axis */}
+        <line x1="48" y1="54" x2="218" y2="54" strokeDasharray="3 3" strokeOpacity="0.4" />
+        {/* Standing wave 3 antinode envelope */}
+        <path d="M 48 54 Q 76 26, 104 54 T 160 54 T 216 54" stroke="#38bdf8" strokeWidth="1.8" />
+        <path d="M 48 54 Q 76 82, 104 54 T 160 54 T 216 54" stroke="#38bdf8" strokeWidth="1.4" strokeDasharray="3 2" />
+        {/* Pulley & suspended mass */}
+        <circle cx="222" cy="54" r="7" fill={accent} fillOpacity="0.16" />
+        <line x1="229" y1="54" x2="229" y2="78" />
+        <rect x="220" y="78" width="18" height="16" rx="2.5" fill="#f59e0b" fillOpacity="0.25" stroke="#f59e0b" />
+        <text x="225" y="89" fill="#f59e0b" fontSize="8" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          m
+        </text>
+        <text x="108" y="22" fill={accent} fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          v = √(F/μ)
+        </text>
+      </g>
+    );
+  }
+
+  // 11. Faraday-Lenz Electromagnetic Induction (faraday-induction)
+  if (
+    moduleId === 'faraday-induction' ||
+    keyText.includes('faraday') ||
+    keyText.includes('induksi') ||
+    keyText.includes('fluks')
+  ) {
+    return (
+      <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Moving Bar Magnet N-S */}
+        <g className="transition-transform duration-500 group-hover:translate-x-2">
+          <rect x="28" y="42" width="28" height="22" rx="2" fill="#ef4444" fillOpacity="0.28" stroke="#ef4444" />
+          <rect x="56" y="42" width="28" height="22" rx="2" fill="#3b82f6" fillOpacity="0.28" stroke="#3b82f6" />
+          <text x="38" y="56" fill="#ef4444" fontSize="9" fontWeight="bold" fontFamily="IBM Plex Mono, monospace" stroke="none">
+            S
+          </text>
+          <text x="66" y="56" fill="#3b82f6" fontSize="9" fontWeight="bold" fontFamily="IBM Plex Mono, monospace" stroke="none">
+            N
+          </text>
+          {/* Magnetic flux lines */}
+          <path d="M 84 48 C 100 40, 114 40, 126 48" stroke="#38bdf8" strokeDasharray="3 2" />
+          <path d="M 84 58 C 100 66, 114 66, 126 58" stroke="#38bdf8" strokeDasharray="3 2" />
+        </g>
+        {/* Solenoid Coil */}
+        {[120, 130, 140, 150, 160].map((cx) => (
+          <ellipse key={cx} cx={cx} cy="53" rx="6" ry="20" stroke="#f59e0b" strokeWidth="1.8" />
+        ))}
+        {/* Circuit loop & Galvanometer G */}
+        <path d="M 120 73 L 120 92 L 200 92" />
+        <path d="M 160 73 L 160 84 L 222 84 L 222 68" />
+        <circle cx="216" cy="53" r="14" fill={accent} fillOpacity="0.16" stroke="#10b981" />
+        <line x1="216" y1="53" x2="223" y2="44" stroke="#f59e0b" strokeWidth="1.8" />
+        <text x="212" y="61" fill="#10b981" fontSize="8" fontWeight="bold" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          G
+        </text>
+        <text x="112" y="22" fill={accent} fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          ε = -N·dΦ/dt
+        </text>
+      </g>
+    );
+  }
+
+  // 12. Universal Gravitation & Escape Velocity (gravity-orbital)
   return (
     <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
       {/* Bound circular orbit dashed */}

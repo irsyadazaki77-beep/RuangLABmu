@@ -28,9 +28,9 @@ function assertCleanNotation(text: string, context: string) {
   );
 }
 
-describe('32-Module Structured Pedagogy & Interactive Formula Primers', () => {
-  it('covers all 32 modules with complete structured pedagogy fields', () => {
-    assert.equal(EXPERIMENT_CATALOG.length, 32);
+describe('36-Module Structured Pedagogy & Interactive Formula Primers', () => {
+  it('covers all 36 modules with complete structured pedagogy fields', () => {
+    assert.equal(EXPERIMENT_CATALOG.length, 36);
 
     for (const mod of EXPERIMENT_CATALOG) {
       assert.ok(
@@ -387,6 +387,50 @@ describe('Scientific Accuracy & Cross-Layer Consistency Across All 28 Modules', 
     const highGh = gh.computeStep({ planetaryAlbedo: 0.3, greenhouseGasPpm: 1600, stellarFluxFactor: 1.0 }, 0);
     assert.ok(earth.surfaceTempK > earth.equilibriumTempK);
     assert.ok(highGh.surfaceTempK > earth.surfaceTempK);
+  });
+
+  it('validates exact scientific formulas across the 4 newly expanded 3D modules', () => {
+    const faraday = getExperimentById('faraday-induction')!;
+    assert.ok(faraday);
+    const f1 = faraday.computeStep(
+      { coilTurnsN: 100, magneticFieldTesla: 0.5, magnetOscillationHz: 2.0, coilAreaCm2: 20, loadResistanceOhm: 10 },
+      0
+    );
+    assert.equal(f1.faradayPeakFluxMwb, 1);
+    assert.ok(Math.abs(f1.faradayPeakEmfV - 1.257) < 0.01);
+
+    const elec = getExperimentById('electrolysis-faraday')!;
+    assert.ok(elec);
+    const e1 = elec.computeStep(
+      { electrolysisCurrentA: 2.5, electrolysisTimeMin: 30, electrolysisMolarMass: 63.55, electrolysisValenceN: 2 },
+      0
+    );
+    assert.equal(e1.electrolysisChargeC, 4500);
+    assert.ok(Math.abs(e1.electrolysisMassDepositedG - 1.482) < 0.01);
+
+    const pcr = getExperimentById('dna-pcr-electrophoresis')!;
+    assert.ok(pcr);
+    const pcrOpt = pcr.computeStep(
+      { pcrCycles: 25, annealingTempC: 58, agaroseConcPct: 1.2, electrophoresisVoltageV: 100, dnaFragmentBp: 750 },
+      0
+    );
+    const pcrHighTa = pcr.computeStep(
+      { pcrCycles: 25, annealingTempC: 70, agaroseConcPct: 1.2, electrophoresisVoltageV: 100, dnaFragmentBp: 750 },
+      0
+    );
+    assert.equal(pcrOpt.pcrEfficiencyPct, 100);
+    assert.ok(pcrOpt.log10DnaCopies > pcrHighTa.log10DnaCopies);
+    const smallBand = pcr.computeStep({ pcrCycles: 25, annealingTempC: 58, agaroseConcPct: 1.2, electrophoresisVoltageV: 100, dnaFragmentBp: 250 }, 0);
+    const largeBand = pcr.computeStep({ pcrCycles: 25, annealingTempC: 58, agaroseConcPct: 1.2, electrophoresisVoltageV: 100, dnaFragmentBp: 2000 }, 0);
+    assert.ok(smallBand.migrationDistanceMm > largeBand.migrationDistanceMm);
+
+    const bin = getExperimentById('doppler-redshift-binary')!;
+    assert.ok(bin);
+    const faceOn = bin.computeStep({ binaryMass1Solar: 2.0, binaryMass2Solar: 1.0, binarySeparationAu: 0.45, binaryInclinationDeg: 0 }, 0);
+    const edgeOn = bin.computeStep({ binaryMass1Solar: 2.0, binaryMass2Solar: 1.0, binarySeparationAu: 0.45, binaryInclinationDeg: 90 }, 0);
+    assert.equal(faceOn.binaryMaxDopplerShiftNm, 0);
+    assert.ok(edgeOn.binaryMaxDopplerShiftNm > 0.05);
+    assert.ok(Math.abs(edgeOn.binaryRadialVel2Kms - 2 * edgeOn.binaryRadialVel1Kms) < 0.05);
   });
 });
 

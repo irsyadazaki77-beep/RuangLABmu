@@ -34,6 +34,11 @@ export const INITIAL_PHYSICS_PARAMS: PhysicsParams = {
   stringLength: 1.2,
   linearMassDensity: 0.005,
   waveFrequency: 50,
+  coilTurnsN: 120,
+  magneticFieldTesla: 0.45,
+  magnetOscillationHz: 1.2,
+  coilAreaCm2: 25,
+  loadResistanceOhm: 12,
   mode: 'newton-incline',
 };
 
@@ -58,6 +63,11 @@ export const INITIAL_CHEMISTRY_PARAMS: ChemistryParams = {
   equilibriumTempC: 25,
   equilibriumPressureAtm: 1.0,
   n2o4InitialConcM: 0.2,
+  electrolysisCurrentA: 2.5,
+  electrolysisTimeMin: 30,
+  electrolysisElectrolyteId: 'cuso4',
+  electrolysisMolarMass: 63.55,
+  electrolysisValenceN: 2,
 };
 
 export const INITIAL_BIOLOGY_CONTEXT: BiologyTelemetryContext = {
@@ -89,5 +99,9 @@ export const INITIAL_ASTRONOMY_PARAMS: AstronomyParams = {
   planetaryAlbedo: 0.30,
   greenhouseGasPpm: 420,
   stellarFluxFactor: 1.0,
+  binaryMass1Solar: 2.2,
+  binaryMass2Solar: 1.0,
+  binarySeparationAu: 0.45,
+  binaryInclinationDeg: 75,
 };
 

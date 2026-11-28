@@ -2,11 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   auToSceneRadius,
+  computeKeplerInstantaneousDynamics,
+  computeMilkyWayAngularSpeed,
+  computePlanckNormalizedIntensity,
   computeTransitLightCurveSample,
   evaluateKeplerOrbitPoint,
   normalizeAstronomyMode,
   redshiftToGalaxyColorHex,
   solveKeplerEccentricAnomaly,
+  computeBinaryDopplerVisualState,
 } from './astronomyVisualHelpers';
 
 test('normalizeAstronomyMode maps catalog IDs and aliases consistently', () => {
@@ -16,6 +20,7 @@ test('normalizeAstronomyMode maps catalog IDs and aliases consistently', () => {
   assert.equal(normalizeAstronomyMode('stellar-exoplanet'), 'stellar-exoplanet');
   assert.equal(normalizeAstronomyMode('hubble-expansion'), 'hubble-expansion');
   assert.equal(normalizeAstronomyMode('stellar-wien-spectrum'), 'stellar-wien-spectrum');
+  assert.equal(normalizeAstronomyMode('doppler-redshift-binary'), 'doppler-redshift-binary');
   assert.equal(normalizeAstronomyMode('unknown-mode'), 'solar-kepler');
 });
 
@@ -60,7 +65,6 @@ test('solveKeplerEccentricAnomaly satisfies Kepler equation M = E - e*sin(E) and
     assert.ok(residual < 1e-6, `Expected residual < 1e-6 for M=${M}, got ${residual}`);
   }
 
-  // Equal mean-anomaly delta sweeps larger eccentric-anomaly arc near perihelion (M=0) than aphelion (M=π)
   const deltaM = 0.25;
   const dEPeri = solveKeplerEccentricAnomaly(deltaM, e) - solveKeplerEccentricAnomaly(0, e);
   const dEAph = solveKeplerEccentricAnomaly(Math.PI + deltaM, e) - solveKeplerEccentricAnomaly(Math.PI, e);
@@ -79,12 +83,53 @@ test('evaluateKeplerOrbitPoint preserves true elliptical semi-minor compression 
 
   assert.ok(Math.abs(peri.ox - (1 - e) * scaledR) < 1e-6, 'Perihelion must lie at (1 - e) * scaledR');
   assert.ok(Math.abs(aph.ox + (1 + e) * scaledR) < 1e-6, 'Aphelion must lie at -(1 + e) * scaledR');
-  const expectedSemiMinor = Math.sqrt(1 - e * e) * scaledR; // 0.8 * 4.0 = 3.2
-  assert.ok(
-    Math.abs(quad.oz - expectedSemiMinor) < 1e-6,
-    `Semi-minor oz must equal sqrt(1-e^2)*scaledR (${expectedSemiMinor}), got ${quad.oz}`
-  );
-  assert.ok(quad.oz < scaledR, 'Eccentric ellipse must be visibly compressed along semi-minor axis');
-  assert.ok(peri.tangentZ > 0 && Math.abs(peri.tangentX) < 1e-6, 'Perihelion velocity tangent should point along +Z');
+  const expectedSemiMinor = Math.sqrt(1 - e * e) * scaledR;
+  assert.ok(Math.abs(quad.oz - expectedSemiMinor) < 1e-6);
+  assert.ok(quad.oz < scaledR);
+  assert.ok(peri.tangentZ > 0 && Math.abs(peri.tangentX) < 1e-6);
 });
 
+test('computeKeplerInstantaneousDynamics grows velocity & gravity vectors sharply at perihelion vs aphelion', () => {
+  const peri = computeKeplerInstantaneousDynamics(0, 1.0, 0.5, 1.0);
+  const aph = computeKeplerInstantaneousDynamics(Math.PI, 1.0, 0.5, 1.0);
+  // By angular momentum conservation, v_peri / v_aph = (1+e)/(1-e) = 1.5 / 0.5 = 3.0!
+  assert.ok(
+    Math.abs(peri.instantVelocityKmS / aph.instantVelocityKmS - 3.0) < 0.02,
+    'Vis-Viva velocity ratio at perihelion vs aphelion must equal (1+e)/(1-e)'
+  );
+  assert.ok(peri.velocityArrowLen > aph.velocityArrowLen * 2);
+  assert.ok(peri.gravityArrowLen > aph.gravityArrowLen * 1.8);
+});
+
+test('computeMilkyWayAngularSpeed follows differential ω = v / R', () => {
+  const inner = computeMilkyWayAngularSpeed(3.0, 220);
+  const outer = computeMilkyWayAngularSpeed(15.0, 220);
+  assert.ok(inner > outer * 3, 'Inner galactic radii must have higher angular speed ω = v/R');
+  const fastOuter = computeMilkyWayAngularSpeed(15.0, 320);
+  assert.ok(fastOuter > outer, 'Dark-matter boosted velocity must increase angular speed');
+});
+
+test('computePlanckNormalizedIntensity peaks strictly at Wien λ_max = b / T', () => {
+  const tempK = 5778;
+  const peakNm = 2.897771955e6 / tempK; // ~501.5 nm
+  assert.equal(computePlanckNormalizedIntensity(peakNm, tempK), 1);
+  assert.ok(computePlanckNormalizedIntensity(peakNm - 120, tempK) < 0.92);
+  assert.ok(computePlanckNormalizedIntensity(peakNm + 180, tempK) < 0.92);
+});
+
+test('computeBinaryDopplerVisualState preserves barycentric momentum M1*r1 = M2*r2 and sin(i) Doppler shift', () => {
+  const faceOn = computeBinaryDopplerVisualState(
+    { binaryMass1Solar: 2.0, binaryMass2Solar: 1.0, binarySeparationAu: 0.45, binaryInclinationDeg: 0 },
+    0
+  );
+  assert.equal(faceOn.star1RadialVelKms, 0);
+  assert.equal(faceOn.star1LambdaNm, 656.28);
+
+  const edgeOn = computeBinaryDopplerVisualState(
+    { binaryMass1Solar: 2.0, binaryMass2Solar: 1.0, binarySeparationAu: 0.45, binaryInclinationDeg: 90 },
+    0
+  );
+  assert.ok(Math.abs(edgeOn.orbitRadius2Scene - 2 * edgeOn.orbitRadius1Scene) < 0.01);
+  assert.ok(edgeOn.star1LambdaNm < 656.28, 'Star 1 approaching should blueshift below 656.28 nm');
+  assert.ok(edgeOn.star2LambdaNm > 656.28, 'Star 2 receding should redshift above 656.28 nm');
+});

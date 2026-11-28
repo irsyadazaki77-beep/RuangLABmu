@@ -49,13 +49,38 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
     return map;
   }, [steps.length, recordsCount, manualStepChecks]);
 
-  if (!steps || steps.length === 0 || dismissed) return null;
+  if (!steps || steps.length === 0) return null;
 
   const completedCount = steps.reduce((acc, _, idx) => acc + (completedMap[idx] ? 1 : 0), 0);
   const firstIncompleteIdx = steps.findIndex((_, idx) => !completedMap[idx]);
   const activeStepIdx = firstIncompleteIdx !== -1 ? firstIncompleteIdx : steps.length - 1;
   const cleanActiveStep = steps[activeStepIdx]?.replace(/^\d+\.\s*/, '') || '';
   const progressPct = Math.round((completedCount / Math.max(1, steps.length)) * 100);
+
+  if (dismissed) {
+    return (
+      <div
+        data-testid="guided-lab-steps-overlay"
+        className="pointer-events-none w-full flex justify-center"
+      >
+        <button
+          type="button"
+          data-testid="toggle-guided-steps-btn"
+          onClick={() => {
+            labSound.playClick(600);
+            setDismissed(false);
+          }}
+          title="Tampilkan kembali panduan langkah praktikum"
+          className="pointer-events-auto px-2.5 py-1 rounded-xl studio-hud-surface border border-[var(--comfort-border)] shadow-sm flex items-center gap-1.5 text-2xs font-semibold text-[var(--comfort-hud-text)] hover:border-[var(--comfort-accent)] transition-colors cursor-pointer"
+        >
+          <Compass className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
+          <span className="tabular-nums">
+            Panduan {activeStepIdx + 1}/{steps.length}
+          </span>
+        </button>
+      </div>
+    );
+  }
 
   const handleToggleStepCheck = (idx: number) => {
     labSound.playClick(completedMap[idx] ? 520 : 680);
@@ -75,7 +100,7 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
       data-testid="guided-lab-steps-overlay"
       className="pointer-events-none w-full flex justify-center"
     >
-      <div className="pointer-events-auto max-w-full sm:max-w-[470px] rounded-xl studio-hud-surface border shadow-md overflow-hidden">
+      <div className="pointer-events-auto w-full max-w-[520px] rounded-xl studio-hud-surface border border-[var(--comfort-border)] shadow-md overflow-hidden">
         <div className="flex items-center">
           <button
             type="button"
@@ -85,7 +110,7 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
               labSound.playClick(600);
               setExpanded((prev) => !prev);
             }}
-            className="flex-1 min-w-0 min-h-[36px] px-2.5 py-1 flex items-center justify-between gap-2 text-left cursor-pointer hover:bg-[var(--comfort-accent-soft)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--comfort-accent)]"
+            className="flex-1 min-w-0 min-h-[34px] px-2.5 py-1 flex items-center justify-between gap-2 text-left cursor-pointer hover:bg-[var(--comfort-accent-soft)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--comfort-accent)]"
           >
             <div className="flex items-center gap-1.5 min-w-0">
               <Compass className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
@@ -93,9 +118,9 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
                 Langkah {activeStepIdx + 1}/{steps.length}
               </span>
               <span className="text-2xs font-mono text-[var(--comfort-success)] whitespace-nowrap tabular-nums">
-                ({completedCount}/{steps.length} selesai)
+                ({completedCount}/{steps.length})
               </span>
-              <span className="text-2xs text-[var(--comfort-hud-muted)] truncate hidden sm:inline">
+              <span className="text-2xs text-[var(--comfort-hud-muted)] truncate">
                 · {cleanActiveStep}
               </span>
             </div>
@@ -115,7 +140,7 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
               emitLabEvent(LAB_EVENTS.RECORD_TRIAL, { source: 'dock', timestamp: Date.now() });
             }}
             title="Catat sampel pengamatan untuk langkah saat ini"
-            className="min-h-[36px] px-2.5 flex items-center gap-1 text-2xs font-bold text-[var(--comfort-accent)] hover:bg-[var(--comfort-accent-soft)] border-l border-[var(--comfort-border)] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+            className="min-h-[34px] px-2.5 flex items-center gap-1 text-2xs font-bold text-[var(--comfort-accent)] hover:bg-[var(--comfort-accent-soft)] border-l border-[var(--comfort-border)] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
           >
             <PlusCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
             <span className="hidden sm:inline">Catat Data</span>
@@ -125,11 +150,12 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
             type="button"
             onClick={() => {
               labSound.playClick(480);
+              setExpanded(false);
               setDismissed(true);
             }}
             aria-label="Sembunyikan banner langkah"
-            title="Sembunyikan panduan langkah agar kanvas 3D lebih bersih"
-            className="min-w-[34px] min-h-[36px] flex items-center justify-center text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-accent-soft)] border-l border-[var(--comfort-border)] transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--comfort-accent)]"
+            title="Kecilkan panduan langkah agar kanvas 3D lebih bersih"
+            className="min-w-[32px] min-h-[34px] flex items-center justify-center text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-accent-soft)] border-l border-[var(--comfort-border)] transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--comfort-accent)]"
           >
             <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>

@@ -51,15 +51,25 @@ export const MobileInstrumentSheet: React.FC<MobileInstrumentSheetProps> = ({
   return (
     <AnimatePresence>
       {expanded && (
-        <motion.div
-          key="mobile-sheet"
-          data-testid="mobile-lab-bottom-sheet"
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 24 }}
-          transition={{ type: 'spring', stiffness: 360, damping: 30, mass: 0.85 }}
-          className="lg:hidden absolute left-2 right-2 bottom-16 z-30 rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
-        >
+        <>
+          {/* Tap upper 3D canvas area to quickly dismiss mobile sheet back to 3D view */}
+          <div
+            aria-hidden="true"
+            onClick={() => {
+              labSound.playClick(480);
+              onToggleExpand();
+            }}
+            className="lg:hidden absolute inset-x-0 top-[60px] bottom-0 z-20"
+          />
+          <motion.div
+            key="mobile-sheet"
+            data-testid="mobile-lab-bottom-sheet"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            transition={{ type: 'spring', stiffness: 360, damping: 30, mass: 0.85 }}
+            className="lg:hidden absolute left-2 right-2 bottom-2 z-30 rounded-2xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-2xl overflow-hidden"
+          >
           {/* Sheet Handle & Quick Snap Height Toggle */}
           <button
             type="button"
@@ -193,7 +203,8 @@ export const MobileInstrumentSheet: React.FC<MobileInstrumentSheetProps> = ({
               </>
             )}
           </div>
-        </motion.div>
+          </motion.div>
+        </>
       )}
     </AnimatePresence>
   );

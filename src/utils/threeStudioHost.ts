@@ -266,10 +266,10 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
 
   let envTexture: THREE.Texture;
   if (isSoftwareGl) {
-    // High-contrast 128x64 architectural studio softbox equirectangular reflection map (<1ms)
-    // Gives brushed steel, brass, ceramic, and borosilicate glass crisp specular reflections on SwiftShader/3T devices.
-    const w = 128;
-    const h = 64;
+    // High-contrast 256x128 architectural studio softbox equirectangular reflection map (<2ms)
+    // Gives brushed steel, brass, ceramic, and borosilicate glass vivid, realistic studio specular highlights on SwiftShader/3T devices.
+    const w = 256;
+    const h = 128;
     const data = new Uint8Array(w * h * 4);
     for (let y = 0; y < h; y++) {
       const v = y / (h - 1); // 0 = floor, 1 = zenith
@@ -277,35 +277,41 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
         const u = x / (w - 1);
         const idx = (y * w + x) * 4;
 
-        // Smooth laboratory room ambient gradient (grounded dark bench bounce below horizon, bright studio ceiling above)
-        const horizonBand = Math.exp(-Math.pow((v - 0.48) / 0.12, 2));
-        const upperSky = Math.max(0, (v - 0.46) / 0.54);
-        const floorBounce = Math.max(0, (0.48 - v) / 0.48);
+        // Smooth architectural laboratory room ambient gradient with crisp horizon contrast line
+        const horizonBand = Math.exp(-Math.pow((v - 0.49) / 0.08, 2));
+        const upperSky = Math.max(0, (v - 0.47) / 0.53);
+        const floorBounce = Math.max(0, (0.49 - v) / 0.49);
 
-        let r = 34 + upperSky * 126 + horizonBand * 42 - floorBounce * 12;
-        let g = 40 + upperSky * 130 + horizonBand * 44 - floorBounce * 10;
-        let b = 52 + upperSky * 138 + horizonBand * 46 - floorBounce * 6;
+        let r = 28 + upperSky * 124 + horizonBand * 46 - floorBounce * 10;
+        let g = 34 + upperSky * 130 + horizonBand * 48 - floorBounce * 8;
+        let b = 46 + upperSky * 140 + horizonBand * 52 - floorBounce * 4;
 
-        // Twin overhead laboratory LED diffuser strips
-        const strip1 = Math.exp(-Math.pow((v - 0.84) / 0.055, 2)) * (u > 0.16 && u < 0.44 ? 1 : 0);
-        const strip2 = Math.exp(-Math.pow((v - 0.84) / 0.055, 2)) * (u > 0.56 && u < 0.84 ? 1 : 0);
-        const overhead = (strip1 + strip2) * 118;
+        // Three crisp overhead laboratory LED linear diffuser panels (creates unmistakable studio metal highlights)
+        const stripLat = Math.exp(-Math.pow((v - 0.85) / 0.042, 2));
+        const stripMask =
+          (u > 0.1 && u < 0.34 ? 1 : 0) +
+          (u > 0.42 && u < 0.62 ? 1.15 : 0) +
+          (u > 0.7 && u < 0.9 ? 1 : 0);
+        const overhead = stripLat * stripMask * 142;
 
         // Warm studio key softbox (upper right)
         const keyBox =
-          Math.exp(-Math.pow((u - 0.24) / 0.1, 2)) *
-          Math.exp(-Math.pow((v - 0.64) / 0.11, 2)) *
-          96;
+          Math.exp(-Math.pow((u - 0.22) / 0.085, 2)) *
+          Math.exp(-Math.pow((v - 0.65) / 0.095, 2)) *
+          135;
 
-        // Cool laboratory window rim softbox (opposite flank)
+        // Cool north-light laboratory window reflection (opposite flank)
         const rimBox =
-          Math.exp(-Math.pow((u - 0.76) / 0.12, 2)) *
-          Math.exp(-Math.pow((v - 0.58) / 0.12, 2)) *
-          78;
+          Math.exp(-Math.pow((u - 0.78) / 0.095, 2)) *
+          Math.exp(-Math.pow((v - 0.6) / 0.11, 2)) *
+          115;
 
-        r += overhead + keyBox * 1.08 + rimBox * 0.72;
-        g += overhead * 0.99 + keyBox * 0.98 + rimBox * 0.94;
-        b += overhead * 0.97 + keyBox * 0.84 + rimBox * 1.18;
+        // Subtle warm benchtop bounce band slightly below horizon
+        const benchBounce = Math.exp(-Math.pow((v - 0.36) / 0.09, 2)) * 28;
+
+        r += overhead + keyBox * 1.12 + rimBox * 0.74 + benchBounce * 1.05;
+        g += overhead * 0.99 + keyBox * 1.0 + rimBox * 0.96 + benchBounce;
+        b += overhead * 0.97 + keyBox * 0.82 + rimBox * 1.2 + benchBounce * 0.92;
 
         data[idx] = Math.min(255, Math.max(0, Math.round(r)));
         data[idx + 1] = Math.min(255, Math.max(0, Math.round(g)));
@@ -328,7 +334,7 @@ export function initThreeStudioHost(options: ThreeStudioHostOptions): ThreeStudi
   scene.environment = envTexture;
   scene.userData.isSoftwareGl = isSoftwareGl;
   // Calibrate RoomEnvironment (much brighter on real GPUs) vs procedural softbox DataTexture parity
-  scene.environmentIntensity = options.environmentIntensity ?? (isSoftwareGl ? 0.68 : 0.42);
+  scene.environmentIntensity = options.environmentIntensity ?? (isSoftwareGl ? 0.88 : 0.56);
 
   const baseFov = options.camera.fov ?? 45;
   const computePortraitSafeFov = (aspect: number) => {
@@ -571,7 +577,7 @@ export function createStudioThreePointLighting(
 
   const keyPos = options?.keyPosition ?? [6, 12, 8];
   const shadowSize = options?.shadowMapSize ?? 1024;
-  const keyLight = new THREE.DirectionalLight(0xfff7ea, 1.12);
+  const keyLight = new THREE.DirectionalLight(0xfff5e4, 1.32);
   keyLight.position.set(keyPos[0], keyPos[1], keyPos[2]);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.width = shadowSize;
@@ -583,19 +589,26 @@ export function createStudioThreePointLighting(
   keyLight.shadow.camera.right = shadowBound;
   keyLight.shadow.camera.top = shadowBound;
   keyLight.shadow.camera.bottom = -shadowBound;
-  keyLight.shadow.bias = -0.0005;
+  keyLight.shadow.bias = -0.00045;
   keyLight.shadow.normalBias = 0.02;
+  keyLight.shadow.radius = 3.2;
   scene.add(keyLight);
 
-  // Soft cool front-side fill light to sculpt brushed metal and ceramic contours without washing shadows
-  const fillLight = new THREE.DirectionalLight(0xe0f2fe, 0.26);
-  fillLight.position.set(-keyPos[0] * 0.85, keyPos[1] * 0.55, keyPos[2] * 0.7);
+  // Soft cool front-side studio window fill light to sculpt brushed metal and ceramic contours
+  const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.36);
+  fillLight.position.set(-keyPos[0] * 0.85, keyPos[1] * 0.55, keyPos[2] * 0.72);
   scene.add(fillLight);
 
-  const rimPos = options?.rimPosition ?? [-7, 5, -6];
-  const rimLight = new THREE.DirectionalLight(0xbae6fd, 0.48);
+  // Crisp cool rim backlight separating metallic and glass apparatus silhouettes from the studio backdrop
+  const rimPos = options?.rimPosition ?? [-7, 5.5, -6.5];
+  const rimLight = new THREE.DirectionalLight(0xbae6fd, 0.62);
   rimLight.position.set(rimPos[0], rimPos[1], rimPos[2]);
   scene.add(rimLight);
+
+  // Subtle warm tabletop bounce fill lifting underside bevels & metallic shadows naturally
+  const bounceLight = new THREE.DirectionalLight(0xfef3c7, 0.2);
+  bounceLight.position.set(keyPos[0] * 0.4, -3.5, keyPos[2] * 0.65);
+  scene.add(bounceLight);
 
   return {
     hemiLight,
@@ -618,15 +631,15 @@ export function createStudioThreePointLighting(
       const isSw = Boolean(targetScene.userData?.isSoftwareGl);
       targetScene.environmentIntensity = isSw
         ? isDarkScene
-          ? 0.56
-          : 0.68
+          ? 0.72
+          : 0.88
         : isDarkScene
-        ? 0.36
-        : 0.42;
+        ? 0.46
+        : 0.56;
       workbench?.updateTheme(colors);
       hemiLight.color.setHex(colors.ambientSkyHex);
       hemiLight.groundColor.setHex(colors.ambientGroundHex);
-      hemiLight.intensity = Math.min(0.62, colors.ambientIntensity);
+      hemiLight.intensity = Math.min(0.68, colors.ambientIntensity * 1.15);
     },
   };
 }

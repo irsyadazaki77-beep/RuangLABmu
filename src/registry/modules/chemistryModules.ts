@@ -556,5 +556,97 @@ export const CHEMISTRY_MODULES: ExperimentModule[] = [
       return { leChatelierKp, no2DissociationAlpha, no2MoleFractionPct, no2PartialPressureAtm };
     },
   },
+
+  {
+    id: 'electrolysis-faraday',
+    title: 'Sel Elektrolisis & Hukum I Faraday (Elektroplating Logam)',
+    domain: 'kimia',
+    subCategory: 'Elektrokimia & Stoikiometri Listrik',
+    supportedTiers: ['SMA', 'Mahasiswa'],
+    difficulty: 2,
+    estimatedMinutes: 35,
+    objectives: {
+      SMP: [
+        'Mengamati pelapisan logam (elektroplating) pada katoda dan timbulnya gelembung gas O₂ di anoda saat dialiri listrik DC.',
+        'Memahami bahwa arus listrik yang lebih besar atau lebih lama menghasilkan endapan logam lebih tebal.',
+      ],
+      SMA: [
+        'Membuktikan Hukum I Faraday bahwa massa logam yang mengendap di katoda sebanding dengan muatan listrik Q = I·t.',
+        'Menghitung massa endapan logam m = (Ar·I·t)/(n·F) untuk berbagai larutan elektrolit (CuSO₄, AgNO₃, NiSO₄, ZnSO₄).',
+      ],
+      Mahasiswa: [
+        'Menganalisis neraca elektron stoikiometri nₑ = Q/F terhadap laju evolusi gas oksigen anoda inert V(O₂) = (nₑ/4)·22,414 L (STP).',
+        'Membandingkan massa ekuivalen kimia (Ar/n) antara kation monovalen (Ag⁺) dan divalen (Cu²⁺, Ni²⁺, Zn²⁺) pada muatan konstan.',
+      ],
+    },
+    theorySummary:
+      'Dalam sel elektrolisis, sumber arus searah (DC) memaksa reaksi redoks non-spontan berlangsung: kation logam bermigrasi ke katoda (−) untuk direduksi menjadi lapisan logam padat (Mⁿ⁺ + n e⁻ → M(s)), sementara pada anoda inert terjadi oksidasi air menghasilkan gelembung gas O₂ dan ion H⁺ (2H₂O → O₂(g) + 4H⁺ + 4e⁻). Menurut Hukum I Faraday, massa zat yang terendapkan berbanding lurus dengan muatan total Q = I·t dan massa ekuivalen kimia e = Ar/n: m = (Ar · I · t) / (n · F), dengan F = 96.485 C/mol.',
+    keyEquations: [
+      'Q = I \\cdot t \\quad (t\\text{ dalam sekon}), \\qquad n_{e^-} = \\frac{Q}{F}',
+      'm = \\frac{A_r \\cdot I \\cdot t}{n \\cdot F} \\quad (F = 96.485\\text{ C/mol})',
+      'V_{\\text{O}_2,\\text{STP}} = \\frac{n_{e^-}}{4} \\times 22.414\\text{ mL}',
+    ],
+    apparatusList: [
+      'Tangki sel elektrolisis kaca borosilikat dengan elektroda katoda pelat dan anoda grafit inert',
+      'Catu daya DC teregulasi (0,2–8,0 A) lengkap dengan Amperemeter & Coulombmeter Q = I·t',
+      'Larutan elektrolit pilihan (CuSO₄, AgNO₃, NiSO₄, ZnSO₄) & buret pengumpul gas O₂ anoda',
+    ],
+    safetyNotes: [
+      'Gunakan sarung tangan tahan kimia saat menangani larutan garam logam berat (CuSO₄, AgNO₃) agar tidak mengotori atau mengiritasi kulit.',
+      'Matikan catu daya DC sebelum melepas penjepit buaya dari katoda atau anoda untuk mencegah percikan arus.',
+    ],
+    parameters: [
+      { key: 'electrolysisCurrentA', label: 'Kuat Arus Listrik DC (I)', unit: 'A', min: 0.2, max: 8.0, step: 0.1, defaultValue: 2.5, variableRole: 'bebas', instrumentType: 'voltmeter' },
+      { key: 'electrolysisTimeMin', label: 'Durasi Elektrolisis (t)', unit: 'menit', min: 5, max: 120, step: 5, defaultValue: 30, variableRole: 'bebas', instrumentType: 'stopwatch' },
+      { key: 'electrolysisMolarMass', label: 'Massa Molar Logam (Ar)', unit: 'g/mol', min: 20, max: 110, step: 0.5, defaultValue: 63.55, variableRole: 'kontrol' },
+      { key: 'electrolysisValenceN', label: 'Muatan / Valensi Ion (n)', unit: 'e⁻', min: 1, max: 3, step: 1, defaultValue: 2, variableRole: 'kontrol' },
+    ],
+    outputs: [
+      { key: 'electrolysisChargeC', label: 'Muatan Listrik Total (Q)', unit: 'C', formulaLatex: 'Q = I \\cdot t', precision: 0 },
+      { key: 'electrolysisElectronMoles', label: 'Mol Elektron (nₑ)', unit: 'mol', formulaLatex: 'n_e = Q / F', precision: 4 },
+      { key: 'electrolysisMassDepositedG', label: 'Massa Endapan Katoda (m)', unit: 'g', formulaLatex: 'm = (A_r \\cdot Q)/(n \\cdot F)', precision: 3 },
+      { key: 'electrolysisAnodeGasMl', label: 'Volume Gas O₂ Anoda (STP)', unit: 'mL', formulaLatex: 'V_{\\text{O}_2} = (n_e/4)\\cdot 22414', precision: 1 },
+    ],
+    defaultRegressionAxes: { xKey: 'electrolysisCurrentA', yKey: 'electrolysisMassDepositedG', expectedSlopeMeaning: 'Kesebandingan Hukum I Faraday antara Kuat Arus I dan Massa Endapan m' },
+    preLabQuiz: [
+      {
+        id: 'elec-q1',
+        question: 'Arus listrik I = 2,0 A dialirkan ke dalam larutan CuSO₄ (Ar Cu = 63,55 g/mol, n = 2) selama 965 detik (Q = 1930 C ≈ 0,02 mol elektron). Berapakah massa tembaga yang mengendap di katoda?',
+        options: ['0,318 g', '0,636 g', '1,271 g', '2,542 g'],
+        correctIndex: 1,
+        explanation: 'Mol elektron nₑ = 1930 / 96485 ≈ 0,02 mol. Karena Cu²⁺ + 2e⁻ → Cu (n = 2), mol Cu = 0,02 / 2 = 0,01 mol, sehingga m = 0,01 × 63,55 ≈ 0,636 g.',
+      },
+      {
+        id: 'elec-q2',
+        question: 'Jika jumlah muatan listrik Q yang sama dialirkan secara seri melalui sel AgNO₃ (Ag⁺, Ar = 107,9; n = 1) dan sel CuSO₄ (Cu²⁺, Ar = 63,55; n = 2), manakah logam yang massanya mengendap lebih besar?',
+        options: [
+          'Tembaga (Cu), karena valensinya lebih besar',
+          'Perak (Ag), karena massa ekuivalen kimianya (Ar/n = 107,9) jauh lebih besar daripada Cu (63,55/2 = 31,78)',
+          'Keduanya selalu mengendap dengan massa gram yang persis sama',
+          'Tidak ada logam yang mengendap tanpa jembatan garam',
+        ],
+        correctIndex: 1,
+        explanation: 'Menurut Hukum II Faraday, massa endapan pada muatan sama sebanding dengan massa ekuivalen (Ar/n). Perak memiliki e = 107,9/1 = 107,9 g/ek, lebih dari 3 kali lipat Cu (31,78 g/ek).',
+      },
+    ],
+    computeStep: (params) => {
+      const FARADAY = 96485;
+      const elecI = Math.max(0.05, params.electrolysisCurrentA ?? 2.5);
+      const tSec = Math.max(1, (params.electrolysisTimeMin ?? 30) * 60);
+      const ar = Math.max(1, params.electrolysisMolarMass ?? 63.55);
+      const n = Math.max(1, Math.round(params.electrolysisValenceN ?? 2));
+      const electrolysisChargeC = Number((elecI * tSec).toFixed(0));
+      const electrolysisElectronMoles = Number((electrolysisChargeC / FARADAY).toFixed(4));
+      const electrolysisMassDepositedG = Number(((ar * electrolysisChargeC) / (n * FARADAY)).toFixed(3));
+      const electrolysisAnodeGasMl = Number(((electrolysisElectronMoles / 4) * 22414).toFixed(1));
+      return {
+        electrolysisChargeC,
+        electrolysisElectronMoles,
+        electrolysisMassDepositedG,
+        electrolysisAnodeGasMl,
+      };
+    },
+  },
 ];
+
 

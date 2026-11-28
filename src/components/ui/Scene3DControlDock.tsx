@@ -84,15 +84,17 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
   snapActive = false,
   extraControl,
 }) => {
-  const { leftDrawerOpen, rightTelemetryOpen, zenMode, comfortTheme, setComfortPrefs } = useUIStore(
-    useShallow((s) => ({
-      leftDrawerOpen: s.leftDrawerOpen,
-      rightTelemetryOpen: s.rightTelemetryOpen,
-      zenMode: s.zenMode,
-      comfortTheme: s.comfortPrefs.theme,
-      setComfortPrefs: s.setComfortPrefs,
-    }))
-  );
+  const { leftDrawerOpen, rightTelemetryOpen, zenMode, mobileTab, comfortTheme, setComfortPrefs } =
+    useUIStore(
+      useShallow((s) => ({
+        leftDrawerOpen: s.leftDrawerOpen,
+        rightTelemetryOpen: s.rightTelemetryOpen,
+        zenMode: s.zenMode,
+        mobileTab: s.mobileTab,
+        comfortTheme: s.comfortPrefs.theme,
+        setComfortPrefs: s.setComfortPrefs,
+      }))
+    );
 
   const embedMode = useSceneEmbedMode();
   const [collapsed, setCollapsed] = useState(false);
@@ -119,14 +121,15 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
 
   const isLeftOpen = !zenMode && leftDrawerOpen;
   const isRightOpen = !zenMode && rightTelemetryOpen;
+  const isMobileSheetOpen = mobileTab === 'variables' || mobileTab === 'telemetry';
 
   // Strictly constrained inside the open center corridor on lg (1024px+) and xl (1280px+)
-  // Left drawer: left-3 (12px) + w-[312px] = right 324px (lg), w-[324px] = right 336px (xl)
-  // Right drawer: right-3 (12px) + w-[328px] = left edge 340px from right (lg), w-[340px] = 352px (xl)
+  // Left drawer: left-3 (12px) + w-[296px] = right 308px (lg), w-[316px] = right 328px (xl)
+  // Right drawer: right-3 (12px) + w-[304px] = left edge 316px from right (lg), w-[324px] = 336px (xl)
   const corridorClass = [
-    'left-2 right-2',
-    isLeftOpen ? 'lg:left-[330px] xl:left-[342px]' : 'lg:left-3',
-    isRightOpen ? 'lg:right-[346px] xl:right-[358px]' : 'lg:right-3',
+    'left-2.5 right-2.5 sm:left-3 sm:right-3',
+    isLeftOpen ? 'lg:left-[320px] xl:left-[340px]' : 'lg:left-3',
+    isRightOpen ? 'lg:right-[328px] xl:right-[348px]' : 'lg:right-3',
   ].join(' ');
 
   const activeBtnClass = ACCENT_ACTIVE[accentTone];
@@ -140,7 +143,9 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
   return (
     <div
       data-testid="scene-3d-control-dock"
-      className={`pointer-events-auto absolute bottom-[88px] z-20 flex justify-center ${corridorClass}`}
+      className={`pointer-events-none absolute bottom-[54px] lg:bottom-[58px] z-20 justify-center transition-[left,right,bottom] duration-200 ${
+        isMobileSheetOpen ? 'hidden lg:flex' : 'flex'
+      } ${corridorClass}`}
     >
       {collapsed ? (
         <button
@@ -151,20 +156,20 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
             setCollapsed(false);
           }}
           title="Tampilkan Dok Kontrol Kamera & Alat 3D (H)"
-          className="studio-hud-surface px-3 py-1 rounded-xl text-2xs font-semibold text-[var(--comfort-hud-text)] shadow-md flex items-center gap-1.5 cursor-pointer hover:border-sky-500/50 transition-colors"
+          className="pointer-events-auto studio-hud-surface px-3 py-1 rounded-xl text-2xs font-semibold text-[var(--comfort-hud-text)] shadow-md flex items-center gap-1.5 cursor-pointer hover:border-sky-500/50 transition-colors"
         >
           <Camera className="w-3.5 h-3.5 text-sky-500 shrink-0" aria-hidden="true" />
           <span>Kontrol 3D</span>
-          <ChevronDown className="w-3.5 h-3.5 opacity-75 shrink-0" aria-hidden="true" />
+          <ChevronUp className="w-3.5 h-3.5 opacity-75 shrink-0" aria-hidden="true" />
         </button>
       ) : (
         <div
           role="toolbar"
           aria-label="Kontrol Kamera dan Instrumen 3D"
-          className="studio-hud-surface max-w-full rounded-xl px-1.5 py-0.5 shadow-md flex flex-wrap items-center justify-center gap-1"
+          className="pointer-events-auto studio-hud-surface max-w-full rounded-xl px-1.5 py-1 shadow-md flex flex-nowrap items-center gap-1 overflow-x-auto no-scrollbar"
         >
           {/* Group 1: Camera Reset & Presets */}
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-0.5 shrink-0">
             <button
               type="button"
               data-testid="camera-reset-btn"
@@ -284,10 +289,10 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
             </button>
           </div>
 
-          <span className="h-4 w-px bg-[var(--comfort-border)] hidden sm:inline-block" aria-hidden="true" />
+          <span className="h-4 w-px bg-[var(--comfort-border)] shrink-0" aria-hidden="true" />
 
           {/* Group 2: Lab Instruments, Inspector & Labels */}
-          <div className="flex items-center gap-0.5 flex-wrap justify-center">
+          <div className="flex items-center gap-0.5 flex-nowrap shrink-0">
             {extraControl}
 
             {tools.map((tool) => (
@@ -313,7 +318,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 data-testid="snap-dock-apparatus-btn"
                 onClick={onSnapApparatus}
                 title="Rapatkan dan pusatkan alat praktikum di meja"
-                className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+                className={`hidden sm:flex px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer items-center gap-1 shrink-0 ${
                   snapActive ? 'bg-emerald-600 text-white font-bold' : idleBtnClass
                 }`}
               >
@@ -361,7 +366,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
               }}
               title="Ubah Pencahayaan Kanvas 3D (Studio Terang / Hangat Sepia / Gelap Observatorium)"
               aria-label="Ubah Pencahayaan Kanvas 3D"
-              className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${idleBtnClass}`}
+              className={`hidden sm:flex px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer items-center gap-1 shrink-0 ${idleBtnClass}`}
             >
               {comfortTheme === 'dark' ? (
                 <Moon className="w-3 h-3 text-indigo-400 shrink-0" aria-hidden="true" />
@@ -387,7 +392,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 data-testid="enter-vr-lab-btn"
                 onClick={onEnterVR}
                 title="Masuk ke mode Imersif WebXR / VR"
-                className={`px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+                className={`hidden md:flex px-1.5 py-1 text-2xs rounded-lg transition-colors cursor-pointer items-center gap-1 shrink-0 ${
                   isVRActive ? 'bg-indigo-600 text-white font-bold' : idleBtnClass
                 }`}
               >
@@ -423,7 +428,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
               title="Sembunyikan dok kontrol agar kanvas lebih lapang (H)"
               className={`p-1 rounded-lg transition-colors cursor-pointer shrink-0 ${idleBtnClass}`}
             >
-              <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
+              <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
         </div>

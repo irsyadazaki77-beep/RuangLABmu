@@ -17,10 +17,17 @@ import { PhysicsMetrics, PhysicsParams } from '../../utils/scienceEngine';
 import { globalMultiApparatusEngine } from '../../utils/engines/multiApparatusEngine';
 import { labSound } from '../../utils/soundEngine';
 import {
+  computeCollisionCartKinematics,
   computeCollisionShockwaveState,
+  computeFaradayInductionVisualState,
   computeMechanicalEnergySplit,
+  computeOrbitalAngularVelocity,
   computePhotoelectricElectronX,
+  computeStokesDropState,
+  computeWheatstoneBranchCurrents,
   computeWheatstoneNeedleAngle,
+  computeYoungFringeIntensity,
+  photonFrequencyToWavelengthNm,
 } from '../../utils/physicsVisualHelpers';
 
 export interface PhysicsRigMaterials {
@@ -50,6 +57,7 @@ export interface PhysicsSpecialRigsHandle {
   collisionGroup: THREE.Group;
   orbitalGroup: THREE.Group;
   meldeGroup: THREE.Group;
+  faradayGroup: THREE.Group;
   energyWidgetGroup: THREE.Group;
   stokesSphere: THREE.Mesh;
   cart1Mesh: THREE.Group;
@@ -240,9 +248,10 @@ export function buildPhysicsSpecialRigs(
   stokesWakeRing.rotation.x = Math.PI / 2;
   stokesGroup.add(stokesWakeRing);
 
-  const stokesDragArrow = createVectorArrowGroup(0x38bdf8);
-  const stokesGravArrow = createVectorArrowGroup(0xf43f5e);
-  stokesGroup.add(stokesDragArrow, stokesGravArrow);
+  const stokesDragArrow = createVectorArrowGroup(0x38bdf8); // Sky: Stokes viscous drag F_d
+  const stokesBuoyancyArrow = createVectorArrowGroup(0x10b981); // Emerald: Archimedes buoyancy F_b
+  const stokesGravArrow = createVectorArrowGroup(0xf43f5e); // Rose: Weight W = m·g
+  stokesGroup.add(stokesDragArrow, stokesBuoyancyArrow, stokesGravArrow);
 
   // =========================================================
   // 2. OHM & WHEATSTONE BRIDGE 3D GROUP
@@ -486,9 +495,9 @@ export function buildPhysicsSpecialRigs(
   wheatstoneGroup.add(galvoBox);
 
   const galvoDialTex = createAnalogGaugeDialTexture({
-    min: -30,
-    max: 30,
-    unit: 'μA',
+    min: -45,
+    max: 45,
+    unit: 'mA',
     title: 'GALVANOMETER',
     zeroCenter: true,
     majorDivisions: 6,
@@ -504,6 +513,17 @@ export function buildPhysicsSpecialRigs(
   galvoDialFace.rotation.x = -Math.PI / 2;
   galvoDialFace.position.set(0, 0.565, 0);
   wheatstoneGroup.add(galvoDialFace);
+
+  // Animated electrical current-carrier dots along the 4 diamond arms + central bridge wire
+  const WHEATSTONE_DOTS_PER_ARM = 5;
+  const WHEATSTONE_TOTAL_DOTS = WHEATSTONE_DOTS_PER_ARM * 5;
+  const wheatstoneDotPool = createInstancedParticlePool(
+    WHEATSTONE_TOTAL_DOTS,
+    new THREE.SphereGeometry(0.048, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xfacc15 }),
+    wheatstoneGroup
+  );
+  wheatstoneDotPool.mesh.frustumCulled = false;
 
   // Balanced-bridge indicator ring + protective glass cover dome around galvanometer bezel
   const galvoBalanceRingMat = new THREE.MeshBasicMaterial({
@@ -889,6 +909,17 @@ export function buildPhysicsSpecialRigs(
   );
   peParticlePool.mesh.frustumCulled = false;
 
+  // Incident monochromatic photon wave-packets streaming from UV monochromator lens to cathode
+  const PE_PHOTONS_COUNT = 10;
+  const pePhotonMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
+  const pePhotonPool = createInstancedParticlePool(
+    PE_PHOTONS_COUNT,
+    new THREE.SphereGeometry(0.055, 10, 10),
+    pePhotonMat,
+    photoelectricGroup
+  );
+  pePhotonPool.mesh.frustumCulled = false;
+
   // =========================================================
   // 5. 1D COLLISION MOMENTUM 3D GROUP (AIR-TRACK GLIDER CARTS)
   // =========================================================
@@ -1060,6 +1091,19 @@ export function buildPhysicsSpecialRigs(
   shockwaveRing.rotation.y = Math.PI / 2;
   shockwaveRing.visible = false;
   collisionGroup.add(shockwaveRing);
+
+  // Thermal energy dissipation glow orb at impact point when restitution e < 1 (inelastic heat loss)
+  const impactHeatMat = new THREE.MeshBasicMaterial({
+    color: 0xf97316,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const impactHeatOrb = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 16), impactHeatMat);
+  impactHeatOrb.position.set(0, 0.62, 0);
+  impactHeatOrb.visible = false;
+  collisionGroup.add(impactHeatOrb);
 
   const collVec1 = createVectorArrowGroup(0x38bdf8);
   const collVec2 = createVectorArrowGroup(0xf59e0b);
@@ -1387,11 +1431,257 @@ export function buildPhysicsSpecialRigs(
     meldeGroup
   );
 
+  // =========================================================
+  // 8. FARADAY-LENZ ELECTROMAGNETIC INDUCTION 3D GROUP
+  // =========================================================
+  const faradayGroup = new THREE.Group();
+  faradayGroup.visible = false;
+  scene.add(faradayGroup);
+
+  const faradayBase = new THREE.Mesh(
+    new RoundedBoxGeometry(8.6, 0.28, 3.4, 3, 0.04),
+    darkFrameMat
+  );
+  faradayBase.position.set(0, 0.14, 0);
+  faradayBase.receiveShadow = true;
+  faradayGroup.add(faradayBase);
+
+  // Solenoid acrylic bobbin + end flanges centered at (-0.65, 1.48, 0)
+  const solenoidPedestal = new THREE.Mesh(
+    new RoundedBoxGeometry(2.6, 0.68, 1.35, 2, 0.025),
+    darkFrameMat
+  );
+  solenoidPedestal.position.set(-0.65, 0.62, 0);
+  solenoidPedestal.castShadow = true;
+  faradayGroup.add(solenoidPedestal);
+
+  const bobbinTube = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.62, 0.62, 2.24, 28, 1, true),
+    glassCylMat
+  );
+  bobbinTube.rotation.z = Math.PI / 2;
+  bobbinTube.position.set(-0.65, 1.48, 0);
+  bobbinTube.name = 'Solenoida Induksi Faraday (N Lilitan)';
+  bobbinTube.userData = {
+    draggableParam: 'coilTurnsN',
+    min: 20,
+    max: 400,
+    step: 10,
+    label: 'Jumlah Lilitan (N)',
+  };
+  faradayGroup.add(bobbinTube);
+
+  [-1.76, 0.46].forEach((fx) => {
+    const flange = new THREE.Mesh(
+      new THREE.RingGeometry(0.62, 0.94, 32),
+      new THREE.MeshStandardMaterial({ color: 0x334155, side: THREE.DoubleSide, roughness: 0.45 })
+    );
+    flange.rotation.y = Math.PI / 2;
+    flange.position.set(fx, 1.48, 0);
+    faradayGroup.add(flange);
+  });
+
+  const copperCoilMat = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    metalness: 0.88,
+    roughness: 0.22,
+    emissive: 0x78350f,
+    emissiveIntensity: 0.15,
+  });
+  const MAX_FARADAY_COILS = 26;
+  const coilRingGeo = new THREE.TorusGeometry(0.7, 0.044, 12, 32);
+  coilRingGeo.rotateY(Math.PI / 2);
+  const faradayCoilRings: THREE.Mesh[] = [];
+  for (let i = 0; i < MAX_FARADAY_COILS; i++) {
+    const ring = new THREE.Mesh(coilRingGeo, copperCoilMat);
+    ring.position.set(-1.66 + (i / (MAX_FARADAY_COILS - 1)) * 2.02, 1.48, 0);
+    ring.castShadow = true;
+    ring.userData = bobbinTube.userData;
+    faradayGroup.add(ring);
+    faradayCoilRings.push(ring);
+  }
+
+  // Linear actuator stand + reciprocating Neodymium N-S bar magnet
+  const actuatorBox = new THREE.Mesh(
+    new RoundedBoxGeometry(1.05, 0.95, 1.2, 2, 0.03),
+    darkFrameMat
+  );
+  actuatorBox.position.set(-3.55, 0.75, 0);
+  actuatorBox.castShadow = true;
+  actuatorBox.name = 'Aktuator Osilator Magnet Neodymium';
+  actuatorBox.userData = {
+    draggableParam: 'magnetOscillationHz',
+    min: 0.2,
+    max: 4.0,
+    step: 0.1,
+    label: 'Frekuensi Osilasi (Hz)',
+  };
+  faradayGroup.add(actuatorBox);
+
+  const actuatorShaft = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 2.2, 12),
+    brushedSteelMat
+  );
+  actuatorShaft.rotation.z = Math.PI / 2;
+  actuatorShaft.position.set(-2.95, 1.48, 0);
+  faradayGroup.add(actuatorShaft);
+
+  const magnetAssembly = new THREE.Group();
+  magnetAssembly.position.set(-2.15, 1.48, 0);
+  faradayGroup.add(magnetAssembly);
+
+  const magnetSouth = new THREE.Mesh(
+    new RoundedBoxGeometry(0.72, 0.42, 0.42, 2, 0.025),
+    new THREE.MeshStandardMaterial({ color: 0x2563eb, metalness: 0.35, roughness: 0.32 })
+  );
+  magnetSouth.position.x = -0.36;
+  magnetSouth.castShadow = true;
+  magnetSouth.name = 'Magnet Batang Neodymium (Kutub S–N)';
+  magnetSouth.userData = actuatorBox.userData;
+
+  const magnetNorth = new THREE.Mesh(
+    new RoundedBoxGeometry(0.72, 0.42, 0.42, 2, 0.025),
+    new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.35, roughness: 0.32 })
+  );
+  magnetNorth.position.x = 0.36;
+  magnetNorth.castShadow = true;
+  magnetNorth.name = 'Magnet Batang Neodymium (Kutub S–N)';
+  magnetNorth.userData = actuatorBox.userData;
+  magnetAssembly.add(magnetSouth, magnetNorth);
+
+  // Magnetic flux lines emerging from North pole
+  const fluxLineMat = new THREE.LineBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.68,
+  });
+  const fluxLines: THREE.Line[] = [];
+  [-0.22, -0.1, 0, 0.1, 0.22].forEach((offsetY) => {
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.7, offsetY * 0.5, 0),
+      new THREE.Vector3(1.15, offsetY * 1.4, 0),
+      new THREE.Vector3(1.65, offsetY * 2.2, 0),
+    ]);
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(curve.getPoints(18));
+    const line = new THREE.Line(lineGeo, fluxLineMat);
+    magnetAssembly.add(line);
+    fluxLines.push(line);
+  });
+
+  // Lenz Law opposing induced B-field arrow above solenoid
+  const lenzOpposeArrow = createVectorArrowGroup(0xf59e0b);
+  lenzOpposeArrow.visible = false;
+  faradayGroup.add(lenzOpposeArrow);
+
+  // Right-side Galvanometer + Load Resistor + Incandescent Filament Bulb
+  const faradayGalvoBox = new THREE.Mesh(
+    new RoundedBoxGeometry(1.38, 1.32, 0.92, 3, 0.04),
+    darkFrameMat
+  );
+  faradayGalvoBox.position.set(2.25, 0.94, 0.22);
+  faradayGalvoBox.castShadow = true;
+  faradayGroup.add(faradayGalvoBox);
+
+  const faradayGalvoDialTex = createAnalogGaugeDialTexture({
+    min: -10,
+    max: 10,
+    majorDivisions: 4,
+    title: 'GALVANO ±',
+    unit: 'V / mA',
+  });
+  disposableTextures.push(faradayGalvoDialTex);
+  const faradayGalvoDial = new THREE.Mesh(
+    new THREE.CircleGeometry(0.46, 36),
+    new THREE.MeshBasicMaterial({ map: faradayGalvoDialTex ?? undefined })
+  );
+  faradayGalvoDial.position.set(2.25, 1.02, 0.695);
+  faradayGroup.add(faradayGalvoDial);
+
+  const faradayNeedlePivot = new THREE.Group();
+  faradayNeedlePivot.position.set(2.25, 1.02, 0.71);
+  const faradayNeedleMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(0.032, 0.36, 0.02),
+    new THREE.MeshBasicMaterial({ color: 0xf43f5e })
+  );
+  faradayNeedleMesh.position.y = 0.14;
+  faradayNeedlePivot.add(faradayNeedleMesh);
+  faradayGroup.add(faradayNeedlePivot);
+
+  // Load resistor + incandescent filament bulb on pedestal
+  const bulbSocket = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.24, 0.28, 0.32, 20),
+    brassMat
+  );
+  bulbSocket.position.set(3.55, 0.44, 0.25);
+  bulbSocket.userData = {
+    draggableParam: 'loadResistanceOhm',
+    min: 2,
+    max: 50,
+    step: 1,
+    label: 'Hambatan Beban R (Ω)',
+  };
+  const bulbGlass = new THREE.Mesh(
+    new THREE.SphereGeometry(0.32, 24, 24),
+    glassCylMat
+  );
+  bulbGlass.position.set(3.55, 0.86, 0.25);
+  bulbGlass.userData = bulbSocket.userData;
+
+  const bulbFilamentMat = new THREE.MeshStandardMaterial({
+    color: 0xfef08a,
+    emissive: 0xf59e0b,
+    emissiveIntensity: 0.15,
+    roughness: 0.2,
+  });
+  const bulbFilament = new THREE.Mesh(
+    new THREE.TorusGeometry(0.11, 0.022, 8, 20),
+    bulbFilamentMat
+  );
+  bulbFilament.position.set(3.55, 0.84, 0.25);
+  const bulbPointLight = new THREE.PointLight(0xfbbf24, 0, 4.5);
+  bulbPointLight.position.set(3.55, 0.9, 0.4);
+  faradayGroup.add(bulbSocket, bulbGlass, bulbFilament, bulbPointLight);
+
+  // Connecting copper wire from solenoid to galvanometer & bulb
+  const faradayWireCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.38, 0.78, 0.45),
+    new THREE.Vector3(1.1, 0.42, 0.55),
+    new THREE.Vector3(1.85, 0.52, 0.45),
+    new THREE.Vector3(2.95, 0.42, 0.35),
+    new THREE.Vector3(3.55, 0.38, 0.25),
+    new THREE.Vector3(2.85, 0.42, -0.35),
+    new THREE.Vector3(0.38, 0.78, -0.45),
+  ]);
+  faradayGroup.add(
+    new THREE.Mesh(new THREE.TubeGeometry(faradayWireCurve, 36, 0.028, 8, false), copperCoilMat)
+  );
+
+  // Live Faraday Oscilloscope Board showing Φ(t) vs ε(t) quadrature + numeric telemetry
+  const faradayOscCanvas = document.createElement('canvas');
+  faradayOscCanvas.width = 512;
+  faradayOscCanvas.height = 224;
+  const faradayOscTex = new THREE.CanvasTexture(faradayOscCanvas);
+  faradayOscTex.colorSpace = THREE.SRGBColorSpace;
+  disposableTextures.push(faradayOscTex);
+
+  const faradayOscHousing = new THREE.Mesh(
+    new RoundedBoxGeometry(3.35, 1.56, 0.16, 2, 0.03),
+    darkFrameMat
+  );
+  faradayOscHousing.position.set(1.05, 2.92, -1.28);
+  const faradayOscScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.12, 1.36),
+    new THREE.MeshBasicMaterial({ map: faradayOscTex })
+  );
+  faradayOscScreen.position.set(1.05, 2.92, -1.19);
+  faradayGroup.add(faradayOscHousing, faradayOscScreen);
+
   let lastCollisionImpactIndex = -1;
   let lastFringeKey = '';
   let lastPsuKey = '';
   let lastPePanelKey = '';
   let lastMeldePanelKey = '';
+  let lastFaradayOscKey = '';
 
   const _rigOrigin1 = new THREE.Vector3();
   const _rigOrigin2 = new THREE.Vector3();
@@ -1421,6 +1711,7 @@ export function buildPhysicsSpecialRigs(
     youngSlitGroup.visible = p.mode === 'optics-young-slit';
     photoelectricGroup.visible = p.mode === 'photoelectric-planck';
     meldeGroup.visible = p.mode === 'standing-wave-melde';
+    faradayGroup.visible = p.mode === 'faraday-induction';
 
     const showEnergyBars =
       p.mode === 'newton-incline' ||
@@ -1442,34 +1733,18 @@ export function buildPhysicsSpecialRigs(
     }
 
     if (m.mode === 'collision-momentum') {
-      const cycle = t % 3.4;
-      const r1 = 0.46 + Math.min(0.32, p.mass * 0.014);
-      const r2 = 0.46 + Math.min(0.32, (p.collisionMass2 || 2) * 0.014);
-      cart1Mesh.scale.set(r1 / 0.52, 1, 1);
-      cart2Mesh.scale.set(r2 / 0.52, 1, 1);
+      const collState = computeCollisionCartKinematics(p, m, t);
+      const impactT = 1.5;
+      const cycle = ((t % 3.2) + 3.2) % 3.2;
 
-      const v1Init = p.initialVelocity !== 0 ? p.initialVelocity : 8;
-      const v2Init = p.velocity2Initial ?? -4;
-      const impactT = 1.4;
-      let x1 = 0;
-      let x2 = 0;
-      let curV1 = v1Init;
-      let curV2 = v2Init;
+      const compFactor = 1 - collState.bumperCompression * 0.12;
+      cart1Mesh.scale.set(collState.cart1Scale * compFactor, collState.cart1Scale, collState.cart1Scale);
+      cart2Mesh.scale.set(collState.cart2Scale * compFactor, collState.cart2Scale, collState.cart2Scale);
+      cart1Mesh.position.set(collState.cart1X, 0.56, 0);
+      cart2Mesh.position.set(collState.cart2X, 0.56, 0);
 
-      if (cycle < impactT) {
-        const dtToImpact = impactT - cycle;
-        x1 = -r1 - Math.max(0.5, Math.abs(v1Init) * 0.22) * dtToImpact;
-        x2 = r2 + Math.max(0.5, Math.abs(v2Init) * 0.22) * dtToImpact;
-      } else {
-        const postT = cycle - impactT;
-        curV1 = m.v1Final;
-        curV2 = m.v2Final;
-        x1 = Math.max(-5.0, Math.min(5.0, -r1 + curV1 * 0.22 * postT));
-        x2 = Math.max(-5.0, Math.min(5.0, r2 + curV2 * 0.22 * postT));
-      }
-
-      const cycleIndex = Math.floor(t / 3.4);
-      if (cycle >= impactT) {
+      const cycleIndex = Math.floor(t / 3.2);
+      if (collState.inPostCollision) {
         if (isSimTimeAdvancing && lastCollisionImpactIndex !== cycleIndex) {
           lastCollisionImpactIndex = cycleIndex;
           labSound.playCollisionThud(p.restitutionCoeff ?? 1.0);
@@ -1481,40 +1756,49 @@ export function buildPhysicsSpecialRigs(
       const shock = computeCollisionShockwaveState(cycle, impactT);
       shockwaveRing.visible = shock.visible;
       if (shock.visible) {
+        shockwaveRing.position.x = 0.5 * (collState.cart1X + collState.cart2X);
         shockwaveRing.scale.setScalar(shock.scale);
         shockwaveRingMat.opacity = shock.opacity;
       }
 
-      cart1Mesh.position.set(x1, 0.56, 0);
-      cart2Mesh.position.set(x2, 0.56, 0);
+      impactHeatOrb.visible = collState.impactHeatGlow > 0.02;
+      if (impactHeatOrb.visible) {
+        impactHeatOrb.position.set(0.5 * (collState.cart1X + collState.cart2X), 0.62, 0);
+        impactHeatOrb.scale.setScalar(0.8 + collState.impactHeatGlow * 0.85);
+        impactHeatMat.opacity = collState.impactHeatGlow * 0.68;
+      }
 
       if (showVec) {
-        _rigOrigin1.set(x1, 1.38, 0);
-        _rigDir1.set(curV1 >= 0 ? 1 : -1, 0, 0);
-        orientAndScaleVectorArrow(
-          collVec1,
-          _rigOrigin1,
-          _rigDir1,
-          Math.min(2.2, Math.abs(curV1) * 0.14)
-        );
-        _rigOrigin2.set(x2, 1.38, 0);
-        _rigDir2.set(curV2 >= 0 ? 1 : -1, 0, 0);
-        orientAndScaleVectorArrow(
-          collVec2,
-          _rigOrigin2,
-          _rigDir2,
-          Math.min(2.2, Math.abs(curV2) * 0.14)
-        );
+        const len1 = Math.min(2.2, Math.abs(collState.v1Current) * 0.14);
+        if (len1 > 0.05) {
+          _rigOrigin1.set(collState.cart1X, 1.38, 0);
+          _rigDir1.set(collState.v1Current >= 0 ? 1 : -1, 0, 0);
+          orientAndScaleVectorArrow(collVec1, _rigOrigin1, _rigDir1, len1);
+        } else {
+          collVec1.visible = false;
+        }
+        const len2 = Math.min(2.2, Math.abs(collState.v2Current) * 0.14);
+        if (len2 > 0.05) {
+          _rigOrigin2.set(collState.cart2X, 1.38, 0);
+          _rigDir2.set(collState.v2Current >= 0 ? 1 : -1, 0, 0);
+          orientAndScaleVectorArrow(collVec2, _rigOrigin2, _rigDir2, len2);
+        } else {
+          collVec2.visible = false;
+        }
       } else {
         collVec1.visible = false;
         collVec2.visible = false;
       }
     } else if (m.mode === 'orbital-gravity') {
-      const orbitRadius = Math.max(2.0, Math.min(5.2, (p.separationDistance || 5) * 0.35));
-      const angle = nowSec * 1.15;
+      const sepDist = Math.max(2, p.separationDistance || 5);
+      const orbitRadius = Math.max(2.0, Math.min(5.2, sepDist * 0.35));
+      const orbDyn = computeOrbitalAngularVelocity(p.mass, sepDist);
+      const angle = t * orbDyn.angularSpeedRadS;
       const sx = Math.cos(angle) * orbitRadius;
       const sz = Math.sin(angle) * orbitRadius;
       centralPlanetBody.rotation.y = nowSec * 0.25;
+      centralPlanetBody.scale.setScalar(orbDyn.planetScale);
+      gravityWellFunnel.scale.set(1, orbDyn.wellDepthScale, 1);
       satelliteBody.position.set(sx, 2.2, sz);
       satelliteBody.rotation.y = -angle;
       orbitRingMesh.scale.setScalar(orbitRadius / 3.79);
@@ -1523,8 +1807,8 @@ export function buildPhysicsSpecialRigs(
         _rigDir1.set(sx, 0, sz).normalize();
         _rigDir2.copy(_rigDir1).negate();
         const arrowLen = Math.max(
-          0.6,
-          Math.min(2.0, Math.log10(Math.max(10, m.universalGravityForce * 1e4)) * 0.45)
+          0.55,
+          Math.min(2.1, Math.log10(Math.max(10, m.universalGravityForce * 1e4)) * 0.45)
         );
         _rigOrigin1.set(0, 2.2, 0);
         _rigOrigin2.set(sx, 2.2, sz);
@@ -1535,67 +1819,132 @@ export function buildPhysicsSpecialRigs(
         gravVec2.visible = false;
       }
     } else if (m.mode === 'stokes-viscosity') {
-      const vt = m.stokesTerminalVelocity;
-      const yPos = 4.6 - ((t * Math.max(0.35, vt)) % 3.6);
-      stokesSphere.position.y = yPos;
-      const rScale = (p.sphereRadius ?? 5) / 10;
+      const stokesState = computeStokesDropState(p, m, t);
+      stokesSphere.position.y = stokesState.sphereY;
+      const rScale = Math.max(0.32, Math.min(1.65, (p.sphereRadius ?? 5) / 10));
       stokesSphere.scale.setScalar(rScale);
-      stokesWakeRing.position.set(0, Math.min(4.7, yPos + 0.22), 0);
-      stokesWakeRing.scale.setScalar(0.8 + 0.18 * Math.sin(nowSec * 6));
+      liquidMat.color.setHex(stokesState.fluidColorHex);
+      liquidMat.opacity = stokesState.fluidOpacity;
+
+      stokesWakeRing.visible = !stokesState.isFloating;
+      stokesWakeRing.position.set(0, Math.min(4.7, stokesState.sphereY + 0.22 * rScale), 0);
+      stokesWakeRing.scale.setScalar((0.75 + 0.18 * Math.sin(nowSec * 6)) * rScale);
 
       if (showVec) {
-        _rigOrigin1.set(0, yPos, 0);
+        _rigOrigin1.set(0, stokesState.sphereY, 0);
+        orientAndScaleVectorArrow(stokesGravArrow, _rigOrigin1, _rigDown, stokesState.weightArrowLen);
+
+        // Upward Archimedes Buoyancy F_b (emerald, slightly left) & Stokes Drag F_d (sky, slightly right)
+        // At terminal velocity, F_b + F_d balances W cleanly!
+        _rigOrigin2.set(-0.22, stokesState.sphereY, 0);
         orientAndScaleVectorArrow(
-          stokesGravArrow,
-          _rigOrigin1,
-          _rigDown,
-          1.2
-        );
-        orientAndScaleVectorArrow(
-          stokesDragArrow,
-          _rigOrigin1,
+          stokesBuoyancyArrow,
+          _rigOrigin2,
           _rigUp,
-          Math.min(1.8, m.stokesDragForce * 8)
+          stokesState.buoyancyArrowLen
         );
+        if (stokesState.dragArrowLen > 0.05) {
+          _rigOrigin1.set(0.22, stokesState.sphereY, 0);
+          orientAndScaleVectorArrow(stokesDragArrow, _rigOrigin1, _rigUp, stokesState.dragArrowLen);
+        } else {
+          stokesDragArrow.visible = false;
+        }
       } else {
         stokesGravArrow.visible = false;
+        stokesBuoyancyArrow.visible = false;
         stokesDragArrow.visible = false;
       }
     } else if (m.mode === 'ohm-wheatstone') {
-      const needleState = computeWheatstoneNeedleAngle(
-        p.resistorR1 ?? 100,
-        p.resistorR2 ?? 100,
-        p.resistorR3 ?? 100,
-        p.resistorRx ?? 100,
-        m.galvanometerCurrent
-      );
+      const r1 = p.resistorR1 ?? 100;
+      const r2 = p.resistorR2 ?? 100;
+      const r3 = p.resistorR3 ?? 100;
+      const rx = p.resistorRx ?? 100;
+      const vSource = p.circuitVoltage ?? 12;
+
+      const needleState = computeWheatstoneNeedleAngle(r1, r2, r3, rx, m.galvanometerCurrent);
       galvoNeedle.rotation.y = THREE.MathUtils.lerp(
         galvoNeedle.rotation.y,
         needleState.angleRad + (!needleState.isBalanced ? Math.sin(nowSec * 6) * 0.012 : 0),
         0.16
       );
       galvoBalanceRingMat.color.setHex(needleState.isBalanced ? 0x10b981 : 0xf59e0b);
-      galvoBalanceRingMat.opacity = needleState.isBalanced ? 0.78 : 0.25;
+      galvoBalanceRingMat.opacity = needleState.isBalanced ? 0.82 : 0.25;
 
-      const vSource = p.circuitVoltage ?? 12;
+      // Animate electrical current carriers along the 4 diamond arms + central bridge wire (halts when balanced!)
+      const currents = computeWheatstoneBranchCurrents(r1, r2, r3, rx, vSource);
+      const speedTop = Math.min(2.2, currents.iBranchTopMa * 0.012);
+      const speedBot = Math.min(2.2, currents.iBranchBottomMa * 0.012);
+      const speedGalvo = currents.isBalanced ? 0 : Math.min(1.8, Math.abs(currents.iGalvoSignedMa) * 0.025);
+      const galvoDir = currents.iGalvoSignedMa >= 0 ? 1 : -1;
+
+      let dotIdx = 0;
+      const placeArmDots = (a: THREE.Vector3, b: THREE.Vector3, spd: number, colorHex: number) => {
+        for (let k = 0; k < WHEATSTONE_DOTS_PER_ARM; k++) {
+          const u = ((nowSec * spd + k / WHEATSTONE_DOTS_PER_ARM) % 1 + 1) % 1;
+          wheatstoneDotPool.setTransform(
+            dotIdx,
+            a.x + (b.x - a.x) * u,
+            0.26,
+            a.z + (b.z - a.z) * u,
+            1.0
+          );
+          wheatstoneDotPool.setColor(dotIdx, colorHex);
+          dotIdx++;
+        }
+      };
+      placeArmDots(nodePositions.left, nodePositions.bottom, speedTop, 0x38bdf8);
+      placeArmDots(nodePositions.bottom, nodePositions.right, speedTop, 0x38bdf8);
+      placeArmDots(nodePositions.left, nodePositions.top, speedBot, 0xf59e0b);
+      placeArmDots(nodePositions.top, nodePositions.right, speedBot, 0xf59e0b);
+      // Central galvanometer bridge wire dots (top <-> bottom)
+      for (let k = 0; k < WHEATSTONE_DOTS_PER_ARM; k++) {
+        if (currents.isBalanced) {
+          wheatstoneDotPool.setTransform(dotIdx, 0, -5, 0, 0.001);
+        } else {
+          const rawU = (nowSec * speedGalvo * galvoDir + k / WHEATSTONE_DOTS_PER_ARM) % 1;
+          const u = (rawU + 1) % 1;
+          const zPos = nodePositions.top.z + (nodePositions.bottom.z - nodePositions.top.z) * u;
+          wheatstoneDotPool.setTransform(dotIdx, 0, 0.66, zPos, 1.0);
+          wheatstoneDotPool.setColor(dotIdx, 0x10b981);
+        }
+        dotIdx++;
+      }
+      wheatstoneDotPool.commit(WHEATSTONE_TOTAL_DOTS);
+
       const psuKey = `${vSource.toFixed(1)}|${m.galvanometerCurrent.toFixed(2)}|${needleState.isBalanced}`;
       if (psuKey !== lastPsuKey) {
         lastPsuKey = psuKey;
         updateInstrumentPanelTexture(psuScreenTex, {
           title: 'DC POWER SUPPLY',
           primaryText: `${vSource.toFixed(1)} V`,
-          secondaryText: `Ig = ${m.galvanometerCurrent.toFixed(2)} mA`,
+          secondaryText: needleState.isBalanced
+            ? 'SEIMBANG (Ig = 0.00 mA)'
+            : `Ig = ${m.galvanometerCurrent.toFixed(2)} mA`,
           accentHex: needleState.isBalanced ? '#10b981' : '#38bdf8',
         });
       }
     } else if (m.mode === 'optics-young-slit') {
       const wl = p.lightWavelength ?? 532;
+      const dMm = p.slitDistance ?? 0.25;
+      const screenLM = p.screenDistance ?? 1.5;
       const beamColor = wavelengthNmToHex(wl);
       (laserBeamLine.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
+      slitLineMat.color.setHex(beamColor);
       diffractionConeMat.color.setHex(beamColor);
 
-      const fringeSpacing = Math.max(8, m.fringeSpacingMm * 8);
-      const fringeKey = `${beamColor}:${fringeSpacing.toFixed(2)}`;
+      // Physically shift micro-slit separation with d (mm) and screen carrier with L (m)
+      const visualSlitHalf = Math.max(0.035, Math.min(0.24, 0.035 + (dMm / 0.8) * 0.205));
+      slitLeft.position.z = -visualSlitHalf;
+      slitRight.position.z = visualSlitHalf;
+
+      const screenX = Math.max(1.2, Math.min(4.8, 1.2 + ((screenLM - 0.5) / 2.5) * 3.6));
+      screenCarrier.position.x = screenX;
+      const coneLen = Math.max(1.8, screenX - -1.2);
+      diffractionCone.scale.set(1, coneLen / 5.0, 1);
+      diffractionCone.position.set(-1.2 + coneLen * 0.5, 1.2, 0);
+
+      // Exact mm-calibrated Young interference + single-slit diffraction envelope I(y) = cos²(πdy/λL)·sinc²(πay/λL)
+      const fringeKey = `${beamColor}:${dMm.toFixed(3)}:${screenLM.toFixed(2)}`;
       if (fringeKey !== lastFringeKey) {
         lastFringeKey = fringeKey;
         const ctx2d = fringeCanvas.getContext('2d');
@@ -1603,8 +1952,10 @@ export function buildPhysicsSpecialRigs(
           ctx2d.fillStyle = '#050811';
           ctx2d.fillRect(0, 0, fringeCanvas.width, fringeCanvas.height);
           const rgbHex = beamColor.toString(16).padStart(6, '0');
+          const pxPerMm = 230 / 20; // matches ruler below: ±20mm spans ±230px around center x=256
           for (let x = 0; x < fringeCanvas.width; x++) {
-            const intensity = Math.pow(Math.cos(((x - 256) / fringeSpacing) * Math.PI), 2);
+            const yMm = (x - 256) / pxPerMm;
+            const { intensity } = computeYoungFringeIntensity(yMm, wl, dMm, screenLM);
             ctx2d.fillStyle = `#${rgbHex}`;
             ctx2d.globalAlpha = intensity;
             ctx2d.fillRect(x, 0, 1, fringeCanvas.height - 26);
@@ -1617,7 +1968,7 @@ export function buildPhysicsSpecialRigs(
           ctx2d.fillStyle = '#e2e8f0';
           ctx2d.font = 'bold 12px monospace';
           for (let mm = -20; mm <= 20; mm += 5) {
-            const sx = 256 + (mm / 20) * 230;
+            const sx = 256 + mm * pxPerMm;
             ctx2d.beginPath();
             ctx2d.moveTo(sx, fringeCanvas.height - 26);
             ctx2d.lineTo(sx, fringeCanvas.height - (mm % 10 === 0 ? 12 : 18));
@@ -1631,21 +1982,36 @@ export function buildPhysicsSpecialRigs(
       }
     } else if (m.mode === 'photoelectric-planck') {
       const emitted = m.photoelectricEmitted;
-      const wl = p.lightWavelength ?? 400;
-      const beamHex = wavelengthNmToHex(wl);
+      // Derive wavelength strictly from photon frequency slider λ = c / f!
+      const freq14 = p.photonFrequency ?? 8.5;
+      const wl = photonFrequencyToWavelengthNm(freq14);
+      const beamHex = wl < 390 ? 0x8b5cf6 : wavelengthNmToHex(wl);
       peIncidentBeamMat.color.setHex(beamHex);
+      pePhotonMat.color.setHex(beamHex);
       (uvLampLens.material as THREE.MeshStandardMaterial).color.setHex(beamHex);
       (uvLampLens.material as THREE.MeshStandardMaterial).emissive.setHex(beamHex);
       const stopV = p.stoppingPotential ?? 1.5;
       const maxKe = m.photoelectricMaxKe;
 
-      const peKey = `${stopV.toFixed(2)}|${maxKe.toFixed(2)}|${emitted}`;
+      // Animate incident photon wave-packets streaming from UV lamp (-2.3, 2.86) to cathode (-1.1, 1.6)
+      for (let i = 0; i < PE_PHOTONS_COUNT; i++) {
+        const u = (nowSec * 1.45 + i / PE_PHOTONS_COUNT) % 1.0;
+        const px = -2.3 + u * 1.22;
+        const py = 2.86 - u * 1.26;
+        const pz = Math.sin(u * Math.PI * 6 + i) * 0.08;
+        pePhotonPool.setTransform(i, px, py, pz, 0.85);
+      }
+      pePhotonPool.commit(PE_PHOTONS_COUNT);
+
+      const peKey = `${stopV.toFixed(2)}|${maxKe.toFixed(2)}|${freq14.toFixed(1)}|${emitted}`;
       if (peKey !== lastPePanelKey) {
         lastPePanelKey = peKey;
         updateInstrumentPanelTexture(peMeterTex, {
           title: 'PICOAMMETER & V₀',
           primaryText: `V₀ = ${stopV.toFixed(2)} V`,
-          secondaryText: emitted ? `Ek = ${maxKe.toFixed(2)} eV (ON)` : 'CUTOFF (I = 0)',
+          secondaryText: emitted
+            ? `f=${freq14.toFixed(1)}e14 · Ek=${maxKe.toFixed(2)} eV`
+            : `CUTOFF (f < f₀ · I=0)`,
           accentHex: emitted ? '#10b981' : '#f43f5e',
         });
       }
@@ -1655,22 +2021,25 @@ export function buildPhysicsSpecialRigs(
       } else {
         peParticlePool.mesh.visible = true;
         const activePeCount = Math.max(8, Math.round(PE_PARTICLES_COUNT * particleScale));
+        const rateSpeed = 0.55 + Math.sqrt(Math.max(0.1, maxKe)) * 0.45;
         for (let idx = 0; idx < activePeCount; idx++) {
-          const pFrac = (nowSec * 0.85 + idx / activePeCount) % 1.0;
-          const { x } = computePhotoelectricElectronX(pFrac, maxKe, stopV);
+          const pFrac = (nowSec * rateSpeed + idx / activePeCount) % 1.0;
+          const { x, reachesAnode } = computePhotoelectricElectronX(pFrac, maxKe, stopV);
           peParticlePool.setTransform(
             idx,
             x,
             1.6 + Math.sin(idx * 2) * 0.32,
             Math.cos(idx * 2) * 0.32,
-            1.0
+            reachesAnode ? 1.0 : 0.82
           );
+          peParticlePool.setColor(idx, reachesAnode ? 0x38bdf8 : 0xf59e0b);
         }
         peParticlePool.commit(activePeCount);
       }
     } else if (m.mode === 'standing-wave-melde') {
       const L = Math.max(0.5, Math.min(2.5, p.stringLength ?? 1.2));
       const freq = Math.max(5, p.waveFrequency ?? 50);
+      const mu = Math.max(0.0005, p.linearMassDensity ?? 0.004);
       const nHarmonic = Math.max(0.5, Math.min(12, m.meldeHarmonicNumber || 2));
       const startX = -3.45;
       const visualSpan = 2.6 + ((L - 0.5) / 2.0) * 4.8; // 2.6 .. 7.4 world units
@@ -1678,6 +2047,10 @@ export function buildPhysicsSpecialRigs(
 
       meldePulleyCarrier.position.set(endX - 0.24, 0.22, 0);
       pulleyWheel.rotation.z = -nowSec * 1.5;
+
+      // Scale vertical drop cord thickness subtly with sqrt(linearMassDensity μ)
+      const cordThickness = Math.max(0.7, Math.min(2.2, Math.sqrt(mu / 0.004)));
+      verticalDropCord.scale.set(cordThickness, 1, cordThickness);
 
       const massScale = 0.72 + Math.min(0.65, (p.mass ?? 0.2) * 0.45);
       meldeHangingMass.scale.set(massScale, massScale, massScale);
@@ -1749,6 +2122,115 @@ export function buildPhysicsSpecialRigs(
           accentHex: detune < 0.12 ? '#10b981' : '#38bdf8',
         });
       }
+    } else if (m.mode === 'faraday-induction') {
+      const fState = computeFaradayInductionVisualState(p, t);
+      const bField = Math.max(0.05, p.magneticFieldTesla ?? 0.45);
+      const omega = 2 * Math.PI * Math.max(0.05, p.magnetOscillationHz ?? 1.2);
+      const phase = omega * Math.max(0, t);
+
+      magnetAssembly.position.x = fState.magnetCenterX;
+      actuatorShaft.scale.y = Math.max(0.4, (fState.magnetCenterX + 3.55) / 2.2);
+      actuatorShaft.position.x = -3.55 + (fState.magnetCenterX + 3.55) * 0.5;
+
+      // Update visible solenoid copper windings & cross-section radius
+      for (let i = 0; i < MAX_FARADAY_COILS; i++) {
+        faradayCoilRings[i].visible = i < fState.coilTurnsVisible;
+        faradayCoilRings[i].scale.set(1, fState.coilRadiusScale, fState.coilRadiusScale);
+      }
+      bobbinTube.scale.set(1, fState.coilRadiusScale, fState.coilRadiusScale);
+
+      // Flux line brightness & reach scales with magnetic field strength B
+      fluxLineMat.opacity = Math.min(0.95, 0.25 + bField * 0.55);
+      const bStretch = 0.75 + Math.min(0.85, bField * 0.65);
+      fluxLines.forEach((fl) => fl.scale.set(bStretch, fState.coilRadiusScale, 1));
+
+      // Center-zero Galvanometer needle & incandescent filament glow
+      faradayNeedlePivot.rotation.z = THREE.MathUtils.lerp(
+        faradayNeedlePivot.rotation.z,
+        fState.galvoNeedleAngleRad,
+        0.28
+      );
+      bulbFilamentMat.emissiveIntensity = 0.12 + fState.bulbGlow * 2.6;
+      bulbPointLight.intensity = isLite ? 0 : fState.bulbGlow * 2.4;
+
+      // Lenz Law opposing magnetic field vector above solenoid
+      if (showVec && fState.lenzOpposingDirectionX !== 0) {
+        _rigOrigin1.set(-0.65, 2.55, 0);
+        _rigDir1.set(fState.lenzOpposingDirectionX, 0, 0);
+        orientAndScaleVectorArrow(
+          lenzOpposeArrow,
+          _rigOrigin1,
+          _rigDir1,
+          Math.min(1.85, 0.55 + Math.abs(fState.instantEmfV) * 0.14)
+        );
+      } else {
+        lenzOpposeArrow.visible = false;
+      }
+
+      // Live Faraday Oscilloscope canvas redraw (Φ(t) cyan cosine vs ε(t) amber sine)
+      const oscKey = `${Math.round(phase * 18)}_${fState.peakEmfV.toFixed(2)}_${fState.instantFluxMwb.toFixed(2)}`;
+      if (oscKey !== lastFaradayOscKey) {
+        lastFaradayOscKey = oscKey;
+        const oCtx = faradayOscCanvas.getContext('2d');
+        if (oCtx) {
+          const W = faradayOscCanvas.width;
+          const H = faradayOscCanvas.height;
+          oCtx.fillStyle = '#070d19';
+          oCtx.fillRect(0, 0, W, H);
+          oCtx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+          oCtx.lineWidth = 2;
+          oCtx.strokeRect(2, 2, W - 4, H - 4);
+
+          oCtx.fillStyle = '#94a3b8';
+          oCtx.font = 'bold 13px monospace';
+          oCtx.fillText('OSILOSKOP FARADAY–LENZ · Φ(t) vs ε(t)', 16, 22);
+
+          // Zero centerline
+          const midY = 104;
+          oCtx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
+          oCtx.beginPath();
+          oCtx.moveTo(16, midY);
+          oCtx.lineTo(W - 16, midY);
+          oCtx.stroke();
+
+          // Cyan Flux curve cos(θ)
+          oCtx.strokeStyle = '#38bdf8';
+          oCtx.lineWidth = 2.4;
+          oCtx.beginPath();
+          for (let px = 16; px <= W - 16; px += 4) {
+            const u = (px - 16) / (W - 32);
+            const theta = phase - (1 - u) * Math.PI * 4;
+            const py = midY - Math.cos(theta) * 44;
+            if (px === 16) oCtx.moveTo(px, py);
+            else oCtx.lineTo(px, py);
+          }
+          oCtx.stroke();
+
+          // Amber EMF curve sin(θ) (90 deg quadrature!)
+          oCtx.strokeStyle = '#f59e0b';
+          oCtx.lineWidth = 2.8;
+          oCtx.beginPath();
+          for (let px = 16; px <= W - 16; px += 4) {
+            const u = (px - 16) / (W - 32);
+            const theta = phase - (1 - u) * Math.PI * 4;
+            const py = midY - Math.sin(theta) * 52;
+            if (px === 16) oCtx.moveTo(px, py);
+            else oCtx.lineTo(px, py);
+          }
+          oCtx.stroke();
+
+          oCtx.fillStyle = '#38bdf8';
+          oCtx.font = 'bold 13px monospace';
+          oCtx.fillText(`Φ(t) = ${fState.instantFluxMwb.toFixed(2)} mWb`, 16, 184);
+
+          oCtx.fillStyle = '#f59e0b';
+          oCtx.fillText(`ε(t) = ${fState.instantEmfV >= 0 ? '+' : ''}${fState.instantEmfV.toFixed(2)} V (εₘₐₓ = ${fState.peakEmfV.toFixed(2)} V)`, 205, 184);
+
+          oCtx.fillStyle = '#34d399';
+          oCtx.fillText(`I(t) = ${fState.instantCurrentMa.toFixed(1)} mA · Iₘₐₓ = ${m.faradayPeakCurrentMa.toFixed(1)} mA · P = ${m.faradayAvgPowerW.toFixed(2)} W`, 16, 208);
+          faradayOscTex.needsUpdate = true;
+        }
+      }
     }
   };
 
@@ -1760,6 +2242,7 @@ export function buildPhysicsSpecialRigs(
     collisionGroup,
     orbitalGroup,
     meldeGroup,
+    faradayGroup,
     energyWidgetGroup,
     stokesSphere,
     cart1Mesh,

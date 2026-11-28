@@ -442,6 +442,8 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           isLite: isLite || isSoftwareGl,
           particleScale,
           reacting,
+          reactionProgress: latestRef.current.reactionProgress,
+          redoxPairId: latestRef.current.redoxPreset.id,
           isSimTimeAdvancing,
           showConceptLabels: showLabels,
         });
@@ -549,7 +551,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
           className={`pointer-events-none absolute flex items-center gap-2 rounded-xl studio-hud-surface border px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
             isFullscreen
               ? 'bottom-16 left-4'
-              : `bottom-[118px] lg:bottom-[104px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
+              : `bottom-[96px] lg:bottom-[100px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[320px] xl:left-[340px]' : 'left-3'}`
           }`}
         >
           <Thermometer className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
@@ -566,7 +568,7 @@ export const ChemistryScene3D: React.FC<ChemistryScene3DProps> = ({
       )}
 
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-[118px] lg:bottom-[104px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-teal-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
+        <div className="pointer-events-none absolute bottom-[96px] lg:bottom-[100px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-teal-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
           <span>
             Menyetel Kimia 3D: {dragToast.label} ={' '}
             <b className="text-teal-700 dark:text-teal-300">{dragToast.value}</b>

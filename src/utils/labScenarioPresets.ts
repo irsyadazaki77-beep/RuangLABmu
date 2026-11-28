@@ -95,6 +95,24 @@ const PARAM_HUMAN_LABELS: Record<string, { label: string; unit: string }> = {
   planetaryAlbedo: { label: 'Albedo Planet A', unit: '' },
   greenhouseGasPpm: { label: 'Konsentrasi CO₂', unit: 'ppm' },
   stellarFluxFactor: { label: 'Fluks Surya S', unit: '×S₀' },
+  coilTurnsN: { label: 'Jumlah Lilitan N', unit: '' },
+  magneticFieldTesla: { label: 'Medan Magnet B', unit: 'T' },
+  magnetOscillationHz: { label: 'Frekuensi Osilasi f', unit: 'Hz' },
+  coilAreaCm2: { label: 'Luas Penampang A', unit: 'cm²' },
+  loadResistanceOhm: { label: 'Hambatan Beban R', unit: 'Ω' },
+  electrolysisCurrentA: { label: 'Arus Listrik I', unit: 'A' },
+  electrolysisTimeMin: { label: 'Durasi Elektrolisis t', unit: 'menit' },
+  electrolysisMolarMass: { label: 'Massa Atom Relatif Ar', unit: 'g/mol' },
+  electrolysisValenceN: { label: 'Valensi Elektron n', unit: '' },
+  pcrCycles: { label: 'Jumlah Siklus PCR c', unit: 'siklus' },
+  annealingTempC: { label: 'Suhu Annealing Tₐ', unit: '°C' },
+  agaroseConcPct: { label: 'Konsentrasi Agarosa', unit: '%' },
+  electrophoresisVoltageV: { label: 'Tegangan Gel V', unit: 'V' },
+  dnaFragmentBp: { label: 'Ukuran Fragmen DNA', unit: 'bp' },
+  binaryMass1Solar: { label: 'Massa Bintang M₁', unit: 'M☉' },
+  binaryMass2Solar: { label: 'Massa Bintang M₂', unit: 'M☉' },
+  binarySeparationAu: { label: 'Separasi Orbit a', unit: 'AU' },
+  binaryInclinationDeg: { label: 'Inklinasi Orbit i', unit: '°' },
 };
 
 /**
@@ -368,6 +386,33 @@ export function getPhysicsPresetsForMode(
           patch: { mass: 6.0, stringLength: 1.2, linearMassDensity: 0.005, waveFrequency: 45 },
         },
       ];
+    case 'faraday-induction':
+      return [
+        {
+          id: 'faraday-gentle',
+          label: 'Induksi Dasar (60 Lilitan)',
+          summary: 'N=60, B=0.35 T, f=0.8 Hz',
+          category: 'standard',
+          phenomenonNote: 'Osilasi magnet lambat membangkitkan GGL puncak moderat untuk kalibrasi galvanometer.',
+          patch: { coilTurnsN: 60, magneticFieldTesla: 0.35, magnetOscillationHz: 0.8, coilAreaCm2: 20, loadResistanceOhm: 12 },
+        },
+        {
+          id: 'faraday-lab-std',
+          label: 'Generator Laboratorium (120 Lilitan)',
+          summary: 'N=120, B=0.45 T, f=1.2 Hz',
+          category: 'standard',
+          phenomenonNote: 'Keseimbangan nyata antara fluks magnetik Φ(t) dan tegangan ε(t) berbeda fase 90°.',
+          patch: { coilTurnsN: 120, magneticFieldTesla: 0.45, magnetOscillationHz: 1.2, coilAreaCm2: 25, loadResistanceOhm: 12 },
+        },
+        {
+          id: 'faraday-neodymium-fast',
+          label: 'Fluks Ekstrem Neodymium',
+          summary: 'N=320, B=1.1 T, f=2.6 Hz',
+          category: 'extreme',
+          phenomenonNote: 'Fenomena Ekstrem: Laju perubahan fluks dΦ/dt sangat cepat menyalakan lampu beban hingga terang puncak!',
+          patch: { coilTurnsN: 320, magneticFieldTesla: 1.1, magnetOscillationHz: 2.6, coilAreaCm2: 36, loadResistanceOhm: 8 },
+        },
+      ];
     default:
       return [
         {
@@ -508,6 +553,33 @@ export function getChemistryPresetsForMode(
           category: 'extreme',
           phenomenonNote: 'Fenomena Ekstrem: Suhu tinggi memicu disosiasi endotermik besar-besaran menjadi gas NO₂ cokelat.',
           patch: { equilibriumTempC: 80, initialTempC: 80, equilibriumPressureAtm: 0.8, pressureAtm: 0.8 },
+        },
+      ];
+    case 'electrolysis-faraday':
+      return [
+        {
+          id: 'elec-cu-plating',
+          label: 'Pelapisan Tembaga (CuSO₄)',
+          summary: 'Ar=63.55, n=2, I=2.5 A, t=30 mnt',
+          category: 'standard',
+          phenomenonNote: 'Elektroplating tembaga merah kecokelatan di katoda disertai gas O₂ di anoda inert.',
+          patch: { electrolysisElectrolyteId: 'cuso4', electrolysisMolarMass: 63.55, electrolysisValenceN: 2, electrolysisCurrentA: 2.5, electrolysisTimeMin: 30 },
+        },
+        {
+          id: 'elec-ag-mirror',
+          label: 'Pelapisan Perak Monovalen (AgNO₃)',
+          summary: 'Ar=107.87, n=1, I=2.5 A, t=30 mnt',
+          category: 'standard',
+          phenomenonNote: 'Valensi tunggal (n=1) dan Ar tinggi menghasilkan massa endapan perak paling besar per Coulomb.',
+          patch: { electrolysisElectrolyteId: 'agno3', electrolysisMolarMass: 107.87, electrolysisValenceN: 1, electrolysisCurrentA: 2.5, electrolysisTimeMin: 30 },
+        },
+        {
+          id: 'elec-high-current',
+          label: 'Elektrolisis Arus Tinggi (6.5 A)',
+          summary: 'CuSO₄, I=6.5 A, t=60 mnt',
+          category: 'extreme',
+          phenomenonNote: 'Fenomena Ekstrem: Arus listrik besar mempercepat laju reduksi kation & pelepasan gelembung O₂ secara dramatis.',
+          patch: { electrolysisElectrolyteId: 'cuso4', electrolysisMolarMass: 63.55, electrolysisValenceN: 2, electrolysisCurrentA: 6.5, electrolysisTimeMin: 60 },
         },
       ];
     default:
@@ -706,12 +778,68 @@ export function getAstronomyPresetsForMode(
           patch: { planetaryAlbedo: 0.20, greenhouseGasPpm: 2000, stellarFluxFactor: 1.1 },
         },
       ];
+    case 'doppler-redshift-binary':
+      return [
+        {
+          id: 'bin-faceon',
+          label: 'Tampak Atas (Face-On i=10°)',
+          summary: 'M₁=2.2, M₂=1.0 M☉, Doppler kecil',
+          category: 'standard',
+          phenomenonNote: 'Bidang orbit tegak lurus garis pandang membuat komponen kecepatan radial v·sin(i) nyaris nol.',
+          patch: { binaryMass1Solar: 2.2, binaryMass2Solar: 1.0, binarySeparationAu: 0.45, binaryInclinationDeg: 10 },
+        },
+        {
+          id: 'bin-edgeon-std',
+          label: 'Biner Spektroskopik (i=75°)',
+          summary: 'M₁=2.2, M₂=1.0 M☉, a=0.45 AU',
+          category: 'standard',
+          phenomenonNote: 'Dua garis serapan H-α berayun berlawanan fase mengelilingi panjang gelombang diam 656,28 nm.',
+          patch: { binaryMass1Solar: 2.2, binaryMass2Solar: 1.0, binarySeparationAu: 0.45, binaryInclinationDeg: 75 },
+        },
+        {
+          id: 'bin-tight-extreme',
+          label: 'Biner Masif Rapat Ekstrem',
+          summary: 'M₁=5.5, M₂=3.2 M☉, a=0.18 AU, i=90°',
+          category: 'extreme',
+          phenomenonNote: 'Fenomena Ekstrem: Bintang masif berjarak rapat memicu kecepatan radial >150 km/s dan pemisahan spektrum H-α lebar!',
+          patch: { binaryMass1Solar: 5.5, binaryMass2Solar: 3.2, binarySeparationAu: 0.18, binaryInclinationDeg: 90 },
+        },
+      ];
   }
 }
 
 export function getBiologyPresetsForModule(
   mod: ExperimentModule
 ): DomainScenarioPreset<Record<string, number>>[] {
+  if (mod.id === 'dna-pcr-electrophoresis') {
+    return [
+      {
+        id: 'pcr-annealing-off',
+        label: 'Annealing Meleset (48°C)',
+        summary: 'Ta=48°C, c=15 siklus, Eff rendah',
+        category: 'standard',
+        phenomenonNote: 'Suhu penempelan jauh dari optimum 58°C sehingga efisiensi amplifikasi E(Ta) anjlok.',
+        patch: { pcrCycles: 15, annealingTempC: 48, agaroseConcPct: 1.2, electrophoresisVoltageV: 100, dnaFragmentBp: 750 },
+      },
+      {
+        id: 'pcr-optimum',
+        label: 'PCR Optimum (58°C · 25 Siklus)',
+        summary: 'Ta=58°C, E≈100%, 750 bp',
+        category: 'standard',
+        phenomenonNote: 'Primer menempel spesifik pada 58°C sehingga jumlah salinan DNA meningkat eksponensial 2^c.',
+        patch: { pcrCycles: 25, annealingTempC: 58, agaroseConcPct: 1.2, electrophoresisVoltageV: 100, dnaFragmentBp: 750 },
+      },
+      {
+        id: 'pcr-dense-gel-extreme',
+        label: 'Gel Padat 2.0% & 32 Siklus',
+        summary: 'Agarosa 2.0%, 150 V, 300 bp',
+        category: 'extreme',
+        phenomenonNote: 'Fenomena Ekstrem: Pori gel agarosa rapat menahan fragmen besar, sedangkan pita pendek 300 bp bermigrasi cepat.',
+        patch: { pcrCycles: 32, annealingTempC: 58, agaroseConcPct: 2.0, electrophoresisVoltageV: 150, dnaFragmentBp: 300 },
+      },
+    ];
+  }
+
   const p0 = mod.parameters[0];
   if (!p0) return [];
   const defaults: Record<string, number> = {};
@@ -778,6 +906,7 @@ export function generateAutoSweepSeries(
     'photoelectric-planck': { key: 'lightWavelength', label: 'Panjang Gelombang λ', unit: 'nm', min: 200, max: 440, dec: 0 },
     'orbital-gravity': { key: 'separationDistance', label: 'Jarak Pisah r', unit: 'm', min: 3, max: 15, dec: 1 },
     'standing-wave-melde': { key: 'mass', label: 'Massa Beban m', unit: 'kg', min: 1.0, max: 7.0, dec: 1 },
+    'faraday-induction': { key: 'coilTurnsN', label: 'Jumlah Lilitan N', unit: 'lilitan', min: 40, max: 360, dec: 0 },
   };
 
   const chemistryMap: Record<string, { key: string; label: string; unit: string; min: number; max: number; dec: number }> = {
@@ -788,6 +917,7 @@ export function generateAutoSweepSeries(
     'electrochemistry-cell': { key: 'cathodeConcM', label: 'Konsentrasi Katoda', unit: 'M', min: 0.1, max: 2.0, dec: 2 },
     'spectrophotometry-beer': { key: 'spectroConcMm', label: 'Konsentrasi Sampel', unit: 'mM', min: 0.04, max: 0.24, dec: 2 },
     'chemical-equilibrium-lechatelier': { key: 'equilibriumTempC', label: 'Suhu Reaktor T', unit: '°C', min: 10, max: 90, dec: 0 },
+    'electrolysis-faraday': { key: 'electrolysisCurrentA', label: 'Kuat Arus DC I', unit: 'A', min: 1.0, max: 7.0, dec: 1 },
   };
 
   const astronomyMap: Record<string, { key: string; label: string; unit: string; min: number; max: number; dec: number }> = {
@@ -797,6 +927,7 @@ export function generateAutoSweepSeries(
     'stellar-wien-spectrum': { key: 'starEffectiveTempK', label: 'Suhu Efektif T*', unit: 'K', min: 3500, max: 13500, dec: 0 },
     'hubble-expansion': { key: 'galaxyDistanceMpc', label: 'Jarak Galaksi d', unit: 'Mpc', min: 50, max: 450, dec: 0 },
     'planetary-atmosphere-greenhouse': { key: 'greenhouseGasPpm', label: 'Konsentrasi CO₂', unit: 'ppm', min: 200, max: 1800, dec: 0 },
+    'doppler-redshift-binary': { key: 'binaryInclinationDeg', label: 'Inklinasi Orbit i', unit: '°', min: 15, max: 90, dec: 0 },
   };
 
   let spec: { key: string; label: string; unit: string; min: number; max: number; dec: number } | undefined;

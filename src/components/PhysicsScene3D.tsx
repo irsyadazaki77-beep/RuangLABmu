@@ -584,7 +584,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
           className={`pointer-events-none absolute flex flex-wrap items-center gap-3 rounded-xl studio-hud-surface border px-3 py-1.5 shadow-xl z-20 text-xs font-mono ${
             isFullscreen
               ? 'bottom-16 left-4'
-              : `bottom-[118px] lg:bottom-[104px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[336px] xl:left-[348px]' : 'left-3'}`
+              : `bottom-[96px] lg:bottom-[100px] ${!zenMode && leftDrawerOpen ? 'left-3 lg:left-[320px] xl:left-[340px]' : 'left-3'}`
           }`}
         >
           <span className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300">
@@ -600,7 +600,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       )}
 
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-[118px] lg:bottom-[104px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-sky-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
+        <div className="pointer-events-none absolute bottom-[96px] lg:bottom-[100px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-sky-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
           <span>
             Menyetel 3D: {dragToast.label} ={' '}
             <b className="text-sky-700 dark:text-sky-300">{dragToast.value}</b>

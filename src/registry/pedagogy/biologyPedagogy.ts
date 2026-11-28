@@ -457,5 +457,56 @@ export const BIOLOGY_PEDAGOGY: Record<string, ModulePedagogyBundle> = {
         'Apabila nilai χ² jauh melampaui 7,815 pada sampel besar, hal tersebut mengindikasikan terjadinya pautan gen (genetic linkage) pada kromosom yang sama, epistasis, atau seleksi alel letal.',
     },
   },
+
+  'dna-pcr-electrophoresis': {
+    keyTakeaways: [
+      'PCR memperbanyak fragmen DNA target secara eksponensial N = N₀·(1 + E)^c melalui tiga tahap termal: Denaturasi (95 °C), Annealing (Ta ≈ 58 °C), dan Ekstensi (72 °C).',
+      'Efisiensi penempelan primer E mencapai puncak di sekitar suhu leleh optimal (58 °C) dan merosot tajam bila Ta terlalu tinggi atau terlalu rendah.',
+      'Pada elektroforesis gel agarosa, fragmen DNA bermuatan negatif bergerak menuju anoda (+) dengan jarak migrasi lebih jauh untuk fragmen pendek (bp kecil), gel encer, dan tegangan lebih tinggi.',
+    ],
+    everydayAnalogy: {
+      title: 'Mesin Fotokopi Super-Cepat dan Lomba Lari Melewati Hutan Rapat',
+      scenario:
+        'PCR bekerja seperti mesin fotokopi berantai yang menggandakan satu halaman penting menjadi dua, empat, delapan, hingga miliaran lembar; lalu elektroforesis menguji panjang kertas dalam hutan semak rapat.',
+      connection:
+        'Halaman kertas yang kecil dan ringan (DNA bp kecil) berlari paling cepat melewati sela-sela semak gel agarosa menuju garis finis positif (+), sementara fragmen panjang tertinggal di belakang.',
+    },
+    formulaBreakdown: [
+      { symbol: 'c', name: 'Jumlah siklus amplifikasi PCR', unit: 'siklus', role: 'bebas', explanation: 'Menentukan pangkat eksponensial penggandaan salinan DNA (1 + E)^c.' },
+      { symbol: 'Ta', name: 'Suhu penempelan primer', unit: '°C', role: 'bebas', explanation: 'Mengatur efisiensi hibridisasi primer spesifik dengan puncak optimal pada 58 °C.' },
+      { symbol: 'bp', name: 'Panjang fragmen DNA target', unit: 'bp', role: 'bebas', explanation: 'Ukuran pasangan basa DNA yang menentukan seberapa jauh pita berpindah di gel.' },
+      { symbol: 'Rf', name: 'Mobilitas relatif pita DNA', unit: 'fraksi 0–1', role: 'terikat', explanation: 'Rasio jarak migrasi pita DNA terhadap jarak tempuh maksimum pewarna penanda depan.' },
+    ],
+    workedExample: {
+      question:
+        'Sebuah sampel memiliki DNA awal N₀ = 10 salinan dan diamplifikasi c = 25 siklus pada suhu optimal Ta = 58 °C (efisiensi E = 1,00). Hitung jumlah salinan DNA dalam skala log₁₀ dan dalam satuan juta salinan!',
+      given: ['N₀ = 10 salinan', 'c = 25 siklus', 'Ta = 58 °C (E = 1,00)'],
+      steps: [
+        'Hitung pertumbuhan logaritmik: log₁₀ N = log₁₀(10) + 25 × log₁₀(1 + 1,00).',
+        'Karena log₁₀(2) ≈ 0,30103, maka log₁₀ N = 1 + 25 × 0,30103 = 1 + 7,526 = 8,53.',
+        'Konversikan ke jumlah salinan: N = 10⁸·⁵³ ≈ 3,355 × 10⁸ = 335,5 juta salinan identik.',
+      ],
+      answer: 'log₁₀ N ≈ 8,53 (sekitar 335,5 juta salinan DNA)',
+      physicalMeaning:
+        'Jumlah jutaan salinan inilah yang cukup pekat untuk mengikat pewarna fluoresens dan menyala terang di bawah sinar UV pada gel agarosa.',
+    },
+    glossary: [
+      { term: 'PCR (Polymerase Chain Reaction)', definition: 'Teknik biologi molekuler untuk menggandakan sekuens DNA spesifik secara enzimatik in vitro.' },
+      { term: 'Taq Polimerase', definition: 'Enzim DNA polimerase tahan panas dari bakteri Thermus aquaticus yang bekerja optimal pada suhu 72 °C.' },
+      { term: 'Elektroforesis Gel Agarosa', definition: 'Metode pemisahan makromolekul DNA berdasarkan ukuran panjang pasangan basa di bawah medan listrik DC.' },
+      { term: 'DNA Ladder', definition: 'Campuran fragmen DNA standar dengan ukuran bp terukur yang dijalankan bersamaan sebagai mistar pembanding.' },
+    ],
+    deepDiveContent: {
+      historicalContext:
+        'Kary Mullis (1983) menemukan metode PCR dan meraih Hadiah Nobel Kimia 1993, merevolusi genetika medis, identifikasi forensik, serta pelacakan patogen modern.',
+      derivationLatex: [
+        'N_c = N_0 (1 + E)^c \\implies \\log_{10} N_c = \\log_{10} N_0 + c \\log_{10}(1 + E)',
+        '\\mu_{\\text{gel}} = \\mu_0 \\cdot \\exp(-K_r C_{\\text{agarosa}}), \\quad d \\propto \\frac{V}{\\log_{10}(\\text{bp})}',
+      ],
+      advancedConcept:
+        'Dalam qPCR (quantitative real-time PCR), kurva fluoresensi diukur tiap siklus untuk menentukan ambang siklus Ct yang berbanding terbalik secara logaritmik dengan jumlah kopi DNA awal N₀.',
+    },
+  },
 };
+
 

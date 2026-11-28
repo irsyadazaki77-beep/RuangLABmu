@@ -12,6 +12,7 @@ import {
 import { normalizeAstronomyMode } from '../utils/astronomyVisualHelpers';
 import {
   AstronomyRigHandle,
+  buildBinaryDopplerRig,
   buildExoplanetTransitRig,
   buildHubbleExpansionRig,
   buildMilkyWayRig,
@@ -76,6 +77,10 @@ const PARAM_UNIT_MAP: Record<string, string> = {
   planetaryAlbedo: '',
   greenhouseGasPpm: 'ppm',
   stellarFluxFactor: 'S☉',
+  binaryMass1Solar: 'M☉',
+  binaryMass2Solar: 'M☉',
+  binarySeparationAu: 'AU',
+  binaryInclinationDeg: '°',
 };
 
 export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
@@ -453,6 +458,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       'stellar-wien-spectrum': buildWienSpectrumRig(useUIStore.getState().liteDeviceMode || isSoftwareGl),
       'hubble-expansion': buildHubbleExpansionRig(),
       'planetary-atmosphere-greenhouse': buildPlanetaryGreenhouseRig(),
+      'doppler-redshift-binary': buildBinaryDopplerRig(),
     };
     (Object.values(rigs) as AstronomyRigHandle[]).forEach((rig) => scene.add(rig.group));
 
@@ -712,7 +718,7 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
 
       {/* Interactive Raycaster Drag Toast */}
       {dragToast && (
-        <div className="pointer-events-none absolute bottom-[126px] lg:bottom-[92px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-sky-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
+        <div className="pointer-events-none absolute bottom-[96px] lg:bottom-[100px] left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-xl studio-hud-surface border border-sky-500/45 px-4 py-1.5 shadow-2xl z-30 text-xs font-mono text-[var(--comfort-hud-text)]">
           <span>
             Menyetel Astronomi 3D: {dragToast.label} ={' '}
             <b className="text-sky-700 dark:text-sky-300">{dragToast.value}</b>
@@ -723,14 +729,14 @@ export const AstronomyScene3D: React.FC<AstronomyScene3DProps> = ({
       {/* Visual Scale Comparison Caption for Orbital Readability */}
       <div
         data-testid="astronomy-scale-badge"
-        className={`pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-lg bg-slate-950/75 border border-slate-700/60 px-2.5 py-1 text-2xs font-mono text-slate-300 shadow-md max-w-[calc(100vw-24px)] ${
+        className={`pointer-events-none absolute z-20 hidden sm:flex items-center gap-1.5 rounded-lg bg-slate-950/75 border border-slate-700/60 px-2.5 py-1 text-2xs font-mono text-slate-300 shadow-md max-w-[calc(100vw-24px)] ${
           isFullscreen
             ? 'bottom-16 left-3'
-            : `bottom-[118px] lg:bottom-[104px] ${
+            : `bottom-[96px] lg:bottom-[100px] ${
                 !zenMode && leftDrawerOpen && rightTelemetryOpen
-                  ? 'left-3 lg:left-[336px] xl:left-[348px] lg:max-w-[calc(100%-700px)] xl:max-w-[calc(100%-732px)]'
+                  ? 'left-3 lg:left-[320px] xl:left-[340px] lg:max-w-[calc(100%-660px)] xl:max-w-[calc(100%-700px)]'
                   : !zenMode && leftDrawerOpen
-                  ? 'left-3 lg:left-[336px] xl:left-[348px] lg:max-w-[calc(100%-368px)]'
+                  ? 'left-3 lg:left-[320px] xl:left-[340px] lg:max-w-[calc(100%-340px)]'
                   : 'left-3'
               }`
         }`}

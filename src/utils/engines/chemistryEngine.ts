@@ -5,7 +5,8 @@ export type ChemistryMode =
   | 'ideal-gas-boyle'
   | 'reaction-kinetics-arrhenius'
   | 'spectrophotometry-beer'
-  | 'chemical-equilibrium-lechatelier';
+  | 'chemical-equilibrium-lechatelier'
+  | 'electrolysis-faraday';
 
 export interface ThermoReactionPreset {
   id: string;
@@ -64,6 +65,12 @@ export interface ChemistryParams {
   equilibriumTempC?: number; // °C (0 - 100)
   equilibriumPressureAtm?: number; // atm (0.2 - 5.0)
   n2o4InitialConcM?: number; // mol/L (0.05 - 1.0)
+  // Faraday Electrolysis Law (m = Ar * I * t / (n * F))
+  electrolysisCurrentA?: number; // I (0.2 - 8.0 A)
+  electrolysisTimeMin?: number; // t (5 - 120 menit)
+  electrolysisElectrolyteId?: 'cuso4' | 'agno3' | 'znso4' | 'niso4';
+  electrolysisMolarMass?: number; // Ar logam (g/mol)
+  electrolysisValenceN?: number; // n elektron (1 - 3)
 }
 
 export interface ChemistryMetrics {
@@ -114,7 +121,72 @@ export interface ChemistryMetrics {
   n2o4PartialPressureAtm?: number; // atm
   equilibriumShiftLabel?: string;
   no2GasColorHex?: string;
+  // Faraday Electrolysis Metrics
+  electrolysisChargeC?: number; // Q = I * t (Coulomb)
+  electrolysisElectronMoles?: number; // n_e = Q / F (mol)
+  electrolysisMassDepositedG?: number; // m = (Ar * Q) / (n * F) (gram)
+  electrolysisAnodeGasMl?: number; // V_O2(STP) = (Q / (4*F)) * 22414 (mL)
+  electrolysisMetalSymbol?: string;
 }
+
+export interface ElectrolysisPreset {
+  id: 'cuso4' | 'agno3' | 'znso4' | 'niso4';
+  name: string;
+  metalSymbol: string;
+  molarMassAr: number;
+  valenceN: number;
+  solutionColorHex: string;
+  plateColorHex: string;
+  cathodeReaction: string;
+  anodeReaction: string;
+}
+
+export const ELECTROLYSIS_PRESETS: ElectrolysisPreset[] = [
+  {
+    id: 'cuso4',
+    name: 'CuSO₄ (Tembaga II Sulfat)',
+    metalSymbol: 'Cu',
+    molarMassAr: 63.55,
+    valenceN: 2,
+    solutionColorHex: '#0284c7',
+    plateColorHex: '#c87533',
+    cathodeReaction: 'Cu²⁺(aq) + 2e⁻ → Cu(s)',
+    anodeReaction: '2H₂O(l) → O₂(g) + 4H⁺(aq) + 4e⁻',
+  },
+  {
+    id: 'agno3',
+    name: 'AgNO₃ (Perak Nitrat)',
+    metalSymbol: 'Ag',
+    molarMassAr: 107.87,
+    valenceN: 1,
+    solutionColorHex: '#cbd5e1',
+    plateColorHex: '#e2e8f0',
+    cathodeReaction: 'Ag⁺(aq) + e⁻ → Ag(s)',
+    anodeReaction: '2H₂O(l) → O₂(g) + 4H⁺(aq) + 4e⁻',
+  },
+  {
+    id: 'niso4',
+    name: 'NiSO₄ (Nikel II Sulfat)',
+    metalSymbol: 'Ni',
+    molarMassAr: 58.69,
+    valenceN: 2,
+    solutionColorHex: '#10b981',
+    plateColorHex: '#cbd5e1',
+    cathodeReaction: 'Ni²⁺(aq) + 2e⁻ → Ni(s)',
+    anodeReaction: '2H₂O(l) → O₂(g) + 4H⁺(aq) + 4e⁻',
+  },
+  {
+    id: 'znso4',
+    name: 'ZnSO₄ (Seng II Sulfat)',
+    metalSymbol: 'Zn',
+    molarMassAr: 65.38,
+    valenceN: 2,
+    solutionColorHex: '#bae6fd',
+    plateColorHex: '#94a3b8',
+    cathodeReaction: 'Zn²⁺(aq) + 2e⁻ → Zn(s)',
+    anodeReaction: '2H₂O(l) → O₂(g) + 4H⁺(aq) + 4e⁻',
+  },
+];
 
 export const THERMO_PRESETS: ThermoReactionPreset[] = [
   {
@@ -433,6 +505,21 @@ export function calculateChemistryMetrics(params: ChemistryParams): ChemistryMet
       ? '#F59E0B'
       : '#FDE68A';
 
+  // Faraday First Law of Electrolysis: m = (Ar * I * t) / (n * F)
+  const FARADAY_CONST = 96485; // C/mol
+  const elecPreset =
+    ELECTROLYSIS_PRESETS.find((e) => e.id === params.electrolysisElectrolyteId) ??
+    ELECTROLYSIS_PRESETS[0];
+  const elecI = Math.max(0.05, params.electrolysisCurrentA ?? 2.5);
+  const elecTimeSec = Math.max(1, (params.electrolysisTimeMin ?? 30) * 60);
+  const elecAr = Math.max(1, params.electrolysisMolarMass ?? elecPreset.molarMassAr);
+  const elecN = Math.max(1, Math.round(params.electrolysisValenceN ?? elecPreset.valenceN));
+  const electrolysisChargeC = elecI * elecTimeSec;
+  const electrolysisElectronMoles = electrolysisChargeC / FARADAY_CONST;
+  const electrolysisMassDepositedG = (elecAr * electrolysisChargeC) / (elecN * FARADAY_CONST);
+  // O2 evolution at inert anode: 4 mol e- produces 1 mol O2 (22414 mL STP)
+  const electrolysisAnodeGasMl = (electrolysisElectronMoles / 4) * 22414;
+
   return {
     tempKelvin: Number(tempKelvin.toFixed(2)),
     finalTempC: Number(finalTempC.toFixed(2)),
@@ -491,5 +578,10 @@ export function calculateChemistryMetrics(params: ChemistryParams): ChemistryMet
     n2o4PartialPressureAtm: Number(n2o4PartialPressureAtm.toFixed(3)),
     equilibriumShiftLabel,
     no2GasColorHex,
+    electrolysisChargeC: Number(electrolysisChargeC.toFixed(1)),
+    electrolysisElectronMoles: Number(electrolysisElectronMoles.toFixed(4)),
+    electrolysisMassDepositedG: Number(electrolysisMassDepositedG.toFixed(3)),
+    electrolysisAnodeGasMl: Number(electrolysisAnodeGasMl.toFixed(1)),
+    electrolysisMetalSymbol: elecPreset.metalSymbol,
   };
 }

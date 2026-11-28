@@ -720,5 +720,90 @@ export const MODULE_DEEP_DIVE_MAP: Record<string, ModuleDeepDiveInfo> = {
       '4. Ubah albedo permukaan A untuk menyelidiki efek umpan-balik pantulan es dan awan terhadap keseimbangan energi radiatif planet.',
     ],
   },
+
+  'faraday-induction': {
+    chapterNumber: 3,
+    chapterTitle: 'Bab 3: Momentum, Kelistrikan, Optika & Fisika Kuantum',
+    competencyLevel: 'Menengah',
+    commonMisconceptions: [
+      'Medan magnet yang diam di dalam kumparan tetap menghasilkan arus listrik selama magnet berada di dalam lilitan. Faktanya: GGL induksi hanya muncul ketika terjadi PERUBAHAN fluks magnetik (dΦ/dt ≠ 0); jika magnet berhenti bergerak, arus langsung turun ke nol.',
+      'Semakin kuat medan magnet B saja sudah cukup menghasilkan tegangan besar meskipun gerakannya lambat. Faktanya: GGL puncak εmax = N·B·A·(2πf) bergantung sama kuatnya pada jumlah lilitan N, luas penampang A, dan kecepatan osilasi f.',
+    ],
+    realWorldApplications: [
+      'Pembangkit listrik tenaga air, uap, dan turbin angin yang memutar kumparan terhadap medan magnet untuk menyuplai jaringan PLN.',
+      'Kompor induksi elektromagnetik dan sistem pengisian daya nirkabel (wireless charging) pada ponsel pintar serta kendaraan listrik.',
+      'Pengereman arus pusar (eddy current braking) pada kereta cepat Shinkansen tanpa gesekan mekanis.',
+    ],
+    stepByStepGuide: [
+      '1. Atur jumlah lilitan kumparan N = 120, medan magnet B = 0,45 T, dan frekuensi osilasi magnet f = 1,2 Hz.',
+      '2. Amati gerakan osilasi magnet batang N–S keluar masuk solenoida dan perhatikan simpangan bolak-balik jarum galvanometer serta kedipan lampu pijar.',
+      '3. Naikkan frekuensi osilasi f atau jumlah lilitan N, lalu perhatikan lonjakan amplitudo gelombang sinus pada osiloskop GGL waktu nyata.',
+      '4. Rekam data N dan GGL puncak εmax untuk memverifikasi hukum kesebandingan langsung εmax = N·B·A·(2πf).',
+    ],
+  },
+
+  'electrolysis-faraday': {
+    chapterNumber: 5,
+    chapterTitle: 'Bab 5: Larutan, Titrasi Volumetri & Elektrokimia Modern',
+    competencyLevel: 'Menengah',
+    commonMisconceptions: [
+      'Pada sel elektrolisis, katoda adalah elektroda tempat oksidasi berlangsung. Faktanya: Di sel apa pun (Volta maupun Elektrolisis), REDUKSI selalu terjadi di Katoda dan OKSIDASI di Anoda; bedanya hanya polaritasnya (di elektrolisis katoda bermuatan negatif).',
+      'Massa dua logam berbeda yang diendapkan oleh arus dan waktu yang sama selalu sama beratnya. Faktanya: Karena tiap ion memiliki massa atom relatif (Ar) dan valensi muatan (n) berbeda, massa endapan mengikuti massa ekuivalen m = (Ar·Q)/(n·F).',
+    ],
+    realWorldApplications: [
+      'Industri pelapisan krom, nikel, emas, dan perak (electroplating) untuk perlindungan anti-korosi dan estetika otomotif.',
+      'Pemurnian tembaga berkemurnian tinggi (99,99% Cu) untuk kabel kelistrikan serta produksi gas hidrogen hijau melalui elektrolisis air.',
+      'Ekstraksi logam aluminium dari bauksit cair dalam proses industri Hall-Héroult.',
+    ],
+    stepByStepGuide: [
+      '1. Pilih jenis larutan elektrolit (CuSO4, AgNO3, NiSO4, atau ZnSO4) agar massa molar Ar dan valensi ion n terpasang sesuai sifat logamnya.',
+      '2. Setel kuat arus DC (I) dan durasi elektrolisis (t), lalu jalankan simulasi untuk melihat ion bermigrasi dan melapisi katoda.',
+      '3. Amati gelembung gas O2 yang terbentuk di anoda inert sekaligus ketebalan lapisan logam baru pada batang katoda.',
+      '4. Rekam data kuat arus I terhadap massa endapan katoda m untuk memverifikasi kesebandingan linier Hukum I Faraday.',
+    ],
+  },
+
+  'dna-pcr-electrophoresis': {
+    chapterNumber: 6,
+    chapterTitle: 'Bab 6: Fisiologi Sel, Genetika, Enzimologi & Ekologi Kuantitatif',
+    competencyLevel: 'Menengah',
+    commonMisconceptions: [
+      'Pada suhu annealing yang semakin tinggi, mesin PCR pasti bekerja lebih cepat dan menghasilkan lebih banyak DNA. Faktanya: Suhu annealing di atas suhu leleh primer (sekitar 58 °C) menyebabkan primer gagal menempel pada templat sehingga amplifikasi berhenti total.',
+      'Fragmen DNA bermigrasi di gel agarosa berdasarkan berat jenis semata ke arah elektroda mana saja. Faktanya: Rangka gula-fosfat DNA selalu bermuatan negatif sehingga selalu bergerak dari katoda (−) menuju anoda (+), dan pemisahan terjadi karena efek ayakan pori gel agarosa terhadap panjang pasangan basa (bp).',
+    ],
+    realWorldApplications: [
+      'Tes diagnostik klinis berbasis RT-PCR untuk mendeteksi infeksi virus atau mutasi genetik penyakit keturunan secara ultra-sensitif.',
+      'Analisis sidik jari DNA forensik untuk identifikasi korban atau pembuktian kasus kriminalitas di laboratorium kepolisian.',
+      'Deteksi keaslian varietas benih unggul dan produk pangan bebas rekayasa genetika (GMO screening).',
+    ],
+    stepByStepGuide: [
+      '1. Jalankan mesin Thermal Cycler pada suhu penempelan primer optimal Ta = 58 °C dengan 25 siklus amplifikasi.',
+      '2. Amati perubahan fase suhu berulang (95 °C Denaturasi → Ta Annealing → 72 °C Ekstensi) dan peningkatan eksponensial log10 salinan DNA.',
+      '3. Variasikan konsentrasi gel agarosa (%) serta tegangan listrik (V) untuk melihat pergeseran pita DNA target di bawah lampu UV relatif terhadap DNA Ladder.',
+      '4. Catat data siklus PCR c terhadap log10 salinan DNA untuk membuktikan laju pelipatgandaan eksponensial.',
+    ],
+  },
+
+  'doppler-redshift-binary': {
+    chapterNumber: 8,
+    chapterTitle: 'Bab 8: Astrofisika Observasional & Kosmologi Modern',
+    competencyLevel: 'Lanjut',
+    commonMisconceptions: [
+      'Dalam sistem bintang ganda, bintang yang lebih ringan mengorbit bintang yang lebih berat sementara bintang besarnya diam sempurna di tengah. Faktanya: Kedua bintang sama-sama mengorbit titik pusat massa bersama (barisenter), hanya saja jari-jari orbit bintang bermassa besar lebih kecil.',
+      'Bintang berwarna biru saat bergerak mendekat berarti suhu permukaannya naik secara fisik. Faktanya: Warna asli bintang tetap ditentukan suhunya; pergeseran biru/merah Doppler hanya menggeser posisi garis spektrum (misalnya H-α 656,28 nm) dalam fraksi kecil nanometer.',
+    ],
+    realWorldApplications: [
+      'Satu-satunya metode langsung paling akurat dalam astrofisika untuk menimbang massa bintang sejati di alam semesta.',
+      'Teknik kecepatan radial (Doppler spectroscopy) pemenang Hadiah Nobel Fisika 2019 untuk menemukan ribuan eksoplanet yang mengorbit bintang lain.',
+      'Deteksi bintang masif pendamping lubang hitam atau bintang neutron biner dari goyangan garis spektrum bintang pasangannya.',
+    ],
+    stepByStepGuide: [
+      '1. Atur massa bintang primer M1 = 2,2 M☉, sekunder M2 = 1,0 M☉, jarak pisah a = 0,45 AU, dan inklinasi orbit i = 75°.',
+      '2. Amati kedua bintang mengitari barisenter bersama sambil melihat panah vektor kecepatan radial serta pergeseran garis H-α pada spektrograf.',
+      '3. Ubah sudut inklinasi orbit dari 90° (edge-on) ke 0° (face-on) dan amati menyusutnya amplitudo pergeseran Doppler Δλ hingga nol.',
+      '4. Rekam nilai semi-amplitudo kecepatan radial K1 dan K2 untuk membuktikan hubungan rasio massa terbalik K2/K1 = M1/M2.',
+    ],
+  },
 };
+
 

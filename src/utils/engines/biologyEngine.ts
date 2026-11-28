@@ -6,6 +6,7 @@ export type BiologyMode =
   | 'cell-osmosis-tonicity'
   | 'osmosis-plasmolysis'
   | 'mendel-genetics-dihybrid'
+  | 'dna-pcr-electrophoresis'
   | 'anatomy-cardiovascular-heart'
   | 'anatomy-respiratory-lungs'
   | 'anatomy-neural-synapse';
@@ -706,6 +707,63 @@ export function calculateMendelDihybrid(params: MendelDihybridParams): MendelDih
     criticalValueDf3,
     mendelHypothesisAccepted,
     chiSquareStatusLabel,
+  };
+}
+
+export interface DnaPcrElectrophoresisParams {
+  pcrCycles: number; // c (5 - 35 siklus)
+  annealingTempC: number; // T_a (45 - 72 °C, optimal 58 °C)
+  agaroseConcPct: number; // % gel agarosa (0.6 - 2.5 %)
+  electrophoresisVoltageV: number; // V (40 - 180 Volt)
+  dnaFragmentBp: number; // panjang fragmen DNA target (100 - 3000 bp)
+}
+
+export interface DnaPcrElectrophoresisMetrics {
+  pcrEfficiencyPct: number; // E * 100 (%)
+  log10DnaCopies: number; // log10(N0 * (1 + E)^c)
+  dnaCopiesMillions: number; // N / 10^6 (juta salinan)
+  migrationDistanceMm: number; // jarak migrasi pita DNA di gel (mm, 0 - 75 mm)
+  relativeMobilityRf: number; // R_f terhadap front migrasi (0 - 1)
+  bandFluorescencePct: number; // kecerahan fluoresens pita UV (%)
+  pcrQualityStatus: string;
+}
+
+export function calculateDnaPcrElectrophoresis(
+  params: DnaPcrElectrophoresisParams
+): DnaPcrElectrophoresisMetrics {
+  const c = Math.max(1, Math.min(40, params.pcrCycles ?? 25));
+  const tAnneal = Math.max(40, Math.min(80, params.annealingTempC ?? 58));
+  const agarose = Math.max(0.5, Math.min(3.0, params.agaroseConcPct ?? 1.2));
+  const voltage = Math.max(20, Math.min(220, params.electrophoresisVoltageV ?? 100));
+  const bp = Math.max(50, Math.min(10000, params.dnaFragmentBp ?? 750));
+
+  // Primer hybridization efficiency peaks at optimal Ta = 58°C (Gaussian thermal window)
+  const efficiency = Math.max(0.04, Math.min(1.0, Math.exp(-Math.pow((tAnneal - 58) / 7.5, 2))));
+  const N0 = 10; // initial DNA template copies
+  const log10Copies = Math.log10(N0) + c * Math.log10(1 + efficiency);
+  const dnaCopiesMillions = Math.pow(10, Math.min(15, log10Copies - 6));
+
+  // Ferguson log-linear gel electrophoresis mobility: d ∝ V * (1 / log10(bp)) * exp(-Kr * %agarose)
+  const rawDistMm = 0.24 * voltage * (1 / Math.log10(bp)) * Math.exp(-0.52 * agarose) * 4.25;
+  const migrationDistanceMm = Math.max(2, Math.min(74, rawDistMm));
+  const relativeMobilityRf = Math.max(0.03, Math.min(0.99, migrationDistanceMm / 75));
+  const bandFluorescencePct = Math.max(8, Math.min(100, ((log10Copies - 2.5) / 8.5) * 100));
+
+  const pcrQualityStatus =
+    efficiency >= 0.8
+      ? 'Amplifikasi Eksponensial Optimal (Pita Tajam)'
+      : tAnneal > 64
+      ? 'Suhu Terlalu Tinggi — Primer Gagal Menempel'
+      : 'Suhu Terlalu Rendah — Ikatan Non-Spesifik';
+
+  return {
+    pcrEfficiencyPct: Number((efficiency * 100).toFixed(1)),
+    log10DnaCopies: Number(log10Copies.toFixed(2)),
+    dnaCopiesMillions: Number(dnaCopiesMillions.toFixed(2)),
+    migrationDistanceMm: Number(migrationDistanceMm.toFixed(1)),
+    relativeMobilityRf: Number(relativeMobilityRf.toFixed(3)),
+    bandFluorescencePct: Number(bandFluorescencePct.toFixed(1)),
+    pcrQualityStatus,
   };
 }
 

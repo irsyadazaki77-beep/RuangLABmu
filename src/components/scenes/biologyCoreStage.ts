@@ -6,11 +6,14 @@ import {
   createBorosilicateGlassMaterial,
   createBrushedMetalTextures,
   createContactShadowPlane,
+  createCuttingMatOverlayTexture,
   createLabBenchTextures,
+  createLabFloorTileTextures,
 } from '../../utils/threeStudioKit';
 import {
   BiologyRigHandle,
   buildCatalaseRig,
+  buildDnaPcrRig,
   buildMendelGeneticsRig,
   buildOsmosisRig,
   buildPhotosynthesisRig,
@@ -24,7 +27,8 @@ export type CoreBiologyStageMode =
   | 'osmosis-plasmolysis'
   | 'cell-osmosis-tonicity'
   | 'predator-prey-dynamics'
-  | 'mendel-genetics-dihybrid';
+  | 'mendel-genetics-dihybrid'
+  | 'dna-pcr-electrophoresis';
 
 function createOrganelleTexture(
   type: 'nucleus' | 'mitochondria' | 'chloroplast'
@@ -86,30 +90,35 @@ export function buildBiologyCoreStage(
   scene.add(hemiLight);
 
   const bioShadowSize = isSoftwareGl ? 512 : 1024;
-  const dirLight = new THREE.DirectionalLight(0xfff7ea, 1.12);
-  dirLight.position.set(5, 8.5, 4.5);
+  const dirLight = new THREE.DirectionalLight(0xfff5e4, 1.32);
+  dirLight.position.set(5.5, 9.5, 5.2);
   dirLight.castShadow = true;
   dirLight.shadow.mapSize.width = bioShadowSize;
   dirLight.shadow.mapSize.height = bioShadowSize;
   dirLight.shadow.camera.near = 0.5;
-  dirLight.shadow.camera.far = 25;
-  const shadowBound = 6.5;
+  dirLight.shadow.camera.far = 26;
+  const shadowBound = 6.8;
   dirLight.shadow.camera.left = -shadowBound;
   dirLight.shadow.camera.right = shadowBound;
   dirLight.shadow.camera.top = shadowBound;
   dirLight.shadow.camera.bottom = -shadowBound;
-  dirLight.shadow.bias = -0.0004;
+  dirLight.shadow.bias = -0.00045;
   dirLight.shadow.normalBias = 0.02;
+  dirLight.shadow.radius = 3.2;
   scene.add(dirLight);
 
-  const rimLight = new THREE.DirectionalLight(0xbae6fd, 0.48);
-  rimLight.position.set(-6, 5.5, -5.5);
+  const rimLight = new THREE.DirectionalLight(0xbae6fd, 0.6);
+  rimLight.position.set(-6, 5.8, -5.8);
   scene.add(rimLight);
 
-  // Soft cool front-side studio fill to open shadows on borosilicate glassware and Hydrilla foliage
-  const fillLight = new THREE.DirectionalLight(0xe0f2fe, 0.26);
-  fillLight.position.set(-4.5, 4.2, 6.5);
+  // Soft cool front-side studio fill + warm tabletop bounce to open shadows on borosilicate glassware and Hydrilla foliage
+  const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.34);
+  fillLight.position.set(-4.5, 4.5, 6.5);
   scene.add(fillLight);
+
+  const bounceLight = new THREE.DirectionalLight(0xfef3c7, 0.18);
+  bounceLight.position.set(3.2, -3.0, 4.5);
+  scene.add(bounceLight);
 
   // Stage condenser spotlight from below glass slide (non-shadow-casting to stay within 1-shadow-light budget)
   const condenserTarget = new THREE.Object3D();
@@ -130,104 +139,184 @@ export function buildBiologyCoreStage(
   scene.add(stageCondenserLight);
 
   // Grounded Studio Floor & Architectural Phenolic Biology Workbench
-  const floorGeo = new THREE.PlaneGeometry(40, 40);
-  const floorMat = new THREE.MeshStandardMaterial({
-    color: initialColors.floorHex ?? 0xc8d2df,
-    roughness: 0.88,
-    metalness: 0.06,
-  });
-  const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-  floorMesh.rotation.x = -Math.PI / 2;
-  floorMesh.position.y = -0.74;
-  floorMesh.receiveShadow = true;
-  scene.add(floorMesh);
+  const benchW = 11.8;
+  const benchD = 7.4;
+  const benchThick = 0.36;
+  const bioFloorY = -2.85;
 
   const bioBenchTex = createLabBenchTextures(initialColors.tableHex ?? 0x6b7c90, 4, 3, {
     neutralAlbedo: true,
   });
   const bioMetalTex = createBrushedMetalTextures();
+  const bioFloorTileTex = createLabFloorTileTextures(14, 14);
+  const bioCuttingMatTex = createCuttingMatOverlayTexture();
 
-  const benchW = 11.8;
-  const benchD = 7.4;
-  const benchThick = 0.36;
+  const floorGeo = new THREE.PlaneGeometry(52, 52);
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: initialColors.floorHex ?? 0xc8d2df,
+    map: bioFloorTileTex?.map ?? null,
+    roughnessMap: bioFloorTileTex?.roughnessMap ?? null,
+    bumpMap: bioFloorTileTex?.bumpMap ?? null,
+    bumpScale: 0.012,
+    roughness: 0.68,
+    metalness: 0.06,
+    envMapIntensity: 0.65,
+  });
+  const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+  floorMesh.rotation.x = -Math.PI / 2;
+  floorMesh.position.y = bioFloorY;
+  floorMesh.receiveShadow = true;
+  scene.add(floorMesh);
+
+  // Subtle architectural biology studio back-wall & dado rail
+  const bioWallMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(initialColors.backgroundHex ?? 0xdce4ee).lerp(
+      new THREE.Color(initialColors.floorHex ?? 0xc8d2df),
+      0.32
+    ),
+    roughness: 0.9,
+    metalness: 0.02,
+    envMapIntensity: 0.3,
+  });
+  const bioBackWall = new THREE.Mesh(new THREE.PlaneGeometry(50, 19), bioWallMat);
+  bioBackWall.position.set(0, bioFloorY + 9.5, -13.2);
+  bioBackWall.receiveShadow = true;
+  scene.add(bioBackWall);
 
   const tableMat = new THREE.MeshStandardMaterial({
     color: initialColors.tableHex ?? 0x6b7c90,
     map: bioBenchTex?.map ?? null,
     roughnessMap: bioBenchTex?.roughnessMap ?? null,
     bumpMap: bioBenchTex?.bumpMap ?? null,
-    bumpScale: 0.005,
-    roughness: 0.62,
+    bumpScale: 0.007,
+    roughness: 0.44,
     metalness: 0.08,
-    envMapIntensity: 0.55,
+    envMapIntensity: 0.8,
   });
   const tableMesh = new THREE.Mesh(
-    new RoundedBoxGeometry(benchW, benchThick, benchD, 3, 0.045),
+    new RoundedBoxGeometry(benchW, benchThick, benchD, 4, 0.045),
     tableMat
   );
   tableMesh.position.y = -benchThick / 2;
+  tableMesh.castShadow = true;
   tableMesh.receiveShadow = true;
   tableMesh.name = 'Meja Laboratorium Biologi Fenolik';
   scene.add(tableMesh);
 
-  // Recessed anti-static work mat inlay on the benchtop
-  const workMatColor = new THREE.Color(initialColors.tableHex ?? 0x6b7c90).multiplyScalar(0.93);
+  // Recessed anti-static work mat inlay + calibrated metric markings on the benchtop
+  const workMatColor = new THREE.Color(initialColors.tableHex ?? 0x6b7c90).multiplyScalar(0.86);
   const workMat = new THREE.MeshStandardMaterial({
     color: workMatColor,
+    roughnessMap: bioBenchTex?.roughnessMap ?? null,
     roughness: 0.78,
     metalness: 0.04,
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
   });
-  const workMatMesh = new THREE.Mesh(new THREE.PlaneGeometry(benchW - 0.8, benchD - 0.9), workMat);
+  const workMatMesh = new THREE.Mesh(new THREE.PlaneGeometry(benchW - 0.8, benchD - 0.88), workMat);
   workMatMesh.rotation.x = -Math.PI / 2;
   workMatMesh.position.y = 0.002;
   workMatMesh.receiveShadow = true;
   scene.add(workMatMesh);
 
-  // Brushed aluminum perimeter trim rail + rear phenolic backsplash curb + structural underframe apron
+  if (bioCuttingMatTex) {
+    const bioMatScale = new THREE.Mesh(
+      new THREE.PlaneGeometry(benchW - 0.8, benchD - 0.88),
+      new THREE.MeshBasicMaterial({
+        map: bioCuttingMatTex,
+        transparent: true,
+        opacity: 0.74,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      })
+    );
+    bioMatScale.rotation.x = -Math.PI / 2;
+    bioMatScale.position.y = 0.004;
+    scene.add(bioMatScale);
+  }
+
+  // Brushed aluminum perimeter trim rail + rear phenolic backsplash curb + structural legs & underframe
   const railMat = new THREE.MeshStandardMaterial({
-    color: 0xcbd5e1,
+    color: 0xdce4ee,
     roughnessMap: bioMetalTex?.roughnessMap ?? null,
-    metalness: 0.78,
-    roughness: 0.28,
-    envMapIntensity: 0.95,
+    bumpMap: bioMetalTex?.bumpMap ?? null,
+    bumpScale: 0.004,
+    metalness: 0.84,
+    roughness: 0.22,
+    envMapIntensity: 1.08,
   });
-  const frontRail = new THREE.Mesh(new THREE.BoxGeometry(benchW + 0.04, 0.075, 0.05), railMat);
-  frontRail.position.set(0, -0.05, benchD / 2 + 0.015);
-  const leftRail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.075, benchD + 0.04), railMat);
-  leftRail.position.set(-benchW / 2 - 0.015, -0.05, 0);
-  const rightRail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.075, benchD + 0.04), railMat);
-  rightRail.position.set(benchW / 2 + 0.015, -0.05, 0);
+  const frontRail = new THREE.Mesh(new THREE.BoxGeometry(benchW + 0.06, 0.095, 0.055), railMat);
+  frontRail.position.set(0, -0.06, benchD / 2 + 0.015);
+  const leftRail = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.095, benchD + 0.06), railMat);
+  leftRail.position.set(-benchW / 2 - 0.015, -0.06, 0);
+  const rightRail = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.095, benchD + 0.06), railMat);
+  rightRail.position.set(benchW / 2 + 0.015, -0.06, 0);
   scene.add(frontRail, leftRail, rightRail);
 
-  const backsplashMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(initialColors.tableHex ?? 0xc2ccd8).multiplyScalar(0.84),
-    roughness: 0.56,
+  const bioDadoMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(initialColors.backgroundHex ?? 0xdce4ee).lerp(
+      new THREE.Color(initialColors.floorHex ?? 0xc8d2df),
+      0.52
+    ),
+    roughness: 0.72,
     metalness: 0.12,
   });
-  const backsplash = new THREE.Mesh(new THREE.BoxGeometry(benchW, 0.44, 0.16), backsplashMat);
-  backsplash.position.set(0, 0.22, -benchD / 2 + 0.08);
+  const bioDadoRail = new THREE.Mesh(new THREE.BoxGeometry(50, 0.09, 0.08), bioDadoMat);
+  bioDadoRail.position.set(0, 0.56, -13.14);
+  scene.add(bioDadoRail);
+
+  const backsplashMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(initialColors.tableHex ?? 0x6b7c90).multiplyScalar(0.84),
+    roughnessMap: bioBenchTex?.roughnessMap ?? null,
+    roughness: 0.52,
+    metalness: 0.12,
+  });
+  const backsplash = new THREE.Mesh(new RoundedBoxGeometry(benchW, 0.42, 0.16, 2, 0.02), backsplashMat);
+  backsplash.position.set(0, 0.21, -benchD / 2 + 0.08);
   backsplash.receiveShadow = true;
-  const backsplashCap = new THREE.Mesh(new THREE.BoxGeometry(benchW + 0.02, 0.045, 0.18), railMat);
-  backsplashCap.position.set(0, 0.46, -benchD / 2 + 0.08);
+  const backsplashCap = new THREE.Mesh(new THREE.BoxGeometry(benchW + 0.02, 0.048, 0.18), railMat);
+  backsplashCap.position.set(0, 0.44, -benchD / 2 + 0.08);
   scene.add(backsplash, backsplashCap);
 
   const apronMat = new THREE.MeshStandardMaterial({
-    color: 0x334155,
-    metalness: 0.42,
-    roughness: 0.48,
+    color: 0x2b3749,
+    roughnessMap: bioMetalTex?.roughnessMap ?? null,
+    metalness: 0.72,
+    roughness: 0.34,
+    envMapIntensity: 0.78,
   });
   const underframe = new THREE.Mesh(
-    new THREE.BoxGeometry(benchW - 0.9, 0.38, benchD - 0.8),
+    new RoundedBoxGeometry(benchW - 0.9, 0.28, benchD - 0.8, 2, 0.02),
     apronMat
   );
-  underframe.position.set(0, -benchThick - 0.19, 0);
+  underframe.position.set(0, -benchThick - 0.14, 0);
   scene.add(underframe);
 
-  const benchFloorShadow = createContactShadowPlane(benchW * 0.62, benchD * 0.64, 0.32);
-  benchFloorShadow.position.set(0, -0.732, 0);
+  // Grounded tubular steel laboratory legs & rubber leveling feet resting on the tiled floor
+  const bioLegH = Math.max(0.4, Math.abs(bioFloorY) - benchThick - 0.08);
+  const bioLegGeo = new RoundedBoxGeometry(0.22, bioLegH, 0.22, 2, 0.025);
+  const bioFootGeo = new THREE.CylinderGeometry(0.14, 0.17, 0.08, 16);
+  const bioFootMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.86, metalness: 0.08 });
+  const lxBio = benchW * 0.5 - 0.54;
+  const lzBio = benchD * 0.5 - 0.54;
+  [
+    [-lxBio, -lzBio],
+    [lxBio, -lzBio],
+    [-lxBio, lzBio],
+    [lxBio, lzBio],
+  ].forEach(([lx, lz]) => {
+    const leg = new THREE.Mesh(bioLegGeo, apronMat);
+    leg.position.set(lx, bioFloorY + 0.08 + bioLegH * 0.5, lz);
+    const foot = new THREE.Mesh(bioFootGeo, bioFootMat);
+    foot.position.set(lx, bioFloorY + 0.04, lz);
+    scene.add(leg, foot);
+  });
+
+  const benchFloorShadow = createContactShadowPlane(benchW * 0.62, benchD * 0.64, 0.36);
+  benchFloorShadow.position.set(0, bioFloorY + 0.01, 0);
   scene.add(benchFloorShadow);
 
   // Recessed Optical Condenser Collar & Glass Preparat Slide (visible for cellular microscopy modes)
@@ -339,36 +428,48 @@ export function buildBiologyCoreStage(
   const chloroBump = chloroTex?.bumpMap ?? null;
   const protoBump = protoMembraneTex?.bumpMap ?? null;
 
-  const nucleusMat = new THREE.MeshStandardMaterial({
+  const nucleusMat = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     map: nucleusTex,
     bumpMap: nucleusBump,
-    bumpScale: 0.025,
-    roughness: 0.28,
+    bumpScale: 0.028,
+    roughness: 0.24,
+    clearcoat: 0.72,
+    clearcoatRoughness: 0.16,
+    sheen: 0.4,
+    sheenColor: new THREE.Color(0xe9d5ff),
     emissive: 0xa855f7,
     emissiveMap: nucleusTex,
     emissiveIntensity: 0.85,
     transparent: true,
     opacity: 0.95,
   });
-  const mitoMat = new THREE.MeshStandardMaterial({
+  const mitoMat = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     map: mitoTex,
     bumpMap: mitoBump,
-    bumpScale: 0.028,
-    roughness: 0.32,
+    bumpScale: 0.032,
+    roughness: 0.28,
+    clearcoat: 0.65,
+    clearcoatRoughness: 0.18,
+    sheen: 0.35,
+    sheenColor: new THREE.Color(0xfef08a),
     emissive: 0xf97316,
     emissiveMap: mitoTex,
     emissiveIntensity: 0.8,
     transparent: true,
     opacity: 0.95,
   });
-  const chloroMat = new THREE.MeshStandardMaterial({
+  const chloroMat = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     map: chloroTex,
     bumpMap: chloroBump,
-    bumpScale: 0.024,
-    roughness: 0.26,
+    bumpScale: 0.026,
+    roughness: 0.22,
+    clearcoat: 0.78,
+    clearcoatRoughness: 0.14,
+    sheen: 0.45,
+    sheenColor: new THREE.Color(0x86efac),
     emissive: 0x22c55e,
     emissiveMap: chloroTex,
     emissiveIntensity: 0.9,
@@ -442,6 +543,8 @@ export function buildBiologyCoreStage(
       ? buildPredatorPreyRig(rigSharedCtx)
       : mode === 'mendel-genetics-dihybrid'
       ? buildMendelGeneticsRig(rigSharedCtx)
+      : mode === 'dna-pcr-electrophoresis'
+      ? buildDnaPcrRig(rigSharedCtx)
       : buildOsmosisRig(rigSharedCtx);
 
   let currentFocusSmooth = 75;
@@ -462,20 +565,26 @@ export function buildBiologyCoreStage(
       const isDarkScene = bgCol.r * 0.299 + bgCol.g * 0.587 + bgCol.b * 0.114 < 0.35;
       scene.environmentIntensity = isSoftwareGl
         ? isDarkScene
-          ? 0.56
-          : 0.68
+          ? 0.72
+          : 0.88
         : isDarkScene
-        ? 0.36
-        : 0.42;
-      const tHex = colors.tableHex ?? 0x3b4859;
+        ? 0.46
+        : 0.56;
+      const tHex = colors.tableHex ?? 0x6b7c90;
       tableMat.color.setHex(tHex);
-      workMat.color.setHex(tHex).multiplyScalar(isDarkScene ? 0.85 : 0.88);
+      workMat.color.setHex(tHex).multiplyScalar(isDarkScene ? 0.84 : 0.86);
       backsplashMat.color.setHex(tHex).multiplyScalar(isDarkScene ? 0.78 : 0.82);
       floorMat.color.setHex(colors.floorHex ?? 0xc5d0dd);
+      bioWallMat.color
+        .setHex(bgHex)
+        .lerp(new THREE.Color(colors.floorHex ?? 0xc5d0dd), 0.32);
+      bioDadoMat.color
+        .setHex(bgHex)
+        .lerp(new THREE.Color(colors.floorHex ?? 0xc5d0dd), 0.52);
       applyBioGridColors(colors.gridPrimaryHex, colors.gridSecondaryHex);
       hemiLight.color.setHex(colors.ambientSkyHex);
       hemiLight.groundColor.setHex(colors.ambientGroundHex);
-      hemiLight.intensity = Math.min(0.62, colors.ambientIntensity);
+      hemiLight.intensity = Math.min(0.68, colors.ambientIntensity * 1.15);
     },
     update: (
       simTime,
@@ -520,6 +629,8 @@ export function buildBiologyCoreStage(
       activeRig.dispose();
       bioBenchTex?.dispose();
       bioMetalTex?.dispose();
+      bioFloorTileTex?.dispose();
+      bioCuttingMatTex?.dispose();
       nucleusTex?.dispose();
       nucleusBump?.dispose();
       mitoTex?.dispose();

@@ -11,10 +11,12 @@ import {
   wavelengthNmToHex,
 } from '../../utils/threeStudioKit';
 import {
-  computeCatalasePhHex,
+  computeCatalaseFormulaVisualState,
+  computeDnaPcrVisualState,
   computeEcosystemVisualCounts,
+  computeLotkaVolterraVisualState,
   computeOsmosisVisualState,
-  computePhotosynthesisGasLevel,
+  computePhotosynthesisVisualState,
 } from '../../utils/biologyVisualHelpers';
 import { calculateMendelDihybrid } from '../../utils/engines/biologyEngine';
 
@@ -148,16 +150,17 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
   });
 
   // Translucent NaHCO3 aqueous column + crisp meniscus ring + underwater caustic light pool
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x0ea5e9,
+    transparent: true,
+    opacity: 0.22,
+    roughness: 0.14,
+    metalness: 0.05,
+    depthWrite: false,
+  });
   const water = new THREE.Mesh(
     new THREE.CylinderGeometry(1.43, 1.43, 2.66, 36),
-    new THREE.MeshStandardMaterial({
-      color: 0x0ea5e9,
-      transparent: true,
-      opacity: 0.22,
-      roughness: 0.14,
-      metalness: 0.05,
-      depthWrite: false,
-    })
+    waterMat
   );
   water.position.y = 1.4;
   water.renderOrder = 1;
@@ -492,59 +495,71 @@ export function buildPhotosynthesisRig(ctx: BiologyRigSharedContext): BiologyRig
   return {
     update: (t, curParams, isLite, showConceptLabels, particleScale = isLite ? 0.5 : 1) => {
       const wavelength = curParams.wavelengthNm || 660;
-      const lux = curParams.lightIntensityLux || 1200;
+      const lux = curParams.lightIntensityLux ?? 1200;
       const bicarb = curParams.bicarbonateConc ?? 2.5;
+      const waterTempC = curParams.waterTempC ?? 28;
       const hex = wavelengthNmToHex(wavelength);
 
       filterMat.color.setHex(hex);
       filterMat.emissive.setHex(hex);
       beamMat.uniforms.uColor.value.setHex(hex);
-      beamMat.uniforms.uOpacity.value = Math.min(0.42, 0.12 + (lux / 3000) * 0.28);
+      beamMat.uniforms.uOpacity.value = Math.min(0.42, 0.06 + (lux / 3000) * 0.34);
       beamMat.uniforms.uTime.value = t;
       causticMat.color.setHex(hex);
-      causticMat.opacity = Math.min(0.24, 0.06 + (lux / 3000) * 0.16) * (0.9 + 0.1 * Math.sin(t * 2.6));
+      causticMat.opacity = Math.min(0.24, 0.04 + (lux / 3000) * 0.18) * (0.9 + 0.1 * Math.sin(t * 2.6));
       lightSpot.color.setHex(hex);
       lightSpot.intensity = lux / 300;
       plantGroup.rotation.y = Math.sin(t * 0.7) * 0.045;
 
-      // Dynamic O2 Gas Pocket height at top of inverted tube
-      const gasLevel = computePhotosynthesisGasLevel(lux, wavelength, bicarb);
-      const pocketHeight = gasLevel * 0.9;
+      // Subtle thermal tint on water bath (cold icy blue -> optimal cyan -> overheated warm teal)
+      waterMat.color.setHex(waterTempC >= 38 ? 0x2dd4bf : waterTempC <= 18 ? 0x38bdf8 : 0x0ea5e9);
+
+      // Exact Ingenhousz formula state (light saturation * chlorophyll action spectrum * CO2 * thermal enzyme curve)
+      const photoState = computePhotosynthesisVisualState(lux, wavelength, bicarb, waterTempC);
+      const pocketHeight = photoState.gasPocketLevel * 0.9;
       gasPocket.scale.y = pocketHeight;
       gasPocket.position.y = 2.95 - pocketHeight * 0.5;
 
-      const parKey = `${Math.round(lux)}_${Math.round(wavelength)}_${Math.round(gasLevel * 100)}`;
+      const parKey = `${Math.round(lux)}_${Math.round(wavelength)}_${Math.round(waterTempC)}_${photoState.bubbleRatePerMin.toFixed(1)}`;
       if (parKey !== lastParKey) {
         lastParKey = parKey;
         updateInstrumentPanelTexture(parScreenTex, {
           title: 'PAR QUANTUM SENSOR',
-          primaryText: `${Math.round(lux)} Lux`,
-          secondaryText: `λ = ${Math.round(wavelength)} nm · O₂ ${Math.round(gasLevel * 100)}%`,
-          accentHex: '#38bdf8',
+          primaryText: `${photoState.bubbleRatePerMin.toFixed(1)} gel/m`,
+          secondaryText: `${Math.round(lux)}Lx · ${Math.round(wavelength)}nm · ${Math.round(waterTempC)}°C`,
+          accentHex: photoState.tempFactor < 0.45 ? '#fb923c' : '#38bdf8',
         });
       }
 
-      const bubbleSpeed = 0.45 + (lux / 1600) * Math.max(0.25, gasLevel);
       const effectiveScale = isLite ? Math.min(0.5, particleScale) : particleScale;
-      const activeCount = Math.max(8, Math.round(BUBBLE_COUNT * effectiveScale));
-      for (let idx = 0; idx < activeCount; idx++) {
-        const seed = particleSeeds[idx] ?? idx;
-        const span = 2.4;
-        const phase = (seed * 0.41 + t * bubbleSpeed) % span;
-        const py = 0.4 + (phase < 0 ? phase + span : phase);
-        const px = Math.sin(t * 3 + seed) * 0.12;
-        const pz = Math.cos(seed * 1.7) * 0.1;
-        instancedPool.setTransform(idx, px, py, pz, 0.72 + (py / 2.8) * 0.45);
+      if (photoState.bubbleRatePerMin < 0.5) {
+        instancedPool.commit(0);
+      } else {
+        const rateNorm = Math.min(1, photoState.bubbleRatePerMin / 95);
+        const bubbleSpeed = 0.25 + rateNorm * 1.95;
+        const activeCount = Math.max(
+          4,
+          Math.round(BUBBLE_COUNT * effectiveScale * (0.2 + 0.8 * rateNorm))
+        );
+        for (let idx = 0; idx < activeCount; idx++) {
+          const seed = particleSeeds[idx] ?? idx;
+          const span = 2.4;
+          const phase = (seed * 0.41 + t * bubbleSpeed) % span;
+          const py = 0.4 + (phase < 0 ? phase + span : phase);
+          const px = Math.sin(t * 3 + seed) * 0.12;
+          const pz = Math.cos(seed * 1.7) * 0.1;
+          instancedPool.setTransform(idx, px, py, pz, 0.72 + (py / 2.8) * 0.45);
+        }
+        instancedPool.commit(activeCount);
       }
-      instancedPool.commit(activeCount);
 
       photonArrow.visible = showConceptLabels;
       if (!showConceptLabels) return emptyAnchors;
 
       worldPosA.set(-3.2, 3.05, 0).applyMatrix4(apparatusGroup.matrixWorld);
       worldPosB.set(0, 2.95, 0).applyMatrix4(apparatusGroup.matrixWorld);
-      anchors.c1!.text = `Akumulasi O₂ (${Math.round(gasLevel * 100)}%)`;
-      anchors.c3!.text = `Foton Cahaya λ = ${Math.round(wavelength)} nm`;
+      anchors.c1!.text = `O₂: ${photoState.o2VolumeProducedMl.toFixed(2)} mL/m (${photoState.bubbleRatePerMin.toFixed(0)} gel/m)`;
+      anchors.c3!.text = `λ = ${Math.round(wavelength)} nm · Ef. Klorofil ${photoState.chlorophyllEfficiencyPct.toFixed(0)}%`;
       return anchors;
     },
     dispose: () => {
@@ -721,6 +736,21 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
   };
   apparatusGroup.add(liquid);
 
+  // Cloudy coagulated protein flocculation haze visible when catalase thermally/pH denatures
+  const denatFlocMat = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0,
+    roughness: 0.92,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  disposableItems.push(denatFlocMat);
+  const denatFlocMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.49, 0.47, 0.62, 20), denatFlocMat);
+  denatFlocMesh.position.y = 0.55;
+  denatFlocMesh.visible = false;
+  denatFlocMesh.name = 'Koagulasi Protein Enzim Terdenaturasi';
+  apparatusGroup.add(denatFlocMesh);
+
   const foamMesh = new THREE.Mesh(
     new THREE.CylinderGeometry(0.52, 0.52, 1.2, 24),
     new THREE.MeshStandardMaterial({
@@ -855,54 +885,73 @@ export function buildCatalaseRig(ctx: BiologyRigSharedContext): BiologyRigHandle
     update: (t, curParams, isLite, showConceptLabels, particleScale = isLite ? 0.5 : 1) => {
       const ph = curParams.solutionPH ?? curParams.solutionPh ?? 7.0;
       const tempC = curParams.temperatureC ?? curParams.tempCelsius ?? 37;
-      const sub = curParams.substrateConcMm || 10;
+      const sub = curParams.substrateConcMm ?? 10;
+      const enzymeVol = curParams.enzymeVolumeMl ?? 1.0;
 
-      liquidMat.color.setHex(computeCatalasePhHex(ph));
-      const thermHex = tempC > 48 ? 0xef4444 : tempC < 22 ? 0x38bdf8 : 0x10b981;
+      // Exact Michaelis-Menten + Arrhenius + Bell pH + Thermal Denaturation state
+      const catState = computeCatalaseFormulaVisualState({
+        substrateConcMm: sub,
+        solutionPH: ph,
+        temperatureC: tempC,
+        enzymeVolumeMl: enzymeVol,
+      });
+
+      liquidMat.color.setHex(catState.liquidPhHex);
+      const thermHex = catState.isDenatured ? 0xef4444 : tempC < 22 ? 0x38bdf8 : 0x10b981;
       thermIndicatorMat.color.setHex(thermHex);
       thermIndicatorMat.emissive.setHex(thermHex);
 
-      const thermKey = `${tempC.toFixed(1)}_${ph.toFixed(1)}_${sub}`;
+      // Visible protein coagulation/cloudiness when enzyme denatures (>15%)
+      denatFlocMesh.visible = catState.denaturationDegreePct > 15;
+      denatFlocMat.opacity = Math.min(0.62, Math.max(0, (catState.denaturationDegreePct - 15) / 85) * 0.62);
+
+      const thermKey = `${tempC.toFixed(1)}_${ph.toFixed(1)}_${sub.toFixed(1)}_${enzymeVol.toFixed(1)}`;
       if (thermKey !== lastThermKey) {
         lastThermKey = thermKey;
         updateInstrumentPanelTexture(thermScreenTex, {
           title: 'ENZYME ASSAY MONITOR',
-          primaryText: `${tempC.toFixed(1)} °C`,
-          secondaryText: `pH ${ph.toFixed(1)} · [S] = ${Math.round(sub)} mM`,
-          accentHex: tempC > 48 ? '#f87171' : '#34d399',
+          primaryText: `${catState.reactionRateV.toFixed(1)} μM/s`,
+          secondaryText: `${tempC.toFixed(0)}°C · pH ${ph.toFixed(1)} · Denat ${Math.round(catState.denaturationDegreePct)}%`,
+          accentHex: catState.isDenatured ? '#f87171' : '#34d399',
         });
       }
 
-      const phFactor = Math.max(0.08, 1.0 - Math.abs(ph - 7.0) * 0.15);
-      const thermalFactor =
-        tempC > 45 ? Math.max(0.05, 1.0 - (tempC - 45) / 28) : Math.max(0.25, tempC / 37);
-      const activity = Math.min(1.8, (sub / 18) * phFactor * thermalFactor);
-
-      const foamTarget = Math.min(2.05, 0.28 + activity * 1.25);
+      // Exact foam column height scaled from Michaelis-Menten v (0..15 cm)
+      const foamTarget = catState.foamScaleY;
+      foamMesh.visible = catState.foamHeightCm > 0.08;
       foamMesh.scale.y = foamTarget;
       foamMesh.position.y = 0.82 + (1.2 * foamTarget) / 2;
 
       const effectiveScale = isLite ? Math.min(0.5, particleScale) : particleScale;
-      const activeCount = Math.max(12, Math.round(FOAM_BUBBLES * effectiveScale));
-      for (let idx = 0; idx < activeCount; idx++) {
-        const seed = particleSeeds[idx] ?? idx * 0.7;
-        const span = Math.max(0.6, 1.2 * foamTarget + 0.35);
-        const phase = (seed + t * Math.max(0.25, activity * 0.9)) % span;
-        const py = 0.85 + (phase < 0 ? phase + span : phase);
-        const rad = 0.15 + ((idx % 5) / 5) * 0.3;
-        const px = Math.cos(seed * 4.3 + t * 0.9) * rad;
-        const pz = Math.sin(seed * 3.1 + t * 0.8) * rad;
-        instancedPool.setTransform(idx, px, py, pz, 0.65 + (idx % 3) * 0.25);
+      if (catState.bubbleRiseSpeed <= 0.01) {
+        instancedPool.commit(0);
+      } else {
+        const activeCount = Math.max(
+          6,
+          Math.round(FOAM_BUBBLES * effectiveScale * Math.min(1, 0.25 + catState.relativeActivityPct / 100))
+        );
+        for (let idx = 0; idx < activeCount; idx++) {
+          const seed = particleSeeds[idx] ?? idx * 0.7;
+          const span = Math.max(0.45, 1.2 * foamTarget + 0.25);
+          const phase = (seed + t * catState.bubbleRiseSpeed) % span;
+          const py = 0.85 + (phase < 0 ? phase + span : phase);
+          const rad = 0.15 + ((idx % 5) / 5) * 0.3;
+          const px = Math.cos(seed * 4.3 + t * 0.9) * rad;
+          const pz = Math.sin(seed * 3.1 + t * 0.8) * rad;
+          instancedPool.setTransform(idx, px, py, pz, 0.65 + (idx % 3) * 0.25);
+        }
+        instancedPool.commit(activeCount);
       }
-      instancedPool.commit(activeCount);
 
       if (!showConceptLabels) return emptyAnchors;
       foamMesh.getWorldPosition(worldPosA);
       worldPosA.y += 0.85;
       worldPosB.set(-0.22, 2.98, 0.15).applyMatrix4(apparatusGroup.matrixWorld);
       worldPosB.y += 0.35;
-      anchors.c1!.text = `Busa O₂ · pH ${ph.toFixed(1)}`;
-      anchors.c3!.text = tempC > 45 ? `Suhu ${tempC}°C: Denaturasi Enzim!` : `Suhu ${tempC}°C (Aktif)`;
+      anchors.c1!.text = `Busa O₂: ${catState.foamHeightCm.toFixed(1)} cm (v = ${catState.reactionRateV.toFixed(1)} μM/s)`;
+      anchors.c3!.text = catState.isDenatured
+        ? `Denaturasi ${Math.round(catState.denaturationDegreePct)}% (T=${tempC.toFixed(0)}°C, pH ${ph.toFixed(1)})`
+        : `Aktivitas ${catState.relativeActivityPct.toFixed(0)}% · T=${tempC.toFixed(0)}°C`;
       return anchors;
     },
     dispose: () => {
@@ -1073,9 +1122,8 @@ export function buildPredatorPreyRig(ctx: BiologyRigSharedContext): BiologyRigHa
     update: (t, curParams, isLite, showConceptLabels, particleScale = isLite ? 0.5 : 1) => {
       const preyPop = curParams.preyPopulationX ?? 40;
       const predPop = curParams.predatorPopulationY ?? 9;
-      const alpha = curParams.preyGrowthRateAlpha ?? 1.1;
-      const beta = curParams.predationRateBeta ?? 0.04;
 
+      const lvState = computeLotkaVolterraVisualState(curParams);
       const vis = computeEcosystemVisualCounts(preyPop, predPop, isLite, MAX_PREY, MAX_PRED);
       const scaleMult = isLite ? 1 : particleScale;
       const preyCount = Math.max(4, Math.min(MAX_PREY, Math.round(vis.preyInstances * scaleMult)));
@@ -1095,9 +1143,8 @@ export function buildPredatorPreyRig(ctx: BiologyRigSharedContext): BiologyRigHa
       preyMesh.count = preyCount;
       for (let i = 0; i < preyCount; i++) {
         const seed = i * 1.37;
-        const speed = 0.55 + alpha * 0.28;
         const radius = 0.75 + ((i * 19) % 100) / 100 * 1.45;
-        const theta = seed + t * speed * (i % 2 === 0 ? 1 : -0.8);
+        const theta = seed + t * lvState.grazeSpeed * (i % 2 === 0 ? 1 : -0.8);
         const hop = Math.abs(Math.sin(t * 5.2 + seed * 3)) * 0.08;
         const px = Math.cos(theta) * radius + Math.sin(seed * 2 + t * 0.5) * 0.18;
         const pz = Math.sin(theta) * radius + Math.cos(seed * 2 + t * 0.4) * 0.18;
@@ -1112,9 +1159,8 @@ export function buildPredatorPreyRig(ctx: BiologyRigSharedContext): BiologyRigHa
       predMesh.count = predCount;
       for (let i = 0; i < predCount; i++) {
         const seed = i * 2.13;
-        const stalkSpeed = 0.75 + beta * 8.5;
         const radius = 0.9 + ((i * 29) % 100) / 100 * 1.25;
-        const theta = seed - t * stalkSpeed;
+        const theta = seed - t * lvState.chaseSpeed;
         const px = Math.cos(theta) * radius;
         const pz = Math.sin(theta) * radius;
         dummy.position.set(px, 0.57, pz);
@@ -1132,14 +1178,9 @@ export function buildPredatorPreyRig(ctx: BiologyRigSharedContext): BiologyRigHa
       worldPosB.y += 0.65;
       worldPosC.set(0.2, 1.35, 0.15).applyMatrix4(apparatusGroup.matrixWorld);
 
-      anchors.c1!.text = `Mangsa (x) = ${Math.round(preyPop)} individu`;
-      anchors.c2!.text =
-        vis.status === 'seimbang'
-          ? 'Ekosistem Seimbang'
-          : vis.status === 'ledakan_mangsa'
-          ? 'Populasi Mangsa Dominan'
-          : 'Tekanan Predasi Tinggi!';
-      anchors.c3!.text = `Predator (y) = ${Math.round(predPop)} individu`;
+      anchors.c1!.text = `Mangsa x=${Math.round(preyPop)} (dx/dt ${lvState.dPreyDt >= 0 ? '+' : ''}${lvState.dPreyDt.toFixed(1)})`;
+      anchors.c2!.text = `Ekuilibrium (x*=${Math.round(lvState.equilibriumPreyX)}, y*=${Math.round(lvState.equilibriumPredatorY)})`;
+      anchors.c3!.text = `Predator y=${Math.round(predPop)} (dy/dt ${lvState.dPredatorDt >= 0 ? '+' : ''}${lvState.dPredatorDt.toFixed(1)})`;
       return anchors;
     },
     dispose: () => {
@@ -1387,21 +1428,20 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
       lastT = t;
 
       const sucrose = curParams.sucroseConcMolar ?? 0.3;
-      const osmState = computeOsmosisVisualState(sucrose);
+      const solutionTempC = curParams.solutionTempC ?? 25;
+      const osmState = computeOsmosisVisualState(sucrose, solutionTempC);
       const isHyper = osmState.state === 'hypertonic';
       const isHypo = osmState.state === 'hypotonic';
 
-      const osmKey = `${sucrose.toFixed(2)}_${osmState.state}`;
+      const osmKey = `${sucrose.toFixed(2)}_${Math.round(solutionTempC)}_${osmState.state}`;
       if (osmKey !== lastOsmKey) {
         lastOsmKey = osmKey;
         updateInstrumentPanelTexture(osmScreenTex, {
           title: 'DIGITAL OSMOMETER',
-          primaryText: `${sucrose.toFixed(2)} M`,
-          secondaryText: isHyper
-            ? 'HIPERTONIK · Plasmolisis'
-            : isHypo
-            ? 'HIPOTONIK · Sel Turgid'
-            : 'ISOTONIK · Ψs Seimbang',
+          primaryText: `${osmState.solutePotentialMpa.toFixed(2)} MPa`,
+          secondaryText: `Ψs · ${sucrose.toFixed(2)}M · ${Math.round(solutionTempC)}°C · ${
+            isHyper ? 'PLASMOLISIS' : isHypo ? 'TURGID' : 'ISOTONIK'
+          }`,
           accentHex: isHyper ? '#fb923c' : isHypo ? '#38bdf8' : '#34d399',
         });
       }
@@ -1417,20 +1457,53 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
       cyclosisAngle += dt * osmState.cyclosisSpeed * 0.8;
       organellesGroup.rotation.y = cyclosisAngle;
 
+      // Directional water diffusion across plasma membrane + extracellular sucrose solutes
       const effectiveScale = isLite ? Math.min(0.5, particleScale) : particleScale;
       const activeCount = Math.max(12, Math.round(OSMOSIS_DOTS * effectiveScale));
+      const fluxDir = osmState.netWaterPotentialAtm < -0.15 ? 1 : osmState.netWaterPotentialAtm > 0.15 ? -1 : 0;
+      const fluxSpeed = 0.28 + osmState.fluxArrowScale * 0.55;
       for (let idx = 0; idx < activeCount; idx++) {
         const seed = particleSeeds[idx] ?? idx * 0.9;
-        const px = Math.sin(t * 0.7 + seed) * 1.65;
-        const pz = Math.cos(t * 0.65 + seed * 1.3) * 1.65;
-        const py = 0.48 + (idx % 7) * 0.22;
-        instancedPool.setTransform(idx, px, py, pz, idx % 3 === 0 ? 1.15 : 0.95);
+        const isSolute = idx % 3 === 0;
+        const angle = seed * 1.45 + t * (isSolute ? 0.35 : 0.25);
+        let radial: number;
+        if (isSolute) {
+          // Impermeant sucrose molecules remain outside the semipermeable cell wall (r = 1.4..2.2)
+          const showSolute = sucrose > 0.02;
+          radial = showSolute ? 1.42 + ((idx * 17) % 10) * 0.078 : 0;
+          const px = Math.cos(angle) * radial;
+          const pz = Math.sin(angle) * radial;
+          const py = 0.42 + (idx % 7) * 0.22;
+          instancedPool.setTransform(
+            idx,
+            px,
+            py,
+            pz,
+            showSolute ? Math.min(1.45, 0.72 + sucrose * 0.7) : 0.001
+          );
+        } else {
+          // Water molecules migrate radially outward (plasmolysis) or inward (turgor) along ΔΨ
+          const u = ((t * fluxSpeed + seed * 0.19) % 1 + 1) % 1;
+          radial =
+            fluxDir > 0
+              ? 0.45 + u * 1.65 // H2O exiting cell into hypertonic bath
+              : fluxDir < 0
+              ? 2.1 - u * 1.65 // H2O entering cell from hypotonic bath
+              : 0.75 + Math.abs(Math.sin(t * 0.9 + seed)) * 1.15;
+          const px = Math.cos(angle) * radial;
+          const pz = Math.sin(angle) * radial;
+          const py = 0.58 + (idx % 6) * 0.24;
+          instancedPool.setTransform(idx, px, py, pz, 0.92);
+        }
       }
       instancedPool.commit(activeCount);
 
       if (showConceptLabels && (isHyper || isHypo)) {
+        const arrowLen = 0.45 + osmState.fluxArrowScale * 0.55;
         osmosisArrowLeft.visible = true;
         osmosisArrowRight.visible = true;
+        osmosisArrowLeft.setLength(arrowLen, 0.22, 0.11);
+        osmosisArrowRight.setLength(arrowLen, 0.22, 0.11);
         if (isHyper) {
           osmosisArrowLeft.position.set(-1.1, 1.35, 0.2);
           osmosisArrowLeft.setDirection(dirNegX);
@@ -1455,10 +1528,10 @@ export function buildOsmosisRig(ctx: BiologyRigSharedContext): BiologyRigHandle 
       protoplastMesh.getWorldPosition(worldPosA);
       worldPosA.y += 1.08;
       anchors.c2!.text = isHyper
-        ? 'Osmosis: H₂O Keluar (Plasmolisis)'
+        ? `Plasmolisis · Ψs=${osmState.solutePotentialMpa.toFixed(2)} MPa · H₂O Keluar`
         : isHypo
-        ? 'Osmosis: H₂O Masuk (Sel Turgid)'
-        : 'Isotonik: Fluks H₂O Seimbang';
+        ? `Sel Turgid · P_turgor=${osmState.turgorPressureAtm.toFixed(1)} atm · H₂O Masuk`
+        : `Isotonik · Ψs=${osmState.solutePotentialMpa.toFixed(2)} MPa (Fluks Seimbang)`;
       return anchors;
     },
     dispose: () => {
@@ -1745,6 +1818,335 @@ export function buildMendelGeneticsRig(ctx: BiologyRigSharedContext): BiologyRig
       anchors.c3!.text = `Uji χ² = ${metrics.chiSquareValue.toFixed(2)} (${
         metrics.mendelHypothesisAccepted ? '< 7,815 Valid' : '> 7,815 Menyimpang'
       })`;
+      return anchors;
+    },
+    dispose: () => {
+      disposableItems.forEach((d) => d.dispose());
+    },
+  };
+}
+
+// =====================================================================
+// RIG 6: DNA PCR THERMAL CYCLER & AGAROSE GEL ELECTROPHORESIS
+// =====================================================================
+export function buildDnaPcrRig(ctx: BiologyRigSharedContext): BiologyRigHandle {
+  const { apparatusGroup, slideGlassMat } = ctx;
+  const disposableItems: { dispose: () => void }[] = [];
+
+  const cyclerShadow = createContactShadowPlane(2.4, 2.2, 0.36);
+  cyclerShadow.position.set(-2.35, 0.008, 0);
+  const gelShadow = createContactShadowPlane(4.2, 2.7, 0.36);
+  gelShadow.position.set(1.25, 0.008, 0);
+  apparatusGroup.add(cyclerShadow, gelShadow);
+
+  const chassisMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    metalness: 0.45,
+    roughness: 0.38,
+  });
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    metalness: 0.3,
+    roughness: 0.35,
+  });
+  const platinumMat = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0,
+    metalness: 0.9,
+    roughness: 0.18,
+  });
+  disposableItems.push(chassisMat, accentMat, platinumMat);
+
+  // 1. Left PCR Thermal Cycler Machine (x = -2.35)
+  const cyclerBodyGeo = new THREE.BoxGeometry(2.1, 0.92, 1.92);
+  const cyclerBody = new THREE.Mesh(cyclerBodyGeo, chassisMat);
+  cyclerBody.position.set(-2.35, 0.46, 0);
+  cyclerBody.castShadow = true;
+  cyclerBody.name = 'Mesin Thermal Cycler PCR';
+  cyclerBody.userData = {
+    draggableParam: 'annealingTempC',
+    min: 42,
+    max: 72,
+    step: 1,
+    label: 'Suhu Annealing Tₐ (°C)',
+  };
+  disposableItems.push(cyclerBodyGeo);
+  apparatusGroup.add(cyclerBody);
+
+  const cyclerLidGeo = new THREE.BoxGeometry(1.75, 0.22, 1.48);
+  const cyclerLid = new THREE.Mesh(cyclerLidGeo, chassisMat);
+  cyclerLid.position.set(-2.35, 1.08, -0.15);
+  cyclerLid.rotation.x = -0.18;
+  cyclerLid.castShadow = true;
+  cyclerLid.userData = cyclerBody.userData;
+  disposableItems.push(cyclerLidGeo);
+  apparatusGroup.add(cyclerLid);
+
+  // 8-strip glowing PCR microcentrifuge reaction tubes inside thermal block
+  const tubeGeo = new THREE.CylinderGeometry(0.055, 0.032, 0.24, 12);
+  const tubeMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    emissive: 0x0284c7,
+    emissiveIntensity: 0.55,
+    transparent: true,
+    opacity: 0.88,
+  });
+  disposableItems.push(tubeGeo, tubeMat);
+  for (let i = 0; i < 6; i++) {
+    const tube = new THREE.Mesh(tubeGeo, tubeMat);
+    tube.position.set(-2.75 + i * 0.16, 0.94, 0.26);
+    tube.userData = cyclerBody.userData;
+    apparatusGroup.add(tube);
+  }
+
+  const pcrScreenTex = createInstrumentPanelTexture({
+    title: 'THERMAL CYCLER PCR',
+    primaryText: 'Denaturasi 95°C · c=25',
+    secondaryText: 'Eff=96% · Amp=10^7.3x',
+    accentHex: '#38bdf8',
+  });
+  if (pcrScreenTex) disposableItems.push(pcrScreenTex);
+  const pcrScreenGeo = new THREE.PlaneGeometry(1.72, 0.68);
+  const pcrScreenMat = new THREE.MeshBasicMaterial({ map: pcrScreenTex ?? undefined });
+  disposableItems.push(pcrScreenGeo, pcrScreenMat);
+  const pcrScreen = new THREE.Mesh(pcrScreenGeo, pcrScreenMat);
+  pcrScreen.position.set(-2.35, 0.52, 0.97);
+  pcrScreen.userData = cyclerBody.userData;
+  apparatusGroup.add(pcrScreen);
+
+  // 2. Right UV Transilluminator & Agarose Gel Electrophoresis Box (x = 1.25)
+  const gelBaseGeo = new THREE.BoxGeometry(3.85, 0.34, 2.45);
+  const gelBase = new THREE.Mesh(gelBaseGeo, chassisMat);
+  gelBase.position.set(1.25, 0.17, 0);
+  gelBase.castShadow = true;
+  gelBase.name = 'Tangki Elektroforesis Gel Agarosa UV';
+  disposableItems.push(gelBaseGeo);
+  apparatusGroup.add(gelBase);
+
+  const uvBedGeo = new THREE.BoxGeometry(3.32, 0.08, 1.96);
+  const uvBedMat = new THREE.MeshStandardMaterial({
+    color: 0x312e81,
+    emissive: 0x6d28d9,
+    emissiveIntensity: 0.72,
+    roughness: 0.25,
+  });
+  const uvBed = new THREE.Mesh(uvBedGeo, uvBedMat);
+  uvBed.position.set(1.25, 0.36, 0);
+  disposableItems.push(uvBedGeo, uvBedMat);
+  apparatusGroup.add(uvBed);
+
+  // Agarose gel slab
+  const gelSlabGeo = new THREE.BoxGeometry(2.96, 0.14, 1.72);
+  const gelSlabMat = new THREE.MeshPhysicalMaterial({
+    color: 0xc7d2fe,
+    transparent: true,
+    opacity: 0.44,
+    roughness: 0.12,
+    transmission: 0.35,
+  });
+  const gelSlab = new THREE.Mesh(gelSlabGeo, gelSlabMat);
+  gelSlab.position.set(1.25, 0.46, 0);
+  gelSlab.name = 'Gel Agarosa & Pita DNA UV';
+  gelSlab.userData = {
+    draggableParam: 'dnaFragmentBp',
+    min: 100,
+    max: 3000,
+    step: 50,
+    label: 'Ukuran Fragmen DNA (bp)',
+  };
+  disposableItems.push(gelSlabGeo, gelSlabMat);
+  apparatusGroup.add(gelSlab);
+
+  // Clear acrylic electrophoresis lid
+  const gelCoverGeo = new THREE.BoxGeometry(3.65, 0.42, 2.28);
+  const gelCover = new THREE.Mesh(gelCoverGeo, slideGlassMat);
+  gelCover.position.set(1.25, 0.62, 0);
+  gelCover.renderOrder = 3;
+  disposableItems.push(gelCoverGeo);
+  apparatusGroup.add(gelCover);
+
+  // Platinum cathode (-) & anode (+) electrodes
+  const elecBarGeo = new THREE.CylinderGeometry(0.025, 0.025, 1.72, 10);
+  elecBarGeo.rotateX(Math.PI / 2);
+  disposableItems.push(elecBarGeo);
+  const cathodeBar = new THREE.Mesh(elecBarGeo, platinumMat);
+  cathodeBar.position.set(-0.22, 0.48, 0);
+  const anodeBar = new THREE.Mesh(elecBarGeo, platinumMat);
+  anodeBar.position.set(2.72, 0.48, 0);
+  apparatusGroup.add(cathodeBar, anodeBar);
+
+  // Sample comb loading wells at x = -0.02
+  const wellGeo = new THREE.BoxGeometry(0.08, 0.08, 0.44);
+  const wellMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+  disposableItems.push(wellGeo, wellMat);
+  [-0.44, 0.14, 0.62].forEach((wz) => {
+    const well = new THREE.Mesh(wellGeo, wellMat);
+    well.position.set(-0.02, 0.52, wz);
+    apparatusGroup.add(well);
+  });
+
+  // Lane 1: 5 reference DNA Ladder rungs (3000, 1500, 750, 400, 150 bp)
+  const bandGeo = new THREE.BoxGeometry(0.085, 0.065, 0.42);
+  const ladderMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    emissive: 0x0ea5e9,
+    emissiveIntensity: 0.95,
+    roughness: 0.2,
+  });
+  disposableItems.push(bandGeo, ladderMat);
+  const ladderBands: THREE.Mesh[] = [];
+  for (let i = 0; i < 5; i++) {
+    const rung = new THREE.Mesh(bandGeo, ladderMat);
+    rung.position.set(0.35 + i * 0.45, 0.51, -0.44);
+    apparatusGroup.add(rung);
+    ladderBands.push(rung);
+  }
+
+  // Lane 2: Amplified Target DNA Band (brightness tracks UV fluorescence %, position tracks bp & V)
+  const sampleBandMat = new THREE.MeshStandardMaterial({
+    color: 0x4ade80,
+    emissive: 0x22c55e,
+    emissiveIntensity: 1.4,
+    roughness: 0.15,
+  });
+  disposableItems.push(sampleBandMat);
+  const sampleBand = new THREE.Mesh(bandGeo, sampleBandMat);
+  sampleBand.position.set(1.2, 0.515, 0.14);
+  sampleBand.name = 'Pita DNA Target PCR (UV Fluoresen)';
+  sampleBand.userData = gelSlab.userData;
+  apparatusGroup.add(sampleBand);
+
+  // DC Electrophoresis Power Supply elevated cleanly behind gel box (x = 1.25, z = -1.65)
+  const psuGeo = new THREE.BoxGeometry(2.35, 1.15, 0.68);
+  const psuBox = new THREE.Mesh(psuGeo, chassisMat);
+  psuBox.position.set(1.25, 0.72, -1.62);
+  psuBox.castShadow = true;
+  psuBox.userData = {
+    draggableParam: 'electrophoresisVoltageV',
+    min: 30,
+    max: 200,
+    step: 10,
+    label: 'Tegangan Elektroforesis V (Volt)',
+  };
+  disposableItems.push(psuGeo);
+  apparatusGroup.add(psuBox);
+
+  const gelPsuTex = createInstrumentPanelTexture({
+    title: 'ELECTROPHORESIS DC',
+    primaryText: '100 V · Agarosa 1.2%',
+    secondaryText: 'd=41.2 mm · Rf=0.55',
+    accentHex: '#22c55e',
+  });
+  if (gelPsuTex) disposableItems.push(gelPsuTex);
+  const gelPsuGeo = new THREE.PlaneGeometry(2.05, 0.68);
+  const gelPsuMat = new THREE.MeshBasicMaterial({ map: gelPsuTex ?? undefined });
+  disposableItems.push(gelPsuGeo, gelPsuMat);
+  const gelPsuScreen = new THREE.Mesh(gelPsuGeo, gelPsuMat);
+  gelPsuScreen.position.set(1.25, 0.92, -1.27);
+  gelPsuScreen.userData = psuBox.userData;
+  apparatusGroup.add(gelPsuScreen);
+
+  // Drifting negative DNA-buffer ion indicator pool moving from Cathode (-) -> Anode (+)
+  const PCR_IONS_MAX = 18;
+  const ionGeo = new THREE.SphereGeometry(0.038, 10, 10);
+  const ionMat = new THREE.MeshBasicMaterial({ color: 0xa78bfa });
+  disposableItems.push(ionGeo, ionMat);
+  const ionPool = createInstancedParticlePool(PCR_IONS_MAX, ionGeo, ionMat, apparatusGroup);
+
+  const worldPosA = new THREE.Vector3();
+  const worldPosB = new THREE.Vector3();
+  const worldPosC = new THREE.Vector3();
+  const anchors: BiologyConceptAnchors = {
+    c1: { pos: worldPosA, text: '' },
+    c2: { pos: worldPosB, text: '' },
+    c3: { pos: worldPosC, text: '' },
+  };
+  const emptyAnchors: BiologyConceptAnchors = {};
+  let lastCyclerKey = '';
+  let lastGelPsuKey = '';
+
+  return {
+    update: (t, curParams, _isLite, showConceptLabels, particleScale = 1) => {
+      const pcrState = computeDnaPcrVisualState(curParams, t);
+      const { metrics } = pcrState;
+      const voltage = curParams.electrophoresisVoltageV ?? 100;
+      const agarose = curParams.agaroseConcPct ?? 1.2;
+      const bp = curParams.dnaFragmentBp ?? 750;
+      const cycles = curParams.pcrCycles ?? 25;
+
+      // Tube thermal glow color tracks current PCR thermal cycler phase (red 95°C, cyan Ta, emerald 72°C)
+      const phaseHex =
+        pcrState.liveCyclerTempC >= 90
+          ? 0xf43f5e
+          : pcrState.liveCyclerTempC >= 70
+          ? 0x10b981
+          : 0x38bdf8;
+      tubeMat.color.setHex(phaseHex);
+      tubeMat.emissive.setHex(phaseHex);
+
+      // Update DNA Ladder bands & amplified sample band along the agarose gel span (x = 0.08 -> 2.52)
+      const gelStartX = 0.08;
+      const gelSpanX = 2.44;
+      for (let i = 0; i < ladderBands.length; i++) {
+        const frac = pcrState.ladderMigrationFracs[i] ?? 0.5;
+        ladderBands[i].position.x = gelStartX + frac * gelSpanX;
+      }
+
+      const targetBandX = gelStartX + pcrState.bandMigrationFrac * gelSpanX;
+      sampleBand.position.x = THREE.MathUtils.lerp(sampleBand.position.x, targetBandX, 0.25);
+      sampleBandMat.emissiveIntensity = 0.18 + pcrState.uvGlowIntensity * 2.2;
+      sampleBandMat.opacity = 0.35 + pcrState.uvGlowIntensity * 0.65;
+      sampleBandMat.transparent = true;
+
+      // Drifting DNA/TAE buffer ions from - cathode toward + anode
+      const activeIons = Math.max(6, Math.round(PCR_IONS_MAX * particleScale));
+      const driftSpd = 0.2 + (voltage / 180) * 0.9;
+      for (let i = 0; i < activeIons; i++) {
+        const u = ((t * driftSpd + i / activeIons) % 1 + 1) % 1;
+        ionPool.setTransform(
+          i,
+          -0.02 + u * 2.58,
+          0.5,
+          -0.65 + ((i * 0.29) % 1.3),
+          0.85
+        );
+      }
+      ionPool.commit(activeIons);
+
+      const cyclerKey = `${pcrState.liveCyclerTempC}_${pcrState.activeCycleNumber}_${Math.round(cycles)}_${metrics.log10DnaCopies.toFixed(1)}`;
+      if (cyclerKey !== lastCyclerKey) {
+        lastCyclerKey = cyclerKey;
+        const shortPhase = pcrState.cyclePhaseName.startsWith('Denat')
+          ? 'Denat'
+          : pcrState.cyclePhaseName.startsWith('Anneal')
+          ? 'Anneal'
+          : 'Ekst';
+        updateInstrumentPanelTexture(pcrScreenTex, {
+          title: 'THERMAL CYCLER PCR',
+          primaryText: `${pcrState.liveCyclerTempC.toFixed(0)}°C · ${shortPhase} (${pcrState.activeCycleNumber}/${Math.round(cycles)})`,
+          secondaryText: `Eff=${metrics.pcrEfficiencyPct.toFixed(0)}% · N=10^${metrics.log10DnaCopies.toFixed(1)}`,
+          accentHex: pcrState.liveCyclerTempC >= 90 ? '#f43f5e' : '#38bdf8',
+        });
+      }
+
+      const gelKey = `${Math.round(voltage)}_${agarose.toFixed(1)}_${Math.round(bp)}_${metrics.migrationDistanceMm.toFixed(1)}`;
+      if (gelKey !== lastGelPsuKey) {
+        lastGelPsuKey = gelKey;
+        updateInstrumentPanelTexture(gelPsuTex, {
+          title: 'ELECTROPHORESIS UV',
+          primaryText: `${Math.round(voltage)} V · Gel ${agarose.toFixed(1)}% · ${Math.round(bp)} bp`,
+          secondaryText: `d=${metrics.migrationDistanceMm.toFixed(1)}mm · Rf=${metrics.relativeMobilityRf.toFixed(2)} · UV=${metrics.bandFluorescencePct.toFixed(0)}%`,
+          accentHex: '#22c55e',
+        });
+      }
+
+      if (!showConceptLabels) return emptyAnchors;
+      worldPosA.set(-2.35, 1.85, 0).applyMatrix4(apparatusGroup.matrixWorld);
+      worldPosB.set(sampleBand.position.x, 1.15, 0.14).applyMatrix4(apparatusGroup.matrixWorld);
+      worldPosC.set(1.25, 1.45, -1.45).applyMatrix4(apparatusGroup.matrixWorld);
+
+      anchors.c1!.text = `PCR ${pcrState.cyclePhaseName} · Eff=${metrics.pcrEfficiencyPct.toFixed(0)}%`;
+      anchors.c2!.text = `Pita ${Math.round(bp)} bp · Jarak ${metrics.migrationDistanceMm.toFixed(1)} mm`;
+      anchors.c3!.text = `Gel ${agarose.toFixed(1)}% · ${Math.round(voltage)} V · Rf=${metrics.relativeMobilityRf.toFixed(2)}`;
       return anchors;
     },
     dispose: () => {

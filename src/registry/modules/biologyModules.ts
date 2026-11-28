@@ -7,6 +7,7 @@ import {
   calculateRespiratoryLungs,
   calculateNeuralSynapse,
   calculateMendelDihybrid,
+  calculateDnaPcrElectrophoresis,
 } from '../../utils/scienceEngine';
 
 export const BIOLOGY_MODULES: ExperimentModule[] = [
@@ -733,5 +734,103 @@ export const BIOLOGY_MODULES: ExperimentModule[] = [
       };
     },
   },
+
+  {
+    id: 'dna-pcr-electrophoresis',
+    title: 'Amplifikasi DNA PCR & Elektroforesis Gel Agarosa',
+    domain: 'biologi',
+    subCategory: 'Bioteknologi & Biologi Molekuler',
+    supportedTiers: ['SMA', 'Mahasiswa'],
+    difficulty: 2,
+    estimatedMinutes: 35,
+    objectives: {
+      SMP: [
+        'Memahami bagaimana mesin PCR menggandakan sepotong kecil DNA menjadi jutaan salinan identik.',
+        'Mengamati pemisahan fragmen DNA berukuran berbeda pada gel agarosa di bawah sinar UV.',
+      ],
+      SMA: [
+        'Menganalisis pertumbuhan eksponensial jumlah salinan DNA N = N₀·(1 + E)^c terhadap jumlah siklus PCR dan suhu penempelan primer (Ta).',
+        'Menyelidiki pengaruh ukuran fragmen DNA (bp), konsentrasi gel agarosa (%), dan tegangan listrik (V) terhadap jarak migrasi pita elektroforesis.',
+      ],
+      Mahasiswa: [
+        'Memodelkan jendela efisiensi hibridisasi primer termal E(Ta) serta mobilitas log-linier Ferguson d ∝ V · (1 / log₁₀(bp)) · exp(−Kr · C).',
+        'Mengevaluasi nilai mobilitas relatif (Rf) dan intensitas fluoresensi pita pewarna interkalasi DNA terhadap DNA Ladder standar.',
+      ],
+    },
+    theorySummary:
+      'Polymerase Chain Reaction (PCR) menggandakan fragmen DNA target secara eksponensial melalui siklus berulang denaturasi (95 °C), penempelan primer (annealing Ta ≈ 58 °C), dan pemanjangan Taq polimerase (72 °C) mengikuti persamaan N = N₀·(1 + E)^c. Hasil amplifikasi kemudian dipisahkan melalui elektroforesis gel agarosa: karena rangka fosfat DNA bermuatan negatif, DNA bermigrasi dari katoda (−) ke anoda (+) dengan jarak migrasi berbanding terbalik terhadap log₁₀ panjang fragmen (bp) dan menurun secara eksponensial seiring peningkatan kerapatan pori gel agarosa.',
+    keyEquations: [
+      'N_c = N_0 (1 + E)^c, \\qquad \\log_{10} N_c = \\log_{10} N_0 + c \\log_{10}(1 + E)',
+      'E(T_a) = \\exp\\!\\left[-\\left(\\frac{T_a - 58}{7,5}\\right)^2\\right]',
+      'd_{\\text{migrasi}} \\propto \\frac{V}{\\log_{10}(\\text{bp})} \\cdot e^{-K_r \\cdot [\\text{Agarosa}]}',
+    ],
+    apparatusList: [
+      'Mesin Thermal Cycler PCR dengan layar siklus suhu real-time (95 °C → Ta → 72 °C)',
+      'Tangki Elektroforesis Gel Agarosa Horizontal dengan elektroda Pt Katoda (−) & Anoda (+)',
+      'Lampu Transiluminator UV 312 nm & Lajur Referensi DNA Ladder (100–3000 bp)',
+    ],
+    safetyNotes: [
+      'Selalu gunakan pelindung wajah/kacamata anti-UV saat menyalakan lampu transiluminator UV untuk membaca pita fluoresens gel agarosa.',
+      'Matikan catu daya tegangan tinggi elektroforesis sebelum membuka penutup tangki penyangga TAE/TBE.',
+    ],
+    parameters: [
+      { key: 'pcrCycles', label: 'Jumlah Siklus PCR (c)', unit: 'siklus', min: 5, max: 35, step: 1, defaultValue: 25, variableRole: 'bebas' },
+      { key: 'annealingTempC', label: 'Suhu Penempelan Primer (Ta)', unit: '°C', min: 45, max: 72, step: 1, defaultValue: 58, variableRole: 'bebas', instrumentType: 'thermometer' },
+      { key: 'agaroseConcPct', label: 'Konsentrasi Gel Agarosa', unit: '%', min: 0.6, max: 2.5, step: 0.1, defaultValue: 1.2, variableRole: 'kontrol' },
+      { key: 'electrophoresisVoltageV', label: 'Tegangan Elektroforesis (V)', unit: 'V', min: 40, max: 180, step: 10, defaultValue: 100, variableRole: 'bebas', instrumentType: 'voltmeter' },
+      { key: 'dnaFragmentBp', label: 'Panjang Fragmen Target DNA', unit: 'bp', min: 100, max: 3000, step: 50, defaultValue: 750, variableRole: 'kontrol' },
+    ],
+    outputs: [
+      { key: 'pcrEfficiencyPct', label: 'Efisiensi Primer PCR (E)', unit: '%', formulaLatex: 'E(T_a) \\times 100\\%', precision: 1 },
+      { key: 'log10DnaCopies', label: 'Skala Log Salinan DNA', unit: 'log₁₀', formulaLatex: '\\log_{10}(N_0(1+E)^c)', precision: 2 },
+      { key: 'migrationDistanceMm', label: 'Jarak Migrasi Pita Gel (d)', unit: 'mm', formulaLatex: 'd_{\\text{migrasi}}', precision: 1 },
+      { key: 'relativeMobilityRf', label: 'Mobilitas Relatif (Rf)', unit: '', formulaLatex: 'R_f = d / d_{\\max}', precision: 3 },
+      { key: 'bandFluorescencePct', label: 'Kecerahan Pita UV', unit: '%', formulaLatex: 'I_{\\text{UV}}', precision: 1 },
+    ],
+    defaultRegressionAxes: { xKey: 'pcrCycles', yKey: 'log10DnaCopies', expectedSlopeMeaning: 'Pertumbuhan Eksponensial Log Salinan DNA terhadap Siklus PCR' },
+    preLabQuiz: [
+      {
+        id: 'pcr-q1',
+        question: 'Mengapa pita fragmen DNA berukuran kecil (misalnya 250 bp) bermigrasi lebih jauh ke arah elektroda positif (+) dibanding fragmen besar (2000 bp) di dalam gel agarosa?',
+        options: [
+          'Karena fragmen DNA kecil bermuatan listrik lebih positif',
+          'Karena matriks pori gel agarosa menyaring molekul: fragmen pendek lebih mudah menembus pori gel sehingga bergerak lebih cepat',
+          'Karena fragmen besar tertarik kembali ke katoda negatif',
+          'Karena fragmen kecil tahan terhadap suhu denaturasi 95 °C',
+        ],
+        correctIndex: 1,
+        explanation: 'Gel agarosa bertindak sebagai ayakan molekuler berpori. Karena seluruh DNA bermuatan negatif seragam per satuan panjangnya, fragmen lebih pendek mengalami hambatan gesek pori lebih kecil sehingga bermigrasi lebih jauh.',
+      },
+      {
+        id: 'pcr-q2',
+        question: 'Jika suhu annealing (Ta) disetel jauh di atas suhu optimal primer (misalnya Ta = 70 °C saat suhu leleh primer ~58 °C), apa dampak langsungnya terhadap pita DNA hasil PCR di gel?',
+        options: [
+          'Salinan DNA meledak menjadi jutaan kali lebih terang',
+          'Primer gagal menempel stabil pada DNA templat sehingga efisiensi E anjlok dan pita UV tampak sangat redup atau hilang',
+          'Ukuran fragmen DNA target memendek menjadi setengahnya',
+          'Gel agarosa langsung mencair akibat tegangan listrik',
+        ],
+        correctIndex: 1,
+        explanation: 'Pada suhu annealing terlalu tinggi, ikatan hidrogen antara primer dan cetakan DNA sulit terbentuk sehingga efisiensi amplifikasi E turun drastis dan produk PCR hampir tidak terbentuk.',
+      },
+    ],
+    computeStep: (params) => {
+      const res = calculateDnaPcrElectrophoresis({
+        pcrCycles: params.pcrCycles ?? 25,
+        annealingTempC: params.annealingTempC ?? 58,
+        agaroseConcPct: params.agaroseConcPct ?? 1.2,
+        electrophoresisVoltageV: params.electrophoresisVoltageV ?? 100,
+        dnaFragmentBp: params.dnaFragmentBp ?? 750,
+      });
+      return {
+        pcrEfficiencyPct: res.pcrEfficiencyPct,
+        log10DnaCopies: res.log10DnaCopies,
+        migrationDistanceMm: res.migrationDistanceMm,
+        relativeMobilityRf: res.relativeMobilityRf,
+        bandFluorescencePct: res.bandFluorescencePct,
+      };
+    },
+  },
 ];
+
 

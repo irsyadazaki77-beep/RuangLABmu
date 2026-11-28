@@ -2,10 +2,78 @@ import React from 'react';
 import { DomainSchematicProps } from './PhysicsSchematics';
 
 export const AstronomySchematics: React.FC<DomainSchematicProps> = ({
+  moduleId,
   keyText,
   accent,
 }) => {
-  // 1. Galactic Rotation Curve & Dark Matter Halo (milky-way-rotation)
+  // 1. Spectroscopic Binary Stars & Doppler Shift (doppler-redshift-binary) — check exact moduleId first before 'spektroskopi'/'bintang' substring fallbacks
+  if (
+    moduleId === 'doppler-redshift-binary' ||
+    keyText.includes('biner') ||
+    keyText.includes('binary') ||
+    keyText.includes('doppler')
+  ) {
+    return (
+      <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Binary Orbit around Barycenter (+) */}
+        <ellipse cx="90" cy="54" rx="54" ry="24" strokeDasharray="3 2" strokeOpacity="0.6" />
+        <line x1="85" y1="54" x2="95" y2="54" stroke="#f59e0b" />
+        <line x1="90" y1="49" x2="90" y2="59" stroke="#f59e0b" />
+        {/* Star 1 (blueshifted) & Star 2 (redshifted) */}
+        <circle cx="52" cy="40" r="8" fill="#60a5fa" fillOpacity="0.3" stroke="#60a5fa" />
+        <text x="46" y="43" fill="#60a5fa" fontSize="8" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          M₁
+        </text>
+        <circle cx="128" cy="68" r="6" fill="#f97316" fillOpacity="0.3" stroke="#f97316" />
+        <text x="123" y="71" fill="#f97316" fontSize="8" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          M₂
+        </text>
+        {/* H-alpha Doppler Spectrum Bar */}
+        <rect x="164" y="34" width="90" height="22" rx="3" fill="#0f172a" fillOpacity="0.5" stroke={accent} />
+        <line x1="209" y1="34" x2="209" y2="56" stroke="#94a3b8" strokeDasharray="2 2" />
+        <line x1="194" y1="35" x2="194" y2="55" stroke="#38bdf8" strokeWidth="2.2" />
+        <line x1="224" y1="35" x2="224" y2="55" stroke="#ef4444" strokeWidth="2.2" />
+        <text x="168" y="74" fill="#38bdf8" fontSize="8" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          −Δλ
+        </text>
+        <text x="200" y="74" fill={accent} fontSize="8" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          H-α
+        </text>
+        <text x="228" y="74" fill="#ef4444" fontSize="8" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          +Δλ
+        </text>
+      </g>
+    );
+  }
+
+  // 2. Planetary Atmosphere, Albedo & Greenhouse Effect (planetary-atmosphere-greenhouse)
+  if (
+    moduleId === 'planetary-atmosphere-greenhouse' ||
+    keyText.includes('greenhouse') ||
+    keyText.includes('albedo') ||
+    keyText.includes('atmosfer')
+  ) {
+    return (
+      <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Planet + Greenhouse Atmosphere Shell */}
+        <circle cx="116" cy="56" r="24" fill="#38bdf8" fillOpacity="0.22" stroke="#38bdf8" />
+        <circle cx="116" cy="56" r="34" stroke="#10b981" strokeDasharray="4 2" strokeOpacity="0.7" />
+        {/* Incoming solar ray + Albedo reflection */}
+        <line x1="36" y1="26" x2="94" y2="46" stroke="#f59e0b" strokeWidth="1.8" />
+        <line x1="90" y1="42" x2="62" y2="62" stroke="#fde047" strokeDasharray="3 2" />
+        {/* Trapped IR bouncing */}
+        <path d="M 136 44 Q 152 38, 140 58" stroke="#ef4444" strokeWidth="1.6" />
+        <text x="164" y="42" fill="#f59e0b" fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          S₀·(1−A)
+        </text>
+        <text x="164" y="64" fill="#ef4444" fontSize="8.5" fontFamily="IBM Plex Mono, monospace" stroke="none">
+          Tₛ &gt; Tₑq (CO₂)
+        </text>
+      </g>
+    );
+  }
+
+  // 3. Galactic Rotation Curve & Dark Matter Halo (milky-way-rotation)
   if (keyText.includes('milky') || keyText.includes('rotasi') || keyText.includes('dark matter')) {
     return (
       <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -30,7 +98,7 @@ export const AstronomySchematics: React.FC<DomainSchematicProps> = ({
     );
   }
 
-  // 2. Exoplanet Transit Photometry & Light Curve Dip (exoplanet-transit)
+  // 4. Exoplanet Transit Photometry & Light Curve Dip (exoplanet-transit)
   if (keyText.includes('exoplanet') || keyText.includes('transit') || keyText.includes('eksoplanet')) {
     return (
       <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -58,7 +126,7 @@ export const AstronomySchematics: React.FC<DomainSchematicProps> = ({
     );
   }
 
-  // 3. Stellar Spectroscopy & Wien's Displacement Law (stellar-wien-spectrum)
+  // 5. Stellar Spectroscopy & Wien's Displacement Law (stellar-wien-spectrum)
   if (keyText.includes('wien') || keyText.includes('stellar') || keyText.includes('spektroskopi')) {
     return (
       <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -77,7 +145,7 @@ export const AstronomySchematics: React.FC<DomainSchematicProps> = ({
     );
   }
 
-  // 4. Hubble Expansion & Cosmological Redshift (hubble-expansion)
+  // 6. Hubble Expansion & Cosmological Redshift (hubble-expansion)
   if (keyText.includes('hubble') || keyText.includes('redshift') || keyText.includes('ekspansi')) {
     return (
       <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -100,7 +168,7 @@ export const AstronomySchematics: React.FC<DomainSchematicProps> = ({
     );
   }
 
-  // 5. Default Astronomy: Kepler Elliptical Orbit (solar-kepler)
+  // 7. Default Astronomy: Kepler Elliptical Orbit (solar-kepler)
   return (
     <g stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
       <line x1="38" y1="54" x2="238" y2="54" strokeDasharray="3 3" strokeOpacity="0.4" />

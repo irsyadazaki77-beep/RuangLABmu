@@ -10,6 +10,7 @@ export type SimulationMode =
   | 'optics-young-slit'
   | 'photoelectric-planck'
   | 'standing-wave-melde'
+  | 'faraday-induction'
   | 'enzyme-kinetics'
   | 'predator-prey-dynamics'
   | 'cell-osmosis-tonicity'

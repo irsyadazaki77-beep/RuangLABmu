@@ -53,7 +53,7 @@ export const SpatialParameterDrawer: React.FC<SpatialParameterDrawerProps> = ({
           animate="open"
           exit="closed"
           aria-label="Panel Parameter & Kontrol Eksperimen"
-          className="hidden lg:flex flex-col absolute top-[58px] bottom-[84px] left-3 w-[296px] xl:w-[316px] z-20 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-xl overflow-hidden"
+          className="hidden lg:flex flex-col absolute top-[64px] bottom-[58px] left-3 w-[296px] xl:w-[316px] z-20 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] text-[var(--comfort-text)] shadow-xl overflow-hidden"
         >
           <div className="px-3.5 py-2 border-b border-[var(--comfort-border)] flex items-center justify-between gap-2 shrink-0">
             <span className="text-xs font-bold flex items-center gap-1.5 text-[var(--comfort-text)] min-w-0 truncate">

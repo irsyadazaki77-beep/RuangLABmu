@@ -133,6 +133,8 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         return { ...base, spectroConcMm: Math.min(0.25, Number(((base.spectroConcMm ?? 0.1) * 2).toFixed(2))) };
       case 'chemical-equilibrium-lechatelier':
         return { ...base, equilibriumTempC: Math.min(100, (base.equilibriumTempC ?? 25) + 35) };
+      case 'electrolysis-faraday':
+        return { ...base, electrolysisCurrentA: Math.min(8.0, Number(((base.electrolysisCurrentA ?? 2.5) * 1.6).toFixed(2))) };
       default:
         return {
           ...base,
@@ -192,6 +194,12 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
           { id: 'xno2', label: 'Fraksi NO₂ (x)', value: metrics.no2MoleFractionPct ?? 31.4, min: 0, max: 100, unit: '%', color: '#14b8a6' },
           { id: 'kp', label: 'Konstanta Kp', value: metrics.leChatelierKp ?? 0.142, min: 0, max: 20, unit: 'atm', color: '#0ea5e9' },
           { id: 'alpha', label: 'Derajat Disosiasi (α)', value: metrics.no2DissociationAlpha ?? 0.186, min: 0, max: 1, unit: '', color: '#10b981' },
+        ]
+      : params.mode === 'electrolysis-faraday'
+      ? [
+          { id: 'mass', label: 'Massa Endapan (m)', value: metrics.electrolysisMassDepositedG ?? 1.48, min: 0, max: 20, unit: 'g', color: '#14b8a6' },
+          { id: 'charge', label: 'Muatan Listrik (Q)', value: metrics.electrolysisChargeC ?? 4500, min: 0, max: 60000, unit: 'C', color: '#0ea5e9' },
+          { id: 'o2', label: 'Volume Gas O₂', value: metrics.electrolysisAnodeGasMl ?? 261.3, min: 0, max: 3000, unit: 'mL', color: '#10b981' },
         ]
       : [
           { id: 'tf', label: 'Suhu Akhir (Tf)', value: metrics.finalTempC, min: 0, max: 100, unit: '°C', color: '#14b8a6' },
@@ -277,6 +285,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
     'reaction-kinetics-arrhenius': 'reaction-kinetics-arrhenius',
     'spectrophotometry-beer': 'spectrophotometry-beer',
     'chemical-equilibrium-lechatelier': 'chemical-equilibrium-lechatelier',
+    'electrolysis-faraday': 'electrolysis-faraday',
   };
   const moduleRecords = filterRecordsForModule(records, 'Kimia', modeToCatalogId[params.mode]);
 
@@ -306,6 +315,8 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         ? 'Uji Spektrofotometri Beer-Lambert'
         : p.mode === 'chemical-equilibrium-lechatelier'
         ? 'Uji Kesetimbangan Le Chatelier N₂O₄ ⇌ 2NO₂'
+        : p.mode === 'electrolysis-faraday'
+        ? 'Uji Sel Elektrolisis & Hukum I Faraday'
         : 'Uji Termokimia & Reaksi';
 
     const pSum =
@@ -319,6 +330,8 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         ? `λ=${p.spectroWavelengthNm ?? 520}nm, C=${p.spectroConcMm ?? 0.1}mM`
         : p.mode === 'chemical-equilibrium-lechatelier'
         ? `T=${p.equilibriumTempC ?? 25}°C, P=${p.equilibriumPressureAtm ?? 1.0}atm, [N₂O₄]₀=${p.n2o4InitialConcM ?? 0.5}M`
+        : p.mode === 'electrolysis-faraday'
+        ? `I=${p.electrolysisCurrentA ?? 2.5}A, t=${p.electrolysisTimeMin ?? 30}mnt, Logam=${m.electrolysisMetalSymbol ?? 'Cu'}`
         : `T=${p.initialTempC}°C, [M]=${p.reactantConcentration}M`;
 
     const numX =
@@ -332,6 +345,8 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         ? p.spectroConcMm ?? 0.1
         : p.mode === 'chemical-equilibrium-lechatelier'
         ? p.equilibriumTempC ?? 25
+        : p.mode === 'electrolysis-faraday'
+        ? p.electrolysisCurrentA ?? 2.5
         : p.initialTempC;
 
     const numY1 =
@@ -345,18 +360,33 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
         ? m.spectroAbsorbance ?? m.absorbanceA ?? 0.4
         : p.mode === 'chemical-equilibrium-lechatelier'
         ? m.no2MoleFractionPct ?? 31.4
+        : p.mode === 'electrolysis-faraday'
+        ? m.electrolysisMassDepositedG ?? 1.48
         : m.deltaTempC;
+
+    const recordMetrics: Record<string, number | string> =
+      p.mode === 'electrolysis-faraday'
+        ? {
+            'Massa Endapan (m)': `${m.electrolysisMassDepositedG ?? 1.48} g`,
+            'Muatan Listrik (Q)': `${m.electrolysisChargeC ?? 4500} C`,
+            'Volume Gas O₂': `${m.electrolysisAnodeGasMl ?? 261.3} mL`,
+          }
+        : {
+            'pH Larutan': m.currentPh,
+            'Volume Titran (mL)': p.titrantAddedMl,
+            'E_sel Potensial': `${m.nernstCellPotentialE ?? 1.1} V`,
+          };
 
     onRecordExperiment(
       title,
       pSum,
-      {
-        'pH Larutan': m.currentPh,
-        'Volume Titran (mL)': p.titrantAddedMl,
-        'E_sel Potensial': `${m.nernstCellPotentialE ?? 1.1} V`,
-      },
+      recordMetrics,
       noteOverride ?? (hypothesisNote?.hypothesisText || ''),
-      { x: numX ?? 0, y1: numY1 ?? 0, y2: m.currentPh }
+      {
+        x: numX ?? 0,
+        y1: numY1 ?? 0,
+        y2: p.mode === 'electrolysis-faraday' ? (m.electrolysisAnodeGasMl ?? 261.3) : m.currentPh,
+      }
     );
   };
 
@@ -394,6 +424,11 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               return {
                 label: `Kesetimbangan: ${primaryTxt} · ${secondaryTxt}`,
                 detail: `Pergeseran sistem mengikuti asas Le Chatelier untuk meminimalkan gangguan eksternal.`,
+              };
+            case 'electrolysis-faraday':
+              return {
+                label: `Hukum I Faraday: ${primaryTxt} · ${secondaryTxt}`,
+                detail: `Reduksi kation mengendap di katoda sesuai m = (Ar·I·t)/(n·F), sementara gas O₂ terbentuk di anoda.`,
               };
             case 'acid-base-titration':
               return {
@@ -484,6 +519,21 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                   delta: `ΔNO₂ = ${(deltaX >= 0 ? '+' : '')}${deltaX.toFixed(1)}%`,
                 };
               }
+              case 'electrolysis-faraday': {
+                const deltaM = (metricsB.electrolysisMassDepositedG ?? 0) - (metrics.electrolysisMassDepositedG ?? 0);
+                return {
+                  key: 'electrolysisCurrentA' as const,
+                  label: 'Arus Listrik I (B)',
+                  unit: 'A',
+                  min: 0.5,
+                  max: 8.0,
+                  step: 0.25,
+                  valB: realityBParams.electrolysisCurrentA ?? 4.0,
+                  summaryA: `I=${params.electrolysisCurrentA ?? 2.5}A · m=${metrics.electrolysisMassDepositedG}g`,
+                  summaryB: `I=${realityBParams.electrolysisCurrentA ?? 4.0}A · m=${metricsB.electrolysisMassDepositedG}g`,
+                  delta: `Δm = ${(deltaM >= 0 ? '+' : '')}${deltaM.toFixed(3)} g`,
+                };
+              }
               default:
                 return {
                   key: 'initialTempC' as const,
@@ -532,6 +582,10 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
                         ? params.gasVolumeL ?? 10
                         : chemVar.key === 'cathodeConcM'
                         ? params.cathodeConcM
+                        : chemVar.key === 'equilibriumTempC'
+                        ? params.equilibriumTempC ?? 25
+                        : chemVar.key === 'electrolysisCurrentA'
+                        ? params.electrolysisCurrentA ?? 2.5
                         : params.initialTempC
                     }
                     onChange={(nextVal) =>
@@ -657,6 +711,7 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
               <option value="reaction-kinetics-arrhenius">Kinetika Reaksi &amp; Arrhenius</option>
               <option value="spectrophotometry-beer">Spektrofotometri UV-Vis Beer-Lambert</option>
               <option value="chemical-equilibrium-lechatelier">Kesetimbangan Kimia Dinamis &amp; Asas Le Chatelier</option>
+              <option value="electrolysis-faraday">Sel Elektrolisis &amp; Hukum I Faraday</option>
             </select>
           </div>
 

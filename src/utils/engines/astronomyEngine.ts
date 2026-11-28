@@ -4,7 +4,8 @@ export type AstronomyMode =
   | 'stellar-exoplanet'
   | 'stellar-wien-spectrum'
   | 'hubble-expansion'
-  | 'planetary-atmosphere-greenhouse';
+  | 'planetary-atmosphere-greenhouse'
+  | 'doppler-redshift-binary';
 
 export interface SolarPlanetPreset {
   id: string;
@@ -48,6 +49,11 @@ export interface AstronomyParams {
   planetaryAlbedo?: number; // A (0.05 - 0.85, Earth ~ 0.30)
   greenhouseGasPpm?: number; // CO2 equivalent ppm (100 - 2500, Earth ~ 420)
   stellarFluxFactor?: number; // S / S_earth (0.4 - 2.5, Earth = 1.0 -> 1361 W/m²)
+  // Spectroscopic Binary Stars & Doppler Shift (H-alpha 656.28 nm)
+  binaryMass1Solar?: number; // M1 (0.5 - 8.0 M_sun)
+  binaryMass2Solar?: number; // M2 (0.3 - 5.0 M_sun)
+  binarySeparationAu?: number; // a (0.10 - 2.00 AU)
+  binaryInclinationDeg?: number; // i (0 - 90 deg)
 }
 
 export interface AstronomyMetrics {
@@ -93,6 +99,13 @@ export interface AstronomyMetrics {
   greenhouseWarmingDeltaK?: number; // T_s - T_eq (K)
   infraredEmissivity?: number; // atmospheric IR emissivity epsilon (0 - 0.98)
   absorbedSolarFluxWm2?: number; // S_0*(1-A)/4 (W/m²)
+  // Spectroscopic Binary & Doppler Shift Metrics
+  binaryPeriodDays?: number; // P (hari)
+  binaryRadialVel1Kms?: number; // K1 = v1 * sin(i) (km/s)
+  binaryRadialVel2Kms?: number; // K2 = v2 * sin(i) (km/s)
+  binaryMaxDopplerShiftNm?: number; // Delta lambda max H-alpha (nm)
+  binaryRedshiftMaxLambdaNm?: number; // 656.28 + Delta lambda (nm)
+  binaryBlueshiftMinLambdaNm?: number; // 656.28 - Delta lambda (nm)
 }
 
 export const SOLAR_PLANET_PRESETS: SolarPlanetPreset[] = [
@@ -391,6 +404,25 @@ export function calculateAstronomyMetrics(
   const surfaceTempC = surfaceTempK - 273.15;
   const greenhouseWarmingDeltaK = Math.max(0, surfaceTempK - equilibriumTempK);
 
+  // 5. Spectroscopic Binary Stars & H-alpha Doppler Shift
+  const m1Bin = Math.max(0.2, finiteAstroOr(params.binaryMass1Solar, 2.2));
+  const m2Bin = Math.max(0.1, finiteAstroOr(params.binaryMass2Solar, 1.0));
+  const aBin = Math.max(0.05, finiteAstroOr(params.binarySeparationAu, 0.45));
+  const incRad = (Math.max(0, Math.min(90, finiteAstroOr(params.binaryInclinationDeg, 75))) * Math.PI) / 180;
+  const totalMassBin = m1Bin + m2Bin;
+  const binaryPeriodYears = Math.sqrt(Math.pow(aBin, 3) / Math.max(totalMassBin, 1e-6));
+  const binaryPeriodDays = binaryPeriodYears * 365.25;
+  const vRelKms = 29.7847 * Math.sqrt(totalMassBin / aBin);
+  const v1OrbKms = vRelKms * (m2Bin / totalMassBin);
+  const v2OrbKms = vRelKms * (m1Bin / totalMassBin);
+  const binaryRadialVel1Kms = v1OrbKms * Math.sin(incRad);
+  const binaryRadialVel2Kms = v2OrbKms * Math.sin(incRad);
+  const H_ALPHA_NM = 656.28;
+  const C_KMS = 299792.458;
+  const binaryMaxDopplerShiftNm = H_ALPHA_NM * (binaryRadialVel1Kms / C_KMS);
+  const binaryRedshiftMaxLambdaNm = H_ALPHA_NM + binaryMaxDopplerShiftNm;
+  const binaryBlueshiftMinLambdaNm = H_ALPHA_NM - binaryMaxDopplerShiftNm;
+
   return {
     orbitalPeriodYears: safeAstroRound(orbitalPeriodYears, 3),
     perihelionAu: safeAstroRound(perihelionAu, 3),
@@ -437,6 +469,12 @@ export function calculateAstronomyMetrics(
     greenhouseWarmingDeltaK: safeAstroRound(greenhouseWarmingDeltaK, 1),
     infraredEmissivity: safeAstroRound(infraredEmissivity, 3),
     absorbedSolarFluxWm2: safeAstroRound(absorbedSolarFluxWm2, 1),
+    binaryPeriodDays: safeAstroRound(binaryPeriodDays, 1),
+    binaryRadialVel1Kms: safeAstroRound(binaryRadialVel1Kms, 2),
+    binaryRadialVel2Kms: safeAstroRound(binaryRadialVel2Kms, 2),
+    binaryMaxDopplerShiftNm: safeAstroRound(binaryMaxDopplerShiftNm, 4),
+    binaryRedshiftMaxLambdaNm: safeAstroRound(binaryRedshiftMaxLambdaNm, 4),
+    binaryBlueshiftMinLambdaNm: safeAstroRound(binaryBlueshiftMinLambdaNm, 4),
   };
 }
 

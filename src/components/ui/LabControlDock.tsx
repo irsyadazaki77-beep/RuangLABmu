@@ -2,18 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Volume2,
   VolumeX,
-  Maximize2,
-  Minimize2,
   Camera,
   Play,
   Pause,
   RotateCcw,
   Gauge,
-  Compass,
   Mic,
   MicOff,
-  CheckCircle2,
-  Circle,
   X,
   History,
   PlusCircle,
@@ -45,10 +40,10 @@ const KEYBOARD_SHORTCUTS: ReadonlyArray<{ keys: string; label: string }> = [
   { keys: 'S', label: 'Tangkap snapshot kanvas 3D' },
   { keys: '1–4', label: 'Pindah sudut preset kamera 3D' },
   { keys: '[ / ]', label: 'Buka/tutup panel Parameter / Telemetri' },
+  { keys: 'H', label: 'Sembunyikan / tampilkan dok kontrol 3D' },
   { keys: 'Z', label: 'Mode Fokus 3D (sembunyikan panel)' },
   { keys: 'M', label: 'Bisukan / nyalakan efek suara' },
   { keys: 'A', label: 'Buka / tutup panel Dr. LabMu' },
-  { keys: 'Ctrl+K', label: 'Pencarian cepat modul & perintah' },
 ];
 
 export const LabControlDock: React.FC<LabControlDockProps> = ({
@@ -102,18 +97,12 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     }))
   );
 
-  const { zenMode, toggleZenMode, mobileTab } = useUIStore(
-    useShallow((s) => ({
-      zenMode: s.zenMode,
-      toggleZenMode: s.toggleZenMode,
-      mobileTab: s.mobileTab,
-    }))
-  );
+  const mobileTab = useUIStore((s) => s.mobileTab);
 
   const [snapshotPulse, setSnapshotPulse] = useState<boolean>(false);
   const [recordPulse, setRecordPulse] = useState<boolean>(false);
   const [recordToastLabel, setRecordToastLabel] = useState<string | null>(null);
-  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
+  const [isScrubberOpen, setIsScrubberOpen] = useState<boolean>(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState<boolean>(false);
   const [voiceState, setVoiceState] = useState<VoiceAssistantState>(() =>
     aiVoiceAssistant.getState()
@@ -204,13 +193,11 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       if (e.key === '?' && is3DStageActive) {
         e.preventDefault();
         labSound.playClick();
-        setIsGuideOpen(false);
         setIsShortcutsOpen((prev) => !prev);
         return;
       }
 
-      if (e.key === 'Escape' && (isGuideOpen || isShortcutsOpen)) {
-        setIsGuideOpen(false);
+      if (e.key === 'Escape' && isShortcutsOpen) {
         setIsShortcutsOpen(false);
         return;
       }
@@ -261,7 +248,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [is3DStageActive, isGuideOpen, isShortcutsOpen]);
+  }, [is3DStageActive, isShortcutsOpen]);
 
   if (!is3DStageActive) {
     return null;
@@ -269,9 +256,9 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
 
   const safeTimelineMaxIdx = Math.max(0, timelineCount - 1);
   const safeTimelineVal = Math.max(0, Math.min(safeTimelineMaxIdx, timelineCursor));
-  const guideStepCount = recordsCount >= 3 ? (workflowStep >= 3 ? '3/3' : '2/3') : '1/3';
   const isReadyForAnalysis = recordsCount >= 3;
   const isMobileSheetOpen = mobileTab === 'variables' || mobileTab === 'telemetry';
+  const showScrubberRow = timelineCount > 1 && (isScrubberOpen || isTimeTraveling);
 
   // Compute inline mini-sparkline points from recent liveTelemetrySeries
   const sparklineSample = liveTelemetrySeries.slice(-16);
@@ -296,7 +283,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       aria-label="Dock Kontrol Cepat RuangLABmu"
       className={`${
         isMobileSheetOpen ? 'hidden lg:flex' : 'flex'
-      } fixed bottom-[60px] lg:bottom-2.5 left-1/2 -translate-x-1/2 z-20 lg:z-40 max-w-[calc(100vw-16px)] lg:max-w-[calc(100vw-24px)] flex-col items-stretch gap-1 px-2 py-1.5 rounded-xl studio-hud-surface shadow-lg border transition-all duration-200 select-none`}
+      } fixed bottom-[60px] lg:bottom-2.5 left-1/2 -translate-x-1/2 z-20 lg:z-40 max-w-[calc(100vw-16px)] lg:max-w-[calc(100vw-24px)] flex-col items-stretch gap-1 px-2 py-1 rounded-xl studio-hud-surface shadow-lg border border-[var(--comfort-border)] transition-all duration-200 select-none`}
     >
       {/* Floating Instant Confirmation Toast above Dock */}
       {recordToastLabel && (
@@ -314,8 +301,47 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         </div>
       )}
 
-      {/* Ultra-slim Time-Travel Scrubber Strip */}
-      {timelineCount > 1 && (
+      {/* Keyboard Shortcuts Popover (rendered outside overflow-x-auto container so it never clips) */}
+      {isShortcutsOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsShortcutsOpen(false)} />
+          <div
+            data-testid="lab-shortcuts-popover"
+            className="absolute bottom-12 right-0 w-72 rounded-xl bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] shadow-2xl p-3.5 z-50 text-xs space-y-2 animate-fade-in"
+          >
+            <div className="flex items-center justify-between border-b border-[var(--comfort-border)] pb-2">
+              <div className="flex items-center gap-1.5 font-bold text-[var(--comfort-text)]">
+                <Keyboard className="w-4 h-4 text-[var(--comfort-accent)]" aria-hidden="true" />
+                <span>Pintasan Keyboard</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsShortcutsOpen(false)}
+                aria-label="Tutup daftar pintasan"
+                className="p-1 rounded-md text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            </div>
+            <ul className="space-y-1.5">
+              {KEYBOARD_SHORTCUTS.map((item) => (
+                <li
+                  key={item.keys}
+                  className="flex items-center justify-between gap-2 text-2xs"
+                >
+                  <span className="text-[var(--comfort-text-muted)]">{item.label}</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] font-mono font-bold text-[var(--comfort-text)] shrink-0">
+                    {item.keys}
+                  </kbd>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
+
+      {/* On-Demand Time-Travel Scrubber Strip */}
+      {showScrubberRow && (
         <div
           data-testid="time-travel-scrubber-bar"
           className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded-md text-2xs font-mono transition-colors ${
@@ -353,10 +379,19 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
               ({timelineMinTime.toFixed(1)}–{timelineMaxTime.toFixed(1)}s)
             </span>
           </span>
+          <button
+            type="button"
+            onClick={() => setIsScrubberOpen(false)}
+            title="Sembunyikan scrubber linimasa"
+            aria-label="Sembunyikan scrubber linimasa"
+            className="p-0.5 rounded hover:bg-[var(--comfort-surface-subtle)] text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] cursor-pointer"
+          >
+            <X className="w-3 h-3" aria-hidden="true" />
+          </button>
         </div>
       )}
 
-      <div className="flex flex-nowrap items-center justify-center gap-0.5 sm:gap-1 overflow-x-auto no-scrollbar">
+      <div className="flex flex-nowrap items-center justify-start sm:justify-center gap-1 overflow-x-auto no-scrollbar">
         {/* 0. Quick Record Data CTA ([D]) — Priority #1 */}
         <button
           type="button"
@@ -364,7 +399,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           onClick={() => handleRecordTrial('dock')}
           title="[D] Catat Data Pengamatan 3D Saat Ini"
           aria-label="+ Catat Data Pengamatan 3D (Shortcut D)"
-          className={`min-h-[34px] px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-[0.96] cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`min-h-[32px] px-2 sm:px-2.5 py-1 rounded-lg text-2xs sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-transform active:scale-[0.96] cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             recordPulse
               ? 'bg-[var(--comfort-success)] text-white shadow-sm'
               : 'comfort-btn-primary shadow-2xs'
@@ -375,22 +410,40 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           ) : (
             <PlusCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
           )}
-          <span>Catat Data</span>
+          <span>Catat</span>
+          <span className="hidden sm:inline">Data</span>
           <span className="font-mono text-2xs px-1 py-0 rounded bg-white/18 tabular-nums">
             {isReadyForAnalysis ? `${recordsCount}✓` : `${recordsCount}/3`}
           </span>
-          <kbd className="hidden xl:inline font-mono text-2xs opacity-80">D</kbd>
+          <kbd className="hidden 2xl:inline font-mono text-2xs opacity-80">D</kbd>
         </button>
+
+        {/* 0.25. Proceed to Analysis CTA once >= 3 records are captured (on mobile <sm, Data/LKS tab is directly below in BottomNavigationBar) */}
+        {isReadyForAnalysis && userRole === 'siswa' && (
+          <button
+            type="button"
+            data-testid="dock-proceed-analysis-btn"
+            onClick={() => {
+              labSound.playSuccessChime();
+              setWorkflowStep(3);
+            }}
+            title="Data minimal terpenuhi — lanjut ke Grafik Regresi & LKS"
+            className="hidden sm:flex min-h-[32px] px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-2xs font-bold items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+          >
+            <span>Analisis</span>
+            <ArrowRight className="w-3 h-3 shrink-0" aria-hidden="true" />
+          </button>
+        )}
 
         {/* 0.5. Inline Live Mini-Sparkline & Trial Step Indicator */}
         <div
           data-testid="dock-mini-sparkline"
           title={`Tren Telemetri Live · ${recordsCount} dari minimal 3 titik data tercatat`}
-          className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] shrink-0"
+          className="hidden xl:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] shrink-0"
         >
           <svg
-            width="38"
-            height="18"
+            width="34"
+            height="16"
             viewBox="0 0 38 18"
             fill="none"
             aria-hidden="true"
@@ -427,7 +480,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           onClick={handleToggleSimulation}
           title="[Space] Play/Jeda Simulasi"
           aria-label="Play atau Jeda Simulasi 3D (Shortcut Space)"
-          className={`min-h-[34px] px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`min-h-[32px] px-2 py-1 rounded-lg text-2xs sm:text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             isSimulating
               ? 'bg-[var(--comfort-success-soft)] text-[var(--comfort-success)] border-[var(--comfort-success-border)]'
               : 'bg-[var(--comfort-warning-soft)] text-[var(--comfort-warning)] border-[var(--comfort-warning-border)]'
@@ -443,11 +496,33 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           onClick={handleResetTrial}
           title="[R] Reset Percobaan Simulasi"
           aria-label="Reset Percobaan Simulasi (Shortcut R)"
-          className="min-h-[34px] px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)] transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
+          className="min-h-[32px] px-1.5 sm:px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)] transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
         >
           <RotateCcw className="w-3.5 h-3.5 text-[var(--comfort-warning)]" aria-hidden="true" />
           <span className="hidden 2xl:inline">{t('controls.reset')}</span>
         </button>
+
+        {/* 2.5. Time-Travel Scrubber Toggle */}
+        {timelineCount > 1 && (
+          <button
+            type="button"
+            data-testid="toggle-time-scrubber-btn"
+            onClick={() => {
+              labSound.playClick(580);
+              setIsScrubberOpen((prev) => !prev);
+            }}
+            aria-pressed={showScrubberRow}
+            title="Buka / tutup Linimasa Time-Travel Simulasi 3D"
+            className={`min-h-[32px] px-1.5 py-1 rounded-lg text-2xs font-mono font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
+              showScrubberRow
+                ? 'bg-[var(--comfort-accent-soft)] text-[var(--comfort-accent)] border border-[var(--comfort-accent)]/40'
+                : 'text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)]'
+            }`}
+          >
+            <History className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            <span className="hidden xl:inline tabular-nums">{timelineCurrentTime.toFixed(1)}s</span>
+          </button>
+        )}
 
         <div className="hidden sm:block w-px h-4 bg-[var(--comfort-border)] mx-0.5 shrink-0" aria-hidden="true" />
 
@@ -468,7 +543,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
                   labSound.playClick();
                   setPlaybackSpeed(spd);
                 }}
-                className={`min-h-[28px] px-1.5 py-0.5 rounded-md text-2xs font-mono font-bold transition-colors cursor-pointer tabular-nums ${
+                className={`min-h-[26px] px-1 sm:px-1.5 py-0.5 rounded-md text-2xs font-mono font-bold transition-colors cursor-pointer tabular-nums ${
                   isActive
                     ? 'comfort-tab-active'
                     : 'text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)]'
@@ -492,7 +567,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           }}
           title={`[M] ${soundEnabled ? t('controls.mute') : t('controls.unmute')}`}
           aria-label={soundEnabled ? 'Bisukan suara laboratorium (Shortcut M)' : 'Nyalakan suara laboratorium (Shortcut M)'}
-          className={`min-h-[34px] px-1.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`min-h-[32px] px-1.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             soundEnabled
               ? 'text-[var(--comfort-accent)] hover:bg-[var(--comfort-surface-subtle)]'
               : 'text-[var(--comfort-hud-muted)] hover:bg-[var(--comfort-surface-subtle)]'
@@ -501,142 +576,13 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           {soundEnabled ? <Volume2 className="w-4 h-4" aria-hidden="true" /> : <VolumeX className="w-4 h-4" aria-hidden="true" />}
         </button>
 
-        {/* 4.5. Panduan Praktikum Trigger & Popover */}
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              labSound.playClick(620);
-              setIsShortcutsOpen(false);
-              setIsGuideOpen((prev) => !prev);
-            }}
-            aria-expanded={isGuideOpen}
-            aria-label="Panduan Praktikum 3D"
-            title="Panduan Praktikum 3D & Checklist Langkah"
-            className={`min-h-[34px] px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
-              isGuideOpen
-                ? 'comfort-tab-active'
-                : 'text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)]'
-            }`}
-          >
-            <Compass className={`w-4 h-4 ${isGuideOpen ? 'text-white' : 'text-[var(--comfort-accent)]'}`} aria-hidden="true" />
-            <span className="hidden sm:inline">Panduan</span>
-            <span className={`font-mono text-2xs font-bold tabular-nums ${isGuideOpen ? 'text-white/90' : 'text-[var(--comfort-accent)]'}`}>
-              {guideStepCount}
-            </span>
-          </button>
-
-          {isGuideOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setIsGuideOpen(false)} />
-              <div
-                data-testid="lab-guide-popover"
-                className="absolute bottom-12 left-1/2 -translate-x-1/2 w-72 sm:w-80 rounded-xl bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] shadow-2xl p-3.5 z-50 text-xs space-y-2.5 animate-fade-in"
-              >
-                <div className="flex items-center justify-between border-b border-[var(--comfort-border)] pb-2">
-                  <div className="flex items-center gap-1.5 font-bold text-[var(--comfort-text)]">
-                    <Compass className="w-4 h-4 text-[var(--comfort-accent)]" aria-hidden="true" />
-                    <span>Panduan Praktikum 3D</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsGuideOpen(false)}
-                    aria-label="Tutup panduan"
-                    className="p-1 rounded-md text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" aria-hidden="true" />
-                  </button>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-start gap-2 p-2 rounded-lg bg-[var(--comfort-success-soft)] border border-[var(--comfort-success-border)]">
-                    <CheckCircle2 className="w-4 h-4 text-[var(--comfort-success)] shrink-0 mt-0.5" aria-hidden="true" />
-                    <div>
-                      <div className="font-bold text-2xs text-[var(--comfort-success)]">
-                        1. Eksplorasi Variabel 3D
-                      </div>
-                      <div className="text-2xs text-[var(--comfort-text-muted)]">
-                        Ubah nilai variabel bebas dan amati respon aparatus.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`flex items-start gap-2 p-2 rounded-lg border text-xs ${
-                      recordsCount >= 3
-                        ? 'bg-[var(--comfort-success-soft)] border-[var(--comfort-success-border)]'
-                        : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)]'
-                    }`}
-                  >
-                    {recordsCount >= 3 ? (
-                      <CheckCircle2 className="w-4 h-4 text-[var(--comfort-success)] shrink-0 mt-0.5" aria-hidden="true" />
-                    ) : (
-                      <Circle className="w-4 h-4 text-[var(--comfort-warning)] shrink-0 mt-0.5" aria-hidden="true" />
-                    )}
-                    <div className="flex-1">
-                      <div className="font-bold text-2xs flex items-center justify-between text-[var(--comfort-text)]">
-                        <span>2. Catat Data Tabel</span>
-                        <span className="font-mono text-2xs tabular-nums font-semibold text-[var(--comfort-text-muted)]">
-                          {recordsCount}/3 data
-                        </span>
-                      </div>
-                      <div className="text-2xs text-[var(--comfort-text-muted)]">
-                        Tekan <strong>Catat Data</strong> atau tombol <kbd className="font-mono font-bold">D</kbd> minimal 3 kali untuk analisis regresi.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`flex items-start gap-2 p-2 rounded-lg border text-xs ${
-                      workflowStep >= 3
-                        ? 'bg-[var(--comfort-success-soft)] border-[var(--comfort-success-border)]'
-                        : 'bg-[var(--comfort-surface-subtle)] border-[var(--comfort-border)]'
-                    }`}
-                  >
-                    {workflowStep >= 3 ? (
-                      <CheckCircle2 className="w-4 h-4 text-[var(--comfort-success)] shrink-0 mt-0.5" aria-hidden="true" />
-                    ) : (
-                      <Circle className="w-4 h-4 text-[var(--comfort-text-muted)] shrink-0 mt-0.5" aria-hidden="true" />
-                    )}
-                    <div className="flex-1">
-                      <div className="font-bold text-2xs text-[var(--comfort-text)]">
-                        3. Lembar Kerja Siswa (LKS)
-                      </div>
-                      <div className="text-2xs text-[var(--comfort-text-muted)]">
-                        Uji hipotesis &amp; jawab pertanyaan analisis sains untuk klaim XP.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {isReadyForAnalysis && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      labSound.playClick();
-                      setIsGuideOpen(false);
-                      setWorkflowStep(3);
-                    }}
-                    className="w-full min-h-[36px] px-3 py-1.5 rounded-lg comfort-btn-primary text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <span>Lanjut ke Grafik &amp; LKS</span>
-                    <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="hidden sm:block w-px h-4 bg-[var(--comfort-border)] mx-0.5 shrink-0" aria-hidden="true" />
-
         {/* 5. Snapshot */}
         <button
           type="button"
           onClick={handleCapture3DSnapshot}
           title="[S] Tangkap Snapshot Kanvas 3D"
           aria-label="Tangkap Snapshot Kanvas 3D (Shortcut S)"
-          className={`min-h-[34px] px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`min-h-[32px] px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             snapshotPulse
               ? 'comfort-tab-active'
               : 'text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)]'
@@ -651,85 +597,25 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
           )}
         </button>
 
-        {/* 6. Zen Mode Toggle */}
+        {/* 6. Keyboard Shortcuts Popover Trigger (?) */}
         <button
           type="button"
+          data-testid="dock-shortcuts-btn"
           onClick={() => {
             labSound.playClick();
-            toggleZenMode();
+            setIsShortcutsOpen((prev) => !prev);
           }}
-          title="[Z] Fokus Penuh (Sembunyikan Sidebar Kontrol)"
-          aria-label={zenMode ? 'Keluar dari Mode Fokus (Shortcut Z)' : 'Aktifkan Mode Fokus (Shortcut Z)'}
-          className={`hidden lg:flex min-h-[34px] px-2 py-1 rounded-lg text-xs font-semibold items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
-            zenMode
-              ? 'comfort-accent-soft border'
-              : 'text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)]'
+          aria-expanded={isShortcutsOpen}
+          aria-label="Pintasan Keyboard Laboratorium (?)"
+          title="[?] Daftar Pintasan Keyboard"
+          className={`hidden lg:flex min-h-[32px] px-2 py-1 rounded-lg text-xs font-semibold items-center gap-1 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+            isShortcutsOpen
+              ? 'comfort-tab-active'
+              : 'text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)]'
           }`}
         >
-          {zenMode ? <Minimize2 className="w-4 h-4" aria-hidden="true" /> : <Maximize2 className="w-4 h-4" aria-hidden="true" />}
-          <span className="hidden 2xl:inline">{zenMode ? t('controls.normal') : t('controls.zen')}</span>
+          <Keyboard className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
-
-        {/* 6.5. Keyboard Shortcuts Popover (?) */}
-        <div className="relative hidden lg:block shrink-0">
-          <button
-            type="button"
-            data-testid="dock-shortcuts-btn"
-            onClick={() => {
-              labSound.playClick();
-              setIsGuideOpen(false);
-              setIsShortcutsOpen((prev) => !prev);
-            }}
-            aria-expanded={isShortcutsOpen}
-            aria-label="Pintasan Keyboard Laboratorium (?)"
-            title="[?] Daftar Pintasan Keyboard"
-            className={`min-h-[34px] px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
-              isShortcutsOpen
-                ? 'comfort-tab-active'
-                : 'text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)] hover:bg-[var(--comfort-surface-subtle)]'
-            }`}
-          >
-            <Keyboard className="w-3.5 h-3.5" aria-hidden="true" />
-          </button>
-
-          {isShortcutsOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setIsShortcutsOpen(false)} />
-              <div
-                data-testid="lab-shortcuts-popover"
-                className="absolute bottom-12 right-0 w-72 rounded-xl bg-[var(--comfort-surface)] text-[var(--comfort-text)] border border-[var(--comfort-border)] shadow-2xl p-3.5 z-50 text-xs space-y-2 animate-fade-in"
-              >
-                <div className="flex items-center justify-between border-b border-[var(--comfort-border)] pb-2">
-                  <div className="flex items-center gap-1.5 font-bold text-[var(--comfort-text)]">
-                    <Keyboard className="w-4 h-4 text-[var(--comfort-accent)]" aria-hidden="true" />
-                    <span>Pintasan Keyboard</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsShortcutsOpen(false)}
-                    aria-label="Tutup daftar pintasan"
-                    className="p-1 rounded-md text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" aria-hidden="true" />
-                  </button>
-                </div>
-                <ul className="space-y-1.5">
-                  {KEYBOARD_SHORTCUTS.map((item) => (
-                    <li
-                      key={item.keys}
-                      className="flex items-center justify-between gap-2 text-2xs"
-                    >
-                      <span className="text-[var(--comfort-text-muted)]">{item.label}</span>
-                      <kbd className="px-1.5 py-0.5 rounded bg-[var(--comfort-surface-subtle)] border border-[var(--comfort-border)] font-mono font-bold text-[var(--comfort-text)] shrink-0">
-                        {item.keys}
-                      </kbd>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </>
-          )}
-        </div>
 
         <div className="hidden sm:block w-px h-4 bg-[var(--comfort-border)] mx-0.5 shrink-0" aria-hidden="true" />
 
@@ -751,7 +637,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
               ? 'Suara Dr. LabMu Aktif (Klik untuk matikan)'
               : 'Tanya Dr. LabMu via Suara Interaktif'
           }
-          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer relative shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer relative shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             voiceState.fullDuplexEnabled
               ? 'bg-[var(--comfort-danger)] text-white shadow-sm ring-2 ring-[var(--comfort-danger)]/40'
               : 'text-[var(--comfort-hud-muted)] hover:bg-[var(--comfort-surface-subtle)] hover:text-[var(--comfort-danger)]'

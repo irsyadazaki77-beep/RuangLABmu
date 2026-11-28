@@ -446,6 +446,69 @@ export const PhysicsParameterPanel: React.FC<PhysicsParameterPanelProps> = ({
                 onChange={(v) => onParamUpdate({ linearMassDensity: v })}
               />
             </>
+          ) : params.mode === 'faraday-induction' ? (
+            <>
+              <TactileParameterControl
+                paramKey="coilTurnsN"
+                label="Jumlah Lilitan Kumparan (N)"
+                unit="lilitan"
+                value={params.coilTurnsN ?? 120}
+                min={20}
+                max={400}
+                step={10}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'coilTurnsN', v, lvl)}
+                onChange={(v) => onParamUpdate({ coilTurnsN: v })}
+              />
+              <TactileParameterControl
+                paramKey="magneticFieldTesla"
+                label="Kuat Medan Magnet (B)"
+                unit="T"
+                value={params.magneticFieldTesla ?? 0.45}
+                min={0.05}
+                max={1.5}
+                step={0.05}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'magneticFieldTesla', v, lvl)}
+                onChange={(v) => onParamUpdate({ magneticFieldTesla: v })}
+              />
+              <TactileParameterControl
+                paramKey="magnetOscillationHz"
+                label="Frekuensi Osilasi Magnet (f)"
+                unit="Hz"
+                value={params.magnetOscillationHz ?? 1.2}
+                min={0.2}
+                max={4.0}
+                step={0.1}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'magnetOscillationHz', v, lvl)}
+                onChange={(v) => onParamUpdate({ magnetOscillationHz: v })}
+              />
+              <TactileParameterControl
+                paramKey="coilAreaCm2"
+                label="Luas Penampang Kumparan (A)"
+                unit="cm²"
+                value={params.coilAreaCm2 ?? 25}
+                min={5}
+                max={60}
+                step={5}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'coilAreaCm2', v, lvl)}
+                onChange={(v) => onParamUpdate({ coilAreaCm2: v })}
+              />
+              <TactileParameterControl
+                paramKey="loadResistanceOhm"
+                label="Hambatan Beban (R)"
+                unit="Ω"
+                value={params.loadResistanceOhm ?? 12}
+                min={2}
+                max={50}
+                step={1}
+                educationLevel={educationLevel}
+                dynamicFeedback={(v, lvl) => getPhysicsParameterFeedback(params.mode, 'loadResistanceOhm', v, lvl)}
+                onChange={(v) => onParamUpdate({ loadResistanceOhm: v })}
+              />
+            </>
           ) : (
             <>
               <TactileParameterControl
