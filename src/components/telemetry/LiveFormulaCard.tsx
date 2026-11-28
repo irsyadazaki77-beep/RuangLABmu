@@ -37,7 +37,7 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
           <Calculator className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
-          <span className="text-2xs font-bold text-[var(--comfort-text-muted)] truncate">
+          <span className="text-2xs font-bold text-[var(--comfort-text-muted)] leading-snug">
             Persamaan Hukum · {domainLabel}
           </span>
         </div>
@@ -51,7 +51,7 @@ export const LiveFormulaCard: React.FC<LiveFormulaCardProps> = ({
 
       {/* Main Governing Equation Display with Studio Blueprint Backdrop */}
       <div className="relative rounded-lg bg-[var(--comfort-surface-subtle)] lab-grid-bg border border-[var(--comfort-border)] px-3 py-2.5 text-center overflow-hidden">
-        <div className="text-2xs text-[var(--comfort-text-muted)] mb-0.5 truncate font-medium">
+        <div className="text-2xs text-[var(--comfort-text-muted)] mb-0.5 leading-snug font-medium">
           {moduleTitle}
         </div>
         <div className="font-mono text-xs sm:text-sm font-bold text-[var(--comfort-accent)] tracking-wide break-words">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowRight,
@@ -247,7 +247,17 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
   compact = false,
 }) => {
   const [savedToast, setSavedToast] = useState<boolean>(false);
+  const savedToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pinnedRecordIds = note.pinnedRecordIds ?? [];
+
+  useEffect(() => {
+    return () => {
+      if (savedToastTimerRef.current) {
+        clearTimeout(savedToastTimerRef.current);
+        savedToastTimerRef.current = null;
+      }
+    };
+  }, []);
   const onChangeNote = (next: HypothesisNote) => {
     if (propOnChangeNote) propOnChangeNote(next);
     if (onChange) onChange(next);
@@ -269,7 +279,11 @@ export const HypothesisScratchpadCard: React.FC<HypothesisScratchpadCardProps> =
       }),
     });
     setSavedToast(true);
-    setTimeout(() => setSavedToast(false), 1500);
+    if (savedToastTimerRef.current) clearTimeout(savedToastTimerRef.current);
+    savedToastTimerRef.current = setTimeout(() => {
+      setSavedToast(false);
+      savedToastTimerRef.current = null;
+    }, 1500);
   };
 
   const handleTogglePinRecord = (recordId: string) => {

@@ -368,7 +368,7 @@ test.describe('RuangLABmu E2E Smoke Suite', () => {
     // 1. Masuk ke domain Astronomi -> buka simulasi 3D
     await page.getByRole('button', { name: 'Semua Modul', exact: true }).click();
     await page.getByRole('button', { name: 'Astronomi', exact: true }).click();
-    await page.getByRole('button', { name: /Mulai →|Mulai Praktikum →/i }).first().click();
+    await page.getByRole('button', { name: /Mulai →|Mulai Praktikum/i }).first().click();
     await page.getByRole('button', { name: /Pindah ke Tahap.*Simulasi/i }).click();
 
     const cockpit3D = page.getByTestId('main-3d-cockpit');

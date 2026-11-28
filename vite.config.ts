@@ -171,6 +171,20 @@ export default defineConfig(() => {
             if (nid.includes('node_modules/jspdf') || nid.includes('node_modules/jspdf-autotable')) {
               return 'vendor-pdf';
             }
+            if (nid.includes('node_modules/qrcode')) {
+              return 'vendor-qr';
+            }
+            if (
+              nid.includes('/src/utils/threeStudioKit') ||
+              nid.includes('/src/utils/threeStudioHost') ||
+              nid.includes('/src/utils/threePostProcessing') ||
+              nid.includes('/src/utils/threeMeasurementTools')
+            ) {
+              return 'lab-three-kit';
+            }
+            if (nid.includes('/src/utils/engines/') || nid.includes('/src/utils/scienceEngine')) {
+              return 'lab-engines';
+            }
             if (nid.includes('/src/registry/')) {
               return 'lab-curriculum';
             }

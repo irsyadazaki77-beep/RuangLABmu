@@ -325,7 +325,8 @@ export const PostProcessingPopoverButton: React.FC<PostProcessingPopoverButtonPr
           className={`w-3 h-3 shrink-0 ${isActivePipeline && !open ? 'text-sky-500' : ''}`}
           aria-hidden="true"
         />
-        <span className="hidden md:inline">FX 3D</span>
+        <span className="hidden md:inline 2xl:hidden">FX</span>
+        <span className="hidden 2xl:inline">FX 3D</span>
       </button>
       {popoverPanel}
     </div>

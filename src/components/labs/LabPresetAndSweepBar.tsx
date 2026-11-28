@@ -38,13 +38,14 @@ export function LabPresetAndSweepBar<TParams = Record<string, unknown>>({
   onSweepComplete,
 }: LabPresetAndSweepBarProps<TParams>) {
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
-  const [presetsExpanded, setPresetsExpanded] = useState<boolean>(true);
+  const [presetsExpanded, setPresetsExpanded] = useState<boolean>(false);
   const [presetCategoryFilter, setPresetCategoryFilter] = useState<'all' | 'standard' | 'extreme'>('all');
   const [pinnedBaseline, setPinnedBaseline] = useState<Record<string, unknown> | null>(null);
   const [pinnedPresetLabel, setPinnedPresetLabel] = useState<string>('Kondisi Awal');
   const [isSweeping, setIsSweeping] = useState<boolean>(false);
   const [sweepProgress, setSweepProgress] = useState<number>(0);
   const timerRef = useRef<number | null>(null);
+  const finishTimerRef = useRef<number | null>(null);
   const stepIndexRef = useRef<number>(0);
 
   // Stop any running sweep if module/steps change or unmount
@@ -54,6 +55,10 @@ export function LabPresetAndSweepBar<TParams = Record<string, unknown>>({
         window.clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      if (finishTimerRef.current !== null) {
+        window.clearTimeout(finishTimerRef.current);
+        finishTimerRef.current = null;
+      }
     };
   }, [sweepSteps]);
 
@@ -61,6 +66,10 @@ export function LabPresetAndSweepBar<TParams = Record<string, unknown>>({
     if (timerRef.current !== null) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+    if (finishTimerRef.current !== null) {
+      window.clearTimeout(finishTimerRef.current);
+      finishTimerRef.current = null;
     }
     setIsSweeping(false);
   };
@@ -97,7 +106,11 @@ export function LabPresetAndSweepBar<TParams = Record<string, unknown>>({
           window.clearInterval(timerRef.current);
           timerRef.current = null;
         }
-        window.setTimeout(() => {
+        if (finishTimerRef.current !== null) {
+          window.clearTimeout(finishTimerRef.current);
+        }
+        finishTimerRef.current = window.setTimeout(() => {
+          finishTimerRef.current = null;
           setIsSweeping(false);
           labSound.playSuccessChime();
           onSweepComplete?.(sweepSteps.length);
@@ -440,11 +453,11 @@ export function LabPresetAndSweepBar<TParams = Record<string, unknown>>({
           </div>
         ) : (
           <p className="text-2xs text-[var(--comfort-text-muted)] leading-snug">
-            Otomatis menyapu 5 variasi{' '}
+            Cara cepat: otomatis mencoba &amp; mencatat 5 variasi{' '}
             <strong className="text-[var(--comfort-text)]">
               {sweepSteps[0]?.paramLabel || 'variabel bebas'}
             </strong>{' '}
-            dan mencatat ke tabel regresi.
+            ke tabel regresi.
           </p>
         )}
       </div>

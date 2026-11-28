@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ArrowRight,
   BookOpen,
+  CheckCircle2,
   HelpCircle,
   ShieldCheck,
 } from 'lucide-react';
@@ -227,6 +228,28 @@ export const PreLabBriefingView: React.FC<PreLabBriefingViewProps> = ({
             <span>{t('controls.openSimulation')}</span>
             <ArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />
           </button>
+        </div>
+      </div>
+
+      {/* 1.5. Student Pre-Lab 3-Step Checklist Strip */}
+      <div
+        data-testid="prelab-guidance-strip"
+        className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-2xs"
+      >
+        <span className="font-bold text-[var(--comfort-text)]">Alur Persiapan:</span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <span className={`inline-flex items-center gap-1.5 font-medium ${k3Complied ? 'text-[var(--comfort-success)]' : 'text-[var(--comfort-text)]'}`}>
+            <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${k3Complied ? 'text-[var(--comfort-success)]' : 'text-[var(--comfort-text-muted)] opacity-60'}`} aria-hidden="true" />
+            <span>1. Pahami Teori &amp; Patuhi K3</span>
+          </span>
+          <span className={`inline-flex items-center gap-1.5 font-medium ${hypothesisNote?.hypothesisText?.trim() || effectiveQuizPct > 0 ? 'text-[var(--comfort-success)]' : 'text-[var(--comfort-text)]'}`}>
+            <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${hypothesisNote?.hypothesisText?.trim() || effectiveQuizPct > 0 ? 'text-[var(--comfort-success)]' : 'text-[var(--comfort-text-muted)] opacity-60'}`} aria-hidden="true" />
+            <span>2. Tulis Dugaan / Uji Kuis Pra-Lab</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 font-medium text-[var(--comfort-accent)]">
+            <ArrowRight className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            <span>3. Masuk Meja Simulasi 3D</span>
+          </span>
         </div>
       </div>
 

@@ -288,6 +288,25 @@ export const CollaborationAndDataSection: React.FC<
 
   return (
     <div className="space-y-5">
+      {/* Practicum Completion Status Strip */}
+      <div
+        data-testid="stage4-completion-summary"
+        className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-2xs"
+      >
+        <span className="font-bold text-[var(--comfort-text)]">Ringkasan Ketuntasan Praktikum:</span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono tabular-nums">
+          <span className={records.length >= 3 ? 'text-[var(--comfort-success)] font-semibold' : 'text-[var(--comfort-warning)] font-semibold'}>
+            Data Observasi: {records.length}/3 {records.length >= 3 ? '✓' : '(Disarankan ≥ 3)'}
+          </span>
+          <span className={hypothesisNote?.reflectionText?.trim() ? 'text-[var(--comfort-success)] font-semibold' : 'text-[var(--comfort-text-muted)]'}>
+            Refleksi Hipotesis: {hypothesisNote?.reflectionText?.trim() ? 'Terisi ✓' : 'Opsional'}
+          </span>
+          <span className="text-[var(--comfort-text-muted)]">
+            Tugas Kelompok: {tasks.filter((t) => t.completed).length}/{tasks.length}
+          </span>
+        </div>
+      </div>
+
       {/* Step 4 Header & Final Export Center */}
       <div className="bg-[var(--comfort-surface)] border border-[var(--comfort-border)] rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-0.5">

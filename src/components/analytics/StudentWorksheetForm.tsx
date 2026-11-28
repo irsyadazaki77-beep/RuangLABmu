@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FileText,
   Printer,
@@ -118,6 +118,15 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
   const [rateLimitCountdown, setRateLimitCountdown] = useState<number>(0);
   const [offlinePacketNotice, setOfflinePacketNotice] = useState<string | null>(null);
+  const rotationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const offlineNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (rotationTimerRef.current) clearTimeout(rotationTimerRef.current);
+      if (offlineNoticeTimerRef.current) clearTimeout(offlineNoticeTimerRef.current);
+    };
+  }, []);
 
   const [isRotationModalOpen, setIsRotationModalOpen] = useState(false);
   const [isRotatingGroup, setIsRotatingGroup] = useState(false);
@@ -279,7 +288,11 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     setRotationNotice(
       `Laporan [${prevGroupName}] berhasil disimpan permanen! Meja praktikum & tabel pengamatan direset bersih untuk [${targetGroup}].`
     );
-    setTimeout(() => setRotationNotice(null), 8000);
+    if (rotationTimerRef.current) clearTimeout(rotationTimerRef.current);
+    rotationTimerRef.current = setTimeout(() => {
+      setRotationNotice(null);
+      rotationTimerRef.current = null;
+    }, 8000);
   };
 
   useEffect(() => {
@@ -516,7 +529,11 @@ export const StudentWorksheetForm: React.FC<StudentWorksheetFormProps> = ({
     setOfflinePacketNotice(
       `Berkas tugas luring (.rlab) berhasil diunduh (${packet.packetId})! Berikan berkas ini ke guru via Bluetooth/Flashdisk/LAN lokal.`
     );
-    setTimeout(() => setOfflinePacketNotice(null), 6000);
+    if (offlineNoticeTimerRef.current) clearTimeout(offlineNoticeTimerRef.current);
+    offlineNoticeTimerRef.current = setTimeout(() => {
+      setOfflinePacketNotice(null);
+      offlineNoticeTimerRef.current = null;
+    }, 6000);
   };
 
   return (

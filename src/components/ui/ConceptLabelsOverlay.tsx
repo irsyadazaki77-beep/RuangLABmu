@@ -39,8 +39,9 @@ export const ConceptLabelToggleButton: React.FC<ConceptLabelToggleButtonProps> =
           : 'text-[var(--comfort-text-muted)] hover:text-[var(--comfort-text)] hover:bg-sky-500/10 font-medium'
       }`}
     >
-      <Tag className="w-3 h-3" aria-hidden="true" />
-      <span className="hidden sm:inline">Label Konsep</span>
+      <Tag className="w-3 h-3 shrink-0" aria-hidden="true" />
+      <span className="hidden sm:inline 2xl:hidden">Label</span>
+      <span className="hidden 2xl:inline">Label Konsep</span>
     </button>
   );
 };
@@ -199,9 +200,9 @@ export function updateProjectedConceptLabels(
     isSpatialDesktop && !uiState.zenMode && uiState.rightTelemetryOpen
       ? (width >= 1280 ? 446 : 430)
       : 86;
-  // ConceptLabelSlotItem renders ~38px above its projected (x, y) anchor dot;
-  // reserve full clearance below SpatialHudTopBar + Scene3DControlDock + GuidedLabStepsOverlay.
-  const topInset = width >= 1280 ? 198 : isSpatialDesktop ? 218 : 186;
+  // ConceptLabelSlotItem renders ~42px above its projected (x, y) anchor dot;
+  // reserve clearance below SpatialHudTopBar + GuidedLabStepsOverlay + CompactTelemetryRibbon.
+  const topInset = width >= 1280 ? 176 : isSpatialDesktop ? 184 : 168;
   const bottomInset = isSpatialDesktop ? 124 : 134;
 
   for (let i = 0; i < entries.length; i++) {

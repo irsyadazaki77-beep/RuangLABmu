@@ -1343,11 +1343,11 @@ export function resolveConceptLabelCollisions<T extends ConceptScreenBox>(
   const pillH = 54;
 
   const result = items.map((item) => ({ ...item }));
-  const order = result
-    .map((_, idx) => idx)
-    .sort((a, b) => result[b].y - result[a].y);
 
-  for (let pass = 0; pass < 4; pass++) {
+  for (let pass = 0; pass < 6; pass++) {
+    const order = result
+      .map((_, idx) => idx)
+      .sort((a, b) => result[a].y - result[b].y);
     let moved = false;
     for (let i = 0; i < order.length; i++) {
       const boxA = result[order[i]];
@@ -1362,13 +1362,14 @@ export function resolveConceptLabelCollisions<T extends ConceptScreenBox>(
           const dy = Math.abs(boxA.y - boxB.y);
           if (dy < pillH) {
             const shift = pillH - dy;
-            if (boxB.y - shift >= minY) {
-              boxB.y -= shift;
-            } else if (boxA.y + shift <= maxY) {
-              boxA.y += shift;
+            // Sweep top-to-bottom: push the lower pill (boxB) down first to avoid trapping upper pills at minY
+            if (boxB.y + shift <= maxY) {
+              boxB.y += shift;
+            } else if (boxA.y - shift >= minY) {
+              boxA.y -= shift;
             } else {
-              boxB.y = Math.max(minY, boxB.y - shift * 0.5);
-              boxA.y = Math.min(maxY, boxA.y + shift * 0.5);
+              boxA.y = Math.max(minY, boxA.y - shift * 0.5);
+              boxB.y = Math.min(maxY, boxB.y + shift * 0.5);
             }
             if (Math.abs(boxA.y - boxB.y) < pillH - 2 && maxXBound - minXBound >= 180) {
               const pushX = boxA.x <= boxB.x ? 18 : -18;

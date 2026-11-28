@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Bot,
   Check,
+  ChevronDown,
   Columns2,
   Copy,
   Cpu,
@@ -147,7 +148,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
         <span className="text-[var(--comfort-hud-muted)] opacity-45 hidden sm:inline shrink-0" aria-hidden="true">/</span>
         <span
           title={moduleTitle}
-          className="font-bold text-[var(--comfort-hud-text)] truncate min-w-0 max-w-[130px] sm:max-w-[230px]"
+          className="font-bold text-[var(--comfort-hud-text)] truncate min-w-0 max-w-[130px] sm:max-w-[210px] xl:max-w-[300px] 2xl:max-w-[400px]"
         >
           {moduleTitle}
         </span>
@@ -297,7 +298,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
               ? `Mode Ringan 3T Aktif (${Math.round(fps)} FPS) — Klik untuk Kualitas Otomatis`
               : `Kualitas ${qualityTier} — Klik untuk Mengaktifkan Mode Ringan 3T`
           }
-          className={`hidden xl:inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-2xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`hidden xl:inline-flex items-center gap-1 h-8 px-2 rounded-lg border text-2xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             liteDeviceMode
               ? 'comfort-accent-soft font-semibold'
               : 'studio-hud-subcard hover:border-[var(--comfort-accent-border)] text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)]'
@@ -314,23 +315,29 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
         </button>
 
         {/* Manual Quality Tier Selector */}
-        <label className="hidden xl:inline-flex items-center gap-1 px-2 py-1 rounded-lg border studio-hud-subcard text-2xs font-mono focus-within:ring-2 focus-within:ring-[var(--comfort-accent)] shrink-0 whitespace-nowrap">
-          <span className="text-[var(--comfort-hud-muted)]">Kualitas:</span>
-          <select
-            data-testid="hud-quality-mode-select"
-            aria-label="Pilih Kualitas Grafis 3D"
-            value={qualityMode}
-            onChange={(e) => {
-              const nextMode = e.target.value as 'auto' | '3t-saver' | 'high';
-              labSound.playClick();
-              onChangeQualityMode(nextMode);
-            }}
-            className="bg-transparent text-[var(--comfort-accent)] font-semibold focus:outline-none cursor-pointer whitespace-nowrap"
-          >
-            <option value="auto" className="bg-[var(--comfort-surface)] text-[var(--comfort-text)]">Otomatis</option>
-            <option value="3t-saver" className="bg-[var(--comfort-surface)] text-[var(--comfort-text)]">Hemat Baterai 3T</option>
-            <option value="high" className="bg-[var(--comfort-surface)] text-[var(--comfort-text)]">Tinggi</option>
-          </select>
+        <label className="hidden xl:inline-flex flex-nowrap items-center gap-1.5 h-8 px-2.5 rounded-lg border studio-hud-subcard text-2xs font-mono focus-within:ring-2 focus-within:ring-[var(--comfort-accent)] shrink-0 whitespace-nowrap">
+          <span className="text-[var(--comfort-hud-muted)] leading-none">Kualitas:</span>
+          <span className="relative inline-flex items-center">
+            <select
+              data-testid="hud-quality-mode-select"
+              aria-label="Pilih Kualitas Grafis 3D"
+              value={qualityMode}
+              onChange={(e) => {
+                const nextMode = e.target.value as 'auto' | '3t-saver' | 'high';
+                labSound.playClick();
+                onChangeQualityMode(nextMode);
+              }}
+              className="appearance-none bg-transparent pr-4 text-[var(--comfort-accent)] font-semibold focus:outline-none cursor-pointer whitespace-nowrap leading-none py-0 m-0"
+            >
+              <option value="auto" className="bg-[var(--comfort-surface)] text-[var(--comfort-text)]">Otomatis</option>
+              <option value="3t-saver" className="bg-[var(--comfort-surface)] text-[var(--comfort-text)]">Hemat Baterai 3T</option>
+              <option value="high" className="bg-[var(--comfort-surface)] text-[var(--comfort-text)]">Tinggi</option>
+            </select>
+            <ChevronDown
+              className="w-3 h-3 text-[var(--comfort-hud-muted)] pointer-events-none absolute right-0"
+              aria-hidden="true"
+            />
+          </span>
         </label>
 
         {/* Manual 2D Lightweight Telemetry Fallback Toggle */}
@@ -352,7 +359,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
               ? 'Kembali ke Visualisasi WebGL 3D'
               : 'Beralih ke Mode Ringan 2D (Hemat Baterai / Perangkat Non-WebGL)'
           }
-          className={`hidden xl:inline-flex items-center gap-1 px-2 py-1 rounded-lg border font-mono text-2xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`hidden xl:inline-flex items-center gap-1 h-8 px-2 rounded-lg border font-mono text-2xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             prefer2DFallback
               ? 'comfort-accent-soft'
               : 'studio-hud-subcard text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)]'
@@ -369,7 +376,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
               labSound.playClick();
               onToggleDualMode();
             }}
-            className={`hidden md:inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-2xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+            className={`hidden md:inline-flex items-center gap-1 h-8 px-2 rounded-lg border text-2xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
               dualModeActive
                 ? 'bg-[var(--comfort-warning-soft)] border-[var(--comfort-warning-border)] text-[var(--comfort-warning)]'
                 : 'studio-hud-subcard text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)]'
@@ -390,7 +397,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
           aria-label="Toggle Panel Parameter ([)"
           aria-pressed={isLeftVisible}
           title="Tampilkan/Sembunyikan Panel Parameter ([)"
-          className={`hidden lg:inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-2xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`hidden lg:inline-flex items-center gap-1 h-8 px-2 rounded-lg border text-2xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             isLeftVisible
               ? 'comfort-accent-soft'
               : 'studio-hud-subcard text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)]'
@@ -412,7 +419,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
           aria-label="Toggle Panel Telemetri & Rumus (])"
           aria-pressed={isRightVisible}
           title="Tampilkan/Sembunyikan Telemetri & Grafik (])"
-          className={`hidden lg:inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-2xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`hidden lg:inline-flex items-center gap-1 h-8 px-2 rounded-lg border text-2xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             isRightVisible
               ? 'bg-[var(--comfort-success-soft)] border-[var(--comfort-success-border)] text-[var(--comfort-success)]'
               : 'studio-hud-subcard text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)]'
@@ -436,7 +443,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
           data-testid="focus-3d-toggle-btn"
           aria-pressed={zenMode}
           title="Focus 3D Penuh (Sembunyikan Kedua Panel)"
-          className={`inline-flex items-center justify-center gap-1 min-h-[34px] min-w-[34px] px-2 sm:px-2.5 py-1 rounded-lg border text-2xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+          className={`inline-flex items-center justify-center gap-1 h-8 min-w-[34px] px-2 sm:px-2.5 rounded-lg border text-2xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
             zenMode
               ? 'bg-[var(--comfort-warning-soft)] text-[var(--comfort-warning)] border-[var(--comfort-warning)]'
               : 'studio-hud-subcard text-[var(--comfort-hud-text)] hover:border-[var(--comfort-accent-border)]'
@@ -461,7 +468,7 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
           onClick={onOpenDrLabMu}
           aria-label="Buka Asisten Dr. LabMu"
           title="Diskusi Sokratik Dr. LabMu (Shortcut A)"
-          className="inline-flex items-center justify-center gap-1 min-h-[34px] min-w-[34px] px-2.5 py-1 rounded-lg comfort-btn-primary text-2xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
+          className="inline-flex items-center justify-center gap-1 h-8 min-w-[34px] px-2.5 rounded-lg comfort-btn-primary text-2xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
         >
           <Bot className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
           <span className="hidden 2xl:inline">Dr. LabMu</span>

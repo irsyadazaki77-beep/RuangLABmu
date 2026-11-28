@@ -100,12 +100,13 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
       data-testid="guided-lab-steps-overlay"
       className="pointer-events-none w-full flex justify-center"
     >
-      <div className="pointer-events-auto w-full max-w-[520px] rounded-xl studio-hud-surface border border-[var(--comfort-border)] shadow-md overflow-hidden">
+      <div className="pointer-events-auto w-full max-w-[640px] rounded-xl studio-hud-surface border border-[var(--comfort-border)] shadow-md overflow-hidden">
         <div className="flex items-center">
           <button
             type="button"
             data-testid="toggle-guided-steps-btn"
             aria-expanded={expanded}
+            title={cleanActiveStep}
             onClick={() => {
               labSound.playClick(600);
               setExpanded((prev) => !prev);
@@ -114,10 +115,10 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
           >
             <div className="flex items-center gap-1.5 min-w-0">
               <Compass className="w-3.5 h-3.5 text-[var(--comfort-accent)] shrink-0" aria-hidden="true" />
-              <span className="text-2xs font-bold text-[var(--comfort-hud-text)] whitespace-nowrap tabular-nums">
+              <span className="text-2xs font-bold text-[var(--comfort-hud-text)] whitespace-nowrap tabular-nums shrink-0">
                 Langkah {activeStepIdx + 1}/{steps.length}
               </span>
-              <span className="text-2xs font-mono text-[var(--comfort-success)] whitespace-nowrap tabular-nums">
+              <span className="text-2xs font-mono text-[var(--comfort-success)] whitespace-nowrap tabular-nums shrink-0">
                 ({completedCount}/{steps.length})
               </span>
               <span className="text-2xs text-[var(--comfort-hud-muted)] truncate">
@@ -129,21 +130,6 @@ export const GuidedLabStepsOverlay: React.FC<GuidedLabStepsOverlayProps> = ({
             ) : (
               <ChevronDown className="w-3.5 h-3.5 text-[var(--comfort-hud-muted)] shrink-0" aria-hidden="true" />
             )}
-          </button>
-
-          {/* Contextual Quick Record Button directly in Guided Bar */}
-          <button
-            type="button"
-            data-testid="guided-step-quick-record-btn"
-            onClick={() => {
-              labSound.playRecordSuccess();
-              emitLabEvent(LAB_EVENTS.RECORD_TRIAL, { source: 'dock', timestamp: Date.now() });
-            }}
-            title="Catat sampel pengamatan untuk langkah saat ini"
-            className="min-h-[34px] px-2.5 flex items-center gap-1 text-2xs font-bold text-[var(--comfort-accent)] hover:bg-[var(--comfort-accent-soft)] border-l border-[var(--comfort-border)] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
-          >
-            <PlusCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-            <span className="hidden sm:inline">Catat Data</span>
           </button>
 
           <button

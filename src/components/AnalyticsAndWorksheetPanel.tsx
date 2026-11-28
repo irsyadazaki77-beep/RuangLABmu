@@ -402,6 +402,9 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
           <h1 className="text-lg sm:text-xl font-bold text-[var(--comfort-text)] tracking-tight">
             Analisis Regresi, LKS &amp; Laporan Praktikum
           </h1>
+          <p className="text-2xs text-[var(--comfort-text-muted)]">
+            Urutan kerja: ① Periksa grafik data → ② Isi LKS, kesimpulan &amp; kuis → ③ Kirim ke guru atau lanjut ke Tahap 4.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -415,7 +418,7 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
               className="comfort-btn-secondary px-3.5 py-2 min-h-[38px] text-xs font-semibold rounded-lg cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
               <ArrowLeft className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-              <span>Kokpit 3D</span>
+              <span>Kembali ke Simulasi 3D</span>
             </button>
           )}
 
@@ -593,6 +596,23 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
             xAxisLabel={axisMeta.xAxisLabel}
             y1AxisLabel={axisMeta.y1AxisLabel}
           />
+
+          <div className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs text-[var(--comfort-text-muted)]">
+              Sudah memeriksa grafik dan tabel pengamatan? Lanjutkan mengisi LKS &amp; kuis pemahaman.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                labSound.playClick();
+                setActiveTab('lks-quiz');
+              }}
+              className="comfort-btn-primary px-4 py-2 min-h-[38px] rounded-lg text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <span>Lanjut ke 2. LKS &amp; Kuis</span>
+              <ArrowRight className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -632,6 +652,37 @@ export const AnalyticsAndWorksheetPanel: React.FC<AnalyticsAndWorksheetPanelProp
               onQuizCompleted={onSubmitQuizScore}
             />
           </DetailAccordion>
+
+          <div className="rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface)] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs text-[var(--comfort-text-muted)]">
+              Setelah mengirim LKS, tinjau ringkasan cetak A4 atau lanjut ke Tahap 4 untuk kolaborasi &amp; ekspor akhir.
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  labSound.playClick();
+                  setActiveTab('summary-export');
+                }}
+                className="comfort-btn-secondary px-3.5 py-2 min-h-[38px] rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <span>Lihat 3. Ringkasan &amp; Cetak</span>
+              </button>
+              {onProceedToReport && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    labSound.playClick();
+                    onProceedToReport();
+                  }}
+                  className="comfort-btn-primary px-4 py-2 min-h-[38px] rounded-lg text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <span>Lanjut Tahap 4: Kolaborasi &amp; Ekspor</span>
+                  <ArrowRight className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

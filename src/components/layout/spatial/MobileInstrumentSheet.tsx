@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown, ChevronUp, PlusCircle, Check } from 'lucide-react';
 import { LiveFormulaCard } from '../../telemetry/LiveFormulaCard';
@@ -35,8 +35,26 @@ export const MobileInstrumentSheet: React.FC<MobileInstrumentSheetProps> = ({
 }) => {
   const [snapHeight, setSnapHeight] = useState<'compact' | 'tall'>('compact');
   const [justRecorded, setJustRecorded] = useState(false);
+  const recordedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const primaryMetric = telemetryMetrics[0];
   const secondaryMetric = telemetryMetrics[1];
+
+  useEffect(() => {
+    return () => {
+      if (recordedTimerRef.current) clearTimeout(recordedTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onToggleExpand();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [expanded, onToggleExpand]);
 
   const handleQuickRecord = () => {
     labSound.playRecordSuccess();
@@ -45,7 +63,8 @@ export const MobileInstrumentSheet: React.FC<MobileInstrumentSheetProps> = ({
       timestamp: Date.now(),
     });
     setJustRecorded(true);
-    setTimeout(() => setJustRecorded(false), 900);
+    if (recordedTimerRef.current) clearTimeout(recordedTimerRef.current);
+    recordedTimerRef.current = setTimeout(() => setJustRecorded(false), 900);
   };
 
   return (

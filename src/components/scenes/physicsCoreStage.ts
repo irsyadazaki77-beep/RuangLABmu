@@ -1275,19 +1275,19 @@ export function buildPhysicsCoreStage(
 
     if (inclineGroup.visible) {
       massBox.getWorldPosition(conceptBlockWorldPos);
-      _reusableConceptEntries[0].worldPos.set(conceptBlockWorldPos.x, conceptBlockWorldPos.y + 1.38, conceptBlockWorldPos.z);
+      _reusableConceptEntries[0].worldPos.set(conceptBlockWorldPos.x, conceptBlockWorldPos.y + 1.36, conceptBlockWorldPos.z);
       _reusableConceptEntries[0].text = `ΣF = ${curM.netForce.toFixed(1)} N · a = ${curM.acceleration.toFixed(2)} m/s²`;
       _reusableConceptEntries[0].active = true;
 
-      _reusableConceptEntries[1].worldPos.set(conceptBlockWorldPos.x - 0.9, conceptBlockWorldPos.y + 0.35, conceptBlockWorldPos.z);
+      _reusableConceptEntries[1].worldPos.set(conceptBlockWorldPos.x - 1.15, conceptBlockWorldPos.y + 0.35, conceptBlockWorldPos.z);
       _reusableConceptEntries[1].text = `${curM.isMoving ? 'Gesek fₖ' : 'Statis fₛ'} = ${Math.abs(curM.frictionForce).toFixed(1)} N`;
       _reusableConceptEntries[1].active = true;
 
-      _reusableConceptEntries[2].worldPos.set(conceptBlockWorldPos.x + 0.75, conceptBlockWorldPos.y + 0.9, conceptBlockWorldPos.z);
+      _reusableConceptEntries[2].worldPos.set(conceptBlockWorldPos.x + 0.85, conceptBlockWorldPos.y + 0.88, conceptBlockWorldPos.z);
       _reusableConceptEntries[2].text = `Normal N = ${curM.normalForce.toFixed(1)} N`;
       _reusableConceptEntries[2].active = true;
 
-      _reusableConceptEntries[3].worldPos.set(conceptBlockWorldPos.x + 0.4, conceptBlockWorldPos.y - 0.75, conceptBlockWorldPos.z);
+      _reusableConceptEntries[3].worldPos.set(conceptBlockWorldPos.x - 0.1, conceptBlockWorldPos.y - 1.55, conceptBlockWorldPos.z);
       _reusableConceptEntries[3].text = `W = ${curM.weightForce.toFixed(1)} N · mg sinθ = ${curM.gravityParallel.toFixed(1)} N`;
       _reusableConceptEntries[3].active = true;
     } else if (curM.mode === 'pendulum-harmonic') {

@@ -115,10 +115,10 @@ export const SpatialTelemetryDrawer: React.FC<SpatialTelemetryDrawerProps> = ({
                 {oscilloscope && (
                   <div className="rounded-xl bg-[var(--comfort-surface-subtle)] lab-grid-bg border border-[var(--comfort-border)] p-3 text-xs text-[var(--comfort-text)] space-y-2">
                     <div className="space-y-0.5">
-                      <div className="font-mono text-2xs font-bold text-[var(--comfort-accent)] truncate">
+                      <div className="font-mono text-2xs font-bold text-[var(--comfort-accent)] leading-snug break-words">
                         {oscilloscope.microscopicStateLabel}
                       </div>
-                      <p className="text-2xs text-[var(--comfort-text-muted)] line-clamp-2 leading-relaxed">
+                      <p className="text-2xs text-[var(--comfort-text-muted)] leading-relaxed">
                         {oscilloscope.microscopicDetail}
                       </p>
                     </div>

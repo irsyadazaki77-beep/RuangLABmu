@@ -1303,15 +1303,15 @@ export function buildChemistryCoreStage(
 
     const isRedox = p.mode === 'electrochemistry-cell' || (p.mode as string) === 'redox-electrochemistry';
     if (p.mode === 'acid-base-titration') {
-      reusableConceptPos[0].set(0, 3.3, 0);
+      reusableConceptPos[0].set(-0.24, 5.15, 0);
       reusableConceptEntries[0].text = `Buret Titran: Vb = ${(p.titrantAddedMl ?? 0).toFixed(1)} mL ↓`;
       reusableConceptEntries[0].active = true;
 
-      reusableConceptPos[1].set(0, 1.35, 0);
+      reusableConceptPos[1].set(-0.92, 1.18, 0.22);
       reusableConceptEntries[1].text = `Larutan Analit pH ${(m.currentPh ?? 7).toFixed(2)}`;
       reusableConceptEntries[1].active = true;
 
-      reusableConceptPos[2].set(2.05, 3.25, 0);
+      reusableConceptPos[2].set(2.35, 3.01, -0.08);
       reusableConceptEntries[2].text = `Skala pH (Ekivalen: ${(m.equivalenceVolumeMl ?? 25).toFixed(1)} mL)`;
       reusableConceptEntries[2].active = true;
     } else if (p.mode === 'reaction-kinetics-arrhenius') {

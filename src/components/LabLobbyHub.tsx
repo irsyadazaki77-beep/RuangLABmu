@@ -803,7 +803,7 @@ export const LabLobbyHub: React.FC<LabLobbyHubProps> = ({
 
               {/* Domain Card Body & Progress Bar */}
               <div className="p-3 space-y-2 flex-1 flex flex-col justify-between w-full">
-                <p className="text-2xs text-[var(--comfort-text-muted)] line-clamp-1 leading-relaxed">
+                <p className="text-2xs text-[var(--comfort-text-muted)] leading-relaxed">
                   {meta.tagline}
                 </p>
 

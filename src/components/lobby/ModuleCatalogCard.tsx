@@ -130,7 +130,7 @@ export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
         <div className="p-4 pb-3 space-y-2">
           {/* Row 1: Quiet Domain & Chapter kicker + Completion icon */}
           <div className="flex items-center justify-between gap-2 text-2xs text-[var(--comfort-text-muted)]">
-            <div className="flex items-center gap-1.5 min-w-0 font-mono tabular-nums">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0 font-mono tabular-nums">
               <DomainIcon
                 className={`w-3.5 h-3.5 shrink-0 ${domainTextClass}`}
                 aria-hidden="true"
@@ -190,12 +190,13 @@ export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
 
         <button
           type="button"
+          aria-label={`Mulai praktikum ${exp.title}`}
           onClick={(e) => {
             e.stopPropagation();
             labSound.playClick();
             onSelect(exp);
           }}
-          className="min-h-[36px] px-3 py-1.5 text-xs font-semibold rounded-lg text-[var(--comfort-accent)] bg-[var(--comfort-accent-soft)]/70 hover:bg-[var(--comfort-accent-soft)] transition-colors cursor-pointer whitespace-nowrap shrink-0 inline-flex items-center gap-1"
+          className="min-h-[36px] px-3 py-1.5 text-xs font-semibold rounded-lg text-[var(--comfort-accent)] bg-[var(--comfort-accent-soft)]/70 hover:bg-[var(--comfort-accent-soft)] transition-colors cursor-pointer whitespace-nowrap shrink-0 inline-flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)]"
         >
           <span>Mulai</span>
           <ArrowRight

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   TrendingUp,
   AlertTriangle,
@@ -80,6 +80,15 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const [copiedEquation, setCopiedEquation] = useState<boolean>(false);
   const [copiedDiagnostics, setCopiedDiagnostics] = useState<boolean>(false);
+  const copyEqTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyDiagTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyEqTimerRef.current) clearTimeout(copyEqTimerRef.current);
+      if (copyDiagTimerRef.current) clearTimeout(copyDiagTimerRef.current);
+    };
+  }, []);
 
   // Advanced Scientific Chart Toggles
   const [showErrorBars, setShowErrorBars] = useState<boolean>(true);
@@ -106,17 +115,22 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
     setExcludedIndices(new Set());
   };
 
+  const triggerCopiedEqToast = () => {
+    setCopiedEquation(true);
+    if (copyEqTimerRef.current) clearTimeout(copyEqTimerRef.current);
+    copyEqTimerRef.current = setTimeout(() => {
+      setCopiedEquation(false);
+      copyEqTimerRef.current = null;
+    }, 1600);
+  };
+
   const handleCopyEquation = () => {
     labSound.playClick();
     const summaryText = `${regression.equationString} (R² = ${regression.rSquared.toFixed(4)}, RMSE = ${residualStats.rmse.toFixed(3)})`;
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      void navigator.clipboard.writeText(summaryText).then(() => {
-        setCopiedEquation(true);
-        setTimeout(() => setCopiedEquation(false), 1600);
-      });
+      void navigator.clipboard.writeText(summaryText).then(triggerCopiedEqToast);
     } else {
-      setCopiedEquation(true);
-      setTimeout(() => setCopiedEquation(false), 1600);
+      triggerCopiedEqToast();
     }
   };
 
@@ -168,16 +182,21 @@ export const RegressionChartSection: React.FC<RegressionChartSectionProps> = ({
     });
   };
 
+  const triggerCopiedDiagToast = () => {
+    setCopiedDiagnostics(true);
+    if (copyDiagTimerRef.current) clearTimeout(copyDiagTimerRef.current);
+    copyDiagTimerRef.current = setTimeout(() => {
+      setCopiedDiagnostics(false);
+      copyDiagTimerRef.current = null;
+    }, 1800);
+  };
+
   const handleCopyDiagnosticReport = () => {
     labSound.playClick();
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      void navigator.clipboard.writeText(curveDiagnostics.clipboardReport).then(() => {
-        setCopiedDiagnostics(true);
-        setTimeout(() => setCopiedDiagnostics(false), 1800);
-      });
+      void navigator.clipboard.writeText(curveDiagnostics.clipboardReport).then(triggerCopiedDiagToast);
     } else {
-      setCopiedDiagnostics(true);
-      setTimeout(() => setCopiedDiagnostics(false), 1800);
+      triggerCopiedDiagToast();
     }
   };
 

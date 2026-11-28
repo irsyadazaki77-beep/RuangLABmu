@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Camera,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Contrast,
   Glasses,
@@ -98,6 +100,44 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
 
   const embedMode = useSceneEmbedMode();
   const [collapsed, setCollapsed] = useState(false);
+  const toolbarScrollRef = useRef<HTMLDivElement | null>(null);
+  const [scrollState, setScrollState] = useState({ left: false, right: false });
+
+  const isLeftOpen = !zenMode && leftDrawerOpen;
+  const isRightOpen = !zenMode && rightTelemetryOpen;
+  const isMobileSheetOpen = mobileTab === 'variables' || mobileTab === 'telemetry';
+
+  const syncScrollState = useCallback(() => {
+    const el = toolbarScrollRef.current;
+    if (!el) {
+      setScrollState({ left: false, right: false });
+      return;
+    }
+    const canLeft = el.scrollLeft > 4;
+    const canRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    setScrollState((prev) =>
+      prev.left === canLeft && prev.right === canRight
+        ? prev
+        : { left: canLeft, right: canRight }
+    );
+  }, []);
+
+  useEffect(() => {
+    if (collapsed) return;
+    syncScrollState();
+    const el = toolbarScrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', syncScrollState);
+      return () => window.removeEventListener('resize', syncScrollState);
+    }
+    const ro = new ResizeObserver(syncScrollState);
+    ro.observe(el);
+    window.addEventListener('resize', syncScrollState);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', syncScrollState);
+    };
+  }, [collapsed, isLeftOpen, isRightOpen, tools.length, syncScrollState]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -118,10 +158,6 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
-
-  const isLeftOpen = !zenMode && leftDrawerOpen;
-  const isRightOpen = !zenMode && rightTelemetryOpen;
-  const isMobileSheetOpen = mobileTab === 'variables' || mobileTab === 'telemetry';
 
   // Strictly constrained inside the open center corridor on lg (1024px+) and xl (1280px+)
   // Left drawer: left-3 (12px) + w-[296px] = right 308px (lg), w-[316px] = right 328px (xl)
@@ -163,11 +199,26 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
           <ChevronUp className="w-3.5 h-3.5 opacity-75 shrink-0" aria-hidden="true" />
         </button>
       ) : (
-        <div
-          role="toolbar"
-          aria-label="Kontrol Kamera dan Instrumen 3D"
-          className="pointer-events-auto studio-hud-surface max-w-full rounded-xl px-1.5 py-1 shadow-md flex flex-nowrap items-center gap-1 overflow-x-auto no-scrollbar"
-        >
+        <div className="pointer-events-auto studio-hud-surface max-w-full rounded-xl px-1.5 py-1 shadow-md flex items-center gap-0.5">
+          {scrollState.left && (
+            <button
+              type="button"
+              onClick={() => {
+                toolbarScrollRef.current?.scrollBy({ left: -140, behavior: 'smooth' });
+              }}
+              aria-label="Geser kontrol 3D ke kiri"
+              className="p-1 rounded-lg text-[var(--comfort-hud-text)] hover:bg-sky-500/15 cursor-pointer shrink-0"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          )}
+          <div
+            ref={toolbarScrollRef}
+            onScroll={syncScrollState}
+            role="toolbar"
+            aria-label="Kontrol Kamera dan Instrumen 3D"
+            className="min-w-0 flex-1 flex flex-nowrap items-center gap-1 overflow-x-auto no-scrollbar"
+          >
           {/* Group 1: Camera Reset & Presets */}
           <div className="flex items-center gap-0.5 shrink-0">
             <button
@@ -346,7 +397,8 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
                 }`}
               >
                 <Info className="w-3 h-3 shrink-0" aria-hidden="true" />
-                <span className="hidden md:inline">Info Alat</span>
+                <span className="hidden md:inline 2xl:hidden">Info</span>
+                <span className="hidden 2xl:inline">Info Alat</span>
               </button>
             )}
 
@@ -375,7 +427,7 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
               ) : (
                 <Sun className="w-3 h-3 text-amber-500 shrink-0" aria-hidden="true" />
               )}
-              <span className="hidden xl:inline">
+              <span className="hidden 2xl:inline">
                 {comfortTheme === 'dark'
                   ? 'Gelap'
                   : comfortTheme === 'sepia'
@@ -431,6 +483,19 @@ export const Scene3DControlDock: React.FC<Scene3DControlDockProps> = ({
               <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
+          </div>
+          {scrollState.right && (
+            <button
+              type="button"
+              onClick={() => {
+                toolbarScrollRef.current?.scrollBy({ left: 140, behavior: 'smooth' });
+              }}
+              aria-label="Geser kontrol 3D ke kanan"
+              className="p-1 rounded-lg text-[var(--comfort-hud-text)] hover:bg-sky-500/15 cursor-pointer shrink-0"
+            >
+              <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          )}
         </div>
       )}
     </div>

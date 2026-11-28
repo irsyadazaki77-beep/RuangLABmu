@@ -110,6 +110,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
 
   const prevRecordsCountRef = useRef<number>(recordsCount);
   const recordPulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const snapshotPulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const unsub = aiVoiceAssistant.subscribe((next) => setVoiceState(next));
@@ -135,6 +136,10 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       if (recordPulseTimerRef.current) {
         clearTimeout(recordPulseTimerRef.current);
         recordPulseTimerRef.current = null;
+      }
+      if (snapshotPulseTimerRef.current) {
+        clearTimeout(snapshotPulseTimerRef.current);
+        snapshotPulseTimerRef.current = null;
       }
     };
   }, []);
@@ -166,10 +171,18 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
     }, 900);
   };
 
+  const triggerSnapshotPulse = () => {
+    setSnapshotPulse(true);
+    if (snapshotPulseTimerRef.current) clearTimeout(snapshotPulseTimerRef.current);
+    snapshotPulseTimerRef.current = setTimeout(() => {
+      setSnapshotPulse(false);
+      snapshotPulseTimerRef.current = null;
+    }, 350);
+  };
+
   const handleCapture3DSnapshot = () => {
     labSound.playRecordSuccess();
-    setSnapshotPulse(true);
-    setTimeout(() => setSnapshotPulse(false), 350);
+    triggerSnapshotPulse();
     triggerCaptureSnapshot();
   };
 
@@ -227,8 +240,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       } else if (key === 's' && is3DStageActive) {
         e.preventDefault();
         labSound.playRecordSuccess();
-        setSnapshotPulse(true);
-        setTimeout(() => setSnapshotPulse(false), 350);
+        triggerSnapshotPulse();
         useLabStore.getState().triggerCaptureSnapshot();
       } else if (e.code === 'Space' && is3DStageActive) {
         if (activeEl && activeEl.tagName.toLowerCase() === 'button') return;
@@ -283,7 +295,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
       aria-label="Dock Kontrol Cepat RuangLABmu"
       className={`${
         isMobileSheetOpen ? 'hidden lg:flex' : 'flex'
-      } fixed bottom-[60px] lg:bottom-2.5 left-1/2 -translate-x-1/2 z-20 lg:z-40 max-w-[calc(100vw-16px)] lg:max-w-[calc(100vw-24px)] flex-col items-stretch gap-1 px-2 py-1 rounded-xl studio-hud-surface shadow-lg border border-[var(--comfort-border)] transition-all duration-200 select-none`}
+      } fixed bottom-[60px] lg:bottom-2.5 inset-x-0 mx-auto w-fit z-20 lg:z-40 max-w-[calc(100vw-16px)] lg:max-w-[calc(100vw-24px)] flex-col items-stretch gap-1 px-2 py-1 rounded-xl studio-hud-surface shadow-lg border border-[var(--comfort-border)] transition-all duration-200 select-none`}
     >
       {/* Floating Instant Confirmation Toast above Dock */}
       {recordToastLabel && (
@@ -391,7 +403,7 @@ export const LabControlDock: React.FC<LabControlDockProps> = ({
         </div>
       )}
 
-      <div className="flex flex-nowrap items-center justify-start sm:justify-center gap-1 overflow-x-auto no-scrollbar">
+      <div className="flex flex-nowrap items-center justify-start gap-1 overflow-x-auto no-scrollbar">
         {/* 0. Quick Record Data CTA ([D]) — Priority #1 */}
         <button
           type="button"
