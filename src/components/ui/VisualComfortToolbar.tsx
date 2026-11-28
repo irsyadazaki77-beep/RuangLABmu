@@ -96,7 +96,7 @@ export function getComfortChartPalette(
  */
 export function getSceneThemeColors(
   comfortTheme: ComfortThemeMode = 'light',
-  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' = 'Fisika'
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | 'Kebumian' = 'Fisika'
 ): SceneThemeColors {
   if (domain === 'Astronomi') {
     if (comfortTheme === 'light') {

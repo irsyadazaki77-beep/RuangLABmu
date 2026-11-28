@@ -5,7 +5,7 @@ export interface CurriculumChapter {
   chapterNumber: number;
   title: string;
   shortTitle: string;
-  domain: 'fisika' | 'kimia' | 'biologi' | 'astronomi' | 'sains-terpadu';
+  domain: 'fisika' | 'kimia' | 'biologi' | 'astronomi' | 'kebumian' | 'sains-terpadu';
   competencyTier: CompetencyTier;
   targetGrades: string;
   overviewDescription: string;
@@ -170,6 +170,31 @@ export const CURRICULUM_CHAPTERS: CurriculumChapter[] = [
     prerequisites: ['Gravitasi Newton', 'Spektrum gelombang elektromagnetik'],
     moduleIds: ['solar-kepler', 'planetary-atmosphere-greenhouse', 'milky-way-rotation', 'exoplanet-transit', 'stellar-wien-spectrum', 'doppler-redshift-binary', 'hubble-expansion'],
     realWorldTheme: 'Eksplorasi wahana antariksa, observatorium Bosscha/Timau NTT & pencarian kehidupan ekstrasurya',
+  },
+  {
+    id: 'bab-9-ilmu-kebumian-iklim',
+    chapterNumber: 9,
+    title: 'Bab 9: Ilmu Kebumian, Klimatologi & Geokronologi Radiometrik',
+    shortTitle: 'Bab 9: Kebumian',
+    domain: 'kebumian',
+    competencyTier: 'Menengah (SMA)',
+    targetGrades: 'SMP Kelas 8-9, SMA Kelas 10-12 & Mahasiswa Geofisika/Lingkungan',
+    overviewDescription:
+      'Mempelajari perambatan gelombang seismik P & S untuk penentuan episentrum gempa, neraca radiasi termal efek rumah kaca, aliran air tanah Hukum Darcy, serta penanggalan fosil Karbon-14.',
+    coreCompetencies: [
+      'Menghitung jarak hiposentrum gempa dari selisih waktu kedatangan gelombang P dan S.',
+      'Menganalisis sensitivitas suhu permukaan Bumi terhadap konsentrasi CO₂ dan albedo.',
+      'Menerapkan Hukum Darcy untuk menghitung debit aliran akuifer air tanah.',
+      'Menentukan umur radiometrik sampel menggunakan kurva peluruhan waktu paruh Karbon-14.',
+    ],
+    prerequisites: ['Gelombang mekanik', 'Termodinamika radiasi', 'Fungsi eksponensial'],
+    moduleIds: [
+      'earth-seismic-waves',
+      'earth-greenhouse-radiation',
+      'earth-hydrology-darcy',
+      'earth-radioactive-decay',
+    ],
+    realWorldTheme: 'Mitigasi gempa BMKG Nusantara, perubahan iklim global, konservasi air tanah & arkeologi',
   },
 ];
 

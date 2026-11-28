@@ -153,6 +153,8 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
     timelineCount,
     workflowStep,
     userRole,
+    sonificationEnabled,
+    toggleSonification,
   } = useLabStore(
     useShallow((s) => ({
       activeDomain: s.activeDomain,
@@ -161,6 +163,8 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
       timelineCount: s.timelineCount,
       workflowStep: s.workflowStep,
       userRole: s.userRole,
+      sonificationEnabled: s.sonificationEnabled,
+      toggleSonification: s.toggleSonification,
     }))
   );
 
@@ -440,6 +444,8 @@ export const StandardLabViewShell: React.FC<StandardLabViewShellProps> = ({
           labSound.playClick();
           toggleZenMode();
         }}
+        sonificationEnabled={sonificationEnabled}
+        onToggleSonification={toggleSonification}
         onOpenDrLabMu={handleOpenDrLabMu}
       />
 

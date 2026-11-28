@@ -15,6 +15,7 @@ import {
   DOMAIN_SHOWCASE_META,
   formatCleanCardEquation,
   getShortJenjangLabel,
+  resolveMerdekaPhaseLabel,
 } from './lobbyFormatters';
 
 export interface ModuleCatalogCardProps {
@@ -31,6 +32,7 @@ const DOMAIN_TEXT_CLASSES: Record<ScienceDomain, string> = {
   kimia: 'text-teal-700 dark:text-teal-300',
   biologi: 'text-emerald-700 dark:text-emerald-300',
   astronomi: 'text-indigo-700 dark:text-indigo-300',
+  kebumian: 'text-emerald-700 dark:text-emerald-300',
 };
 
 const DOMAIN_HEADER_WASH: Record<ScienceDomain, string> = {
@@ -38,6 +40,7 @@ const DOMAIN_HEADER_WASH: Record<ScienceDomain, string> = {
   kimia: 'from-teal-500/12 via-teal-500/4 to-transparent',
   biologi: 'from-emerald-500/12 via-emerald-500/4 to-transparent',
   astronomi: 'from-indigo-500/14 via-indigo-500/5 to-transparent',
+  kebumian: 'from-emerald-500/14 via-teal-500/5 to-transparent',
 };
 
 export const ModuleCatalogCard: React.FC<ModuleCatalogCardProps> = ({
@@ -273,6 +276,10 @@ export const ChapterCatalogCard: React.FC<ChapterCatalogCardProps> = ({
             ·
           </span>
           <span className={domainTextClass}>{getShortJenjangLabel(chapter)}</span>
+          <span aria-hidden="true" className="opacity-45">
+            ·
+          </span>
+          <span className="text-[var(--comfort-text-muted)]">{resolveMerdekaPhaseLabel(chapter)}</span>
         </div>
         {completedInChapter > 0 && (
           <div className="pointer-events-none absolute top-2 right-2.5 z-10 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--comfort-surface)]/90 backdrop-blur-xs border border-[var(--comfort-border)] text-2xs font-mono font-semibold text-[var(--comfort-success)] tabular-nums">

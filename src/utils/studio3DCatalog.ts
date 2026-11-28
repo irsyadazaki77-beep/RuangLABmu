@@ -1,4 +1,4 @@
-export type StudioDomain = 'physics' | 'chemistry' | 'biology' | 'astronomy';
+export type StudioDomain = 'physics' | 'chemistry' | 'biology' | 'astronomy' | 'earth';
 export type StudioCameraPreset = 'isometric' | 'front' | 'top' | 'focus' | 'ecliptic';
 
 export interface CameraPresetPose {
@@ -283,6 +283,12 @@ export function normalizeStudioModeKey(domain: StudioDomain, rawMode: string): s
     if (m.includes('lung') || m.includes('respir')) return 'anatomy-lungs';
     if (m.includes('neural') || m.includes('neuron') || m.includes('synapse')) return 'anatomy-neuron';
     return 'photosynthesis';
+  }
+  if (domain === 'earth') {
+    if (m.includes('greenhouse') || m.includes('radiation')) return 'earth-greenhouse';
+    if (m.includes('hydrology') || m.includes('darcy')) return 'earth-hydrology';
+    if (m.includes('decay') || m.includes('radioactive')) return 'earth-decay';
+    return 'earth-seismic';
   }
   if (m.includes('milky') || m.includes('galaxy') || m.includes('rotation')) return 'milky-way';
   if (m.includes('exoplanet') || m.includes('transit')) return 'exoplanet';
@@ -693,6 +699,46 @@ const INSPECTION_CATALOG: Record<string, ApparatusInspectionInfo> = {
     interactionHint: 'Ubah sudut inklinasi i menuju 90° (edge-on) untuk memaksimalkan pemisahan dua garis serapan H-α.',
     paramKey: 'binaryInclinationDeg',
   },
+  'earth:seismic': {
+    id: 'earth:seismic',
+    title: 'Stasiun Seismograf & Gelombang P-S Kerak Bumi',
+    category: 'Kebumian · Geofisika',
+    roleSummary: 'Merekam perambatan gelombang primer P dan sekunder S dari episentrum gempa menuju stasiun pemantau.',
+    scientificConcept: 'Selisih waktu tiba gelombang P dan S sebanding dengan jarak hiposentrum d dari patahan.',
+    relatedFormula: 'Δt = d · (1/vₛ − 1/vₚ)',
+    interactionHint: 'Geser jarak episentrum dan magnitudo gempa untuk mengamati perubahan jeda S−P dan amplitudo getaran.',
+    paramKey: 'epicenterDistance',
+  },
+  'earth:greenhouse': {
+    id: 'earth:greenhouse',
+    title: 'Bola Bumi & Selubung Efek Rumah Kaca',
+    category: 'Kebumian · Klimatologi',
+    roleSummary: 'Memvisualisasikan keseimbangan radiasi surya masuk dan serapan inframerah atmosfer oleh gas CO₂.',
+    scientificConcept: 'Peningkatan konsentrasi CO₂ dan penurunan albedo menaikkan suhu kesetimbangan permukaan planet.',
+    relatedFormula: 'ΔF = 5,35 · ln(CO₂ / 280)',
+    interactionHint: 'Ubah kadar CO₂ ppm dan albedo permukaan untuk melihat respons pemanasan global.',
+    paramKey: 'co2Concentration',
+  },
+  'earth:hydrology': {
+    id: 'earth:hydrology',
+    title: 'Model Akuifer Air Tanah Hukum Darcy',
+    category: 'Kebumian · Hidrogeologi',
+    roleSummary: 'Menunjukkan aliran fluida air tanah melalui lapisan batuan berpori dengan gradien tinggi hidrolik Δh/L.',
+    scientificConcept: 'Debit resapan air tanah berbanding lurus dengan konduktivitas hidrolik K, luas A, dan gradien hidrolik.',
+    relatedFormula: 'Q = K · A · (Δh / L)',
+    interactionHint: 'Atur beda tinggi hidrolik dan konduktivitas tanah untuk mengamati perubahan laju partikel air.',
+    paramKey: 'hydraulicHeadDiff',
+  },
+  'earth:decay': {
+    id: 'earth:decay',
+    title: 'Sampel Isotop & Pencacah Geiger-Müller Karbon-14',
+    category: 'Kebumian · Geokronologi',
+    roleSummary: 'Mengukur penyusutan inti radioaktif induk menjadi inti stabil serta laju peluruhan Becquerel.',
+    scientificConcept: 'Jumlah atom radioaktif berkurang separuhnya setiap satu interval waktu paruh T½.',
+    relatedFormula: 'N(t) = N₀ · (1/2)^(t / T½)',
+    interactionHint: 'Geser waktu peluruhan t untuk melihat rasio atom stabil vs radioaktif yang tersisa.',
+    paramKey: 'elapsedTime',
+  },
 };
 
 export function resolveApparatusInspection(
@@ -702,6 +748,13 @@ export function resolveApparatusInspection(
 ): ApparatusInspectionInfo {
   const canonical = normalizeStudioModeKey(domain, mode);
   const hint = (hintKeyOrLabel || '').toLowerCase();
+
+  if (domain === 'earth') {
+    if (canonical === 'earth-greenhouse') return INSPECTION_CATALOG['earth:greenhouse'];
+    if (canonical === 'earth-hydrology') return INSPECTION_CATALOG['earth:hydrology'];
+    if (canonical === 'earth-decay') return INSPECTION_CATALOG['earth:decay'];
+    return INSPECTION_CATALOG['earth:seismic'];
+  }
 
   if (domain === 'physics') {
     if (canonical === 'incline') {

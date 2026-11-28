@@ -401,6 +401,7 @@ export const PhysicsScene3D: React.FC<PhysicsScene3DProps> = ({
       camera,
       domElement: renderer.domElement,
       controls,
+      sceneForCursor: scene,
       defaultHoverColor: 0x38bdf8,
       dragSpanPx: 300,
       getInteractiveObjects: getInteractiveMeshes,

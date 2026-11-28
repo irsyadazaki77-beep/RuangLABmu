@@ -1559,6 +1559,171 @@ export const FORMULA_PRIMER_MODELS: Record<string, FormulaPrimerModel> = {
     buildIntuitiveSentence: (_activeVar, v, outcome) =>
       `Dengan massa pasangan M₂ = ${v.M2} M☉ dan inklinasi bidang orbit i = ${v.inc}°, proyeksi kecepatan radial bintang primer mencapai K₁ = ${outcome} km/s yang menggeser garis spektrum H-α.`,
   },
+
+  // =========================================================================
+  // ILMU KEBUMIAN (4 MODUL)
+  // =========================================================================
+  'earth-seismic-waves': {
+    moduleId: 'earth-seismic-waves',
+    title: 'Intuisi Selisih Gelombang P & S',
+    outcomeSymbol: 'Δt',
+    outcomeLabel: 'Jeda Tiba S−P',
+    outcomeUnit: 's',
+    variables: [
+      {
+        key: 'D',
+        symbol: 'D',
+        label: 'Jarak Episentrum',
+        unit: 'km',
+        min: 10,
+        max: 500,
+        step: 10,
+        defaultValue: 120,
+        role: 'independent',
+        colorClass: 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
+        paramKey: 'epicenterDistance',
+      },
+      {
+        key: 'vp',
+        symbol: 'vₚ',
+        label: 'Kecepatan Gelombang P',
+        unit: 'km/s',
+        min: 5.0,
+        max: 8.0,
+        step: 0.2,
+        defaultValue: 6.5,
+        role: 'inverse',
+        colorClass: 'text-sky-600 dark:text-sky-400 border-sky-500/40 bg-sky-500/10',
+        paramKey: 'pWaveVelocity',
+      },
+    ],
+    computeOutcome: (v) =>
+      Number((v.D * (1 / 3.7 - 1 / Math.max(4.5, v.vp))).toFixed(2)),
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Pada jarak episentrum D = ${v.D} km dengan kecepatan gelombang primer vₚ = ${v.vp} km/s, jeda waktu tiba gelombang S terhadap P mencapai ${outcome} detik.`,
+  },
+
+  'earth-greenhouse-radiation': {
+    moduleId: 'earth-greenhouse-radiation',
+    title: 'Intuisi Efek Rumah Kaca CO₂',
+    outcomeSymbol: 'T',
+    outcomeLabel: 'Suhu Permukaan',
+    outcomeUnit: '°C',
+    variables: [
+      {
+        key: 'co2',
+        symbol: 'CO₂',
+        label: 'Konsentrasi CO₂',
+        unit: 'ppm',
+        min: 180,
+        max: 1000,
+        step: 20,
+        defaultValue: 420,
+        role: 'independent',
+        colorClass: 'text-amber-600 dark:text-amber-400 border-amber-500/40 bg-amber-500/10',
+        paramKey: 'co2Concentration',
+      },
+      {
+        key: 'albedo',
+        symbol: 'α',
+        label: 'Albedo Permukaan',
+        unit: '',
+        min: 0.1,
+        max: 0.75,
+        step: 0.05,
+        defaultValue: 0.3,
+        role: 'inverse',
+        colorClass: 'text-sky-600 dark:text-sky-400 border-sky-500/40 bg-sky-500/10',
+        paramKey: 'albedo',
+      },
+    ],
+    computeOutcome: (v) => {
+      const absorbed = (1361 * (1 - v.albedo)) / 4;
+      const tEff = Math.pow(absorbed / 5.670374419e-8, 0.25);
+      const eps = Math.min(0.96, 0.77 + 5.35 * Math.log(v.co2 / 280) * 0.015);
+      return Number((tEff / Math.pow(1 - eps / 2, 0.25) - 273.15).toFixed(2));
+    },
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Pada konsentrasi CO₂ = ${v.co2} ppm dan albedo permukaan α = ${v.albedo}, neraca radiasi menghasilkan suhu kesetimbangan permukaan Bumi sekitar ${outcome} °C.`,
+  },
+
+  'earth-hydrology-darcy': {
+    moduleId: 'earth-hydrology-darcy',
+    title: 'Intuisi Aliran Hukum Darcy',
+    outcomeSymbol: 'Q',
+    outcomeLabel: 'Debit Air Tanah',
+    outcomeUnit: 'm³/hari',
+    variables: [
+      {
+        key: 'dh',
+        symbol: 'Δh',
+        label: 'Beda Tinggi Hidrolik',
+        unit: 'm',
+        min: 1,
+        max: 30,
+        step: 1,
+        defaultValue: 8,
+        role: 'independent',
+        colorClass: 'text-sky-600 dark:text-sky-400 border-sky-500/40 bg-sky-500/10',
+        paramKey: 'hydraulicHeadDiff',
+      },
+      {
+        key: 'K',
+        symbol: 'K',
+        label: 'Konduktivitas Hidrolik',
+        unit: 'm/hari',
+        min: 1,
+        max: 50,
+        step: 1,
+        defaultValue: 12,
+        role: 'independent',
+        colorClass: 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
+        paramKey: 'hydraulicConductivity',
+      },
+    ],
+    computeOutcome: (v) => Number((v.K * 25 * (v.dh / 100)).toFixed(2)),
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Dengan beda tinggi hidrolik Δh = ${v.dh} m dan konduktivitas K = ${v.K} m/hari, debit rembesan akuifer mencapai Q = ${outcome} m³/hari.`,
+  },
+
+  'earth-radioactive-decay': {
+    moduleId: 'earth-radioactive-decay',
+    title: 'Intuisi Peluruhan Waktu Paruh',
+    outcomeSymbol: 'P',
+    outcomeLabel: 'Inti Tersisa',
+    outcomeUnit: '%',
+    variables: [
+      {
+        key: 't',
+        symbol: 't',
+        label: 'Waktu Peluruhan',
+        unit: 'kyr',
+        min: 0,
+        max: 30,
+        step: 0.5,
+        defaultValue: 5.73,
+        role: 'inverse',
+        colorClass: 'text-amber-600 dark:text-amber-400 border-amber-500/40 bg-amber-500/10',
+        paramKey: 'elapsedTime',
+      },
+      {
+        key: 'th',
+        symbol: 'T½',
+        label: 'Waktu Paruh',
+        unit: 'kyr',
+        min: 1.0,
+        max: 15.0,
+        step: 0.5,
+        defaultValue: 5.73,
+        role: 'independent',
+        colorClass: 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
+        paramKey: 'halfLife',
+      },
+    ],
+    computeOutcome: (v) => Number((100 * Math.pow(0.5, v.t / Math.max(0.5, v.th))).toFixed(2)),
+    buildIntuitiveSentence: (_activeVar, v, outcome) =>
+      `Setelah t = ${v.t} kyr dengan waktu paruh T½ = ${v.th} kyr, proporsi atom radioaktif induk yang tersisa ialah ${outcome}%.`,
+  },
 };
 
 

@@ -93,7 +93,7 @@ describe('classAnalyticsEngine', () => {
 
     assert.equal(progress.totalModules, EXPERIMENT_CATALOG.length);
     assert.equal(progress.totalCompleted, 2);
-    assert.equal(progress.domains.length, 4);
+    assert.equal(progress.domains.length, 5);
 
     const fisika = progress.domains.find((d) => d.domain === 'fisika')!;
     const biologi = progress.domains.find((d) => d.domain === 'biologi')!;

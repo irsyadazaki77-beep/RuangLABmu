@@ -19,6 +19,9 @@ const BiologyLabView = React.lazy(() =>
 const AstronomyLabView = React.lazy(() =>
   import('../../AstronomyLabView').then((m) => ({ default: m.AstronomyLabView }))
 );
+const EarthScienceLabView = React.lazy(() =>
+  import('../../EarthScienceLabView').then((m) => ({ default: m.EarthScienceLabView }))
+);
 
 export interface Stage34PipViewportProps {
   effectiveStep: number;
@@ -313,6 +316,19 @@ export const Stage34PipViewport: React.FC<Stage34PipViewportProps> = ({
             }
             completedChallengeIds={completedChallengeIds}
             onCompleteChallenge={(ch) => onCompleteChallenge(ch.id)}
+          />
+        )}
+
+        {activeDomain === 'earth' && (
+          <EarthScienceLabView
+            records={records}
+            onDeleteRecord={deleteRecord}
+            onProceedToAnalysis={() => setWorkflowStep(3)}
+            onRecordExperiment={(title, summary, keyMetrics, noteText, numericCoords) =>
+              handleRecordExperiment('Kebumian', title, summary, keyMetrics, noteText, numericCoords)
+            }
+            hypothesisNote={currentModuleHypothesis?.hypothesisText}
+            zenMode={effectiveStep === 2 ? zenMode : true}
           />
         )}
         </div>

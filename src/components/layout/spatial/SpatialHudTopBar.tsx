@@ -15,6 +15,8 @@ import {
   PanelRightClose,
   PanelRightOpen,
   SlidersHorizontal,
+  Volume2,
+  VolumeX,
   Wifi,
   WifiOff,
   Zap,
@@ -51,6 +53,8 @@ export interface SpatialHudTopBarProps {
   onToggleRightDrawer: () => void;
   zenMode: boolean;
   onToggleFocus3D: () => void;
+  sonificationEnabled?: boolean;
+  onToggleSonification?: () => void;
   onOpenDrLabMu: () => void;
 }
 
@@ -83,6 +87,8 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
   onToggleRightDrawer,
   zenMode,
   onToggleFocus3D,
+  sonificationEnabled = false,
+  onToggleSonification,
   onOpenDrLabMu,
 }) => {
   const [displayPopoverOpen, setDisplayPopoverOpen] = useState(false);
@@ -367,6 +373,35 @@ export const SpatialHudTopBar: React.FC<SpatialHudTopBarProps> = ({
         >
           <span>{prefer2DFallback ? '3D' : '2D'}</span>
         </button>
+
+        {onToggleSonification && (
+          <button
+            type="button"
+            data-testid="hud-sonification-toggle-btn"
+            aria-pressed={sonificationEnabled}
+            onClick={() => {
+              labSound.playClick(sonificationEnabled ? 460 : 660);
+              onToggleSonification();
+            }}
+            title={
+              sonificationEnabled
+                ? 'Matikan Sonifikasi Audio Fisis Real-Time'
+                : 'Aktifkan Sonifikasi Audio Fisis (Terjemahkan Data ke Suara)'
+            }
+            className={`hidden md:inline-flex items-center gap-1 h-8 px-2 rounded-lg border text-2xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--comfort-accent)] ${
+              sonificationEnabled
+                ? 'comfort-accent-soft'
+                : 'studio-hud-subcard text-[var(--comfort-hud-muted)] hover:text-[var(--comfort-hud-text)]'
+            }`}
+          >
+            {sonificationEnabled ? (
+              <Volume2 className="w-3.5 h-3.5 shrink-0 text-[var(--comfort-accent)]" aria-hidden="true" />
+            ) : (
+              <VolumeX className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            )}
+            <span className="hidden 2xl:inline">{sonificationEnabled ? 'Audio ON' : 'Audio'}</span>
+          </button>
+        )}
 
         {onToggleDualMode && (
           <button

@@ -394,6 +394,7 @@ export function computeDomainCurriculumProgress(
     { domain: 'kimia', label: 'Kimia' },
     { domain: 'biologi', label: 'Biologi' },
     { domain: 'astronomi', label: 'Astronomi' },
+    { domain: 'kebumian', label: 'Kebumian' },
   ];
 
   const domains: DomainCurriculumProgress[] = domainSpecs.map(({ domain, label }) => {

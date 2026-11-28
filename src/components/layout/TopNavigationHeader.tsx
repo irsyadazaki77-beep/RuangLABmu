@@ -30,6 +30,10 @@ const StudentPortfolioModal = React.lazy(() => import('../portfolio/StudentPortf
 const BadgeNotificationModal = React.lazy(() =>
   import('../ui/BadgeNotificationModal').then((m) => ({ default: m.BadgeNotificationModal }))
 );
+const UserAuthModal = React.lazy(() =>
+  import('../auth/UserAuthModal').then((m) => ({ default: m.UserAuthModal }))
+);
+import { usePersistentAuth } from '../../hooks/usePersistentAuth';
 
 export interface TopNavigationHeaderProps {
   experimentModule: ExperimentModule;
@@ -65,6 +69,7 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const activeLang: 'id' | 'en' = i18n.language?.startsWith('en') ? 'en' : 'id';
+  usePersistentAuth();
 
   const {
     activeDomain,
@@ -468,6 +473,16 @@ export const TopNavigationHeader: React.FC<TopNavigationHeaderProps> = ({
             lksGraded={lksGraded}
             latestLksScore={latestLksScore}
             activeModuleTitle={experimentModule.title}
+          />
+        </Suspense>
+      )}
+
+      {activeModal === 'auth' && (
+        <Suspense fallback={<ModalLoadingFallback label="Membuka Portal Akun..." />}>
+          <UserAuthModal
+            isOpen={activeModal === 'auth'}
+            onClose={closeModal}
+            defaultDisplayName={activeProfile?.name || 'Alya Pratama'}
           />
         </Suspense>
       )}

@@ -10,6 +10,7 @@ import { PHYSICS_PEDAGOGY } from './physicsPedagogy';
 import { CHEMISTRY_PEDAGOGY } from './chemistryPedagogy';
 import { BIOLOGY_PEDAGOGY } from './biologyPedagogy';
 import { ASTRONOMY_PEDAGOGY } from './astronomyPedagogy';
+import { EARTH_SCIENCE_PEDAGOGY } from './earthSciencePedagogy';
 
 export interface ModulePedagogyBundle {
   keyTakeaways: string[];
@@ -26,4 +27,5 @@ export const MODULE_PEDAGOGY_MAP: Record<string, ModulePedagogyBundle> = {
   ...CHEMISTRY_PEDAGOGY,
   ...BIOLOGY_PEDAGOGY,
   ...ASTRONOMY_PEDAGOGY,
+  ...EARTH_SCIENCE_PEDAGOGY,
 };

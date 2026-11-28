@@ -15,10 +15,17 @@ export type ActiveModal =
   | 'mystery'
   | 'portfolio'
   | 'gradebook'
-  | 'ai-mission-builder';
+  | 'ai-mission-builder'
+  | 'auth';
 export type MobileTab = 'canvas' | 'variables' | 'telemetry' | 'worksheet' | 'ai';
 export type LobbyViewMode = 'chapters' | 'all';
-export type LobbyDomainFilter = 'all' | 'fisika' | 'kimia' | 'biologi' | 'astronomi';
+export type LobbyDomainFilter =
+  | 'all'
+  | 'fisika'
+  | 'kimia'
+  | 'biologi'
+  | 'astronomi'
+  | 'kebumian';
 export type TeacherViewMode = 'dashboard' | 'lab3d';
 export type LiveQualityTier = 'high' | 'balanced' | '3t-saver';
 export type QualityModePreference = 'auto' | '3t-saver' | 'high';

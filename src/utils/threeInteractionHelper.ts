@@ -66,6 +66,21 @@ export function computeDraggedParameterValue(
 }
 
 /**
+ * Pure helper detecting whether a snapped drag value moved onto a new step increment,
+ * used to trigger tactile step feedback without spamming audio every frame.
+ */
+export function computeDragStepChanged(
+  prevValue: number | null,
+  nextValue: number,
+  step = 1
+): boolean {
+  if (!Number.isFinite(nextValue)) return false;
+  if (prevValue === null || !Number.isFinite(prevValue)) return true;
+  const safeStep = Number.isFinite(step) && step > 0 ? step : 1;
+  return Math.abs(nextValue - prevValue) >= safeStep * 0.5;
+}
+
+/**
  * Pure helper distinguishing a tap/click (<= maxTravelPx pointer travel)
  * from an intentional parameter drag gesture on a 3D apparatus mesh.
  */
@@ -159,8 +174,11 @@ export class ThreeInteractionManager {
   private dragHitPoint = new THREE.Vector3();
   private dragExceededClickThreshold = false;
   private dragStartValue = 0;
+  private lastEmittedDragValue: number | null = null;
   private lastHoverRaycastMs = 0;
   private lastCursorEmitMs = 0;
+  private sceneForCursor: THREE.Scene | null = null;
+  private reticleRingMesh: THREE.Mesh | null = null;
 
   private onHoverChange?: (object: THREE.Object3D | null, hitPoint: THREE.Vector3 | null) => void;
   private onDragStart?: (object: THREE.Object3D, paramKey?: string) => void;
@@ -177,7 +195,24 @@ export class ThreeInteractionManager {
     this.camera = options.camera;
     this.domElement = options.domElement;
     this.controls = options.controls ?? null;
+    this.sceneForCursor = options.sceneForCursor ?? null;
     this.defaultHoverColor = options.defaultHoverColor ?? 0x38bdf8;
+
+    if (this.sceneForCursor) {
+      const ringGeo = new THREE.RingGeometry(0.14, 0.2, 24);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: this.defaultHoverColor,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.78,
+        depthTest: false,
+      });
+      this.reticleRingMesh = new THREE.Mesh(ringGeo, ringMat);
+      this.reticleRingMesh.visible = false;
+      this.reticleRingMesh.renderOrder = 999;
+      this.reticleRingMesh.rotation.x = -Math.PI / 2;
+      this.sceneForCursor.add(this.reticleRingMesh);
+    }
     this.dragSpanPx = options.dragSpanPx ?? 280;
     this.getInteractiveObjects = options.getInteractiveObjects;
     this.getParamValue = options.getParamValue;
@@ -254,7 +289,10 @@ export class ThreeInteractionManager {
           resolved.step,
           this.dragSpanPx
         );
-        this.onDragUpdate(this.dragObject, resolved.paramKey, finalVal, resolved.label);
+        if (computeDragStepChanged(this.lastEmittedDragValue, finalVal, resolved.step)) {
+          this.lastEmittedDragValue = finalVal;
+          this.onDragUpdate(this.dragObject, resolved.paramKey, finalVal, resolved.label);
+        }
       }
 
       if (resolved.onDrag) {
@@ -285,6 +323,11 @@ export class ThreeInteractionManager {
         this.clearHover();
         this.applyHover(hitMesh);
       }
+      if (this.reticleRingMesh) {
+        this.reticleRingMesh.visible = true;
+        this.reticleRingMesh.position.copy(hitPoint);
+        this.reticleRingMesh.position.y += 0.03;
+      }
       this.onHoverChange?.(this.hoveredObject, hitPoint);
 
       if (this.onCursorMove3D && shouldRunThrottledRaycast(now, this.lastCursorEmitMs, 45)) {
@@ -299,6 +342,9 @@ export class ThreeInteractionManager {
       if (this.hoveredObject) {
         this.clearHover();
         this.onHoverChange?.(null, null);
+      }
+      if (this.reticleRingMesh) {
+        this.reticleRingMesh.visible = false;
       }
       if (this.onCursorMove3D && shouldRunThrottledRaycast(now, this.lastCursorEmitMs, 60)) {
         _dragRayVec.copy(this.raycaster.ray.direction).multiplyScalar(6);
@@ -333,6 +379,7 @@ export class ThreeInteractionManager {
         typeof liveVal === 'number' && Number.isFinite(liveVal)
           ? liveVal
           : Number(resolved.currentValue ?? resolved.min ?? 0);
+      this.lastEmittedDragValue = this.dragStartValue;
 
       if (this.controls) {
         this.controls.enabled = false;
@@ -428,6 +475,16 @@ export class ThreeInteractionManager {
 
   public dispose() {
     this.clearHover();
+    if (this.reticleRingMesh) {
+      this.reticleRingMesh.parent?.remove(this.reticleRingMesh);
+      this.reticleRingMesh.geometry.dispose();
+      if (Array.isArray(this.reticleRingMesh.material)) {
+        this.reticleRingMesh.material.forEach((m) => m.dispose());
+      } else {
+        this.reticleRingMesh.material.dispose();
+      }
+      this.reticleRingMesh = null;
+    }
     if (this.controls) {
       this.controls.enabled = true;
     }

@@ -28,9 +28,9 @@ function assertCleanNotation(text: string, context: string) {
   );
 }
 
-describe('36-Module Structured Pedagogy & Interactive Formula Primers', () => {
-  it('covers all 36 modules with complete structured pedagogy fields', () => {
-    assert.equal(EXPERIMENT_CATALOG.length, 36);
+describe('40-Module Structured Pedagogy & Interactive Formula Primers', () => {
+  it('covers all 40 modules with complete structured pedagogy fields', () => {
+    assert.equal(EXPERIMENT_CATALOG.length, 40);
 
     for (const mod of EXPERIMENT_CATALOG) {
       assert.ok(
@@ -146,6 +146,7 @@ describe('3D Studio Adaptive Camera Catalog & Apparatus Inspector', () => {
     kimia: 'chemistry',
     biologi: 'biology',
     astronomi: 'astronomy',
+    kebumian: 'earth',
   };
 
   it('returns finite camera poses for all presets across all 28 modules', () => {

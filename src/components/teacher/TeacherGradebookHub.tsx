@@ -18,7 +18,10 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
+  Columns2,
 } from 'lucide-react';
+import { PeerReviewComparisonModal } from './PeerReviewComparisonModal';
+import type { StudentLiveTelemetry } from '../../utils/collabProtocol';
 import { LabSubmission } from '../../types/submissionTypes';
 import {
   evaluateSubmissionRubric,
@@ -86,6 +89,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
   const [expandedRubricOpen, setExpandedRubricOpen] = useState<boolean>(false);
   const [selectedSubmission, setSelectedSubmission] = useState<LabSubmission | null>(null);
   const [replaySubmission, setReplaySubmission] = useState<LabSubmission | null>(null);
+  const [isPeerReviewOpen, setIsPeerReviewOpen] = useState(false);
 
   const [gradingScore, setGradingScore] = useState<number>(85);
   const [gradingFeedback, setGradingFeedback] = useState<string>('');
@@ -595,6 +599,20 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
 
             <button
               type="button"
+              data-testid="open-peer-review-btn"
+              onClick={() => {
+                labSound.playClick(640);
+                setIsPeerReviewOpen(true);
+              }}
+              title="Bandingkan 2 laporan kelompok secara berdampingan untuk diskusi kelas"
+              className="px-3.5 py-2 min-h-[38px] rounded-xl bg-[var(--comfort-surface)] hover:border-sky-500/50 text-[var(--comfort-text)] border border-[var(--comfort-border)] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Columns2 className="w-3.5 h-3.5 text-sky-500 shrink-0" aria-hidden="true" />
+              <span>Peer Review</span>
+            </button>
+
+            <button
+              type="button"
               data-testid="teacher-print-blank-worksheet-btn"
               onClick={() => {
                 labSound.playClick();
@@ -665,7 +683,7 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
                 onChange={(e) => setBlankLksModuleId(e.target.value)}
                 className="px-2.5 py-1.5 rounded-xl border border-[var(--comfort-border)] bg-[var(--comfort-surface-subtle)] text-xs font-semibold text-[var(--comfort-text)] max-w-xs"
               >
-                {(['fisika', 'kimia', 'biologi', 'astronomi'] as const).map((dom) => (
+                {(['fisika', 'kimia', 'biologi', 'astronomi', 'kebumian'] as const).map((dom) => (
                   <optgroup
                     key={dom}
                     label={dom.charAt(0).toUpperCase() + dom.slice(1)}
@@ -1079,6 +1097,23 @@ export const TeacherGradebookHub: React.FC<TeacherGradebookHubProps> = ({
         submission={replaySubmission}
         isOpen={Boolean(replaySubmission)}
         onClose={() => setReplaySubmission(null)}
+      />
+
+      <PeerReviewComparisonModal
+        isOpen={isPeerReviewOpen}
+        onClose={() => setIsPeerReviewOpen(false)}
+        telemetries={filteredSubmissions.map((sub): StudentLiveTelemetry => ({
+          studentName: sub.studentName,
+          domain: sub.domain,
+          moduleId: sub.moduleId,
+          moduleTitle:
+            EXPERIMENT_CATALOG.find((m) => m.id === sub.moduleId)?.title || sub.moduleId,
+          recordsCount: sub.observationData?.length ?? 0,
+          rSquared: sub.regressionMetrics?.rSquared ?? 0.9,
+          parametersSummary:
+            sub.regressionMetrics?.equation || `${sub.observationData?.length ?? 0} sampel`,
+          lastUpdated: sub.submittedAt,
+        }))}
       />
 
       <TeacherAuthGateModal

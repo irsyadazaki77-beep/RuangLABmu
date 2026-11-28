@@ -135,14 +135,15 @@ export default defineConfig(() => {
       },
     },
     build: {
+      chunkSizeWarningLimit: 500,
       rollupOptions: {
         output: {
           manualChunks(id) {
             const nid = id.replace(/\\/g, '/');
-            if (nid.includes('node_modules/three/examples/')) {
+            if (nid.includes('node_modules/three/examples/') || nid.includes('node_modules/three/addons/')) {
               return 'vendor-three-addons';
             }
-            if (nid.includes('node_modules/three/')) {
+            if (nid.includes('node_modules/three/build/') || nid.includes('node_modules/three/')) {
               return 'vendor-three';
             }
             if (
@@ -177,10 +178,18 @@ export default defineConfig(() => {
             if (
               nid.includes('/src/utils/threeStudioKit') ||
               nid.includes('/src/utils/threeStudioHost') ||
+              nid.includes('/src/utils/threeInteractionHelper')
+            ) {
+              return 'lab-three-core';
+            }
+            if (
               nid.includes('/src/utils/threePostProcessing') ||
               nid.includes('/src/utils/threeMeasurementTools')
             ) {
-              return 'lab-three-kit';
+              return 'lab-three-fx';
+            }
+            if (nid.includes('/src/utils/engines/multiApparatusEngine')) {
+              return 'lab-sandbox-engine';
             }
             if (nid.includes('/src/utils/engines/') || nid.includes('/src/utils/scienceEngine')) {
               return 'lab-engines';

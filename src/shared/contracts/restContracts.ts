@@ -231,6 +231,23 @@ export const TelemetryAnalyticsSchema = z
   })
   .passthrough();
 
+export const ClassMisconceptionAnalyzeSchema = z.object({
+  totalSubmissions: z.number().finite().min(0).max(1000),
+  averageScore: z.number().finite().min(0).max(100),
+  passRatePct: z.number().finite().min(0).max(100),
+  weakestCriterionLabel: z.string().max(200).optional(),
+  clusters: z
+    .array(
+      z.object({
+        title: z.string().min(1).max(240),
+        affectedCount: z.number().finite().min(0).max(1000),
+        affectedPct: z.number().finite().min(0).max(100),
+        remedialAction: z.string().max(1000).optional(),
+      })
+    )
+    .max(20),
+});
+
 export const DrLabMuTelemetrySchema = z
   .object({
     domain: z

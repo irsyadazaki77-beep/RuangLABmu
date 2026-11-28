@@ -59,7 +59,7 @@ export interface GroupTask {
   id: string;
   groupId: string;
   title: string;
-  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | 'Kebumian';
   completed: boolean;
   completedBy?: string;
 }
@@ -77,7 +77,7 @@ export interface StudentProgress {
   id: string;
   name: string;
   groupId: string;
-  activeDomain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
+  activeDomain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | 'Kebumian';
   currentActivity: string;
   trialsRecorded: number;
   tasksCompleted: number;
@@ -92,7 +92,7 @@ export interface ServerExperimentRecord {
   timestamp: string;
   studentName: string;
   groupId: string;
-  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | 'Kebumian';
   moduleId?: string;
   experimentTitle: string;
   parametersSummary: string;
@@ -107,7 +107,7 @@ export interface ServerNotification {
   id: string;
   timestamp: string;
   severity: 'nominal' | 'elevated' | 'critical';
-  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | 'Kolaborasi' | 'Pengajar';
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | 'Kebumian' | 'Kolaborasi' | 'Pengajar';
   title: string;
   message: string;
   formulaHint?: string;

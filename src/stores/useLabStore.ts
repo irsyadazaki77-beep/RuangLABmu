@@ -1,9 +1,15 @@
 import { create } from 'zustand';
 import { AcademicLevel } from '../utils/scienceEngine';
 import { LAB_EVENTS, emitLabEvent } from '../utils/labEventBus';
+import { scientificSonification } from '../utils/scientificSonificationEngine';
+import {
+  SandboxNode,
+  SandboxWire,
+  createSandboxPreset,
+} from '../utils/engines/sandboxCircuitSolver';
 
-export type LabDomain = 'physics' | 'chemistry' | 'biology' | 'astronomy';
-export type IndonesianDomain = 'fisika' | 'kimia' | 'biologi' | 'astronomi';
+export type LabDomain = 'physics' | 'chemistry' | 'biology' | 'astronomy' | 'earth';
+export type IndonesianDomain = 'fisika' | 'kimia' | 'biologi' | 'astronomi' | 'kebumian';
 export type AnyLabDomain = LabDomain | IndonesianDomain;
 export type WorkflowStep = 1 | 2 | 3 | 4;
 export type UserRole = 'siswa' | 'pengajar';
@@ -13,10 +19,12 @@ export const DOMAIN_TO_EN: Record<AnyLabDomain, LabDomain> = {
   chemistry: 'chemistry',
   biology: 'biology',
   astronomy: 'astronomy',
+  earth: 'earth',
   fisika: 'physics',
   kimia: 'chemistry',
   biologi: 'biology',
   astronomi: 'astronomy',
+  kebumian: 'earth',
 };
 
 export const DOMAIN_TO_ID: Record<AnyLabDomain, IndonesianDomain> = {
@@ -24,10 +32,12 @@ export const DOMAIN_TO_ID: Record<AnyLabDomain, IndonesianDomain> = {
   chemistry: 'kimia',
   biology: 'biologi',
   astronomy: 'astronomi',
+  earth: 'kebumian',
   fisika: 'fisika',
   kimia: 'kimia',
   biologi: 'biologi',
   astronomi: 'astronomi',
+  kebumian: 'kebumian',
 };
 
 export interface ApparatusDockingConnection {
@@ -46,10 +56,14 @@ export interface LabState {
   isSimulating: boolean;
   playbackSpeed: number;
   soundEnabled: boolean;
+  sonificationEnabled: boolean;
   academicLevel: AcademicLevel;
   workflowStep: WorkflowStep;
   userRole: UserRole;
   isLobbyMode: boolean;
+  activeSandboxMode: boolean;
+  sandboxNodes: SandboxNode[];
+  sandboxWires: SandboxWire[];
   isSubmissionLocked: boolean;
   dockedConnections: ApparatusDockingConnection[];
 
@@ -82,10 +96,26 @@ export interface LabState {
   setPlaybackSpeed: (speed: number) => void;
   toggleSound: () => void;
   setSoundEnabled: (enabled: boolean) => void;
+  toggleSonification: () => void;
+  setSonificationEnabled: (enabled: boolean) => void;
   setAcademicLevel: (level: AcademicLevel) => void;
   setWorkflowStep: (step: WorkflowStep) => void;
   setUserRole: (role: UserRole) => void;
   setIsLobbyMode: (isLobby: boolean) => void;
+  setActiveSandboxMode: (active: boolean) => void;
+  addSandboxNode: (node: SandboxNode) => void;
+  moveSandboxNode: (nodeId: string, x: number, y: number) => void;
+  updateSandboxNode: (
+    nodeId: string,
+    patch: Partial<Pick<SandboxNode, 'value' | 'enabled' | 'label'>>
+  ) => void;
+  removeSandboxNode: (nodeId: string) => void;
+  connectSandboxPorts: (wire: SandboxWire) => void;
+  removeSandboxWire: (wireId: string) => void;
+  loadSandboxPreset: (
+    preset: 'series-circuit' | 'parallel-circuit' | 'titration-bench' | 'optical-bench'
+  ) => void;
+  resetSandbox: () => void;
   setSubmissionLocked: (locked: boolean) => void;
   recordApparatusDocking: (conn: ApparatusDockingConnection) => void;
   clearApparatusDockings: () => void;
@@ -125,10 +155,19 @@ export const useLabStore = create<LabState>((set, get) => ({
   isSimulating: true,
   playbackSpeed: 1.0,
   soundEnabled: true,
+  sonificationEnabled: false,
   academicLevel: 'sma',
   workflowStep: isAutoStart ? 2 : 1,
   userRole: 'siswa',
   isLobbyMode: !isAutoStart,
+  activeSandboxMode: false,
+  ...(() => {
+    const initial = createSandboxPreset('series-circuit');
+    return {
+      sandboxNodes: initial.nodes,
+      sandboxWires: initial.wires,
+    };
+  })(),
   isSubmissionLocked: false,
   dockedConnections: [],
   isTimeTraveling: false,
@@ -226,6 +265,19 @@ export const useLabStore = create<LabState>((set, get) => ({
 
   setSoundEnabled: (soundEnabled: boolean) => {
     set({ soundEnabled });
+  },
+
+  toggleSonification: () => {
+    set((state) => {
+      const next = !state.sonificationEnabled;
+      scientificSonification.setEnabled(next);
+      return { sonificationEnabled: next };
+    });
+  },
+
+  setSonificationEnabled: (sonificationEnabled: boolean) => {
+    scientificSonification.setEnabled(sonificationEnabled);
+    set({ sonificationEnabled });
   },
 
   setAcademicLevel: (academicLevel: AcademicLevel) => {
@@ -349,6 +401,77 @@ export const useLabStore = create<LabState>((set, get) => ({
 
   getIndonesianDomain: () => {
     return DOMAIN_TO_ID[get().activeDomain];
+  },
+
+  setActiveSandboxMode: (activeSandboxMode: boolean) => {
+    set((state) => ({
+      activeSandboxMode,
+      isLobbyMode: activeSandboxMode ? false : state.isLobbyMode,
+    }));
+  },
+
+  addSandboxNode: (node: SandboxNode) => {
+    set((state) => ({
+      sandboxNodes: [...state.sandboxNodes, node],
+    }));
+  },
+
+  moveSandboxNode: (nodeId: string, x: number, y: number) => {
+    set((state) => ({
+      sandboxNodes: state.sandboxNodes.map((n) => (n.id === nodeId ? { ...n, x, y } : n)),
+    }));
+  },
+
+  updateSandboxNode: (nodeId, patch) => {
+    set((state) => ({
+      sandboxNodes: state.sandboxNodes.map((n) => (n.id === nodeId ? { ...n, ...patch } : n)),
+    }));
+  },
+
+  removeSandboxNode: (nodeId: string) => {
+    set((state) => ({
+      sandboxNodes: state.sandboxNodes.filter((n) => n.id !== nodeId),
+      sandboxWires: state.sandboxWires.filter(
+        (w) => w.fromNodeId !== nodeId && w.toNodeId !== nodeId
+      ),
+    }));
+  },
+
+  connectSandboxPorts: (wire: SandboxWire) => {
+    set((state) => {
+      if (wire.fromNodeId === wire.toNodeId) return state;
+      const duplicate = state.sandboxWires.some(
+        (w) =>
+          (w.fromNodeId === wire.fromNodeId &&
+            w.fromPort === wire.fromPort &&
+            w.toNodeId === wire.toNodeId &&
+            w.toPort === wire.toPort) ||
+          (w.fromNodeId === wire.toNodeId &&
+            w.fromPort === wire.toPort &&
+            w.toNodeId === wire.fromNodeId &&
+            w.toPort === wire.fromPort)
+      );
+      if (duplicate) return state;
+      return { sandboxWires: [...state.sandboxWires, wire] };
+    });
+  },
+
+  removeSandboxWire: (wireId: string) => {
+    set((state) => ({
+      sandboxWires: state.sandboxWires.filter((w) => w.id !== wireId),
+    }));
+  },
+
+  loadSandboxPreset: (preset) => {
+    const data = createSandboxPreset(preset);
+    set({
+      sandboxNodes: data.nodes,
+      sandboxWires: data.wires,
+    });
+  },
+
+  resetSandbox: () => {
+    set({ sandboxNodes: [], sandboxWires: [] });
   },
 }));
 

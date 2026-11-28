@@ -8,12 +8,14 @@ import {
   Monitor,
   Printer,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   Trophy,
   UserCircle2,
   Wand2,
   Zap,
 } from 'lucide-react';
+import { useAuthStore } from '../../../stores/useAuthStore';
 import { MODAL_POPOVER_VARIANTS, SPRING_TACTILE } from '../../../styles/motionPresets';
 import {
   ComfortThemeMode,
@@ -83,6 +85,11 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
   openModal,
   setOnboardingTourOpen,
 }) => {
+  const authSession = useAuthStore((s) => s.session);
+  const authToken = useAuthStore((s) => s.token);
+  const isVerifiedSession = Boolean(
+    authToken && authSession && authSession.exp > Math.floor(Date.now() / 1000)
+  );
   return (
     <div ref={containerRef} className="relative">
       <motion.button
@@ -131,30 +138,54 @@ export const UserSettingsPopover: React.FC<UserSettingsPopoverProps> = ({
             <div className="space-y-2 pb-2.5 border-b border-[var(--comfort-border)]">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="font-semibold truncate">
-                    {activeProfile?.name || 'Alya Pratama'}
+                  <div className="font-semibold truncate flex items-center gap-1.5">
+                    <span className="truncate">{authSession?.displayName || activeProfile?.name || 'Alya Pratama'}</span>
+                    {isVerifiedSession && (
+                      <span
+                        title="Sesi Terautentikasi Server"
+                        className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-2xs font-bold shrink-0"
+                      >
+                        Terverifikasi
+                      </span>
+                    )}
                   </div>
                   <div className="text-2xs text-[var(--comfort-text-muted)] tabular-nums">
                     {activeProfile?.group || 'Kelompok 1'} · Level {gamificationProfile.level} ({gamificationProfile.xp} XP)
                   </div>
                 </div>
-                <button
-                  type="button"
-                  data-testid="open-portfolio-btn"
-                  onClick={() => {
-                    labSound.playClick();
-                    onClose();
-                    if (userRole === 'pengajar') {
-                      onOpenGradebook();
-                    } else {
-                      openModal('portfolio');
-                    }
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg comfort-btn-secondary font-semibold text-2xs inline-flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
-                >
-                  <Trophy className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
-                  <span>{userRole === 'pengajar' ? 'Buku Nilai' : 'Portofolio'}</span>
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    data-testid="open-user-auth-btn"
+                    onClick={() => {
+                      labSound.playClick();
+                      onClose();
+                      openModal('auth');
+                    }}
+                    className="px-2 py-1.5 rounded-lg comfort-btn-secondary font-semibold text-2xs inline-flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
+                    title="Masuk / Ganti Akun Siswa atau Guru"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
+                    <span>Akun</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="open-portfolio-btn"
+                    onClick={() => {
+                      labSound.playClick();
+                      onClose();
+                      if (userRole === 'pengajar') {
+                        onOpenGradebook();
+                      } else {
+                        openModal('portfolio');
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg comfort-btn-secondary font-semibold text-2xs inline-flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
+                  >
+                    <Trophy className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
+                    <span>{userRole === 'pengajar' ? 'Buku Nilai' : 'Portofolio'}</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-1.5">

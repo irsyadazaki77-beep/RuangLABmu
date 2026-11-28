@@ -12,7 +12,7 @@ import {
 } from './astronomyEngine';
 import type { DrLabMuUIAction } from '../drLabMuActions';
 
-export type ScienceDomain = 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi';
+export type ScienceDomain = 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | 'Kebumian';
 
 export interface ExperimentRecord {
   id: string;

@@ -8,7 +8,7 @@ export interface SpatialCursorPayload {
   userName: string;
   role: 'Siswa' | 'Pengajar';
   groupId: string;
-  domain: 'fisika' | 'kimia' | 'biologi' | 'astronomi';
+  domain: 'fisika' | 'kimia' | 'biologi' | 'astronomi' | 'kebumian';
   color: string;
   position: [number, number, number]; // 3D world coordinates [x, y, z]
   normal?: [number, number, number];  // Surface normal vector
@@ -18,7 +18,7 @@ export interface SpatialCursorPayload {
 
 export interface ParameterLockPayload {
   groupId: string;
-  domain: 'fisika' | 'kimia' | 'biologi' | 'astronomi';
+  domain: 'fisika' | 'kimia' | 'biologi' | 'astronomi' | 'kebumian';
   paramKey: string;      // e.g., "gravity", "mass", "inclineAngle"
   lockedByUserId: string;
   lockedByName: string;
@@ -26,7 +26,7 @@ export interface ParameterLockPayload {
 }
 
 export interface StudentLiveTelemetry {
-  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | string;
+  domain: 'Fisika' | 'Kimia' | 'Biologi' | 'Astronomi' | 'Kebumian' | string;
   topic?: string;
   moduleId: string;
   moduleTitle?: string;
@@ -71,7 +71,7 @@ export interface CustomAIMissionPayload {
   id: string;
   moduleId: string;
   moduleTitle: string;
-  domain: 'physics' | 'chemistry' | 'biology' | 'astronomy';
+  domain: 'physics' | 'chemistry' | 'biology' | 'astronomy' | 'earth';
   caseStudyPrompt: string;
   title: string;
   narrative: string;
@@ -87,7 +87,7 @@ export interface LabRoom {
   roomId: string;
   pin: string;
   schoolId?: string;
-  domain: 'physics' | 'chemistry' | 'biology' | 'astronomy';
+  domain: 'physics' | 'chemistry' | 'biology' | 'astronomy' | 'earth';
   moduleId: string;
   teacherSocketId?: string;
   teacherName?: string;

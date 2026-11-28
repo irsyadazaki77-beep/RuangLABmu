@@ -10,6 +10,7 @@ import {
 } from '../utils/scienceEngine';
 import { LabErrorBoundary } from './common/LabErrorBoundary';
 import { labSound } from '../utils/soundEngine';
+import { useLabSonification } from '../hooks/useLabSonification';
 
 const PhysicsScene3D = React.lazy(() => import('./PhysicsScene3D'));
 import { SpatialCursorPayload, ParameterLockPayload } from '../utils/collabProtocol';
@@ -176,6 +177,21 @@ export const PhysicsLabView: React.FC<PhysicsLabViewProps> = ({
 
   const metrics = calculatePhysicsMetrics(params);
   const instant = evaluateKinematicsAtTime(params, simTime);
+  useLabSonification(
+    {
+      kind: 'physics',
+      frequencyHz: params.waveFrequency ?? 440,
+      sourceVelocityMs:
+        Math.abs(instant.velocityX ?? 0) > 0.2 ? (instant.velocityX ?? 0) : 0,
+      speedHz:
+        params.mode === 'pendulum-harmonic' && 'pendulumFrequency' in metrics
+          ? metrics.pendulumFrequency
+          : params.mode === 'spring-hooke' && 'oscillationPeriod' in metrics
+          ? 1 / Math.max(0.2, metrics.oscillationPeriod || 1)
+          : 1 + Math.min(8, Math.hypot(instant.velocityX ?? 0, instant.velocityY ?? 0) * 0.25),
+    },
+    isPlaying
+  );
   const safetyHazard = evaluateSafetyHazard('Fisika', params);
   const prevHazardRef = useRef<boolean>(false);
   useEffect(() => {

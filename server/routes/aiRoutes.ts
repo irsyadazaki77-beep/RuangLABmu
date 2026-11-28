@@ -36,6 +36,7 @@ import {
   validateVisionDiagnosePayload,
   type ValidatedGenerateMissionPayload,
 } from '../utils/routePayloadValidators';
+import { ClassMisconceptionAnalyzeSchema } from '../../src/shared/contracts/restContracts';
 import {
   deriveContextualDrLabMuActions,
   sanitizeDrLabMuUIActions,
@@ -808,6 +809,71 @@ Berikan bimbingan Sokratik cerdas:
         .json({ error: 'Gagal memproses visual diagnostik 3D.' });
     }
   });
+
+  router.post(
+    '/api/ai/class-misconceptions',
+    requireTeacherAuthMiddleware,
+    async (req, res) => {
+      try {
+        const parsed = ClassMisconceptionAnalyzeSchema.safeParse(req.body);
+        if (!parsed.success) {
+          res.status(400).json({
+            error: 'VALIDATION_ERROR',
+            code: 'INVALID_PAYLOAD',
+            message: 'Payload analitik miskonsepsi kelas tidak valid.',
+          });
+          return;
+        }
+
+        const { totalSubmissions, averageScore, passRatePct, weakestCriterionLabel, clusters } =
+          parsed.data;
+        const activeClusters = clusters.filter((c) => c.affectedCount > 0);
+        const topCluster = activeClusters[0];
+
+        const ai = getSharedGeminiClient();
+        if (ai) {
+          try {
+            const prompt = `Anda adalah konsultan pedagogik sains RuangLABmu (Kurikulum Merdeka).
+Ringkasan kelas: ${totalSubmissions} laporan, rata-rata skor ${averageScore}/100, tingkat ketuntasan ${passRatePct}%.
+Dimensi terlemah: ${weakestCriterionLabel || 'N/A'}.
+Klaster miskonsepsi terdeteksi:
+${activeClusters.map((c) => `- ${c.title} (${c.affectedCount} siswa / ${c.affectedPct}%)`).join('\n')}
+
+Berikan 3 langkah intervensi pengajaran konkret untuk pertemuan kelas berikutnya (singkat, padat, aplikatif bagi guru IPA/Fisika/Kimia/Biologi/Astronomi/Kebumian).`;
+
+            const response = await runWithAiRetryAndTimeout('class_misconceptions', () =>
+              ai.models.generateContent({
+                model: DR_LABMU_MODEL,
+                contents: prompt,
+              })
+            );
+            const replyText = (response.text || '').trim();
+            if (replyText) {
+              res.json({ strategy: replyText, source: 'gemini-api' });
+              return;
+            }
+          } catch (err) {
+            logger.warn('Gemini class-misconceptions failed; using deterministic strategy', {
+              requestId: res.locals?.requestId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
+        const fallbackStrategy = topCluster
+          ? `1. Fokus Remedial Prioritas: ${topCluster.title} memengaruhi ${topCluster.affectedCount} siswa (${topCluster.affectedPct}%).\n2. Intervensi Praktikum 10 Menit: ${topCluster.remedialAction || 'Tampilkan perbandingan data dua kelompok lewat fitur Peer Review dan minta siswa memverifikasi grafik R².'}\n3. Evaluasi Formatif: Dengan ketuntasan saat ini ${passRatePct}% (rata-rata ${averageScore}), aktifkan Mode Proyektor & Laser Guru pada 1 sampel bermasalah sebelum sesi post-lab berikutnya.`
+          : `Seluruh dimensi praktikum kelas menunjukkan capaian terkendali (ketuntasan ${passRatePct}%, rata-rata ${averageScore}/100). Arahkan kelas ke tantangan Open Sandbox atau modul pengayaan Kurikulum Merdeka berikutnya.`;
+
+        res.json({ strategy: fallbackStrategy, source: 'deterministic-pedagogy-engine' });
+      } catch (err) {
+        logger.error('Error in /api/ai/class-misconceptions', {
+          requestId: res.locals?.requestId,
+          error: err,
+        });
+        res.status(500).json({ error: 'Gagal menganalisis miskonsepsi kelas.' });
+      }
+    }
+  );
 
   return router;
 }

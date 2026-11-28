@@ -9,6 +9,8 @@ import {
   Download,
   Printer,
   Check,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
 import {
   buildFullClassAnalyticsReportCsv,
@@ -16,6 +18,7 @@ import {
 } from '../../utils/classAnalyticsEngine';
 import type { LabSubmission } from '../../types/submissionTypes';
 import { labSound } from '../../utils/soundEngine';
+import { apiFetch } from '../../utils/apiClient';
 import { Accordion } from '../ui/Accordion';
 
 export interface GradebookClassAnalyticsPanelProps {
@@ -32,6 +35,8 @@ export const GradebookClassAnalyticsPanel: React.FC<GradebookClassAnalyticsPanel
   submissions = [],
 }) => {
   const [exportedFeedback, setExportedFeedback] = useState<string | null>(null);
+  const [aiStrategy, setAiStrategy] = useState<string | null>(null);
+  const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const maxBinCount = Math.max(1, ...analytics.histogram.map((b) => b.count));
 
   // Prioritize lowest-scoring rubric dimensions first so the 2-point preview highlights remedial targets
@@ -64,6 +69,47 @@ export const GradebookClassAnalyticsPanel: React.FC<GradebookClassAnalyticsPanel
     }
     setExportedFeedback('Siap Dicetak');
     setTimeout(() => setExportedFeedback(null), 2200);
+  };
+
+  const handleAnalyzeMisconceptionsAi = async () => {
+    labSound.playClick(680);
+    setIsAnalyzingAi(true);
+    try {
+      const res = await apiFetch('/api/ai/class-misconceptions', {
+        method: 'POST',
+        promptTeacherAuthOn401: true,
+        authReason: 'Verifikasi sesi guru diperlukan untuk menjalankan analisis strategi AI kelas.',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalSubmissions: analytics.totalSubmissions,
+          averageScore: analytics.averageScore,
+          passRatePct: analytics.passRatePct,
+          weakestCriterionLabel: analytics.weakestCriterion?.label,
+          clusters: analytics.misconceptionClusters.map((c) => ({
+            title: c.title,
+            affectedCount: c.affectedCount,
+            affectedPct: c.affectedPct,
+            remedialAction: c.remedialAction,
+          })),
+        }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { strategy?: string };
+        if (data.strategy) {
+          setAiStrategy(data.strategy);
+          return;
+        }
+      }
+      setAiStrategy(
+        `Ringkasan Lokal: ${analytics.misconceptionClusters.filter((c) => c.affectedCount > 0).length} klaster terdeteksi dengan ketuntasan ${analytics.passRatePct}%. Fokuskan diskusi kelas pada dimensi ${analytics.weakestCriterion?.label || 'akurasi numerik & regresi'}.`
+      );
+    } catch {
+      setAiStrategy(
+        `Ringkasan Offline 3T: Tingkat ketuntasan ${analytics.passRatePct}% (rata-rata ${analytics.averageScore}/100). Gunakan fitur Peer Review di header untuk meninjau laporan kelompok berdeviasi tinggi.`
+      );
+    } finally {
+      setIsAnalyzingAi(false);
+    }
   };
 
   const renderRubricDimension = (crit: ClassGradebookAnalytics['rubricAverages'][number]) => {
@@ -430,10 +476,39 @@ export const GradebookClassAnalyticsPanel: React.FC<GradebookClassAnalyticsPanel
                 Deteksi otomatis berdasarkan analisis rubrik 5-dimensi, kepadatan sampel, dan deviasi numerik RK4
               </p>
             </div>
-            <span className="text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
-              {analytics.misconceptionClusters.filter((c) => c.affectedCount > 0).length} klaster aktif
-            </span>
+            <div className="flex items-center gap-2.5">
+              <span className="text-2xs font-mono text-[var(--comfort-text-muted)] tabular-nums">
+                {analytics.misconceptionClusters.filter((c) => c.affectedCount > 0).length} klaster aktif
+              </span>
+              <button
+                type="button"
+                data-testid="ai-class-misconception-btn"
+                disabled={isAnalyzingAi}
+                onClick={() => void handleAnalyzeMisconceptionsAi()}
+                className="px-3 py-1.5 rounded-lg comfort-tab-active text-2xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60 whitespace-nowrap"
+              >
+                {isAnalyzingAi ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" />
+                )}
+                <span>{isAnalyzingAi ? 'Menganalisis...' : 'Strategi Remedial AI'}</span>
+              </button>
+            </div>
           </div>
+
+          {aiStrategy && (
+            <div
+              data-testid="ai-class-misconception-result"
+              className="p-3.5 rounded-xl border border-[var(--comfort-accent-border)] bg-[var(--comfort-accent-soft)] text-xs space-y-1 whitespace-pre-line"
+            >
+              <div className="font-bold text-[var(--comfort-accent)] flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Rekomendasi Strategi Mengajar Dr. LabMu</span>
+              </div>
+              <p className="text-[var(--comfort-text)] leading-relaxed">{aiStrategy}</p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {analytics.misconceptionClusters.map((cluster) => {

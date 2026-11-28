@@ -5,6 +5,16 @@ import { labSound } from '../../utils/soundEngine';
 import { generateRandomRoomId, generateRandomRoomPin } from '../../utils/collabProtocol';
 import { UserRole } from '../../stores/useLabStore';
 
+const DEFAULT_MODULE_BY_DOMAIN: Record<
+  'physics' | 'chemistry' | 'biology' | 'astronomy',
+  string
+> = {
+  physics: 'newton-incline',
+  chemistry: 'acid-base-titration',
+  biology: 'photosynthesis-ingenhousz',
+  astronomy: 'solar-kepler',
+};
+
 export interface RoomCollabModalProps {
   isOpen: boolean;
   mode: 'create' | 'join';
@@ -66,7 +76,10 @@ export const RoomCollabModal: React.FC<RoomCollabModalProps> = ({
     const ip = selectedLanIp || lanInfo?.ip;
     if (!ip) return;
     const port = lanInfo?.port || 3000;
-    const url = `http://${ip}:${port}`;
+    const cleanRoom = mode === 'create' ? formRoomId.trim().toUpperCase() : '';
+    const url = cleanRoom
+      ? `http://${ip}:${port}/?room=${encodeURIComponent(cleanRoom)}`
+      : `http://${ip}:${port}`;
     QRCode.toDataURL(url, {
       width: 160,
       margin: 1,
@@ -74,7 +87,7 @@ export const RoomCollabModal: React.FC<RoomCollabModalProps> = ({
     })
       .then((dataUrl) => setQrCodeDataUrl(dataUrl))
       .catch(() => {});
-  }, [selectedLanIp, lanInfo?.ip, lanInfo?.port]);
+  }, [selectedLanIp, lanInfo?.ip, lanInfo?.port, mode, formRoomId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -104,7 +117,7 @@ export const RoomCollabModal: React.FC<RoomCollabModalProps> = ({
       const pinCode = (formPin || generateRandomRoomPin()).trim();
       onSetUserRole('pengajar');
       if (onCreateRoom) {
-        onCreateRoom(pinCode, formDomain, 'newton-incline', code);
+        onCreateRoom(pinCode, formDomain, DEFAULT_MODULE_BY_DOMAIN[formDomain], code);
       }
     } else {
       const code = formRoomId.toUpperCase().trim();

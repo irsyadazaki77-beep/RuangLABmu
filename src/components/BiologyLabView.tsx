@@ -28,6 +28,7 @@ import {
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
+import { useLabSonification } from '../hooks/useLabSonification';
 import {
   getBiologyParameterFeedback,
   normalizeEducationLevel,
@@ -164,6 +165,12 @@ export const BiologyLabView: React.FC<BiologyLabViewProps> = ({
   const currentOutputs = useMemo(() => {
     return currentModule.computeStep(paramsState, Math.max(0.1, simTime));
   }, [currentModule, paramsState, simTime]);
+
+  useLabSonification({
+    kind: 'biology',
+    bpm: Number(currentOutputs.heartRateBpm ?? currentOutputs.bpm ?? 72),
+    oxygenRate: Number(currentOutputs.bubbleRate ?? 10),
+  }, isPlaying);
 
   const currentOutputsB = useMemo(() => {
     return currentModule.computeStep(realityBParamsState, Math.max(0.1, simTime));

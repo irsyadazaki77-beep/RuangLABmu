@@ -73,6 +73,7 @@ export function useLabParamsSync({
       chemistry: 'thermo-calorimetry',
       biology: selectedBioModuleId,
       astronomy: 'solar-kepler',
+      earth: 'earth-seismic-waves',
     };
     const modId = activeModuleId || domainDefaultMap[activeDomain] || 'newton-incline';
     return getExperimentById(modId) ?? EXPERIMENT_CATALOG[0];
@@ -85,6 +86,8 @@ export function useLabParamsSync({
       ? 'Biologi'
       : activeDomain === 'astronomy'
       ? 'Astronomi'
+      : activeDomain === 'earth'
+      ? 'Kebumian'
       : 'Fisika';
 
   const currentModuleHypothesis = hypothesisNotesByModule[currentExperimentModule.id] ?? {
@@ -196,6 +199,8 @@ export function useLabParamsSync({
           ? 'biology'
           : rawDomain === 'astronomi'
           ? 'astronomy'
+          : rawDomain === 'kebumian'
+          ? 'earth'
           : rawDomain === 'fisika'
           ? 'physics'
           : (rawDomain as LabDomain);

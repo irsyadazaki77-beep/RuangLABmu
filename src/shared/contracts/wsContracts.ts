@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-export const LabDomainSchema = z.enum(['fisika', 'kimia', 'biologi', 'astronomi']);
-export const RoomDomainSchema = z.enum(['physics', 'chemistry', 'biology', 'astronomy']);
+export const LabDomainSchema = z.enum(['fisika', 'kimia', 'biologi', 'astronomi', 'kebumian']);
+export const RoomDomainSchema = z.enum(['physics', 'chemistry', 'biology', 'astronomy', 'earth']);
 export const ClientRoleDisplaySchema = z.enum(['Siswa', 'Pengajar']);
 export const RoomClientRoleSchema = z.enum(['teacher', 'student']);
 export const Vec3Schema = z.tuple([
@@ -141,12 +141,13 @@ export const TeacherCameraSyncPayloadSchema = z.object({
   updatedAt: z.number().finite().optional(),
 });
 
-export const ScienceDomainDisplaySchema = z.enum(['Fisika', 'Kimia', 'Biologi', 'Astronomi']);
+export const ScienceDomainDisplaySchema = z.enum(['Fisika', 'Kimia', 'Biologi', 'Astronomi', 'Kebumian']);
 export const NotificationDomainSchema = z.enum([
   'Fisika',
   'Kimia',
   'Biologi',
   'Astronomi',
+  'Kebumian',
   'Kolaborasi',
   'Pengajar',
 ]);
@@ -251,6 +252,8 @@ export const ClientToServerMessageSchema = z.discriminatedUnion('type', [
       roomPin: z.string().max(64).optional(),
       roomId: z.string().max(32).optional(),
       params: z.record(z.string(), z.unknown()),
+      delta: z.record(z.string(), z.unknown()).optional(),
+      changedKeys: z.array(z.string().max(120)).optional(),
       updatedAt: z.number().finite().optional(),
     }),
   }),

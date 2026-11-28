@@ -10,6 +10,7 @@ export const DOMAIN_SCHEMATIC_COLORS: Record<ScienceDomain, string> = {
   kimia: '#14b8a6',
   biologi: '#10b981',
   astronomi: '#6366f1',
+  kebumian: '#059669',
 };
 
 export interface ModuleSchematicIllustrationProps {

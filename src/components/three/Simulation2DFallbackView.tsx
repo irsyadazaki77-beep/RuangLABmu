@@ -53,6 +53,11 @@ const DOMAIN_META: Record<LabDomain, { title: string; accentHex: string; primary
     accentHex: '#a78bfa',
     primaryLabel: 'Kurva Cahaya / Orbit',
   },
+  earth: {
+    title: 'Telemetri Seismologi, Iklim & Kebumian 2D',
+    accentHex: '#10b981',
+    primaryLabel: 'Amplitudo / Suhu / Debit',
+  },
 };
 
 /**

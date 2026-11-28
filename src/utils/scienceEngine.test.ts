@@ -796,17 +796,19 @@ test('Universal Experiment Registry: Module Catalog Integrity & Numerical Output
   const chemMods = getExperimentsByDomain('kimia');
   const bioMods = getExperimentsByDomain('biologi');
   const astroMods = getExperimentsByDomain('astronomi');
+  const earthMods = getExperimentsByDomain('kebumian');
 
   assert.ok(physicsMods.length >= 7, `Expected >= 7 Physics modules, found ${physicsMods.length}`);
   assert.ok(chemMods.length >= 5, `Expected >= 5 Chemistry modules, found ${chemMods.length}`);
   assert.ok(bioMods.length >= 3, `Expected >= 3 Biology modules, found ${bioMods.length}`);
   assert.ok(astroMods.length >= 4, `Expected >= 4 Astronomy modules, found ${astroMods.length}`);
+  assert.ok(earthMods.length >= 4, `Expected >= 4 Earth Science modules, found ${earthMods.length}`);
 
   // 2. Structural & Numerical Integrity for Every Registered Module
   for (const mod of EXPERIMENT_CATALOG) {
     assert.ok(mod.id && typeof mod.id === 'string', `Module ${mod.id} missing valid ID`);
     assert.ok(mod.title && typeof mod.title === 'string', `Module ${mod.id} missing valid title`);
-    assert.ok(['fisika', 'kimia', 'biologi', 'astronomi'].includes(mod.domain), `Invalid domain in ${mod.id}`);
+    assert.ok(['fisika', 'kimia', 'biologi', 'astronomi', 'kebumian'].includes(mod.domain), `Invalid domain in ${mod.id}`);
     assert.ok(mod.supportedTiers.length > 0, `Module ${mod.id} must support at least 1 tier`);
     assert.ok(mod.apparatusList.length > 0, `Module ${mod.id} apparatusList is empty`);
     assert.ok(mod.safetyNotes.length > 0, `Module ${mod.id} safetyNotes is empty`);

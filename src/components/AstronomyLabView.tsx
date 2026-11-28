@@ -27,6 +27,7 @@ import {
 import { StandardLabViewShell } from './layout/StandardLabViewShell';
 import { LAB_EVENTS, subscribeLabEvent } from '../utils/labEventBus';
 import { useLabStore } from '../stores/useLabStore';
+import { useLabSonification } from '../hooks/useLabSonification';
 import { normalizeEducationLevel } from '../utils/pedagogicalHelpers';
 import { useTimelineRecorder } from '../hooks/useTimelineRecorder';
 import { DualRealityLabViewport } from './ui/DualRealityLabViewport';
@@ -149,6 +150,12 @@ export const AstronomyLabView: React.FC<AstronomyLabViewProps> = ({
   }, [params]);
 
   const metrics = calculateAstronomyMetrics(params);
+  useLabSonification({
+    kind: 'astronomy',
+    orbitalVelocityKmS: Number(
+      metrics.meanOrbitalVelocityKms ?? metrics.observedDarkMatterVelocityKms ?? 29.8
+    ),
+  }, isPlaying);
   const metricsB = calculateAstronomyMetrics(realityBParams);
 
   const telemetryMetrics =

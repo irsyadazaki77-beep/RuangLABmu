@@ -105,6 +105,7 @@ export const LabSessionProvider: React.FC<{
         Kimia: 'chemistry',
         Biologi: 'biology',
         Astronomi: 'astronomy',
+        Kebumian: 'earth',
       } as const;
       setActiveDomain(domainKeyMap[restored.domain]);
 

@@ -14,6 +14,7 @@ import { ExperimentRecord, ScienceDomain } from '../../utils/scienceEngine';
 import { parseManualCsvRecords } from '../../utils/dynamicWorksheetEngine';
 import { labSound } from '../../utils/soundEngine';
 import { exportTableToCSV, CSVColumnDef } from '../../utils/csvExporter';
+import { downloadJupyterNotebook } from '../../utils/jupyterNotebookExporter';
 import { ScienceGlossaryTerm } from '../ui/ScienceGlossaryTerm';
 
 export interface DataObservationTableProps {
@@ -36,6 +37,7 @@ function normalizeScienceDomain(domain?: string): ScienceDomain {
   if (lower === 'kimia' || lower === 'chemistry') return 'Kimia';
   if (lower === 'biologi' || lower === 'biology') return 'Biologi';
   if (lower === 'astronomi' || lower === 'astronomy') return 'Astronomi';
+  if (lower === 'kebumian' || lower === 'earth' || lower === 'earth_science') return 'Kebumian';
   return 'Fisika';
 }
 
@@ -273,14 +275,39 @@ export const DataObservationTable: React.FC<DataObservationTableProps> = ({
           )}
 
           {records.length > 0 && (
-            <button
-              type="button"
-              onClick={handleDownloadCSV}
-              className="comfort-btn-secondary px-3 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <Download className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
-              <span>Unduh CSV</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleDownloadCSV}
+                className="comfort-btn-secondary px-3 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Download className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
+                <span>Unduh CSV</span>
+              </button>
+              <button
+                type="button"
+                data-testid="export-jupyter-btn"
+                onClick={() => {
+                  labSound.playClick(680);
+                  const pts = records
+                    .filter((r) => typeof r.numericX === 'number' && typeof r.numericY1 === 'number')
+                    .map((r) => ({ x: r.numericX as number, y: r.numericY1 as number }));
+                  downloadJupyterNotebook({
+                    moduleTitle: moduleTitle || 'Eksperimen RuangLABmu',
+                    domain: normalizeScienceDomain(domain),
+                    studentName: activeStudentName,
+                    xLabel: xAxisLabel,
+                    yLabel: y1AxisLabel,
+                    points: pts,
+                  });
+                }}
+                className="comfort-btn-secondary px-3 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+                title="Ekspor data + skrip Python/Matplotlib ke Jupyter Notebook (.ipynb)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-[var(--comfort-accent)]" />
+                <span>Ekspor .ipynb</span>
+              </button>
+            </>
           )}
         </div>
       </div>

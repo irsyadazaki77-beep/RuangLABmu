@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -84,6 +84,16 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
   const [quickBroadcastText, setQuickBroadcastText] = useState<string>('');
   const [broadcastSentNotice, setBroadcastSentNotice] = useState<boolean>(false);
   const [classControlsOpen, setClassControlsOpen] = useState<boolean>(false);
+  const broadcastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (broadcastTimerRef.current !== null) {
+        window.clearTimeout(broadcastTimerRef.current);
+        broadcastTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isTimerRunning) return;
@@ -115,7 +125,13 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
     onSendTeacherFeedback('all', trimmed);
     setQuickBroadcastText('');
     setBroadcastSentNotice(true);
-    window.setTimeout(() => setBroadcastSentNotice(false), 3000);
+    if (broadcastTimerRef.current !== null) {
+      window.clearTimeout(broadcastTimerRef.current);
+    }
+    broadcastTimerRef.current = window.setTimeout(() => {
+      setBroadcastSentNotice(false);
+      broadcastTimerRef.current = null;
+    }, 3000);
   };
 
   const formattedTimer = `${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(

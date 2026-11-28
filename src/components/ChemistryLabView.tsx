@@ -11,6 +11,7 @@ import {
 } from '../utils/scienceEngine';
 import { LabErrorBoundary } from './common/LabErrorBoundary';
 import { labSound } from '../utils/soundEngine';
+import { useLabSonification } from '../hooks/useLabSonification';
 
 const ChemistryScene3D = React.lazy(() => import('./ChemistryScene3D'));
 import { SpatialCursorPayload } from '../utils/collabProtocol';
@@ -154,6 +155,11 @@ export const ChemistryLabView: React.FC<ChemistryLabViewProps> = ({
   }, [params]);
 
   const metrics = calculateChemistryMetrics(params);
+  useLabSonification({
+    kind: 'chemistry',
+    ph: metrics.currentPh ?? 7,
+    temperatureC: params.initialTempC ?? 25,
+  }, isPlaying);
   const safetyHazard = evaluateSafetyHazard('Kimia', undefined, params);
   const prevHazardRef = useRef<boolean>(false);
   useEffect(() => {

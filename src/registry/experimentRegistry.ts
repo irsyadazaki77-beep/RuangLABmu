@@ -2,11 +2,12 @@ import { PHYSICS_MODULES } from './modules/physicsModules';
 import { CHEMISTRY_MODULES } from './modules/chemistryModules';
 import { BIOLOGY_MODULES } from './modules/biologyModules';
 import { ASTRONOMY_MODULES } from './modules/astronomyModules';
+import { EARTH_SCIENCE_MODULES } from './modules/earthScienceModules';
 import { MODULE_DEEP_DIVE_MAP } from './moduleDeepDiveData';
 import { MODULE_PEDAGOGY_MAP } from './pedagogy';
 import { CURRICULUM_CHAPTERS, CurriculumChapter, CompetencyTier } from './curriculumChapters';
 
-export type ScienceDomain = 'fisika' | 'kimia' | 'biologi' | 'astronomi';
+export type ScienceDomain = 'fisika' | 'kimia' | 'biologi' | 'astronomi' | 'kebumian';
 export type EducationTier = 'SMP' | 'SMA' | 'Mahasiswa';
 
 export { CURRICULUM_CHAPTERS };
@@ -110,6 +111,7 @@ export const EXPERIMENT_CATALOG: ExperimentModule[] = [
   ...CHEMISTRY_MODULES,
   ...BIOLOGY_MODULES,
   ...ASTRONOMY_MODULES,
+  ...EARTH_SCIENCE_MODULES,
 ].map((mod) => {
   const deepDive = MODULE_DEEP_DIVE_MAP[mod.id] || {};
   const pedagogy = MODULE_PEDAGOGY_MAP[mod.id];

@@ -35,6 +35,9 @@ const AICustomMissionBuilderModal = React.lazy(
 const TeacherDashboardView = React.lazy(() =>
   import('../TeacherDashboardView').then((m) => ({ default: m.TeacherDashboardView }))
 );
+const OpenSandboxWorkbench = React.lazy(() =>
+  import('../sandbox/OpenSandboxWorkbench').then((m) => ({ default: m.OpenSandboxWorkbench }))
+);
 
 function LabLoadingSkeleton() {
   return (
@@ -80,6 +83,7 @@ export const MainLabWorkspace: React.FC = () => {
     userRole,
     isLobbyMode,
     setIsLobbyMode,
+    activeSandboxMode,
     academicLevel,
     setAcademicLevel,
   } = useLabStore(
@@ -90,6 +94,7 @@ export const MainLabWorkspace: React.FC = () => {
       userRole: s.userRole,
       isLobbyMode: s.isLobbyMode,
       setIsLobbyMode: s.setIsLobbyMode,
+      activeSandboxMode: s.activeSandboxMode,
       academicLevel: s.academicLevel,
       setAcademicLevel: s.setAcademicLevel,
     }))
@@ -281,8 +286,11 @@ export const MainLabWorkspace: React.FC = () => {
       )}
 
       <Suspense fallback={<LabLoadingSkeleton />}>
+        {/* VIEW 0: Open Sandbox Workbench */}
+        {activeSandboxMode && <OpenSandboxWorkbench />}
+
         {/* VIEW 1: Teacher Dashboard */}
-        {userRole === 'pengajar' && teacherViewMode === 'dashboard' && !isLobbyMode && (
+        {!activeSandboxMode && userRole === 'pengajar' && teacherViewMode === 'dashboard' && !isLobbyMode && (
           <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
             <TeacherDashboardView
               students={students}
@@ -335,7 +343,7 @@ export const MainLabWorkspace: React.FC = () => {
         )}
 
         {/* VIEW 2: Experiment Lobby Hub */}
-        {isLobbyMode && (
+        {!activeSandboxMode && isLobbyMode && (
           <div className="flex-1 min-h-0 overflow-y-auto">
             <LabLobbyHub
               activeTier={activeTierLabel}
@@ -366,7 +374,7 @@ export const MainLabWorkspace: React.FC = () => {
         )}
 
         {/* VIEW 3: Student Workflow Stage 1 (K3 & Pre-Lab Briefing) */}
-        {userRole === 'siswa' && !isLobbyMode && workflowStep === 1 && (
+        {!activeSandboxMode && userRole === 'siswa' && !isLobbyMode && workflowStep === 1 && (
           <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
             <PreLabBriefingView
               experiment={currentExperimentModule}
@@ -383,7 +391,8 @@ export const MainLabWorkspace: React.FC = () => {
         )}
 
         {/* VIEW 4, 5 & 6: Stages 2 (3D Cockpit), 3 (Analytics), 4 (Collab Report) */}
-        {!isLobbyMode &&
+        {!activeSandboxMode &&
+          !isLobbyMode &&
           ((userRole === 'siswa' && (workflowStep === 2 || workflowStep === 3 || workflowStep === 4)) ||
             (userRole === 'pengajar' && teacherViewMode === 'lab3d')) &&
           (() => {

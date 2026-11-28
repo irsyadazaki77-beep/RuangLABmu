@@ -1,5 +1,5 @@
 import React from 'react';
-import { Atom, FlaskConical, Leaf, Orbit } from 'lucide-react';
+import { Atom, FlaskConical, Globe2, Leaf, Orbit } from 'lucide-react';
 import { EducationTier, ScienceDomain } from '../../registry/experimentRegistry';
 import { CurriculumChapter } from '../../registry/curriculumChapters';
 import { formatCleanEquation } from '../../utils/spatialHudHelpers';
@@ -12,6 +12,7 @@ export const DOMAIN_ICONS: Record<
   kimia: FlaskConical,
   biologi: Leaf,
   astronomi: Orbit,
+  kebumian: Globe2,
 };
 
 export const DOMAIN_COLORS: Record<ScienceDomain, string> = {
@@ -19,23 +20,28 @@ export const DOMAIN_COLORS: Record<ScienceDomain, string> = {
   kimia: '#0d9488',
   biologi: '#059669',
   astronomi: '#4f46e5',
+  kebumian: '#047857',
 };
 
 export const DOMAIN_PREVIEW_IMAGES: Record<ScienceDomain, string> = {
   fisika: new URL(
-    '../../assets/images/physics_lab_preview_1794016081177.jpg',
+    '../../assets/images/physics_lab_preview_1794016081177.webp',
     import.meta.url
   ).href,
   kimia: new URL(
-    '../../assets/images/chemistry_lab_preview_1794016082025.jpg',
+    '../../assets/images/chemistry_lab_preview_1794016082025.webp',
     import.meta.url
   ).href,
   biologi: new URL(
-    '../../assets/images/biology_lab_preview_1794016082721.jpg',
+    '../../assets/images/biology_lab_preview_1794016082721.webp',
     import.meta.url
   ).href,
   astronomi: new URL(
-    '../../assets/images/astronomy_lab_preview_1794016082169.jpg',
+    '../../assets/images/astronomy_lab_preview_1794016082169.webp',
+    import.meta.url
+  ).href,
+  kebumian: new URL(
+    '../../assets/images/earth_lab_preview.svg',
     import.meta.url
   ).href,
 };
@@ -83,6 +89,14 @@ export const DOMAIN_SHOWCASE_META: Record<
     textClass: 'text-indigo-700 dark:text-indigo-300',
     barClass: 'bg-indigo-600 dark:bg-indigo-400',
   },
+  kebumian: {
+    title: 'Ilmu Bumi & Kebumian',
+    tagline: 'Seismologi gempa, efek rumah kaca, hidrologi Darcy, & C-14',
+    accentHex: '#047857',
+    softBgClass: 'bg-emerald-500/10 border-emerald-500/25',
+    textClass: 'text-emerald-700 dark:text-emerald-300',
+    barClass: 'bg-emerald-600 dark:bg-emerald-400',
+  },
 };
 
 export function getShortJenjangLabel(ch: CurriculumChapter): string {
@@ -90,6 +104,15 @@ export function getShortJenjangLabel(ch: CurriculumChapter): string {
   if (ch.competencyTier.includes('SMA')) return 'SMA';
   if (ch.competencyTier.includes('Mahasiswa')) return 'Mahasiswa';
   return ch.competencyTier;
+}
+
+/**
+ * Resolves the Indonesian Kurikulum Merdeka learning phase label for a chapter.
+ */
+export function resolveMerdekaPhaseLabel(ch: CurriculumChapter): string {
+  if (ch.competencyTier.includes('SMP')) return 'Fase D';
+  if (ch.competencyTier.includes('SMA')) return 'Fase E–F';
+  return 'PT / OSN';
 }
 
 export function chapterMatchesJenjang(

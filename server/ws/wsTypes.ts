@@ -16,7 +16,7 @@ export interface ExtWebSocket extends WebSocket {
   userName?: string;
   role?: 'Siswa' | 'Pengajar';
   groupId?: string;
-  domain?: 'fisika' | 'kimia' | 'biologi' | 'astronomi';
+  domain?: 'fisika' | 'kimia' | 'biologi' | 'astronomi' | 'kebumian';
   roomId?: string;
   schoolId?: string;
   sessionClaims?: SessionTokenClaims | null;
